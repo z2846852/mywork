@@ -72,18 +72,13 @@ public final class MainActivity extends Activity {
             String html = readAsset("index.html");
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
-            String js = readAsset("wheel.js") + "\n" + readAsset("avatar_morph.js") + "\n" + readAsset("features.js");
+            String js = readAsset("wheel.js") + "\n" + readAsset("features.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             // The friendly cartoon avatar is a local SVG; no heavy GLB or
             // third-party scripts are loaded in the 2D release.
             html = html.replace("</body>", "<script>" + js + "</script></body>");
-            // Embed the bundled cartoon or imported artwork as a data URI: the WebView
-            // intentionally cannot fetch network or local-file URLs.
-            AvatarResource resource = activeAvatar();
-            String avatar = android.util.Base64.encodeToString(
-                    resource.bytes, android.util.Base64.NO_WRAP);
-            html = html.replace("__BODY_AVATAR_BASE64__", avatar)
-                    .replace("__BODY_AVATAR_MIME__", resource.mime);
+            // Basic body schematic is generated locally as lightweight SVG.
+            // Historical imported images remain stored, but are not displayed.
             web.loadDataWithBaseURL("https://bodytrace.invalid/", html, "text/html", "UTF-8", null);
         } catch (Exception error) {
             web.loadData("<h1>本地界面加载失败</h1>", "text/html", "UTF-8");
