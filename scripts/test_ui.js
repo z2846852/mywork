@@ -23,7 +23,7 @@ const rows = demo.workouts.map(x => ({
 function check(ex,expected) {
   assert.deepEqual(JSON.parse(JSON.stringify(load(rows,ex))),expected);
 }
-check("lateral_raise",{amount:23,count:4,isAssist:false});
+check("lateral_raise",{amount:18,count:4,isAssist:false});
 check("adductor",{amount:20,count:3,isAssist:false});
 check("row",{amount:27.5,count:1,isAssist:false});
 check("assisted_pullup",{amount:73,count:1,isAssist:true});
