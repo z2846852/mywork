@@ -92,6 +92,91 @@ public final class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
+    private JSONArray localDays() throws Exception {
+        String value = vault.read("daily_json");
+        return new JSONArray(value == null ? "[]" : value);
+    }
+
+    /** A daily array is a local encrypted snapshot, not a CSV or derived chart. */
+    private static JSONArray appendLocal(JSONArray days, JSONObject event) throws Exception {
+        String date = event.getString("date");
+        JSONObject current = null;
+        for (int i = 0; i < days.length(); ++i) {
+            JSONObject item = days.getJSONObject(i);
+            if (date.equals(item.optString("date"))) {
+                current = item;
+                break;
+            }
+        }
+        if (current == null) {
+            current = new JSONObject();
+            current.put("schema_version", 2);
+            current.put("date", date);
+            current.put("workouts", new JSONArray());
+            current.put("measurements", new JSONArray());
+            current.put("nutrition", new JSONArray());
+            days.put(current);
+        }
+        JSONArray workouts = current.getJSONArray("workouts");
+        for (int i = 0; i < workouts.length(); ++i) {
+            if (event.getString("id").equals(workouts.getJSONObject(i).optString("id"))) {
+                return days;
+            }
+        }
+        JSONObject set = new JSONObject();
+        for (String key : new String[]{"id", "exercise_id", "reps", "source", "created_at"}) {
+            if (event.has(key)) set.put(key, event.get(key));
+        }
+        String loadKey = event.has("assistance_kg") ? "assistance_kg" : "load_kg";
+        set.put(loadKey, event.getDouble(loadKey));
+        workouts.put(set);
+        return days;
+    }
+
+    /** Remote values win on the same UUID; locally saved/unsynced UUIDs survive pull. */
+    private static JSONArray mergeDays(JSONArray local, JSONArray remote) throws Exception {
+        java.util.TreeMap<String, JSONObject> merged = new java.util.TreeMap<>();
+        for (int pass = 0; pass < 2; ++pass) {
+            JSONArray source = pass == 0 ? local : remote;
+            for (int i = 0; i < source.length(); ++i) {
+                JSONObject incoming = source.getJSONObject(i);
+                String date = incoming.getString("date");
+                JSONObject existing = merged.get(date);
+                if (existing == null) {
+                    merged.put(date, new JSONObject(incoming.toString()));
+                    continue;
+                }
+                for (String category : new String[]{"workouts", "measurements", "nutrition"}) {
+                    java.util.LinkedHashMap<String, JSONObject> byId = new java.util.LinkedHashMap<>();
+                    JSONArray oldItems = existing.optJSONArray(category);
+                    JSONArray newItems = incoming.optJSONArray(category);
+                    if (oldItems != null) {
+                        for (int n = 0; n < oldItems.length(); ++n) {
+                            JSONObject row = oldItems.getJSONObject(n);
+                            String id = row.optString("id", "");
+                            if (id.isEmpty()) id = "local:" + n;
+                            byId.put(id, row);
+                        }
+                    }
+                    if (newItems != null) {
+                        for (int n = 0; n < newItems.length(); ++n) {
+                            JSONObject row = newItems.getJSONObject(n);
+                            String id = row.optString("id", "");
+                            if (id.isEmpty()) id = "remote:" + n;
+                            byId.put(id, row);
+                        }
+                    }
+                    JSONArray combined = new JSONArray();
+                    for (JSONObject row : byId.values()) combined.put(row);
+                    existing.put(category, combined);
+                }
+            }
+        }
+        JSONArray result = new JSONArray();
+        for (JSONObject day : merged.values()) result.put(day);
+        return result;
+    }
+
     private void restore() {
         try {
             String token = vault.read("token");
@@ -99,43 +184,38 @@ public final class MainActivity extends Activity {
             status.put("connected", token != null && !token.isEmpty());
             status.put("repo", "z2846852/-");
             reply(status);
-            String daily = vault.read("daily_json");
-            if (daily != null) {
-                JSONObject cached = message("data");
-                cached.put("days", new JSONArray(daily));
-                cached.put("cached", true);
-                reply(cached);
-            }
+            JSONObject cached = message("data");
+            cached.put("days", localDays());
+            cached.put("cached", true);
+            reply(cached);
             String raw = vault.read("pending");
             JSONArray pending = new JSONArray(raw == null ? "[]" : raw);
             JSONObject q = message("pending");
             q.put("count", pending.length());
             q.put("events", pending);
             reply(q);
-            if (token != null && !token.isEmpty()) {
-                syncInternal(token);
-            }
+            // No automatic GitHub network access on startup. User controls sync.
         } catch (Exception e) {
             error("本机加密缓存无法读取，请检查系统密钥或重新连接。");
         }
     }
 
+    /** Explicit sync is push-outbox followed by pull-and-merge, never overwrite. */
     private void syncInternal(String token) {
         try {
-            // Upload pending sets first, then load JSON; no generated CSV is
-            // required for the new set to become visible in the calendar.
             try { drainPending(token); }
             catch (Exception upload) {
-                error("待上传队列暂未完全同步：" + safeMessage(upload));
+                error("有记录尚未上传，已保留本地：" + safeMessage(upload));
             }
-            JSONArray days = github.readDaily(token);
-            vault.write("daily_json", days.toString());
+            JSONArray remote = github.readDaily(token);
+            JSONArray combined = mergeDays(localDays(), remote);
+            vault.write("daily_json", combined.toString());
             JSONObject result = message("data");
-            result.put("days", days);
+            result.put("days", combined);
             result.put("cached", false);
             reply(result);
         } catch (Exception e) {
-            error("读取每日 JSON 失败：" + safeMessage(e));
+            error("GitHub 同步失败，本地数据仍保留：" + safeMessage(e));
         }
     }
 
@@ -209,23 +289,20 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 try {
-                    // Verify the PAT by reading private daily JSON before
-                    // storing it. This does not need an Actions run.
-                    JSONArray days = github.readDaily(token);
+                    // GitHub is an optional sync backend, not the primary UI store.
+                    JSONArray remote = github.readDaily(token);
+                    JSONArray combined = mergeDays(localDays(), remote);
                     vault.write("token", token);
-                    vault.write("daily_json", days.toString());
+                    vault.write("daily_json", combined.toString());
                     JSONObject status = message("status");
                     status.put("connected", true);
                     status.put("repo", "z2846852/-");
                     reply(status);
                     JSONObject data = message("data");
-                    data.put("days", days);
+                    data.put("days", combined);
                     data.put("cached", false);
                     reply(data);
-                    try { drainPending(token); }
-                    catch (Exception upload) {
-                        error("有待上传记录：" + safeMessage(upload));
-                    }
+                    // Do not upload automatically. User chooses when to sync.
                 } catch (Exception e) {
                     error("连接失败：" + safeMessage(e));
                 }
@@ -240,19 +317,6 @@ public final class MainActivity extends Activity {
                 } catch (Exception e) { error(safeMessage(e)); }
             });
         }
-        @JavascriptInterface public void requestActionsRefresh() {
-            worker.execute(() -> {
-                try {
-                    String token = vault.read("token");
-                    if (token == null) { error("请先连接 GitHub"); return; }
-                    github.requestActionsRefresh(token);
-                    JSONObject response = message("actions_requested");
-                    reply(response);
-                } catch (Exception e) {
-                    error("触发 Actions 失败：" + safeMessage(e));
-                }
-            });
-        }
         @JavascriptInterface public void save(String eventJson) {
             worker.execute(() -> {
                 try {
@@ -260,16 +324,17 @@ public final class MainActivity extends Activity {
                     String raw = vault.read("pending");
                     JSONArray pending = new JSONArray(raw == null ? "[]" : raw);
                     pending.put(event);
+                    // Keep the outbox first: recovery can replay it if storage
+                    // fails between the two encrypted preference writes.
                     vault.write("pending", pending.toString());
-                    JSONObject queued = message("queued");
-                    queued.put("event", event);
-                    queued.put("count", pending.length());
-                    reply(queued);
-                    String token = vault.read("token");
-                    if (token != null) {
-                        try { drainPending(token); }
-                        catch (Exception e) { error("记录已在手机排队，暂未上传：" + safeMessage(e)); }
-                    }
+                    JSONArray days = appendLocal(localDays(), event);
+                    vault.write("daily_json", days.toString());
+                    JSONObject saved = message("local_saved");
+                    saved.put("event", event);
+                    saved.put("count", pending.length());
+                    saved.put("days", days);
+                    reply(saved);
+                    // No network action until manual Sync GitHub.
                 } catch (Exception e) {
                     error("记录失败：" + safeMessage(e));
                 }
@@ -277,7 +342,8 @@ public final class MainActivity extends Activity {
         }
         @JavascriptInterface public void disconnect() {
             worker.execute(() -> {
-                vault.clear();
+                // Offline-first: removing a token must never delete local history.
+                vault.delete("token");
                 JSONObject result = message("disconnected");
                 reply(result);
             });
