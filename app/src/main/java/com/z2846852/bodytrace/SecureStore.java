@@ -68,6 +68,10 @@ final class SecureStore {
         return new String(cipher.doFinal(ct), StandardCharsets.UTF_8);
     }
 
+    synchronized void delete(String name) {
+        prefs.edit().remove(name).apply();
+    }
+
     synchronized void clear() {
         prefs.edit().clear().apply();
     }
