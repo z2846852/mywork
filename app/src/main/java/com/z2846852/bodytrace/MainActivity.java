@@ -194,7 +194,10 @@ public final class MainActivity extends Activity {
             q.put("count", pending.length());
             q.put("events", pending);
             reply(q);
-            // No automatic GitHub network access on startup. User controls sync.
+            JSONObject rawHistory = message("raw_history");
+            rawHistory.put("notes", localRawNotes());
+            reply(rawHistory);
+            // No network pull on startup. Records are still locally available. User controls sync.
         } catch (Exception e) {
             error("本机加密缓存无法读取，请检查系统密钥或重新连接。");
         }
@@ -219,23 +222,64 @@ public final class MainActivity extends Activity {
         }
     }
 
+
+    private JSONArray localRawNotes() throws Exception {
+        String value = vault.read("raw_entries");
+        return new JSONArray(value == null ? "[]" : value);
+    }
+
+    private void sendPending() throws Exception {
+        String value = vault.read("pending");
+        JSONArray pending = new JSONArray(value == null ? "[]" : value);
+        JSONObject update = message("pending");
+        update.put("count", pending.length());
+        update.put("events", pending);
+        reply(update);
+    }
+
+    private void markRawUploaded(String id) throws Exception {
+        JSONArray history = localRawNotes();
+        for (int i = 0; i < history.length(); i++) {
+            JSONObject note = history.getJSONObject(i);
+            if (id.equals(note.optString("id"))) {
+                note.put("local_status", "uploaded");
+                break;
+            }
+        }
+        vault.write("raw_entries", history.toString());
+        JSONObject update = message("raw_history");
+        update.put("notes", history);
+        reply(update);
+    }
+
     private void drainPending(String token) throws Exception {
         String str = vault.read("pending");
         JSONArray pending = new JSONArray(str == null ? "[]" : str);
         while (pending.length() > 0) {
             JSONObject event = pending.getJSONObject(0);
-            github.createEvent(token, event);
+            boolean isRaw = "raw_note".equals(event.optString("type"));
+            if (isRaw) {
+                github.createRawNote(token, event);
+            } else {
+                // Legacy queued records without type remain workouts.
+                github.createEvent(token, event);
+            }
             JSONArray remaining = new JSONArray();
             for (int i = 1; i < pending.length(); ++i) remaining.put(pending.getJSONObject(i));
             vault.write("pending", remaining.toString());
             pending = remaining;
-            JSONObject saved = message("saved");
-            saved.put("event", event);
-            reply(saved);
+            if (isRaw) {
+                markRawUploaded(event.getString("id"));
+                JSONObject result = message("raw_uploaded");
+                result.put("id", event.getString("id"));
+                reply(result);
+            } else {
+                JSONObject saved = message("saved");
+                saved.put("event", event);
+                reply(saved);
+            }
+            sendPending();
         }
-        JSONObject result = message("pending");
-        result.put("count", 0);
-        reply(result);
     }
 
     private static String safeMessage(Exception e) {
@@ -267,6 +311,7 @@ public final class MainActivity extends Activity {
         }
         JSONObject result = new JSONObject();
         result.put("schema_version", 1);
+        result.put("type", "workout");
         result.put("id", UUID.randomUUID().toString());
         result.put("date", date);
         result.put("exercise_id", ex);
@@ -275,6 +320,22 @@ public final class MainActivity extends Activity {
         result.put("created_at", OffsetDateTime.now(BEIJING).toString());
         result.put("source", "bodytrace-android");
         return result;
+    }
+
+    private static JSONObject validatedRaw(String text) throws Exception {
+        if (text == null || text.trim().isEmpty() || text.length() > 10000) {
+            throw new IllegalArgumentException("Raw 原文必须为1至10000字符");
+        }
+        JSONObject note = new JSONObject();
+        note.put("schema_version", 1);
+        note.put("type", "raw_note");
+        note.put("id", UUID.randomUUID().toString());
+        note.put("date", LocalDate.now(BEIJING).toString());
+        note.put("created_at", OffsetDateTime.now(BEIJING).toString());
+        note.put("source", "bodytrace-android");
+        note.put("status", "unprocessed");
+        note.put("text", text);
+        return note;
     }
 
     private final class Bridge {
@@ -302,7 +363,12 @@ public final class MainActivity extends Activity {
                     data.put("days", combined);
                     data.put("cached", false);
                     reply(data);
-                    // Do not upload automatically. User chooses when to sync.
+                    // Connected App writes upload immediately; new local records
+                    // are always saved before network starts.
+                    try { drainPending(token); }
+                    catch (Exception upload) {
+                        error("待上传记录已保留本机：" + safeMessage(upload));
+                    }
                 } catch (Exception e) {
                     error("连接失败：" + safeMessage(e));
                 }
@@ -334,12 +400,51 @@ public final class MainActivity extends Activity {
                     saved.put("count", pending.length());
                     saved.put("days", days);
                     reply(saved);
-                    // No network action until manual Sync GitHub.
+                    // Persist-first, then upload immediately when authenticated.
+                    String token = vault.read("token");
+                    if (token != null) {
+                        try { drainPending(token); }
+                        catch (Exception upload) {
+                            error("已保存本地，GitHub 上传失败，稍后可重试：" + safeMessage(upload));
+                            sendPending();
+                        }
+                    }
                 } catch (Exception e) {
                     error("记录失败：" + safeMessage(e));
                 }
             });
         }
+        @JavascriptInterface public void saveRaw(String text) {
+            worker.execute(() -> {
+                try {
+                    JSONObject raw = validatedRaw(text);
+                    JSONArray pending = new JSONArray(
+                            vault.read("pending") == null ? "[]" : vault.read("pending"));
+                    pending.put(raw);
+                    vault.write("pending", pending.toString());
+                    JSONArray history = localRawNotes();
+                    JSONObject copy = new JSONObject(raw.toString());
+                    copy.put("local_status", "queued");
+                    history.put(copy);
+                    vault.write("raw_entries", history.toString());
+                    JSONObject saved = message("raw_local_saved");
+                    saved.put("note", copy);
+                    saved.put("count", pending.length());
+                    reply(saved);
+                    String token = vault.read("token");
+                    if (token != null) {
+                        try { drainPending(token); }
+                        catch (Exception upload) {
+                            error("Raw 已保存本地，GitHub 上传失败：" + safeMessage(upload));
+                            sendPending();
+                        }
+                    }
+                } catch (Exception e) {
+                    error("保存 Raw 失败：" + safeMessage(e));
+                }
+            });
+        }
+
         @JavascriptInterface public void disconnect() {
             worker.execute(() -> {
                 // Offline-first: removing a token must never delete local history.
