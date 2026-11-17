@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'app/**'
+      - 'scripts/test_ui.js'
       - '*.gradle'
       - 'gradle.properties'
       - '.github/workflows/android.yml'
@@ -23,6 +24,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate BodyTrace inline JavaScript and Raw UI behaviors
+        run: node scripts/test_ui.js
       - name: Android SDK platform
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
