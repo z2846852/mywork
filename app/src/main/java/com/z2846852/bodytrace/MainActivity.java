@@ -148,7 +148,7 @@ public final class MainActivity extends Activity {
                 }
             }
         }
-        return new AvatarResource(readAssetBytes("avatar_cartoon.svg"), "image/svg+xml");
+        return new AvatarResource(readAssetBytes("avatar_cartoon_cutout.svg"), "image/svg+xml");
     }
 
     private static String sniffAvatarMime(byte[] bytes) {
