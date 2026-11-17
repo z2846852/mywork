@@ -124,6 +124,40 @@ final class GitHubApi {
         }
         throw new IllegalStateException("Concurrent daily file update did not settle");
     }
+    /** Write a raw, uninterpreted note to the private inbox; one file per note. */
+    void createRawNote(String token, JSONObject note) throws Exception {
+        String date = note.getString("date");
+        String id = note.getString("id");
+        String value = note.getString("text");
+        if (!date.matches("\\d{4}-\\d{2}-\\d{2}") ||
+                !id.matches("[0-9a-f]{8}-[0-9a-f-]{27,40}") ||
+                value.trim().isEmpty() || value.length() > 10000) {
+            throw new IllegalArgumentException("Invalid raw inbox note");
+        }
+        String path = "data/raw_inbox/" + date + "/" + id + ".json";
+        String url = REPO + "/contents/" + path;
+        JSONObject body = new JSONObject();
+        body.put("message", "raw: archive unprocessed note " + date + " " + id.substring(0, 8));
+        body.put("branch", "main");
+        body.put("content", Base64.encodeToString(
+                (note.toString(2) + "\n").getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP));
+        try {
+            request("PUT", url, token, body.toString());
+        } catch (ApiStatusException e) {
+            if (e.status != 409 && e.status != 422) throw e;
+            // A request may have succeeded before a network timeout. Treat it as
+            // idempotent only if the stored note is exactly the same raw text.
+            JSONObject saved = new JSONObject(request("GET", url + "?ref=main", token, null));
+            String decoded = new String(Base64.decode(
+                    saved.getString("content"), Base64.DEFAULT), StandardCharsets.UTF_8);
+            JSONObject existing = new JSONObject(decoded);
+            if (!id.equals(existing.optString("id")) ||
+                    !value.equals(existing.optString("text"))) {
+                throw e;
+            }
+        }
+    }
+
     private static final class ApiStatusException extends IllegalStateException {
         final int status;
         ApiStatusException(int status, String text) {
