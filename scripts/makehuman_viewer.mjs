@@ -8,6 +8,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const LIMIT = (v,a,b)=>Math.max(a,Math.min(b,v));
+const DEBUG = window.__BT_DEBUG__||{};
 const BASE = Object.freeze({
  height_cm:173.5,weight_kg:68.5,shoulder_cm:112.1,chest_cm:90.2,
  waist_cm:84.0,hip_cm:93.0,upper_arm_cm:27.5,thigh_cm:53.9,calf_cm:39.5
@@ -199,7 +200,7 @@ function tuneMaterials(root,role){
   for(const material of all){
    if(!material)continue;
    const title=(material.name||"").toLowerCase();
-   if(role==="body"&&title==="skin"){
+   if(role==="body"&&title==="skin"&&!DEBUG.noTint){
     material.color.set("#d4a68f");
     const gain=Number(material.userData?.tint?.gain);
     if(Number.isFinite(gain)&&gain>0)material.color.multiplyScalar(gain);
@@ -252,17 +253,17 @@ async function mount(canvas,encoded,progress=()=>{}){
  if(!body||!body.morphTargetDictionary)throw Error("人体 GLB 缺少骨骼和形变目标");
  content.add(main);
  tuneMaterials(main,"body");
- enableLocalDeformation(main,"body");
+ if(!DEBUG.noLocalDeform)enableLocalDeformation(main,"body");
  const accepted=[];
  for(const [key,role] of [["hair","hair"],["shorts","shorts"],["shoes","shoes"]]){
-  if(!encoded[key])continue;
+  if(!encoded[key]||DEBUG.noAccessories)continue;
   progress("正在装配 "+({hair:"寸头",shorts:"运动短裤",shoes:"运动鞋"}[key])+"…");
   try{
    const item=await parseGLB(loader,encoded[key]);
    rebindToBody(item.scene,body);
    content.add(item.scene);
    tuneMaterials(item.scene,role);
-   if(key==="shorts")enableLocalDeformation(item.scene,"clothing");
+   if(key==="shorts"&&!DEBUG.noLocalDeform)enableLocalDeformation(item.scene,"clothing");
    accepted.push({key,root:item.scene});
   }catch(error){
    console.warn("[BodyTrace] optional part:",key,error);
@@ -300,9 +301,9 @@ async function mount(canvas,encoded,progress=()=>{}){
   const cm=n(measurements.height_cm,173.5);
   bodyScale=LIMIT(cm/173.5,.88,1.12);
   content.scale.setScalar(bodyScale);
-  setMappedMorphs(main,measurements);
-  for(const obj of accepted)setMappedMorphs(obj.root,measurements);
-  for(const obj of shapeObjects)deformTo(obj,"body",measurements);
+  if(!DEBUG.noMorph){setMappedMorphs(main,measurements);
+  for(const obj of accepted)setMappedMorphs(obj.root,measurements);}
+  if(!DEBUG.noLocalDeform)for(const obj of shapeObjects)deformTo(obj,"body",measurements);
   request();
  }
  apply({height_cm:173.5,weight_kg:68.5});
