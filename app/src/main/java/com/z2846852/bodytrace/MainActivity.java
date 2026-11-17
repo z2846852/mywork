@@ -430,6 +430,18 @@ public final class MainActivity extends Activity {
                 } catch (Exception e) { error(safeMessage(e)); }
             });
         }
+        @JavascriptInterface public void showViewModel() {
+            worker.execute(() -> {
+                try {
+                    ensureMigrated();
+                    JSONObject out = message("view_json");
+                    out.put("view_model", new JSONObject(plain.getView()));
+                    reply(out);
+                } catch (Exception e) {
+                    error("读取派生 JSON 失败：" + safeMessage(e));
+                }
+            });
+        }
         @JavascriptInterface public void save(String eventJson) {
             worker.execute(() -> {
                 try {
