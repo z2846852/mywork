@@ -107,9 +107,59 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div id="rawHistory" class="empty">暂无原始记录。</div></div>
 </section>
 
+<section class="page" id="page-nutrition">
+<div class="panel"><div class="eyebrow">NUTRITION / DAILY INTAKE</div><h2>饮食热量表</h2>
+<p class="sub">按实际吃下的重量计算；热量和营养素来自包装或你的估算，不自动猜测汤里多少肉。</p>
+<div class="row" style="margin-top:14px"><div><h3 style="margin:0" id="foodDateLabel">今日饮食</h3><p class="sub" id="foodDayTotals">尚无记录</p></div>
+<span class="tag" id="foodRecordCount">0条记录</span></div>
+<div id="nutritionBars"></div><div id="foodList" class="food-list"></div>
+</div>
+<div class="panel"><div class="eyebrow">NEW FOOD ENTRY</div><h2>新增饮食</h2>
+<div class="field"><label for="foodDate">日期（北京时间）</label><input id="foodDate" type="date"></div>
+<div class="formgrid"><div class="field"><label for="foodMeal">餐次</label><select id="foodMeal">
+<option value="breakfast">早餐</option><option value="lunch">午餐</option><option value="dinner">晚餐</option><option value="snack">加餐</option></select></div>
+<div class="field"><label for="foodPreset">快速填充</label><select id="foodPreset">
+<option value="">手动输入</option><option value="rice">熟米饭（参考）</option><option value="egg">鸡蛋（参考）</option>
+<option value="soy">无糖豆浆（参考）</option><option value="chicken">熟鸡胸肉（参考）</option>
+<option value="soup">肉骨茶/排骨汤（请自填）</option></select></div></div>
+<div class="field"><label for="foodName">食物名称</label><input id="foodName" maxlength="100" placeholder="例如：排骨汤（连汤带肉）"></div>
+<div class="formgrid">
+<div class="field"><label for="foodGrams">食用重量 (g)</label><input id="foodGrams" type="number" step="1" min="1" inputmode="decimal" value="100"></div>
+<div class="field"><label for="foodKcal">热量 (kcal/100g)</label><input id="foodKcal" type="number" step="0.1" min="0" inputmode="decimal" placeholder="按包装或估算"></div>
+</div>
+<div class="formgrid">
+<div class="field"><label for="foodProtein">蛋白质 (g/100g，可选)</label><input id="foodProtein" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
+<div class="field"><label for="foodCarbs">碳水 (g/100g，可选)</label><input id="foodCarbs" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
+</div>
+<div class="field"><label for="foodFat">脂肪 (g/100g，可选)</label><input id="foodFat" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
+<div class="panel inner"><div class="row"><span>本次预计摄入</span><strong id="foodPreviewKcal">— kcal</strong></div>
+<p class="sub" id="foodPreviewMacros">按重量 × 每100g数值 ÷ 100</p></div>
+<button class="primary" id="saveNutrition">保存饮食 · 本地立即更新</button>
+<p class="note">参考预设是常见估算值，不是品牌检测报告。尤其汤类差异很大，需要按实际食材与份量填写。只有你录入的数据会被保存，不推断不存在的食物。</p>
+</div>
+</section>
+
+<section class="page" id="page-analytics">
+<div class="panel"><div class="eyebrow">STRENGTH / PROGRESSION</div><h2>训练力量趋势</h2>
+<p class="sub">迁移原仓库按动作追踪负重、次数及简化力量参考值的思路，App 本地交互绘图。</p>
+<div class="field"><label for="analyticsExercise">对比器械</label><select id="analyticsExercise"></select></div>
+<div class="row" style="margin-top:13px"><span class="tag" id="analyticsSets">—</span><span class="tag" id="analyticsRange">—</span></div>
+<div id="strengthChart" class="feature-chart"></div>
+<p class="note" id="strengthDisclaimer">e1RM 只是公式参考值。不同器械和辅助负重不可直接按公斤比较。</p>
+</div>
+<div class="panel"><h2>训练区域分布</h2><p class="sub">最近28天各部位记录组数，不代表真实肌肉大小或训练效果。</p>
+<div id="regionSummary"></div></div>
+</section>
+
 <section class="page" id="page-body">
-<div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从私有仓库每日 JSON 读取身体记录，App 本机计算并展示；暂不支持本页新增测量。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div><div class="panel"><h2>身体指标趋势</h2><p class="sub">仅使用已报告的日期与数值；未校正测量设备、时间或条件差异。</p><div id="bodyTrends" style="margin-top:12px"></div></div>
-<div class="panel"><div class="eyebrow">NEXT / MODULES</div><h2>饮食分析</h2><p class="sub">下一阶段接入饮食事件、蛋白质/热量、体重及围度趋势。默认仍存私有仓库，不公开个人记录。</p><div class="tag" style="display:inline-block;margin-top:12px">尚未接入写入</div></div>
+<div class="panel"><div class="eyebrow">BODY / VISUAL</div><h2>身体与训练部位</h2>
+<p class="sub">个人身高档案 173.5cm（固定默认值）；身体围度按实测显示。部位颜色代表最近28天训练组数，<b>不是</b>3D体型预测。</p>
+<div id="profileStats" class="profile-stats"></div>
+<div id="bodyMuscleView" class="muscle-view"></div>
+<div id="muscleDetail" class="note">点选胸、肩、背、腿、手臂、核心区域查看训练统计。</div>
+</div>
+<div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从本机每日 JSON 直接读取身体指标；更新后无需重新生成图表文件。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div><div class="panel"><h2>身体指标趋势</h2><p class="sub">仅使用已报告的日期与数值；未校正测量设备、时间或条件差异。</p><div id="bodyTrends" style="margin-top:12px"></div></div>
+
 </section>
 
 <section class="page" id="page-settings">
@@ -133,7 +183,9 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <button data-page="home" class="active"><span class="ico">▦</span>概览</button>
 <button data-page="record"><span class="ico">＋</span>记录</button>
 <button data-page="raw"><span class="ico">✎</span>Raw</button>
-<button data-page="body"><span class="ico">◉</span>身体 / 饮食</button>
+<button data-page="nutrition"><span class="ico">▤</span>饮食</button>
+<button data-page="analytics"><span class="ico">▥</span>趋势</button>
+<button data-page="body"><span class="ico">◉</span>身体</button>
 <button data-page="settings"><span class="ico">⚙</span>连接</button>
 </nav><div id="toast" role="status"></div>
 <script>
