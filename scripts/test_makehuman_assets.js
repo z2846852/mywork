@@ -44,7 +44,7 @@ const bundled=path.join(root,"app/src/main/assets/makehuman3d.bundle.js");
 assert.ok(fs.statSync(bundled).size>100_000,"missing standalone Three.js renderer bundle");
 const native=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/MainActivity.java"),"utf8");
 const features=fs.readFileSync(path.join(root,"app/src/main/assets/features.js"),"utf8");
-for(const name of ["base_body.glb","hair_short02.glb","clothing_shorts.glb","clothing_shoes.glb"]){
+for(const name of ["base_body.glb","hair_short04.glb","clothing_shorts.glb","clothing_shoes.glb"]){
  assert.ok(native.includes(name),"native APK must embed "+name);
  assert.ok(fs.existsSync(path.join(root,"app/src/main/assets/makehuman",name)),"APK asset missing "+name);
 }
