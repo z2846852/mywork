@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>体迹 BodyTrace</title>
+<style>
+:root{--bg:#0b1114;--surface:#151f23;--panel:#19282a;--line:#2a4140;--green:#63e9ad;--muted:#91a9a8;--white:#effbf3;--red:#ff947a;font-family:Roboto,"Noto Sans SC",-apple-system,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--white)}
+body{background:radial-gradient(circle at 80% -15%,#174337 0%,#0b1114 50%);overscroll-behavior:contain}
+button,input,select{font:inherit}button{cursor:pointer}input,select{background:#0e171b;color:var(--white);border:1px solid #395250;border-radius:11px;padding:12px 14px;width:100%;outline-color:var(--green)}
+button:focus-visible{outline:2px solid var(--green)}
+.screen{max-width:960px;margin:auto;padding:22px 17px 106px}
+.eyebrow{font-size:11px;letter-spacing:.24em;font-weight:800;color:var(--green);margin:2px 0 7px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.top h1{font-size:32px;letter-spacing:-1.5px;margin:0 0 4px}.top p{font-size:13px;color:var(--muted);margin:0}
+.circle{display:flex;align-items:center;justify-content:center;width:45px;height:45px;border-radius:15px;background:#213a32;border:1px solid #375e4f;font-size:22px}
+.status{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-top:17px}.dot{display:inline-block;width:7px;height:7px;background:#e0a653;border-radius:50%}.dot.on{background:var(--green)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:20px}.stat{background:#142522;border:1px solid #24443a;border-radius:14px;padding:14px 12px}
+.stat strong{display:block;font-size:clamp(21px,5vw,27px);font-weight:750;line-height:1.2;font-variant-numeric:tabular-nums}.stat span{color:#9ab3a7;font-size:11px;display:block;margin-top:6px}
+.panel{border:1px solid var(--line);background:var(--surface);border-radius:18px;padding:19px;margin-top:17px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.row.wrap{flex-wrap:wrap}
+h2{margin:0;font-size:17px}h3{margin:0 0 12px;font-size:15px}
+.sub{font-size:12px;color:var(--muted);line-height:1.5;margin:6px 0 0}
+.select{max-width:185px;font-size:12px;padding:9px 10px}
+.scroll{overflow-x:auto;overscroll-behavior-x:contain;margin-top:19px;padding-bottom:4px}
+.weekheads{display:flex;align-items:center;gap:13px;margin:3px 0 7px;font-size:10px;color:var(--muted)}
+.months{position:relative;height:19px;width:1015px;font-size:10px;color:#9db9ae}.month{position:absolute}
+#heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,13px);grid-auto-columns:13px;gap:5px;width:max-content}
+.cell{display:block;width:13px;height:13px;border:1px solid #354342;background:#252d30;padding:0;border-radius:3px}
+.cell[data-level="1"]{background:#19503d;border-color:#19503d}.cell[data-level="2"]{background:#207a56;border-color:#207a56}
+.cell[data-level="3"]{background:#2eae75;border-color:#2eae75}.cell[data-level="4"]{background:#59e9ab;border-color:#59e9ab}
+.cell.active{outline:2px solid #fff;outline-offset:2px}.cell.dim{opacity:.35}
+.legend{display:flex;align-items:center;justify-content:end;gap:5px;margin-top:13px;font-size:10px;color:var(--muted)}
+.legend i{width:11px;height:11px;border-radius:2px;display:block;background:#252d30}.legend i.l1{background:#19503d}.legend i.l2{background:#207a56}.legend i.l3{background:#2eae75}.legend i.l4{background:#59e9ab}
+.mini{border:none;border-radius:9px;padding:9px 12px;background:#254636;color:#b9ffdc;font-size:12px;font-weight:700}
+.exercise{border-top:1px solid #2e4240;padding:14px 0 0;margin-top:15px}.exercise-name{font-size:14px;font-weight:700}.exercise-count{font-size:12px;color:var(--muted)}
+.sets{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.set{background:#173629;border:1px solid #305a45;border-radius:12px;padding:9px 11px;min-width:98px}
+.set b{display:block;font-size:14px}.set small{display:block;font-size:10px;color:#9bb7a8;margin-top:4px}
+.empty{text-align:center;color:#87a29c;padding:30px 12px;line-height:1.6;font-size:13px}
+.tabs{position:fixed;bottom:0;left:0;right:0;background:#121c20eF;backdrop-filter:blur(16px);border-top:1px solid #294440;display:flex;justify-content:center;padding:8px max(5px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom));z-index:5}
+.tabs button{border:0;background:transparent;color:#819895;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 8px;flex:1;max-width:165px;font-size:10px;border-radius:12px}
+.tabs button.active{background:#1d3a30;color:var(--green)}.tabs .ico{font-size:20px;line-height:1.2}
+.page{display:none}.page.active{display:block}
+label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin-top:15px}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.primary{display:block;border:none;border-radius:12px;color:#042416;background:var(--green);font-weight:800;padding:14px 17px;width:100%;margin-top:20px}
+.secondary{border:1px solid #456458;color:#cfe9dc;background:#1b322e;padding:12px;border-radius:12px}
+.code{font-family:monospace;color:#9fd8c0;font-size:12px;word-break:break-all}
+.alert{background:#3a2927;border:1px solid #8b5147;color:#f9b8a6;border-radius:12px;padding:12px;font-size:12px;margin-top:13px}
+.tag{border:1px solid #35644c;border-radius:30px;font-size:11px;color:#97dfb6;padding:5px 9px}
+.metric{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #2b3d3d;gap:8px}
+.metric:last-child{border-bottom:0}.metric b{font-size:20px}.metric small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+#toast{position:fixed;left:18px;right:18px;bottom:89px;z-index:8;padding:13px 16px;border:1px solid #3d725a;border-radius:13px;background:#203d31;color:#ccffe3;box-shadow:0 8px 25px #0009;display:none;font-size:13px;max-width:600px;margin:auto;line-height:1.5}
+#toast.warn{background:#452d29;border-color:#ab6656;color:#ffe0d6}
+.note{font-size:12px;line-height:1.7;color:#9ab5ab}
+@media(min-width:740px){.screen{padding:38px 28px 112px}.top h1{font-size:42px}.tabs{width:480px;left:50%;transform:translateX(-50%);border-radius:18px 18px 0 0;border:1px solid #2b4c40}.stat{padding:20px}.cardgrid{display:grid;grid-template-columns:3fr 2fr;gap:16px}}
+</style></head>
+<body>
+<main class="screen">
+<header class="top"><div><div class="eyebrow">BODYTRACE / PERSONAL METRICS</div><h1>体迹 <span style="font-weight:300;color:#a8c5b7">BodyTrace</span></h1><p>训练、饮食与身体指标的长期记录</p></div><div class="circle">◈</div></header>
+<div class="status"><i id="statusDot" class="dot"></i><span id="statusText">尚未连接私有仓库</span><span id="pendingStatus"></span></div>
+
+<section class="page active" id="page-home">
+<div class="stats"><div class="stat"><strong id="statDays">—</strong><span>训练天数</span></div><div class="stat"><strong id="statSets">—</strong><span>总训练组</span></div><div class="stat"><strong id="statMovements">—</strong><span>训练动作</span></div></div>
+<div class="panel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，色块越亮表示当天记录组数越多</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
+<div class="scroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
+<div class="legend"><span>少</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>多</span></div></div>
+<div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div><div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
+<div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">未连接 · 未同步</p><button id="syncHome" class="secondary" style="font-size:12px">↻ 同步数据</button></div>
+</section>
+
+<section class="page" id="page-record">
+<div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">提交后写入私有仓库的独立 JSON 事件，不覆盖旧训练组。</p>
+<div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
+<div class="field"><label for="recordExercise">动作</label><select id="recordExercise">
+<option value="lateral_raise">Lateral Raise · 侧平举</option>
+<option value="adductor">Adductor · 髋内收</option>
+<option value="abductor">Abductor · 髋外展</option>
+<option value="row">Seated Row · 单侧划船</option>
+<option value="assisted_pullup">Assisted Pull-up · 辅助引体</option>
+<option value="smith_bench">Smith Bench Press · 史密斯卧推</option>
+<option value="chest_press">Chest Press · 坐姿胸推</option>
+<option value="pec_deck">Pec Deck · 蝴蝶机正向</option>
+<option value="reverse_fly">Reverse Fly · 反向蝴蝶机</option>
+<option value="vertical_traction">Vertical Traction · 垂直下拉</option>
+</select></div>
+<div class="formgrid"><div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="例如 27.5"></div>
+<div class="field"><label for="recordReps">次数</label><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" placeholder="例如 8"></div></div>
+<button class="primary" id="saveRecord">保存这一组 → GitHub</button>
+<p class="note">无网络时先进入本机加密队列。辅助引体的重量代表“标称辅助量”，与其他动作的负重方向相反。少于15次按你的规则记录RIR0，不能当作真实力竭测量。</p>
+<div id="saveHelp" class="alert" style="display:none">当前未连接仓库。可以先离线记录，连接后自动尝试上传。</div>
+</div></section>
+
+<section class="page" id="page-body">
+<div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从私有仓库已有 measurements.csv 读取；暂不支持本页新增测量。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div>
+<div class="panel"><div class="eyebrow">NEXT / MODULES</div><h2>饮食分析</h2><p class="sub">下一阶段接入饮食事件、蛋白质/热量、体重及围度趋势。默认仍存私有仓库，不公开个人记录。</p><div class="tag" style="display:inline-block;margin-top:12px">尚未接入写入</div></div>
+</section>
+
+<section class="page" id="page-settings">
+<div class="panel"><div class="eyebrow">SECURE CONNECTION</div><h2>连接 GitHub 私有仓库</h2>
+<p class="sub">目标仓库：<span class="code">z2846852/-</span> · main</p>
+<p class="note">在 GitHub 创建 Fine-grained personal access token，仅授权此仓库 Contents Read and write。令牌本机加密储存、不上传 mywork，也不会发送至第三方服务器。</p>
+<div class="field"><label for="token">GitHub Token</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_..."></div>
+<button id="connect" class="primary">验证连接并保存</button>
+<div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">断开并清除本机缓存</button><button id="syncSettings" class="secondary">同步</button></div>
+<div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
+</div>
+<div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、界面、APK 构建。<br>“-” （私有）：原始训练、事件、指标计算。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
+</section>
+</main>
+<nav class="tabs" aria-label="主导航">
+<button data-page="home" class="active"><span class="ico">▦</span>概览</button>
+<button data-page="record"><span class="ico">＋</span>记录</button>
+<button data-page="body"><span class="ico">◉</span>身体 / 饮食</button>
+<button data-page="settings"><span class="ico">⚙</span>连接</button>
+</nav><div id="toast" role="status"></div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const state={rows:[],measurements:[],filter:"",selected:"",connected:false,hasCache:false,pending:0};
+const workoutsCol=["session_date","exercise","set_no","reps","load_kg","assistance_kg","rir","rir_source"];
+function parseCSV(csv){
+ const lines=[];let line=[],field="",quoted=false;
+ for(let i=0;i<csv.length;i++){const ch=csv[i];
+  if(quoted){if(ch==='"'&&csv[i+1]==='"'){field+='"';i++}else if(ch==='"'){quoted=false}else{field+=ch}}
+  else if(ch==='"'){quoted=true}
+  else if(ch===','){line.push(field);field=""}
+  else if(ch==='\n'){line.push(field);if(line.some(x=>x.length))lines.push(line);line=[];field=""}
+  else if(ch!=='\r'){field+=ch}
+ }
+ if(field||line.length){line.push(field);lines.push(line)}
+ if(!lines.length)return[];
+ const cols=lines[0].map(x=>x.replace(/^\uFEFF/,""));
+ return lines.slice(1).map(fields=>Object.fromEntries(cols.map((c,i)=>[c,fields[i]||""])));
+}
+function pad(n){return String(n).padStart(2,"0")}
+function iso(d){return d.getUTCFullYear()+"-"+pad(d.getUTCMonth()+1)+"-"+pad(d.getUTCDate())}
+function parse(s){return new Date(s+"T12:00:00Z")}
+function plus(s,n){let d=parse(s);d.setUTCDate(d.getUTCDate()+n);return iso(d)}
+function todayShanghai(){return new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:"Asia/Shanghai"}).format(new Date())}
+const today=todayShanghai();$("recordDate").value=today;state.selected=today;
+function toast(msg,bad=false){let e=$("toast");e.textContent=msg;e.className=bad?"warn":"";e.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.style.display="none",4300)}
+function navigate(name){
+ document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+name));
+ document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
+}
+document.querySelectorAll(".tabs button").forEach(btn=>btn.onclick=()=>navigate(btn.dataset.page));
+function renderStatus(){
+ $("statusDot").classList.toggle("on",state.connected);
+ $("statusText").textContent=state.connected?(state.hasCache?"已连接 · 离线缓存":"已连接 · 私有仓库"):"尚未连接私有仓库";
+ $("pendingStatus").textContent=state.pending?" · 待上传 "+state.pending+" 组":"";
+ $("saveHelp").style.display=state.connected?"none":"block";
+}
+function filtered(){return state.rows.filter(r=>!state.filter||r.exercise===state.filter)}
+function indexData(){
+ const valid=state.rows.filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date)&&r.exercise);
+ $("statSets").textContent=valid.length;
+ $("statDays").textContent=new Set(valid.map(r=>r.session_date)).size;
+ $("statMovements").textContent=new Set(valid.map(r=>r.exercise)).size;
+ const old=state.filter;const exs=[...new Set(valid.map(r=>r.exercise))].sort((a,b)=>a.localeCompare(b,"zh-CN"));
+ $("filter").replaceChildren();let all=document.createElement("option");all.textContent="全部训练";all.value="";$("filter").append(all);
+ for(const name of exs){const op=document.createElement("option");op.value=name;op.textContent=name;$("filter").append(op)}
+ $("filter").value=old; const dates=valid.map(r=>r.session_date).sort(); if(dates.length)state.selected=dates[dates.length-1];
+ renderHeat();renderDay();
+}
+function renderHeat(){
+ const entries=filtered(),counts=new Map();
+ for(const r of entries){counts.set(r.session_date,(counts.get(r.session_date)||0)+1)}
+ const dateEnd=today>state.selected?today:state.selected;
+ const monday=plus(dateEnd,-((parse(dateEnd).getUTCDay()+6)%7));
+ const start=plus(monday,-51*7),heat=$("heat"),months=$("months");heat.replaceChildren();months.replaceChildren();let lastMonth="";
+ for(let w=0;w<52;w++){
+  const first=plus(start,w*7),month=first.slice(0,7);
+  if(month!==lastMonth){const label=document.createElement("span");label.className="month";label.textContent=Number(first.slice(5,7))+"月";label.style.left=(w*18)+"px";months.append(label);lastMonth=month}
+  for(let d=0;d<7;d++){
+   const day=plus(first,d),count=counts.get(day)||0,cell=document.createElement("button");
+   cell.type="button";cell.className="cell"+(state.selected===day?" active":"")+(day>today?" dim":"");
+   cell.dataset.level=String(count===0?0:count<=2?1:count<=5?2:count<=8?3:4);
+   cell.title=day+" · "+count+"组";cell.setAttribute("aria-label",cell.title);
+   cell.onclick=()=>{state.selected=day;renderHeat();renderDay()};heat.append(cell);
+  }
+ }
+}
+function weight(r){if(r.assistance_kg)return "辅助 "+r.assistance_kg+"kg";if(r.load_kg!=="")return r.load_kg+"kg";return r.machine_setting?"刻度 "+r.machine_setting:"未记录负重"}
+function renderDay(){
+ $("selectedDate").textContent=state.selected+" · 训练详情";
+ const list=filtered().filter(r=>r.session_date===state.selected);
+ $("selectedSummary").textContent=list.length+" 组 · "+new Set(list.map(r=>r.exercise)).size+" 个动作";
+ const view=$("dayDetails");view.replaceChildren();
+ if(!list.length){view.className="empty";view.textContent="该日期暂无匹配训练记录。";return}
+ view.className="";
+ const byEx=new Map();for(const r of list){if(!byEx.has(r.exercise))byEx.set(r.exercise,[]);byEx.get(r.exercise).push(r)}
+ for(const [ex,items] of byEx){
+  const section=document.createElement("section");section.className="exercise";
+  const header=document.createElement("div");header.className="row";const name=document.createElement("span");name.className="exercise-name";name.textContent=ex;
+  const count=document.createElement("span");count.className="exercise-count";count.textContent=items.length+" 组";header.append(name,count);section.append(header);
+  const sets=document.createElement("div");sets.className="sets";
+  items.forEach((r,i)=>{
+   const p=document.createElement("div");p.className="set";const b=document.createElement("b");
+   const approx=r.notes&&r.notes.includes("第1组约15次")&&r.set_no==="1"&&r.load_kg==="14"&&r.exercise.includes("Lateral Raise");
+   b.textContent=weight(r)+" × "+(approx?"约":"")+r.reps+"次";p.append(b);
+   const meta=document.createElement("small");meta.textContent="第"+(i+1)+"组 · "+(r.rir_source==="user_rule_under_15"?"RIR0 (规则)":r.rir?"RIR "+r.rir:"RIR未知");p.append(meta);sets.append(p);
+  });section.append(sets);view.append(section);
+ }
+}
+function renderBody(){
+ const el=$("bodyMetrics");el.replaceChildren();
+ const fields=[["weight_kg","体重","kg"],["body_fat_pct","体脂率","%"],["muscle_mass_kg","肌肉量","kg"],["chest_cm","胸围","cm"],["waist_cm","腰围","cm"],["abdomen_cm","腹围","cm"],["hip_cm","臀围","cm"],["shoulder_cm","肩围","cm"],["upper_arm_cm","上臂围","cm"]];
+ let n=0;
+ for(const [field,label,unit] of fields){
+  const v=state.measurements.filter(r=>r.reported_date&&r[field]!=="").sort((a,b)=>a.reported_date.localeCompare(b.reported_date)).at(-1);
+  if(!v)continue;n++;
+  const row=document.createElement("div");row.className="metric";const lhs=document.createElement("div");
+  const title=document.createElement("strong");title.textContent=label;
+  const small=document.createElement("small");small.textContent="记录日期："+v.reported_date;
+  lhs.append(title,small);const val=document.createElement("b");val.textContent=v[field]+unit;row.append(lhs,val);el.append(row)
+ }
+ if(!n){el.className="empty";el.textContent="尚无已同步的身体指标。"}else el.className="";
+}
+$("filter").onchange=e=>{state.filter=e.target.value;renderHeat();renderDay()};
+$("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.selected=ds.at(-1)||today;renderHeat();renderDay()};
+$("recordExercise").onchange=()=>{$("weightLabel").textContent=$("recordExercise").value==="assisted_pullup"?"器械标称辅助量 (kg)":"器械标称重量 (kg)"};
+$("saveRecord").onclick=()=>{
+ const date=$("recordDate").value,exercise_id=$("recordExercise").value,kg=Number($("recordKg").value),reps=Number($("recordReps").value);
+ if(!date||!$("recordKg").value||!Number.isFinite(kg)||kg<0||kg>500||Math.round(kg*10)!==kg*10||!Number.isInteger(reps)||reps<1||reps>200){toast("检查日期、重量和次数；重量最多一位小数。",true);return}
+ if(!window.BodyTraceNative){toast("请在 Android App 内使用此功能。",true);return}
+ BodyTraceNative.save(JSON.stringify({date,exercise_id,kg,reps}));
+ $("saveRecord").disabled=true;setTimeout(()=>$("saveRecord").disabled=false,900);
+};
+$("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("请先粘贴 GitHub token",true);return}
+ $("token").value="";BodyTraceNative.connect(token);toast("正在验证连接…")};
+$("disconnect").onclick=()=>{if(confirm("断开连接，并清除本机加密缓存和未上传队列？"))BodyTraceNative.disconnect()};
+const sync=()=>BodyTraceNative.sync();
+$("syncHome").onclick=sync;$("syncSettings").onclick=sync;
+window.bodyTraceReceive=function(evt){
+ switch(evt.type){
+ case "status":state.connected=!!evt.connected;renderStatus();if(state.connected)toast("GitHub 私有仓库已连接");break;
+ case "disconnected":state.connected=false;state.rows=[];state.measurements=[];state.pending=0;state.hasCache=false;renderStatus();indexData();renderBody();toast("已清除本机连接与缓存");break;
+ case "pending":state.pending=evt.count||0;renderStatus();break;
+ case "queued":state.pending=evt.count||0;renderStatus();toast("已保存到本机队列，准备上传私有 GitHub");$("recordKg").value="";$("recordReps").value="";break;
+ case "saved":toast("一组训练已写入私有 GitHub。Actions 导入后点击同步即可显示。");break;
+ case "data":state.rows=parseCSV(evt.csv||"");state.measurements=parseCSV(evt.measurements||"");
+ state.hasCache=!!evt.cached;indexData();renderBody();renderStatus();$("sourceLabel").textContent=(evt.cached?"本机缓存":"已从私有 GitHub 同步")+" · "+state.rows.length+"组";break;
+ case "error":toast(evt.message||"操作失败",true);break;
+ }
+};
+renderStatus();renderHeat();renderDay();
+if(window.BodyTraceNative)BodyTraceNative.ready();
+</script></body></html>
