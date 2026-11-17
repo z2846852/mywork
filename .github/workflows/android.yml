@@ -17,7 +17,7 @@ concurrency:
 jobs:
   android:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate BodyTrace inline JavaScript and Raw UI behaviors
+      - name: Check BodyTrace UI and data conversion tests
         run: node scripts/test_ui.js
       - name: Android SDK platform
         run: |
@@ -35,26 +35,67 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Compile and package debug APK
-        run: gradle --no-daemon -PappBuildNumber="$GITHUB_RUN_NUMBER" :app:assembleDebug
-      - name: Inspect APK
+      - name: Prepare permanent signing key (requires repository secrets)
+        shell: bash
+        env:
+          KEY_B64: ${{ secrets.BODYTRACE_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.BODYTRACE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BODYTRACE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.BODYTRACE_KEY_PASSWORD }}
         run: |
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | head -n 3
-      - name: Copy APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk BodyTrace-debug.apk
+          set -euo pipefail
+          if [[ -z "$KEY_B64" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo "SIGNING_READY=false" >> "$GITHUB_ENV"
+            echo "::notice title=Stable signing not configured::Set the four BODYTRACE_* repository secrets for permanently upgradable Release APKs."
+          else
+            keyfile="$RUNNER_TEMP/bodytrace-release.jks"
+            printf '%s' "$KEY_B64" | base64 --decode > "$keyfile"
+            chmod 600 "$keyfile"
+            echo "BODYTRACE_SIGNING_FILE=$keyfile" >> "$GITHUB_ENV"
+            echo "BODYTRACE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "BODYTRACE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "BODYTRACE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "SIGNING_READY=true" >> "$GITHUB_ENV"
+          fi
+      - name: Build fixed-signature Release APK
+        if: env.SIGNING_READY == 'true'
+        run: gradle --no-daemon -PappBuildNumber="$GITHUB_RUN_NUMBER" :app:assembleRelease
+      - name: Verify Release APK signature
+        if: env.SIGNING_READY == 'true'
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release.apk | head -n 3
+          cp app/build/outputs/apk/release/app-release.apk BodyTrace-release.apk
+      - name: Build unsigned-key fallback debug test APK (not an upgrade build)
+        if: env.SIGNING_READY != 'true'
+        run: |
+          gradle --no-daemon -PappBuildNumber="$GITHUB_RUN_NUMBER" :app:assembleDebug
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify app/build/outputs/apk/debug/app-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk BodyTrace-debug-UNSTABLE.apk
       - uses: actions/upload-artifact@v4
+        if: env.SIGNING_READY == 'true'
         with:
-          name: BodyTrace-Android-debug-APK
-          path: BodyTrace-debug.apk
+          name: BodyTrace-Stable-Release-APK
+          path: BodyTrace-release.apk
           if-no-files-found: error
-      - name: Publish downloadable test APK
+      - uses: actions/upload-artifact@v4
+        if: env.SIGNING_READY != 'true'
+        with:
+          name: BodyTrace-Preview-Debug-APK-not-upgradable
+          path: BodyTrace-debug-UNSTABLE.apk
+          if-no-files-found: error
+      - name: Publish permanent-signature APK
+        if: env.SIGNING_READY == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          tag="v0.1.$GITHUB_RUN_NUMBER"
-          gh release create "$tag" "BodyTrace-debug.apk#Android APK" --target "$GITHUB_SHA" \
-            --title "BodyTrace $tag (test)" --notes "Personal test build. Uses ephemeral Android debug signing; reinstall may require uninstall and clearing local token. Do not embed GitHub tokens in source." --latest
-          echo "https://github.com/$GH_REPO/releases/latest/download/BodyTrace-debug.apk"
+          tag="v0.2.$GITHUB_RUN_NUMBER"
+          gh release create "$tag" "BodyTrace-release.apk#Stable signed Android APK" --target "$GITHUB_SHA" \
+            --title "BodyTrace $tag (Release)" --notes "Signed using persistent repository secrets. Keep the signing key backed up for future updates." --latest
+          echo "https://github.com/$GH_REPO/releases/latest/download/BodyTrace-release.apk"
+      - name: Explain preview build if secrets not configured
+        if: env.SIGNING_READY != 'true'
+        run: |
+          echo "::warning title=Signing setup required::The debug APK is a preview artifact only. Configure secrets to enable over-the-top upgradeable releases."
