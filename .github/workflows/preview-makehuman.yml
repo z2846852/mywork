@@ -1,0 +1,38 @@
+name: Render MakeHuman 3D Preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/preview_makehuman.cjs'
+      - '.github/workflows/preview-makehuman.yml'
+      - 'scripts/makehuman_viewer.mjs'
+      - 'models/free/makehuman/**'
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build local offline renderer
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund \
+            three@0.170.0 esbuild@0.24.2 playwright@1.56.1
+          ./node_modules/.bin/esbuild scripts/makehuman_viewer.mjs \
+            --bundle --platform=browser --format=iife --target=es2020 \
+            --minify --outfile=app/src/main/assets/makehuman3d.bundle.js
+      - name: Install headless Chromium
+        run: npx --no-install playwright install chromium
+      - name: Render and verify real GLB using WebGL
+        run: node scripts/preview_makehuman.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BodyTrace-MakeHuman-Visual-Preview
+          path: bodytrace-makehuman-preview.png
+          if-no-files-found: warn
