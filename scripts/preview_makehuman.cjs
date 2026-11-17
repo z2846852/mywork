@@ -34,20 +34,31 @@ const startup=[
  const browser=await chromium.launch({headless:true,args:["--no-sandbox","--enable-webgl",
   "--use-gl=angle","--use-angle=swiftshader","--enable-unsafe-swiftshader"]});
  try{
+  const scenarios=[
+  {name:"01-original",debug:{}},
+  {name:"02-no-local-deformation",debug:{noLocalDeform:true}},
+  {name:"03-no-morph",debug:{noLocalDeform:true,noMorph:true}},
+  {name:"04-original-material",debug:{noLocalDeform:true,noTint:true}},
+  {name:"05-bare-model",debug:{noLocalDeform:true,noAccessories:true,noTint:true}}
+ ];
+ for(const scenario of scenarios){
   const page=await browser.newPage({viewport:{width:520,height:780},deviceScaleFactor:1.5});
   page.on("console",m=>{if(m.type()==="error")console.log("BROWSER ERROR:",m.text())});
   page.on("pageerror",e=>console.log("PAGE EXCEPTION:",e.message));
   await page.setContent(html,{waitUntil:"load"});
+  await page.addScriptTag({content:"window.__BT_DEBUG__="+JSON.stringify(scenario.debug)+";"});
   await page.addScriptTag({content:bundles});
   await page.addScriptTag({content:startup});
   await page.waitForFunction(()=>window.__previewReady||window.__previewError,{timeout:90000});
   const info=await page.evaluate(()=>({ready:window.__previewReady,error:window.__previewError,
-   details:window.__modelInfo||null}));
-  console.log("PREVIEW RESULT",JSON.stringify(info));
+    details:window.__modelInfo||null}));
+  console.log("PREVIEW",scenario.name,JSON.stringify(info));
   if(!info.ready)throw Error(info.error);
-  await page.waitForTimeout(700);
-  const dest=path.join(root,"bodytrace-makehuman-preview.png");
+  await page.waitForTimeout(500);
+  const dest=path.join(root,"bodytrace-preview-"+scenario.name+".png");
   await page.screenshot({path:dest,fullPage:true});
   console.log("Saved preview",dest);
+  await page.close();
+ }
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
