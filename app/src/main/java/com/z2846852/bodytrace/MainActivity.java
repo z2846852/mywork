@@ -202,6 +202,16 @@ public final class MainActivity extends Activity {
                     merged.put(date, new JSONObject(incoming.toString()));
                     continue;
                 }
+                // Preserve future optional root fields added by ChatGPT.
+                // Remote wins on matching keys, arrays below merge by UUID.
+                java.util.Iterator<String> keys = incoming.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    if (!key.equals("workouts") && !key.equals("measurements")
+                            && !key.equals("nutrition")) {
+                        existing.put(key, incoming.get(key));
+                    }
+                }
                 for (String category : new String[]{"workouts", "measurements", "nutrition"}) {
                     java.util.LinkedHashMap<String, JSONObject> byId = new java.util.LinkedHashMap<>();
                     JSONArray oldItems = existing.optJSONArray(category);
