@@ -26,7 +26,7 @@ const startup=[
 'msg=>document.getElementById("progress").textContent=msg);',
 'model.setMeasurements({height_cm:173.5,weight_kg:68.5,shoulder_cm:112.1,',
 'chest_cm:90.2,waist_cm:84,hip_cm:93,upper_arm_cm:27.5,thigh_cm:53.9,calf_cm:39.5});',
-'window.__modelInfo=model.getInfo();window.__previewReady=true;',
+'window.__modelHandle=model;window.__modelInfo=model.getInfo();window.__previewReady=true;',
 'document.getElementById("progress").textContent="真实 GLB · "+window.__modelInfo.morphCount+" 形变目标";',
 '}catch(e){window.__previewError=String(e.stack||e);console.error(e)}})();'
 ].join("\n");
@@ -35,13 +35,9 @@ const startup=[
   "--use-gl=angle","--use-angle=swiftshader","--enable-unsafe-swiftshader"]});
  try{
   const scenarios=[
-  {name:"01-original",debug:{}},
-  {name:"02-no-local-deformation",debug:{noLocalDeform:true}},
-  {name:"03-female-gender",debug:{noLocalDeform:true,forceMorph:{gender_male:0,gender_female:1}}},
-  {name:"04-breast-cup-min",debug:{noLocalDeform:true,forceMorph:{breast_cup_min:1}}},
-  {name:"05-breast-cup-max",debug:{noLocalDeform:true,forceMorph:{breast_cup_max:1}}},
-  {name:"06-breast-firm-min",debug:{noLocalDeform:true,forceMorph:{breast_firm_min:1}}},
-  {name:"07-combined-flat",debug:{noLocalDeform:true,forceMorph:{breast_cup_min:1,breast_firm_max:1}}},
+  {name:"01-short02-front",debug:{}},
+  {name:"02-short04-front",debug:{},hair04:true},
+  {name:"03-short04-side",debug:{},hair04:true,side:true}
  ];
  for(const scenario of scenarios){
   const page=await browser.newPage({viewport:{width:520,height:780},deviceScaleFactor:1.5});
@@ -50,12 +46,19 @@ const startup=[
   await page.setContent(html,{waitUntil:"load"});
   await page.addScriptTag({content:"window.__BT_DEBUG__="+JSON.stringify(scenario.debug)+";"});
   await page.addScriptTag({content:bundles});
-  await page.addScriptTag({content:startup});
+  const updatedStartup=scenario.hair04?
+   startup.replace(JSON.stringify(encoded),
+     JSON.stringify({...encoded,hair:get("hair_short04.glb")})):startup;
+  await page.addScriptTag({content:updatedStartup});
   await page.waitForFunction(()=>window.__previewReady||window.__previewError,{timeout:90000});
   const info=await page.evaluate(()=>({ready:window.__previewReady,error:window.__previewError,
     details:window.__modelInfo||null}));
   console.log("PREVIEW",scenario.name,JSON.stringify(info));
   if(!info.ready)throw Error(info.error);
+  if(scenario.side){
+   await page.evaluate(()=>window.__modelHandle?.rotate(40));
+   await page.waitForTimeout(450);
+  }
   await page.waitForTimeout(500);
   const dest=path.join(root,"bodytrace-preview-"+scenario.name+".png");
   await page.screenshot({path:dest,fullPage:true});
