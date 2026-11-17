@@ -1,0 +1,36 @@
+
+/* BodyTrace feature modules, all bundled offline in the APK */
+.food-list { display:flex;flex-direction:column;gap:8px;margin-top:14px }
+.food-card {display:flex;justify-content:space-between;gap:14px;align-items:center;
+  border:1px solid #28473d;border-radius:12px;background:#142923;padding:12px 13px}
+.food-card strong {font-size:13px}.food-card small {display:block;color:#92ad9e;font-size:11px;margin-top:4px}
+.food-card .kcal {color:#70efb3;white-space:nowrap;font-weight:800;font-variant-numeric:tabular-nums}
+.feature-chart {margin-top:15px;min-height:168px}
+.feature-chart svg {display:block;width:100%;height:auto;max-height:300px;overflow:visible}
+.feature-chart svg text{font-family:inherit}
+.nutrition-bar {display:flex;flex-wrap:wrap;gap:5px;align-items:end;min-height:82px;
+ padding:11px 0 5px;border-bottom:1px solid #2a4140}
+.nutrition-bar .day {display:flex;flex-direction:column;align-items:center;justify-content:end;
+ gap:5px;flex:1;min-width:17px;max-width:48px;font-size:10px;color:#9cafa8}
+.nutrition-bar .bar {border-radius:5px 5px 2px 2px;background:#3dbb7c;width:80%;min-height:2px}
+.inner{padding:11px 13px;margin-top:14px;border-radius:12px;background:#152d27}
+.profile-stats {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:15px}
+.profile-stat {background:#102b24;border:1px solid #2b5847;border-radius:12px;padding:12px 9px;min-width:0}
+.profile-stat strong {display:block;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profile-stat small {font-size:10px;color:#9fb7a9}
+.muscle-view {display:flex;gap:13px;align-items:stretch;justify-content:space-around;
+  margin:14px 0 10px;flex-wrap:wrap}
+.muscle-person {min-width:120px;flex:1;max-width:240px;text-align:center}
+.muscle-person svg{width:100%;max-width:210px;height:auto;display:block;margin:auto}
+.muscle-person small {color:#9cbaaa;font-size:11px}
+.muscle-path {cursor:pointer;stroke:#83b5a0;stroke-width:1.2;stroke-linejoin:round;transition:fill .15s,stroke .15s}
+.muscle-path:focus {stroke:#fff;stroke-width:3;outline:none}
+.muscle-path.selected {stroke:#fff;stroke-width:3}
+.muscle-guide {fill:none;stroke:#243c36;stroke-width:1.5}
+.zone-bar {display:flex;align-items:center;gap:8px;margin-top:12px}
+.zone-bar span {min-width:34px;font-size:12px;color:#aec3b7}
+.zone-bar .track {flex:1;height:9px;border-radius:6px;background:#253631;overflow:hidden}
+.zone-bar .fill {height:100%;background:#52d89b;border-radius:6px}
+.zone-bar b {min-width:26px;text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:390px){.profile-stat{padding:9px 7px}.profile-stat strong{font-size:15px}
+  .muscle-person{min-width:105px}.muscle-view{gap:3px}}
