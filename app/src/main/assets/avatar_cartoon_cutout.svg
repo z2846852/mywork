@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" role="img" aria-label="透明背景可形变的寸头卡通健身人物">
+<defs>
+  <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#f1ecff"/><stop offset=".52" stop-color="#f9f7ff"/><stop offset="1" stop-color="#dcefe9"/></linearGradient>
+  <linearGradient id="skin" x1="0" x2=".8" y1=".2" y2="1"><stop stop-color="#ffd9bd"/><stop offset=".43" stop-color="#ffccaa"/><stop offset="1" stop-color="#e9ad89"/></linearGradient>
+  <linearGradient id="face" x1="0" x2="1" y1="0" y2=".7"><stop stop-color="#ffe2cd"/><stop offset=".78" stop-color="#f5c1a5"/><stop offset="1" stop-color="#eeaf94"/></linearGradient>
+  <linearGradient id="short" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#393d4c"/><stop offset=".48" stop-color="#252834"/><stop offset="1" stop-color="#111722"/></linearGradient>
+  <linearGradient id="shoe" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#343a4b"/><stop offset="1" stop-color="#10151f"/></linearGradient>
+  <filter id="blur"><feGaussianBlur stdDeviation="11"/></filter>
+</defs>
+<!-- legs and socks -->
+<g stroke="#cc8e73" stroke-width="2.5" stroke-linejoin="round">
+ <path d="M220 523 C215 572 219 626 227 674 L232 753 Q234 790 253 805 L277 805 Q288 773 281 746 L285 664 Q297 604 294 552 Z" fill="url(#skin)"/>
+ <path d="M308 548 C308 602 312 654 319 678 L322 745 Q314 783 327 804 L353 804 Q371 784 368 751 L374 672 C379 617 383 567 378 523 Z" fill="url(#skin)"/>
+</g>
+<path d="M235 761 Q254 775 281 762 L281 797 Q257 811 238 796 Z" fill="#f7f8fb"/>
+<path d="M318 761 Q343 775 367 763 L361 795 Q340 810 319 793 Z" fill="#f7f8fb"/>
+<!-- sneakers -->
+<path d="M231 794 Q251 809 283 795 L293 827 Q306 834 304 847 Q301 859 283 861 L196 861 Q182 859 183 846 Q188 824 217 812 Z" fill="url(#shoe)" stroke="#161b27" stroke-width="3"/>
+<path d="M318 794 Q346 809 368 792 L386 816 Q424 824 422 847 Q421 859 405 861 L324 861 Q302 859 309 844 Z" fill="url(#shoe)" stroke="#161b27" stroke-width="3"/>
+<path d="M186 846 Q243 856 302 846 L302 852 Q284 868 196 867 Q184 863 186 846 Z M310 846 Q365 855 421 846 L420 854 Q408 867 324 866 Q312 866 310 846 Z" fill="#eef0f4"/>
+<g stroke="#b1b8c3" stroke-width="3" stroke-linecap="round" opacity=".88">
+ <path d="M232 823 L265 823 M227 832 L269 834 M341 822 L382 826 M340 832 L387 836"/>
+</g>
+<!-- arms -->
+<g fill="url(#skin)" stroke="#d1977d" stroke-width="3" stroke-linejoin="round">
+ <path d="M211 223 Q178 230 168 266 C160 299 148 344 140 377 C136 404 132 441 135 470 Q136 487 148 490 Q160 491 169 473 L174 455 L176 420 C190 391 202 358 208 325 L227 262 Z"/>
+ <path d="M388 223 Q425 228 435 268 Q444 301 457 348 L464 399 Q468 433 469 469 Q466 489 455 490 Q444 491 431 473 L425 444 L422 416 Q408 381 396 337 L377 261 Z"/>
+ <path d="M135 462 C128 468 126 487 130 501 Q133 519 141 533 Q146 541 151 534 Q154 526 153 517 Q162 535 166 529 C171 521 168 493 169 470 Z"/>
+ <path d="M431 462 Q430 492 433 509 Q438 528 448 536 Q456 538 457 524 Q463 534 470 522 Q480 492 468 465 Z"/>
+</g>
+<!-- torso: natural lightly athletic silhouette -->
+<path d="M243 213 C229 214 216 219 206 226 C201 255 205 290 213 317 Q221 340 222 365 Q225 397 236 447 Q258 475 300 478 Q343 474 366 448 Q378 391 381 353 C391 317 399 265 391 226 Q375 215 353 212 C340 205 323 205 314 205 L285 205 Q267 208 243 213 Z" fill="url(#skin)" stroke="#cf9880" stroke-width="3"/>
+<!-- gentle chest and abdominal shading -->
+<g fill="none" stroke-linecap="round">
+ <path d="M230 270 Q264 288 294 279 M309 279 Q344 291 374 267" stroke="#dfab94" stroke-width="3" opacity=".65"/>
+ <path d="M294 287 Q298 309 294 323 M302 337 Q300 368 300 398" stroke="#d69b83" stroke-width="2" opacity=".28"/>
+ <path d="M256 357 Q273 365 291 361 M308 361 Q327 363 345 357 M260 393 Q277 398 291 395 M309 395 Q323 396 340 390" stroke="#d6a189" stroke-width="2" opacity=".28"/>
+ <path d="M239 414 Q251 443 282 450 M318 450 Q351 444 364 418" stroke="#d6a189" stroke-width="3" opacity=".38"/>
+</g>
+<ellipse cx="300" cy="405" rx="4" ry="5" fill="#c88e79" opacity=".7"/>
+<!-- neck -->
+<path d="M271 184 L271 225 Q276 243 298 245 Q322 241 326 222 L326 183 Z" fill="url(#skin)" stroke="#d1977d" stroke-width="2"/>
+<!-- shorts -->
+<path d="M229 456 Q266 472 300 470 Q342 470 370 456 L389 555 Q389 579 373 579 L313 577 L302 532 L290 577 L225 580 Q210 574 213 549 Z" fill="url(#short)" stroke="#171b27" stroke-width="4"/>
+<path d="M228 464 Q295 476 371 465 L372 483 Q296 498 226 485 Z" fill="#1c202b"/>
+<path d="M302 492 L302 531 M251 511 Q257 541 241 576 M344 508 Q342 543 362 577" fill="none" stroke="#555667" stroke-width="2" opacity=".4"/>
+<path d="M359 528 L363 559" stroke="#c7ccd0" stroke-width="3" opacity=".7"/>
+<!-- face/head; cartoon, not uncanny -->
+<path d="M242 94 Q239 130 244 165 C251 191 268 215 299 220 Q328 219 349 190 Q361 163 357 120 C353 75 331 66 301 66 Q257 66 242 94 Z" fill="url(#face)" stroke="#cc967f" stroke-width="3"/>
+<path d="M242 147 Q232 137 230 150 Q228 162 247 168 M358 146 Q369 139 370 151 Q372 165 352 169" fill="url(#face)" stroke="#d59e84" stroke-width="3"/>
+<!-- short cropped crew cut -->
+<path d="M239 132 Q234 105 241 84 Q246 62 267 56 Q280 42 299 48 Q330 43 344 63 Q362 73 362 104 L358 131 L352 114 L345 87 Q334 95 314 91 Q289 89 269 97 Q253 98 247 120 Z" fill="#262733" stroke="#232732" stroke-width="2"/>
+<path d="M249 88 Q263 63 283 62 M294 58 Q316 56 336 72 M259 100 Q300 78 345 93" fill="none" stroke="#43414a" stroke-width="3" opacity=".65" stroke-linecap="round"/>
+<!-- eyes eyebrows -->
+<path d="M263 140 Q274 134 288 140 M311 141 Q325 135 337 140" stroke="#4a3739" stroke-width="5" stroke-linecap="round" fill="none"/>
+<g fill="#343b45"><ellipse cx="276" cy="151" rx="6" ry="5"/><ellipse cx="324" cy="151" rx="6" ry="5"/></g>
+<g fill="#fff" opacity=".9"><circle cx="274" cy="149" r="1.7"/><circle cx="322" cy="149" r="1.7"/></g>
+<!-- friendly subtle smile -->
+<path d="M299 158 L295 177 Q300 181 306 178" fill="none" stroke="#cf9a84" stroke-width="2" stroke-linecap="round"/>
+<path d="M285 189 Q299 201 315 189" fill="none" stroke="#a97670" stroke-width="3" stroke-linecap="round"/>
+<ellipse cx="255" cy="179" rx="12" ry="7" fill="#ecaa9d" opacity=".22"/>
+<ellipse cx="347" cy="179" rx="12" ry="7" fill="#ecaa9d" opacity=".22"/>
+<!-- eyeglasses -->
+<g stroke="#797977" stroke-width="2.4" fill="#ffffff" fill-opacity=".13">
+ <rect x="252" y="139" width="40" height="25" rx="10"/><rect x="308" y="139" width="40" height="25" rx="10"/>
+ <path d="M292 148 Q299 145 308 148 M249 145 L238 139 M349 145 L360 139" fill="none"/>
+</g>
+</svg>
