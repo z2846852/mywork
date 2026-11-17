@@ -128,7 +128,10 @@
    slider.value=display(current);return;
   }
   // Direct typed values may be more precise than the ruler step.
-  const value=Number(clamp(proposed,cfg.min,cfg.max).toFixed(3));
+  // Keyboard entry may use 0.1 precision even when the ruler ticks every 0.5kg.
+  // Integer-only reps/sets are rounded to complete repetitions/sets.
+  const precisionDigits=cfg.step>=1?0:1;
+  const value=Number(clamp(proposed,cfg.min,cfg.max).toFixed(precisionDigits));
   const callback=cfg.onConfirm;
   close();
   callback(value);
