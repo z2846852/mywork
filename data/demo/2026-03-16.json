@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "date": "2026-03-16",
+  "workouts": [],
+  "measurements": [
+    {
+      "id": "00000000-0000-4000-8000-00000000003f",
+      "weight_kg": 69,
+      "height_cm": 175,
+      "body_fat_pct": 26.8,
+      "muscle_mass_kg": 47.4,
+      "bmr_kcal": 1472,
+      "waist_cm": 90
+    }
+  ],
+  "nutrition": []
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "date": "2026-03-17",
+  "workouts": [],
+  "measurements": [
+    {
+      "id": "00000000-0000-4000-8000-000000000040",
+      "shoulder_cm": 110,
+      "chest_cm": 85,
+      "waist_cm": 85,
+      "hip_cm": 95,
+      "upper_arm_cm": 27.5,
+      "thigh_cm": 55,
+      "calf_cm": 39.5
+    }
+  ],
+  "nutrition": []
+}

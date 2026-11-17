@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "date": "2026-04-08",
+  "workouts": [],
+  "measurements": [
+    {
+      "id": "00000000-0000-4000-8000-000000000041",
+      "weight_kg": 70,
+      "height_cm": 175
+    }
+  ],
+  "nutrition": []
+}

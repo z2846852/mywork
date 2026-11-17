@@ -1,0 +1,119 @@
+{
+  "schema_version": 2,
+  "date": "2026-11-16",
+  "workouts": [
+    {
+      "id": "00000000-0000-4000-8000-000000000028",
+      "exercise_id": "smith_bench",
+      "reps": 12,
+      "exercise_label": "史密斯卧推（Smith Machine Bench Press）",
+      "load_kg": 20,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000029",
+      "exercise_id": "smith_bench",
+      "reps": 8,
+      "exercise_label": "史密斯卧推（Smith Machine Bench Press）",
+      "load_kg": 25,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000002a",
+      "exercise_id": "smith_bench",
+      "reps": 6,
+      "exercise_label": "史密斯卧推（Smith Machine Bench Press）",
+      "load_kg": 30,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000002b",
+      "exercise_id": "adductor",
+      "reps": 15,
+      "exercise_label": "坐姿髋内收机（Adductor）",
+      "load_kg": 10
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000002c",
+      "exercise_id": "adductor",
+      "reps": 15,
+      "exercise_label": "坐姿髋内收机（Adductor）",
+      "load_kg": 15
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000002d",
+      "exercise_id": "adductor",
+      "reps": 15,
+      "exercise_label": "坐姿髋内收机（Adductor）",
+      "load_kg": 20
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000002e",
+      "exercise_id": "adductor",
+      "reps": 5,
+      "exercise_label": "坐姿髋内收机（Adductor）",
+      "load_kg": 30,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000002f",
+      "exercise_id": "abductor",
+      "reps": 12,
+      "exercise_label": "坐姿髋外展机（Abductor）",
+      "load_kg": 35,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "exercise_id": "pec_deck",
+      "reps": 10,
+      "exercise_label": "蝴蝶机夹胸（正向）",
+      "load_kg": 10,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000031",
+      "exercise_id": "pec_deck",
+      "reps": 4,
+      "exercise_label": "蝴蝶机夹胸（正向）",
+      "load_kg": 15,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000032",
+      "exercise_id": "smith_bench",
+      "reps": 10,
+      "exercise_label": "史密斯卧推（Smith Machine Bench Press）",
+      "load_kg": 30,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000033",
+      "exercise_id": "chest_press",
+      "reps": 12,
+      "exercise_label": "坐姿胸推器",
+      "load_kg": 30,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000034",
+      "exercise_id": "chest_press",
+      "reps": 8,
+      "exercise_label": "坐姿胸推器",
+      "load_kg": 35,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    }
+  ],
+  "measurements": [],
+  "nutrition": []
+}

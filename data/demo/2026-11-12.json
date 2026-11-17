@@ -1,0 +1,101 @@
+{
+  "schema_version": 2,
+  "date": "2026-11-12",
+  "workouts": [
+    {
+      "id": "00000000-0000-4000-8000-00000000001c",
+      "exercise_id": "reverse_fly",
+      "reps": 15,
+      "exercise_label": "反向蝴蝶机",
+      "load_kg": 2.5
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000001d",
+      "exercise_id": "reverse_fly",
+      "reps": 10,
+      "exercise_label": "反向蝴蝶机",
+      "load_kg": 5,
+      "rir": 0,
+      "rir_source": "explicit"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000001e",
+      "exercise_id": "vertical_traction",
+      "reps": 15,
+      "exercise_label": "垂直下拉（Vertical Traction）",
+      "load_kg": 25
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000001f",
+      "exercise_id": "vertical_traction",
+      "reps": 10,
+      "exercise_label": "垂直下拉（Vertical Traction）",
+      "load_kg": 35,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000020",
+      "exercise_id": "hip_thrust",
+      "reps": 15,
+      "exercise_label": "臀推（Hip Thrust）",
+      "load_kg": 15
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000021",
+      "exercise_id": "hip_thrust",
+      "reps": 12,
+      "exercise_label": "臀推（Hip Thrust）",
+      "load_kg": 25,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000022",
+      "exercise_id": "row",
+      "reps": 8,
+      "exercise_label": "坐姿单侧划船（Seated Row）",
+      "load_kg": 25,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000023",
+      "exercise_id": "hip_thrust",
+      "reps": 12,
+      "exercise_label": "臀推（Hip Thrust）",
+      "load_kg": 30,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000024",
+      "exercise_id": "adductor",
+      "reps": 12,
+      "exercise_label": "坐姿髋内收机（Adductor）",
+      "load_kg": 20,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000025",
+      "exercise_id": "abductor",
+      "reps": 12,
+      "exercise_label": "坐姿髋外展机（Abductor）",
+      "load_kg": 30,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000026",
+      "exercise_id": "prone_leg_curl",
+      "reps": 6,
+      "exercise_label": "俯卧腿弯举（Prone Leg Curl）",
+      "load_kg": 35,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    }
+  ],
+  "measurements": [],
+  "nutrition": []
+}

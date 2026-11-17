@@ -1,0 +1,167 @@
+{
+  "schema_version": 2,
+  "date": "2026-11-11",
+  "workouts": [
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "exercise_id": "shoulder_press",
+      "reps": 6,
+      "exercise_label": "坐姿肩推器",
+      "load_kg": 20,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000a",
+      "exercise_id": "incline_chest_press",
+      "reps": 12,
+      "exercise_label": "坐姿上斜胸推器（Pectoral Machine）",
+      "load_kg": 0,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000b",
+      "exercise_id": "incline_chest_press",
+      "reps": 10,
+      "exercise_label": "坐姿上斜胸推器（Pectoral Machine）",
+      "load_kg": 5,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000c",
+      "exercise_id": "incline_chest_press",
+      "reps": 6,
+      "exercise_label": "坐姿上斜胸推器（Pectoral Machine）",
+      "load_kg": 15,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000d",
+      "exercise_id": "horizontal_bench",
+      "reps": 10,
+      "exercise_label": "水平卧推机（Horizontal Bench Press）",
+      "load_kg": 15,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000e",
+      "exercise_id": "leg_extension",
+      "reps": 10,
+      "exercise_label": "坐姿腿伸展机（双侧挂片式）",
+      "load_kg": 30,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000f",
+      "exercise_id": "abductor",
+      "reps": 12,
+      "exercise_label": "坐姿髋外展机（Abductor）",
+      "load_kg": 15,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "exercise_id": "abductor",
+      "reps": 10,
+      "exercise_label": "坐姿髋外展机（Abductor）",
+      "load_kg": 20,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "exercise_id": "assisted_pullup",
+      "reps": 15,
+      "exercise_label": "辅助引体向上",
+      "assistance_kg": 100
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "exercise_id": "assisted_dip",
+      "reps": 15,
+      "exercise_label": "辅助双杠臂屈伸",
+      "assistance_kg": 100
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "exercise_id": "assisted_pullup",
+      "reps": 10,
+      "exercise_label": "辅助引体向上",
+      "assistance_kg": 91,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000014",
+      "exercise_id": "assisted_dip",
+      "reps": 15,
+      "exercise_label": "辅助双杠臂屈伸",
+      "assistance_kg": 91
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000015",
+      "exercise_id": "assisted_pullup",
+      "reps": 7,
+      "exercise_label": "辅助引体向上",
+      "assistance_kg": 82,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000016",
+      "exercise_id": "assisted_dip",
+      "reps": 15,
+      "exercise_label": "辅助双杠臂屈伸",
+      "assistance_kg": 82
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000017",
+      "exercise_id": "leg_press",
+      "reps": 10,
+      "exercise_label": "倒蹬（Leg Press，双侧挂片式）",
+      "load_kg": 60,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000018",
+      "exercise_id": "hip_thrust",
+      "reps": 12,
+      "exercise_label": "臀推（Hip Thrust）",
+      "load_kg": 5,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000019",
+      "exercise_id": "row",
+      "reps": 15,
+      "exercise_label": "坐姿单侧划船（Seated Row）",
+      "load_kg": 15
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000001a",
+      "exercise_id": "hip_thrust",
+      "reps": 15,
+      "exercise_label": "臀推（Hip Thrust）",
+      "load_kg": 10
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000001b",
+      "exercise_id": "chest_press",
+      "reps": 6,
+      "exercise_label": "坐姿胸推器",
+      "load_kg": 35,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    }
+  ],
+  "measurements": [],
+  "nutrition": []
+}

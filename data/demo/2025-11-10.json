@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "date": "2025-11-10",
+  "workouts": [],
+  "measurements": [
+    {
+      "id": "00000000-0000-4000-8000-00000000003e",
+      "weight_kg": 71,
+      "height_cm": 175,
+      "chest_cm": 80,
+      "waist_cm": 85
+    }
+  ],
+  "nutrition": []
+}

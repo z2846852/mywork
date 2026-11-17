@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "date": "2026-11-17",
+  "workouts": [
+    {
+      "id": "00000000-0000-4000-8000-000000000035",
+      "exercise_id": "adductor",
+      "reps": 18,
+      "exercise_label": "坐姿髋内收机（Adductor）",
+      "load_kg": 15
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000036",
+      "exercise_id": "adductor",
+      "reps": 15,
+      "exercise_label": "坐姿髋内收机（Adductor）",
+      "load_kg": 20
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000037",
+      "exercise_id": "adductor",
+      "reps": 18,
+      "exercise_label": "坐姿髋内收机（Adductor）",
+      "load_kg": 25
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000038",
+      "exercise_id": "lateral_raise",
+      "reps": 15,
+      "exercise_label": "坐姿侧平举机（Lateral Raise）",
+      "load_kg": 14,
+      "approx": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000039",
+      "exercise_id": "lateral_raise",
+      "reps": 12,
+      "exercise_label": "坐姿侧平举机（Lateral Raise）",
+      "load_kg": 18,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000003a",
+      "exercise_id": "lateral_raise",
+      "reps": 10,
+      "exercise_label": "坐姿侧平举机（Lateral Raise）",
+      "load_kg": 23,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000003b",
+      "exercise_id": "lateral_raise",
+      "reps": 8,
+      "exercise_label": "坐姿侧平举机（Lateral Raise）",
+      "load_kg": 27,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000003c",
+      "exercise_id": "row",
+      "reps": 8,
+      "exercise_label": "坐姿单侧划船（Seated Row）",
+      "load_kg": 27.5,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000003d",
+      "exercise_id": "assisted_pullup",
+      "reps": 4,
+      "exercise_label": "辅助引体向上",
+      "assistance_kg": 73,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    }
+  ],
+  "measurements": [],
+  "nutrition": []
+}

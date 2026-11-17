@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "date": "2026-11-13",
+  "workouts": [
+    {
+      "id": "00000000-0000-4000-8000-000000000027",
+      "exercise_id": "assisted_pullup",
+      "reps": 8,
+      "exercise_label": "辅助引体向上",
+      "assistance_kg": 77,
+      "rir": 0,
+      "rir_source": "user_rule_under_15"
+    }
+  ],
+  "measurements": [],
+  "nutrition": []
+}
