@@ -376,3 +376,59 @@
 .body-morph-toggle{display:flex;align-items:center;justify-content:center;gap:8px;
  margin:12px 3px 5px;color:#c8f0d7;font-size:12px;font-weight:600}
 .body-morph-toggle input{width:17px;height:17px;accent-color:#3ed59f}
+
+
+/* 2026-11-17: concise schematic + all-in-one training trend list. */
+#recordExercise,#filter{font-size:12px!important;line-height:1.45;letter-spacing:-.14px}
+.strength-list{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
+.strength-exercise-card{
+ padding:13px 11px 10px;border:1px solid #315347;border-radius:14px;
+ background:linear-gradient(150deg,#172f29,#132420 80%);
+ min-width:0;
+}
+.strength-exercise-heading{display:flex;align-items:start;justify-content:space-between;gap:10px}
+.strength-exercise-info{min-width:0}
+.strength-exercise-info h3{
+ font-size:13px;line-height:1.5;margin:0;font-weight:750;
+ color:#e4f4ea;overflow-wrap:anywhere;
+}
+.strength-exercise-info small{display:block;margin-top:4px;color:#93b7a4;font-size:10px}
+.strength-exercise-heading .tag{white-space:nowrap;font-size:10px;padding:4px 7px}
+.strength-exercise-range{font-size:11px;color:#a9ddc1;margin-top:9px}
+.strength-exercise-card .feature-chart{margin-top:2px;min-height:140px}
+.strength-exercise-card .feature-chart svg{max-height:245px}
+.strength-exercise-note{font-size:10px;line-height:1.65;margin-top:2px}
+.body-schematic-panel{
+ margin:16px 0 10px;padding:12px 10px 10px;border-radius:15px;
+ border:1px solid #31594b;background:linear-gradient(150deg,#193029,#142821);
+}
+.body-schematic-panel .muscle-view{margin:0 0 8px;gap:10px}
+.body-schematic-panel .muscle-person{max-width:190px;min-width:108px}
+.body-schematic-panel .muscle-person svg{max-width:170px}
+.body-schematic-panel .note{text-align:center;font-size:10px;line-height:1.55}
+.body-metric-heading{display:flex;align-items:baseline;gap:9px;margin-top:15px;font-size:13px;font-weight:800;color:#dbf0e3}
+.body-metric-heading small{font-size:10px;color:#9ebcab;font-weight:400}
+.avatar-body-layout.body-simple-metrics{
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+ gap:9px;align-items:start;margin-top:11px;
+}
+.body-simple-metrics .avatar-stat-column{
+ display:flex;flex-direction:column;gap:8px;min-height:0;
+}
+.body-simple-metrics .avatar-metric{
+ background:#19382e;border:1px solid #305947;border-radius:11px;
+ min-height:66px;padding:10px 9px;
+}
+.body-simple-metrics .avatar-metric strong{font-size:17px}
+.body-simple-metrics .avatar-metric small,.body-simple-metrics .avatar-metric .delta{font-size:10px}
+.body-simple-metrics .avatar-metric.selected{border-color:#68e4a5;background:#204a36}
+#muscleDetail{margin-top:12px;border-top:1px solid #36584a;padding-top:12px}
+@media(min-width:620px){
+ .strength-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:390px){
+ .strength-exercise-info h3{font-size:12px}
+ .strength-exercise-card{padding:11px 9px}
+ .body-simple-metrics .avatar-metric{padding:9px 7px}
+ .body-simple-metrics .avatar-metric strong{font-size:15px}
+}
