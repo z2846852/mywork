@@ -204,3 +204,112 @@
  .avatar-body-layout.has-webgl .avatar-metric{padding:10px 7px}
  .avatar-body-layout.has-webgl .avatar-metric strong{font-size:16px}
 }
+
+
+/* 2026-11: Cartoon-first body UI. No uncanny 3D startup or 200%-wide
+   side-by-side sprite cropping. Full-resolution imported illustrations fit. */
+.panel-avatar{
+ background:linear-gradient(155deg,#172a29,#172024 72%,#1e242a);
+ border-color:#385649;
+}
+.avatar-body-layout{
+ display:grid;
+ grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+ gap:12px;
+ align-items:start;
+ padding:0;
+ border:0;
+ background:transparent;
+}
+.avatar-body-layout .avatar-render{
+ grid-column:1/-1;
+ grid-row:1;
+ width:100%;
+ max-width:none;
+ padding-top:6px;
+}
+.avatar-frame.illustrated{
+ width:100%;
+ max-width:420px;
+ margin:0 auto;
+ aspect-ratio:2/3;
+ height:auto;
+ border:1px solid rgba(160,191,180,.28);
+ border-radius:20px;
+ overflow:hidden;
+ background:linear-gradient(160deg,#eae7f8,#eef6f1);
+ box-shadow:0 17px 42px rgba(0,0,0,.26);
+}
+.avatar-frame.illustrated img{
+ width:100%;
+ height:100%;
+ max-width:100%;
+ display:block;
+ object-fit:contain;
+ object-position:center center;
+ transform:none!important;
+ transition:none;
+}
+.avatar-frame.illustrated .avatar-hotspot{
+ left:36%;top:29%;width:28%;height:45%;
+ border:0;background:transparent;
+}
+.avatar-frame.illustrated .avatar-studio-mark,
+.avatar-frame.illustrated .avatar-studio-hint,
+.avatar-frame.illustrated canvas{display:none!important}
+.avatar-pager{font-size:11px;color:#a8bdba;margin-top:11px;line-height:1.5}
+.avatar-import{
+ display:block;
+ margin:12px auto 0;
+ max-width:420px;
+ width:100%;
+ padding:12px 10px;
+ background:linear-gradient(125deg,#2a5847,#254a3f);
+ border-color:#499d78;
+ color:#defeed;
+ font-weight:700;
+ font-size:12px;
+}
+.avatar-body-layout .avatar-stat-column{
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ align-content:start;
+ gap:8px;
+ min-height:0;
+ width:100%;
+ max-width:none;
+}
+.avatar-body-layout .avatar-metric{
+ min-height:76px;
+ padding:11px 9px;
+ background:#19352e;
+ border:1px solid #305245;
+ border-radius:12px;
+}
+.avatar-body-layout .avatar-metric strong{
+ font-size:17px;color:#ebfbee;
+ font-variant-numeric:tabular-nums;
+}
+.avatar-body-layout .avatar-metric small{font-size:11px;color:#b1c6b9}
+.avatar-body-layout .avatar-metric .delta{font-size:10px}
+.avatar-body-layout .avatar-metric.selected{
+ border-color:#6ae7a9;
+ background:#244b3c;
+ box-shadow:0 0 0 1px rgba(106,231,169,.15);
+}
+.avatar-toolbar{
+ display:flex;align-items:end;justify-content:space-between;
+ gap:12px;margin-top:12px;
+}
+.avatar-toolbar .field{min-width:0;flex:1;margin:0}
+.avatar-toolbar .tag{white-space:nowrap}
+#avatarSelectedDetail{line-height:1.7}
+.avatar-subtitle{margin-top:12px}
+@media(max-width:420px){
+ .avatar-body-layout{gap:8px}
+ .avatar-frame.illustrated{max-width:340px}
+ .avatar-body-layout .avatar-stat-column{grid-template-columns:1fr}
+ .avatar-body-layout .avatar-metric{min-height:70px;padding:9px 9px}
+ .avatar-body-layout .avatar-metric strong{font-size:17px}
+ .panel-avatar{padding:13px 12px}
+}
