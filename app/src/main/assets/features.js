@@ -351,16 +351,17 @@ function measuredDates(){
  return [...new Set(state.measurements.map(x=>x.reported_date).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)))]
   .sort((a,b)=>b.localeCompare(a));
 }
-function metricAt(key,date){
- return state.measurements.filter(m=>m.reported_date<=date&&validNum(m[key]))
-   .sort((a,b)=>b.reported_date.localeCompare(a.reported_date))
-   .map(m=>({date:m.reported_date,value:Number(m[key])}))[0]||null;
+function mostRecentMetric(key,cutoff,strictBefore){
+ const matched=state.measurements.map((m,index)=>({m,index})).filter(({m})=>
+   m.reported_date&&validNum(m[key])&&
+   (strictBefore?m.reported_date<cutoff:m.reported_date<=cutoff));
+ matched.sort((a,b)=>a.m.reported_date.localeCompare(b.m.reported_date)||
+   String(a.m.created_at||"").localeCompare(String(b.m.created_at||""))||a.index-b.index);
+ const result=matched.at(-1);
+ return result?{date:result.m.reported_date,value:Number(result.m[key])}:null;
 }
-function metricPrevious(key, date){
- return state.measurements.filter(m=>m.reported_date<date&&validNum(m[key]))
-   .sort((a,b)=>b.reported_date.localeCompare(a.reported_date))
-   .map(m=>({date:m.reported_date,value:Number(m[key])}))[0]||null;
-}
+function metricAt(key,date){return mostRecentMetric(key,date,false)}
+function metricPrevious(key,date){return mostRecentMetric(key,date,true)}
 function metricText(value){
  if(value===null)return "—";
  return (Math.round(value*10)/10).toFixed(1);
@@ -442,6 +443,81 @@ function renderAvatar(){
  avatarShowDetail();
 
 }
+
+// Only measurements explicitly confirmed on the ruler are appended to JSON.
+// Values shown from earlier dates are recommendations, NOT new observations.
+const bodyEntryFields=[
+ {key:"weight_kg",label:"体重",unit:"kg",min:20,max:300,step:0.1},
+ {key:"shoulder_cm",label:"肩围",unit:"cm",min:30,max:200,step:0.1},
+ {key:"chest_cm",label:"胸围",unit:"cm",min:30,max:200,step:0.1},
+ {key:"waist_cm",label:"腰围",unit:"cm",min:30,max:200,step:0.1},
+ {key:"upper_arm_cm",label:"手臂围",unit:"cm",min:10,max:90,step:0.1},
+ {key:"hip_cm",label:"臀围",unit:"cm",min:30,max:200,step:0.1},
+ {key:"thigh_cm",label:"大腿围",unit:"cm",min:20,max:120,step:0.1},
+ {key:"calf_cm",label:"小腿围",unit:"cm",min:10,max:100,step:0.1}
+];
+let bodyEdited=new Map();
+$("bodyEntryDate").value=today;
+function bodyEntryDisplay(def,value){
+ if(value===null||value===undefined)return "—";
+ if(def.key==="weight_kg"&&$("bodyWeightUnit").value==="jin")
+  return (value*2).toFixed(1)+" 斤";
+ return Number(value).toFixed(1)+" "+def.unit;
+}
+function renderBodyEntry(){
+ const grid=$("bodyEntryGrid");grid.replaceChildren();
+ const date=$("bodyEntryDate").value||today;
+ for(const def of bodyEntryFields){
+  const reported=metricAt(def.key,date);
+  const edited=bodyEdited.has(def.key),value=edited?bodyEdited.get(def.key):reported?.value;
+  const button=document.createElement("button");
+  button.type="button";button.className="body-entry-metric";
+  button.classList.toggle("changed",edited);
+  const label=document.createElement("small");label.textContent=def.label;
+  const current=document.createElement("strong");current.textContent=bodyEntryDisplay(def,value);
+  const state=document.createElement("span");
+  state.textContent=edited?"✓ 本次录入 · 待保存":
+    reported?"上次记录 "+reported.date+" · 仅参考":"尚无历史数据 · 点此记录";
+  button.append(label,current,state);
+  button.onclick=()=>{
+   if(!window.BodyTraceWheel){toast("滚轮尚未初始化",true);return}
+   const jin=def.key==="weight_kg"&&$("bodyWeightUnit").value==="jin";
+   const start=Number.isFinite(Number(value))&&value!==null&&value!==undefined?
+    Number(value):(def.key==="weight_kg"?70:def.key==="waist_cm"?85:90);
+   const startValue=jin?start*2:start;
+   BodyTraceWheel.open({
+    title:"记录"+def.label,min:jin?40:def.min,max:jin?600:def.max,
+    step:jin?0.2:def.step,unit:jin?"斤":def.unit,value:startValue,
+    onConfirm:chosen=>{
+     const canonical=jin?Math.round(chosen*5)/10:Math.round(chosen*10)/10;
+     bodyEdited.set(def.key,canonical);
+     renderBodyEntry();
+    }
+   });
+  };
+  grid.append(button);
+ }
+ const count=bodyEdited.size;
+ $("bodyChangedCount").textContent=count?count+" 项待保存":"尚未选择本次测量项目";
+}
+$("bodyEntryDate").addEventListener("change",()=>{
+ bodyEdited.clear();renderBodyEntry();
+});
+$("bodyWeightUnit").addEventListener("change",renderBodyEntry);
+$("bodyClearChanges").onclick=()=>{bodyEdited.clear();renderBodyEntry()};
+$("bodySaveMeasurement").onclick=()=>{
+ const date=$("bodyEntryDate").value;
+ if(!date){toast("请选择测量日期",true);return}
+ if(!bodyEdited.size){toast("先点选至少一项本次实际测量的数据",true);return}
+ if(!window.BodyTraceNative||typeof BodyTraceNative.saveMeasurement!=="function"){
+  toast("请升级 App 才能保存身体测量数据",true);return;
+ }
+ const input={date};
+ for(const [key,value] of bodyEdited)input[key]=value;
+ BodyTraceNative.saveMeasurement(JSON.stringify(input));
+ $("bodySaveMeasurement").disabled=true;
+ setTimeout(()=>$("bodySaveMeasurement").disabled=false,1500);
+};
 $("avatarImport").onclick=()=>{
  if(!window.BodyTraceNative||typeof BodyTraceNative.pickAvatar!=="function"){
   toast("当前 Android 版本不支持图片导入",true);return;
@@ -461,7 +537,7 @@ $("avatarHotspot").onclick=e=>{
  renderAvatar();
 };
 function renderAllFeatures(){
- nutritionRender();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();
+ nutritionRender();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();renderBodyEntry();
 }
 const originalReceive = window.bodyTraceReceive;
 window.bodyTraceReceive=function(evt){
@@ -471,6 +547,23 @@ window.bodyTraceReceive=function(evt){
     $("avatarModeLabel").textContent="你的高清卡通人物图 · 本机已保存 · 正常升级后仍保留";
     navigate("body");
     toast("高清人物图导入成功；已保存在本机，升级 APK 不会丢失");
+  }
+  if(evt.type==="measurement_local_saved"){
+    const parsed=evt.view_model?.view_schema_version===1?fromViewModel(evt.view_model):null;
+    if(parsed){
+      state.rows=parsed.rows;state.measurements=parsed.measurements;
+      state.nutrition=parsed.nutrition;
+      indexData();renderBody();
+    }
+    state.pending=evt.count||state.pending;renderStatus();
+    bodyEdited.clear();
+    selectedAvatarDate=evt.event?.date||selectedAvatarDate;
+    renderAllFeatures();
+    navigate("body");
+    toast("身体测量已保存本机；已连接时正在上传 GitHub");
+  }
+  if(evt.type==="saved"&&evt.category==="measurements"){
+    toast("身体测量已同步 GitHub");
   }
   if(evt.type==="nutrition_local_saved"){
     const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : null;
