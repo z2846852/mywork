@@ -5,7 +5,11 @@
 :root{--bg:#0b1114;--surface:#151f23;--panel:#19282a;--line:#2a4140;--green:#63e9ad;--muted:#91a9a8;--white:#effbf3;--red:#ff947a;font-family:Roboto,"Noto Sans SC",-apple-system,sans-serif}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--white)}
 body{background:radial-gradient(circle at 80% -15%,#174337 0%,#0b1114 50%);overscroll-behavior:contain}
-button,input,select{font:inherit}button{cursor:pointer}input,select{background:#0e171b;color:var(--white);border:1px solid #395250;border-radius:11px;padding:12px 14px;width:100%;outline-color:var(--green)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}input,select,textarea{background:#0e171b;color:var(--white);border:1px solid #395250;border-radius:11px;padding:12px 14px;width:100%;outline-color:var(--green)}
+textarea{min-height:170px;line-height:1.6;resize:vertical}
+.raw-note{border-bottom:1px solid #2a4140;padding:12px 0}
+.raw-note:last-child{border-bottom:0}
+.raw-note-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.6;margin:7px 0;color:#d1e6dc}
 button:focus-visible{outline:2px solid var(--green)}
 .screen{max-width:960px;margin:auto;padding:22px 17px 106px}
 .eyebrow{font-size:11px;letter-spacing:.24em;font-weight:800;color:var(--green);margin:2px 0 7px}
@@ -67,7 +71,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-record">
-<div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">立即保存到本机每日 JSON 并更新图表；需要备份或读取 ChatGPT 的新记录时，再点击「同步 GitHub」。</p>
+<div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">写入本地 JSON 后立即更新图表；已配置 GitHub 则尝试即时上传。点击「同步 GitHub」可拉取 ChatGPT 新增的记录。</p>
 <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
 <div class="field"><label for="recordExercise">动作</label><select id="recordExercise">
 <option value="lateral_raise">Lateral Raise · 侧平举</option>
@@ -84,9 +88,23 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="formgrid"><div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="例如 27.5"></div>
 <div class="field"><label for="recordReps">次数</label><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" placeholder="例如 8"></div></div>
 <button class="primary" id="saveRecord">保存这一组 · 本机即时显示</button>
-<p class="note">保存不需要网络，数据会存入本机加密 JSON，并在同步时上传到 GitHub。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
-<div id="saveHelp" class="alert" style="display:none">当前是本地模式，可正常记录；连接后点击「同步 GitHub」再上传。</div>
+<p class="note">保存不需要网络，数据首先加密保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
+<div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
 </div></section>
+
+<section class="page" id="page-raw">
+<div class="panel"><div class="eyebrow">RAW / INBOX</div><h2>Raw 原文收件箱</h2>
+<p class="sub">不分类、不推测、不自动生成训练或饮食 JSON。原文加密保存在本机；已连接时立即尝试上传到私有 GitHub，交给未来的 ChatGPT 再解析。</p>
+<div class="field"><label for="rawText">原始想法、需求或训练口述</label>
+<textarea id="rawText" maxlength="10000" placeholder="例如：以后希望记录喝水量；把饮食分成早中晚三餐。也可以暂存尚不确定的训练器械描述……"></textarea></div>
+<div class="row" style="margin-top:8px"><p class="sub" id="rawCount">0 / 10000 字符</p><span class="tag">未解析</span></div>
+<button class="primary" id="saveRaw">保存 Raw · 原样上传</button>
+<p class="note">保存目录：<span class="code">data/raw_inbox/YYYY-MM-DD/&lt;UUID&gt;.json</span><br>
+原始内容保存在 <span class="code">text</span> 字段，状态为 <span class="code">unprocessed</span>。不会触发 Actions 或自动运行任何指令。</p>
+</div>
+<div class="panel"><div class="row"><h2>手机上的 Raw 历史</h2><span class="tag" id="rawHistoryCount">0条</span></div>
+<div id="rawHistory" class="empty">暂无原始记录。</div></div>
+</section>
 
 <section class="page" id="page-body">
 <div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从私有仓库每日 JSON 读取身体记录，App 本机计算并展示；暂不支持本页新增测量。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div><div class="panel"><h2>身体指标趋势</h2><p class="sub">仅使用已报告的日期与数值；未校正测量设备、时间或条件差异。</p><div id="bodyTrends" style="margin-top:12px"></div></div>
@@ -108,13 +126,14 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <nav class="tabs" aria-label="主导航">
 <button data-page="home" class="active"><span class="ico">▦</span>概览</button>
 <button data-page="record"><span class="ico">＋</span>记录</button>
+<button data-page="raw"><span class="ico">✎</span>Raw</button>
 <button data-page="body"><span class="ico">◉</span>身体 / 饮食</button>
 <button data-page="settings"><span class="ico">⚙</span>连接</button>
 </nav><div id="toast" role="status"></div>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[]};
+const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[],rawNotes:[]};
 // Convert authoritative JSON v2 into a stable UI model. No CSV conversion.
 const exerciseLabels={
  adductor:"坐姿髋内收机（Adductor）",abductor:"坐姿髋外展机（Abductor）",
@@ -158,7 +177,7 @@ function normaliseDays(days){
  return {rows,measurements,nutrition};
 }
 function addPreview(event){
- if(!event||!event.id||state.rows.some(row=>row.id===event.id))return;
+ if(!event||event.type==="raw_note"||!event.exercise_id||!event.id||state.rows.some(row=>row.id===event.id))return;
  state.rows.push(oneRow(event,event.date));
  indexData();
 }
@@ -292,6 +311,30 @@ function renderBodyTrends(){
   p.textContent="同一指标需要至少两个已记录日期才能绘制趋势。";root.append(p)}
 }
 
+function renderRawHistory(){
+ const root=$("rawHistory");root.replaceChildren();
+ $("rawHistoryCount").textContent=state.rawNotes.length+"条";
+ if(!state.rawNotes.length){root.className="empty";root.textContent="暂无原始记录。";return}
+ root.className="";
+ for(const note of state.rawNotes.slice().reverse()){
+  const card=document.createElement("div");card.className="raw-note";
+  const hdr=document.createElement("div");hdr.className="row";
+  const date=document.createElement("small");date.className="sub";date.textContent=note.date||"";
+  const status=document.createElement("span");status.className="tag";
+  status.textContent=note.local_status==="uploaded"?"已写入 GitHub":"待上传";
+  hdr.append(date,status);card.append(hdr);
+  const text=document.createElement("div");text.className="raw-note-text";
+  text.textContent=note.text||"";card.append(text);root.append(card);
+ }
+}
+$("rawText").oninput=()=>{$("rawCount").textContent=$("rawText").value.length+" / 10000 字符"};
+$("saveRaw").onclick=()=>{
+ const value=$("rawText").value;
+ if(!value.trim()){toast("Raw 原文不能为空",true);return}
+ if(value.length>10000){toast("最多10000字符",true);return}
+ if(!window.BodyTraceNative){toast("请在 Android App 内保存",true);return}
+ BodyTraceNative.saveRaw(value);
+};
 $("filter").onchange=e=>{state.filter=e.target.value;renderHeat();renderDay()};
 $("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.selected=ds.at(-1)||today;renderHeat();renderDay()};
 $("recordExercise").onchange=()=>{$("weightLabel").textContent=$("recordExercise").value==="assisted_pullup"?"器械标称辅助量 (kg)":"器械标称重量 (kg)"};
@@ -311,7 +354,7 @@ window.bodyTraceReceive=function(evt){
  switch(evt.type){
  case "status":
   state.connected=!!evt.connected;renderStatus();
-  if(state.connected)toast("GitHub 连接已配置；本地录入无需联网");
+  if(state.connected)toast("GitHub 已连接：新记录即时上传，刷新时拉取更新");
   break;
  case "disconnected":
   state.connected=false;renderStatus();
@@ -324,6 +367,21 @@ window.bodyTraceReceive=function(evt){
    for(const e of evt.events)addPreview(e);
   }
   renderStatus();break;
+ case "raw_history":
+  state.rawNotes=Array.isArray(evt.notes)?evt.notes:[];
+  renderRawHistory();break;
+ case "raw_local_saved":
+  state.rawNotes.push(evt.note);
+  state.pending=evt.count||state.pending;
+  renderRawHistory();renderStatus();
+  $("rawText").value="";$("rawCount").textContent="0 / 10000 字符";
+  toast("Raw 已保存本机；已连接时正在上传 GitHub");
+  break;
+ case "raw_uploaded":
+  for(const note of state.rawNotes){
+   if(note.id===evt.id)note.local_status="uploaded";
+  }
+  renderRawHistory();toast("Raw 原文已上传私有 GitHub 收件箱");break;
  case "local_saved":{
   state.pending=evt.count||0;
   state.pendingEvents.push(evt.event);
@@ -332,7 +390,7 @@ window.bodyTraceReceive=function(evt){
   state.hasCache=true;indexData();state.selected=evt.event.date;renderHeat();renderDay();renderBody();
   renderStatus();navigate("home");
   $("sourceLabel").textContent="已保存本机加密 JSON · "+state.rows.length+"组";
-  toast("保存成功：已更新本地日历；可稍后同步 GitHub");
+  toast(state.connected?"本机已保存，正在上传 GitHub":"本机已保存，等待连接 GitHub");
   $("recordKg").value="";$("recordReps").value="";
   break;
  }
@@ -355,6 +413,6 @@ window.bodyTraceReceive=function(evt){
  case "error":toast(evt.message||"操作失败",true);break;
  }
 };
-renderStatus();renderHeat();renderDay();
+renderStatus();renderHeat();renderDay();renderRawHistory();
 if(window.BodyTraceNative)BodyTraceNative.ready();
 </script></body></html>
