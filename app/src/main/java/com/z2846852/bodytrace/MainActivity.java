@@ -76,7 +76,7 @@ public final class MainActivity extends Activity {
             // base64, never as executable code.
             String[][] bundled = {
                     {"body", "makehuman/base_body.glb"},
-                    {"hair", "makehuman/hair_short02.glb"},
+                    {"hair", "makehuman/hair_short04.glb"},
                     {"shorts", "makehuman/clothing_shorts.glb"},
                     {"shoes", "makehuman/clothing_shoes.glb"}
             };
