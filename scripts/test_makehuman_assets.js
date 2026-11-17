@@ -27,6 +27,13 @@ for(const item of bodySet.files){
    assert.ok(names.includes("gender_male"),"named gender_male morph required");
    assert.ok(names.includes("weight_max")&&names.includes("weight_min"),
      "weight morph targets required");
+   const defaults=json.meshes.flatMap(m=>m.weights||[]);
+   if(defaults.some(v=>v!==0)){
+     const viewer=fs.readFileSync(path.join(root,"scripts/makehuman_viewer.mjs"),"utf8");
+     assert.ok(viewer.includes("o.morphTargetInfluences.fill(0)"),
+       "Source GLB activates morphs by default; runtime must reset ALL channels");
+     console.log("Source GLB morph defaults require explicit reset:",defaults.slice(0,8));
+   }
    console.log("Body geometry:",json.meshes.length,"meshes,",count,"targets,",json.skins.length,"skin(s)");
    console.log("Morph names:",names.slice(0,14).join(", "));
   }
