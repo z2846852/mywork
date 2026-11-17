@@ -23,7 +23,7 @@ BodyTrace App (GitHub API) ──┘                |
                              fitness_log.txt → CSV → charts
                                             |
                                             v
-                              BodyTrace App GET private CSV
+                              BodyTrace App GET daily JSON
 
 Public mywork/data/demo/*.json: authorization-approved snapshot for demos
 ```
@@ -60,11 +60,11 @@ Public mywork/data/demo/*.json: authorization-approved snapshot for demos
 ### App 实现情况
 
 - 训练贡献热力日历（按组数分色）、按日期列出所有动作及各组、按动作筛选。
-- 读取私有仓库 `data/workouts.csv`、`data/measurements.csv`，本地 Keystore 加密缓存，断网保留待提交队列。
+- 从私有仓库 `data/daily/YYYY-MM-DD.json` 直接读取训练和身体数据，本地计算可视化；使用 Keystore 加密缓存和断网待提交队列。
 - 新增训练组：GET 当天 JSON 与 SHA，追加单个 UUID 组，PUT 完整当天 JSON 和 `sha`。发生 GitHub 409/422 冲突时重新获取文件、再次合并，最多重试。
 - GitHub fine-grained PAT 必须**由用户在 App 内输入**，仅授权私有 `z2846852/-` 仓库 Contents Read and write。PAT 不能写进 APK，也不会存到公开仓库。Android 本机使用 AES-GCM + Keystore 存储。
 - 体重、围度等展示已有测量；饮食录入与分析尚未接入。当前饮食字段在每日 JSON 中预留为 `nutrition` 数组。
-- 读取仍依赖私有 CSV 的 Actions 派生结果，因此新组成功 PUT 后需要等待 Actions 更新，再在 App 内点击同步。
+- App 直接读取 JSON 并绘图；不再等待 CSV/PNG/SVG 的生成。首页「刷新数据」直接请求 JSON，「触发 Actions」通过 `repository_dispatch` 启动私有仓库旧报表工作流；这两种操作独立。
 
 ### 首次接入与验收
 
