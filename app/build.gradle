@@ -1,6 +1,13 @@
 plugins { id 'com.android.application' }
 
 def buildNumber = (project.findProperty('appBuildNumber') ?: '1').toString().toInteger()
+def signingFile = System.getenv('BODYTRACE_SIGNING_FILE')
+def signingStorePass = System.getenv('BODYTRACE_STORE_PASSWORD')
+def signingAlias = System.getenv('BODYTRACE_KEY_ALIAS')
+def signingKeyPass = System.getenv('BODYTRACE_KEY_PASSWORD')
+def signingReady = signingFile && file(signingFile).exists() &&
+        signingStorePass && signingAlias && signingKeyPass
+
 android {
     namespace 'com.z2846852.bodytrace'
     compileSdk 35
@@ -9,7 +16,19 @@ android {
         minSdk 26
         targetSdk 34
         versionCode buildNumber
-        versionName "0.1." + buildNumber
+        versionName "0.2." + buildNumber
+    }
+    signingConfigs {
+        stableRelease {
+            if (signingReady) {
+                storeFile file(signingFile)
+                storePassword signingStorePass
+                keyAlias signingAlias
+                keyPassword signingKeyPass
+                enableV1Signing true
+                enableV2Signing true
+            }
+        }
     }
     buildTypes {
         debug {
@@ -17,6 +36,9 @@ android {
         }
         release {
             minifyEnabled false
+            if (signingReady) {
+                signingConfig signingConfigs.stableRelease
+            }
         }
     }
     compileOptions {
