@@ -33,7 +33,11 @@ const recent = Array.from({length:12},(_,i)=>({
   load_kg:String(i+1),assistance_kg:""
 }));
 assert.deepEqual(JSON.parse(JSON.stringify(load(recent,"row"))),{amount:7,count:10,isAssist:false});
-assert.ok(html.includes('id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" value="10"'));
+assert.ok(html.includes('id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" value="10" readonly'));
+assert.ok(html.includes('id="recordSets" type="number" min="1" max="10"'));
+assert.ok(html.includes('id="wheelCanvas"')&&html.includes('id="wheelOverlay"'));
+assert.ok(html.includes('id="bodyEntryPanel"')&&html.includes('id="bodySaveMeasurement"'));
+assert.ok(html.includes('id="bodyWeightUnit"'));
 assert.ok(html.includes('id="heatScroll"'));
 assert.ok(html.includes('state.selected=ds.at(-1)||today;renderHeat(true)'));
 const scrollHelper = script.slice(script.indexOf("function focusCalendarLatest()"),
@@ -54,6 +58,18 @@ assert.ok(asset.startsWith("<svg ")&&asset.includes("</svg>")&&asset.includes('v
 assert.ok(!/<script\b/i.test(asset)&&!/https?:\/\//i.test(asset.replace("http://www.w3.org/2000/svg","")),
  "Bundled cartoon artwork must not execute code or load remote content");
 new vm.Script(features,{filename:"features.js"});
+const wheel=fs.readFileSync(path.join(root,"app/src/main/assets/wheel.js"),"utf8");
+new vm.Script(wheel,{filename:"wheel.js"});
+assert.ok(wheel.includes('pointermove')&&wheel.includes('wheelCanvas'));
+assert.ok(features.includes('saveMeasurement(')&&features.includes('bodyEdited'));
+assert.ok(features.includes('mostRecentMetric('));
+assert.ok(native.includes('saveBatch(String batchJson)')&&native.includes('saveMeasurement(String measurementJson)'));
+assert.ok(native.includes('validatedMeasurement(String request)'));
+const github=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
+assert.ok(github.includes('isMeasurement ? "measurements"'));
+assert.ok(github.includes('"weight_kg", "shoulder_cm", "chest_cm"'));
+assert.ok(native.includes('readAsset("wheel.js")'));
+
 assert.ok(html.includes('id="avatarPicture"'),"2D character image missing");
 assert.ok(html.includes('id="avatarImport"'),"User needs high-res import button");
 assert.ok(html.includes('id="avatarMeasureDate"'),"Measurements must remain date-selectable");
@@ -69,4 +85,4 @@ assert.ok(native.includes('readAsset("features.js")')&&!native.includes('readAss
  "Default App must not load the massive GLB or Three.js bundle");
 assert.ok(workflow.includes("app:assembleRelease")&&workflow.includes("Load fixed public signing identity"),
  "New APK must keep the permanent release signing key");
-console.log("BodyTrace cartoon-first UI tests passed: 2D avatar, date-driven body stats, persisted custom image and stable Release signing.");
+console.log("BodyTrace tests passed: mobile ruler (weight/reps/sets), offline measurement JSON append, same-day metric selection, cartoon UI, stable Release signature.");
