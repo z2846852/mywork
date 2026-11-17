@@ -2,16 +2,24 @@
 
 Android 个人健康与训练记录实验应用：**本地优先，GitHub 按需同步**。未来逐步扩展饮食、体重、围度和力量趋势。参考 [better](https://github.com/z2846852/better) 的 Java + Gradle + GitHub Actions 自动构建方式。
 
-**[下载最新 Android 测试 APK](https://github.com/z2846852/mywork/releases/latest/download/BodyTrace-debug.apk)** · [Actions 构建状态](https://github.com/z2846852/mywork/actions) · [全部版本](https://github.com/z2846852/mywork/releases)
+**[下载最新固定签名 Release APK](https://github.com/z2846852/mywork/releases/latest/download/BodyTrace-release.apk)** · [Actions 构建状态](https://github.com/z2846852/mywork/actions) · [全部版本](https://github.com/z2846852/mywork/releases)
 
-> **注意：测试版每次使用临时 Debug 证书。** 更新 APK 可能需要先卸载旧版，导致本地 JSON、PAT 和未同步训练全部丢失。升级前务必先手动同步到 GitHub。后续应配置固定签名来支持覆盖安装。
+> **Android 签名已改为固定公开密钥。** 从首次 Release 安装起，后续同包名、同签名且 versionCode 递增的 APK 可直接覆盖升级。**旧 Debug 签名与新 Release 不兼容，第一次可能要卸载旧版**：卸载前先将本机未同步数据推送到 GitHub。
+
+## 固定公开签名（个人实验用途）
+
+仓库内 `signing/bodytrace-release.p12.b64` 是完整签名密钥库的 Base64 文本（**包含私钥**），不是公开证书；密码为 `bodytrace-public-signing-v1`，别名 `bodytrace`。这套签名专供 BodyTrace 使用，**不要**用于其他应用，也不要重新生成：更换签名会导致老版本无法覆盖升级。
+
+选择公开密钥是为减少个人实验项目的配置步骤，意味着任何拿到密钥的人都能签名一个 Android 视为同一开发者的 APK。不要安装非自己仓库发布的不可信安装包；APK 签名不等于 GitHub PAT，但安装恶意升级包仍可能威胁已存储 PAT。
+
+`mywork` 的 Actions 不需要任何额外 Secrets，使用这个静态密钥签名 Release。GitHub PAT 依然只能在手机里保存，不能上传到仓库。
 
 ## 本地优先架构
 
 - **Android App** 是随时可用的录入、清洗和可视化入口：不联网即可保存新训练组。手机在应用私有目录保存**明文 UTF-8 JSON**，包括每天的原始数据、Raw 收件箱和待上传队列；仅 GitHub PAT 使用 Android Keystore 加密。
 - **私有 [z2846852/-](https://github.com/z2846852/-)** 保存每天一个 JSON 文件：`data/daily/YYYY-MM-DD.json`。ChatGPT 继续直接写这里。App App 在保存训练组/Raw 后，只要已配置 PAT 就立即尝试上传；断网失败进入待上传队列。用户点击「同步 GitHub」时会重试上传并拉取 ChatGPT 新增的所有每日 JSON，按 UUID 合并。
 - **公共 [mywork](https://github.com/z2846852/mywork)** 保存 APK 源码、构建和经用户允许的历史演示快照 `data/demo/*.json`。演示快照不自动同步真实私有仓库，不包含个人备注或 PAT。
-- **GitHub Actions：仍负责构建/发布 APK。** 旧 TXT/CSV/SVG 兼容图表流程不是日常录入依赖，也不由 App 自动触发；如需重建旧报表，可在私有仓库 Actions 手动执行。
+- **GitHub Actions：使用仓库内固定的公开签名证书，自动编译并发布可持续覆盖升级的 Release APK。** 旧 TXT/CSV/SVG 兼容图表流程不是日常录入依赖，也不由 App 自动触发；如需重建旧报表，可在私有仓库 Actions 手动执行。
 
 ```text
   [手机 BodyTrace]         [ChatGPT]
