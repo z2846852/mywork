@@ -50,13 +50,6 @@ final class GitHubApi {
         return result;
     }
 
-    /** Triggers private workflow using the existing Contents:write token. */
-    void requestActionsRefresh(String token) throws Exception {
-        JSONObject event = new JSONObject();
-        event.put("event_type", "bodytrace_refresh");
-        request("POST", REPO + "/dispatches", token, event.toString());
-    }
-
     /** Append a single event to ONE daily JSON file with SHA optimistic locking. */
     void createEvent(String token, JSONObject event) throws Exception {
         String date = event.getString("date");
@@ -145,8 +138,7 @@ final class GitHubApi {
 
     private String request(String method, String address, String token, String json,
                            boolean allowMissing) throws Exception {
-        if (!address.startsWith(REPO + "/contents/") &&
-                !address.equals(REPO + "/dispatches")) {
+        if (!address.startsWith(REPO + "/contents/")) {
             throw new SecurityException("Unexpected API host/path");
         }
         if (token == null || token.trim().isEmpty()) {
