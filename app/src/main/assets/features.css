@@ -34,3 +34,47 @@
 .zone-bar b {min-width:26px;text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:390px){.profile-stat{padding:9px 7px}.profile-stat strong{font-size:15px}
   .muscle-person{min-width:105px}.muscle-view{gap:3px}}
+
+
+/* Semi-realistic illustrated body viewer, measurements stay independent of image. */
+.avatar-toolbar {display:flex;justify-content:space-between;align-items:end;gap:8px;margin:14px 0 10px;flex-wrap:wrap}
+.avatar-toolbar .field {flex:1;min-width:154px}
+.avatar-toolbar select {width:100%}
+.avatar-view-buttons {display:flex;gap:6px}
+.avatar-view-buttons button {padding:9px 12px;font-size:12px}
+.avatar-view-buttons button.active {border-color:#65dcb0;color:#69edb4;background:#12382c}
+.avatar-body-layout {display:grid;grid-template-columns:minmax(75px,1fr) minmax(130px,43%) minmax(75px,1fr);
+ align-items:center;gap:5px;padding:12px 5px;border:1px solid #284a3f;border-radius:16px;background:#12231f}
+.avatar-render {width:100%;min-width:0;text-align:center}
+.avatar-frame {position:relative;overflow:hidden;width:100%;aspect-ratio:190/253;
+ border-radius:12px;background:#12231f;user-select:none}
+.avatar-frame img {display:block;width:200%;height:100%;max-width:none;object-fit:fill;
+ transform:translateX(0);transition:transform .3s ease}
+.avatar-frame.view-back img {transform:translateX(-50%)}
+.avatar-hotspot {position:absolute;left:34%;top:25%;width:33%;height:44%;
+ background:transparent;border:0;cursor:pointer;z-index:2}
+.avatar-hotspot:focus-visible {outline:2px solid #6df2bd;outline-offset:-2px}
+.avatar-pager {font-size:9px;color:#8da99a;margin-top:7px}
+.avatar-stat-column {display:flex;flex-direction:column;justify-content:space-evenly;gap:12px;min-height:235px}
+.avatar-metric {display:flex;flex-direction:column;gap:2px;align-items:stretch;
+ text-align:left;padding:7px 5px;background:rgba(23,54,45,.65);
+ border:1px solid transparent;border-radius:8px;color:#d3e7db;cursor:pointer}
+.avatar-metric.selected {border-color:#5fecad;background:#214534}
+.avatar-metric small {font-size:10px;color:#a2b9ac}
+.avatar-metric strong {font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.avatar-metric .delta {font-size:10px;color:#98bca9}
+.avatar-metric .delta.up {color:#f0b179}.avatar-metric .delta.down {color:#8cccd6}
+.avatar-weight-summary {padding:11px 6px;text-align:center;border-bottom:1px solid #315145}
+.avatar-weight-summary strong {font-size:21px;color:#75efba;margin:0 8px}
+.avatar-subtitle{font-size:11px;color:#91aa9c;line-height:1.7;margin-top:10px}
+.training-region-details {margin-top:13px;border-top:1px solid #2c5042;padding-top:11px}
+.training-region-details summary {cursor:pointer;color:#b5d8c7;font-size:12px}
+#avatarSelectedDetail{margin-top:12px;line-height:1.6}
+@media (max-width:420px) {
+  .avatar-body-layout {grid-template-columns:minmax(66px,1fr) minmax(123px,44%) minmax(66px,1fr);gap:2px;padding:10px 3px}
+  .avatar-stat-column {gap:5px;min-height:190px}
+  .avatar-metric {padding:5px 3px}
+  .avatar-metric strong {font-size:13px}
+  .avatar-metric small,.avatar-metric .delta {font-size:9px}
+  .avatar-toolbar .field{min-width:145px}
+}
