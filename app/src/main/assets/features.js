@@ -336,11 +336,6 @@ $("analyticsExercise").onchange=renderStrengthPlot;
 
 // The character image is a consistent illustration; it never morphs into a
 // supposedly exact 3D reconstruction. Measurements come from daily JSON.
-let avatarView = "front";
-let avatar3d = null;
-let avatarMode = "3d";
-let avatarPending = true;
-let avatarLoadError = "";
 let selectedAvatarDate = "";
 let selectedAvatarMetric = "chest_cm";
 const avatarMetrics = [
@@ -369,16 +364,6 @@ function metricPrevious(key, date){
 function metricText(value){
  if(value===null)return "—";
  return (Math.round(value*10)/10).toFixed(1);
-}
-function avatarSetView(next){
- avatarView=next==="back"?"back":"front";
- $("avatarFrame").classList.toggle("view-back",avatarView==="back");
- if(avatarMode==="3d"&&avatar3d)avatar3d.setView(avatarView);
- for(const [id,view] of [["avatarFront","front"],["avatarBack","back"]]){
-  const button=$(id);
-  button.classList.toggle("active",avatarView===view);
-  button.setAttribute("aria-pressed",String(avatarView===view));
- }
 }
 function avatarShowDetail(){
  const def=avatarMetrics.find(x=>x.key===selectedAvatarMetric);
@@ -455,75 +440,11 @@ function renderAvatar(){
  }
  w.append(name,value,change);
  avatarShowDetail();
- if(avatar3d) {
-  const shape={height_cm:FIXED_HEIGHT_CM};
-  const keys=["weight_kg","shoulder_cm","chest_cm","waist_cm","hip_cm",
-   "upper_arm_cm","thigh_cm","calf_cm"];
-  for(const k of keys){
-   const item=selectedAvatarDate?metricAt(k,selectedAvatarDate):null;
-   if(item)shape[k]=item.value;
-  }
-  avatar3d.setMeasurements(shape);
- }
+
 }
-function avatarDisplayMode(target){
- avatarMode=target==="2d"?"2d":"3d";
- if(avatarMode==="3d"&&!avatar3d&&!avatarPending){
-  avatarMode="2d";
-  if(avatarLoadError)toast("三维模型加载失败："+avatarLoadError,true);
- }
- const real=avatarMode==="3d",frame=$("avatarFrame");
- frame.classList.toggle("real-3d",real);
- frame.parentElement.parentElement.classList.toggle("has-webgl",real);
- $("avatar3dCanvas").hidden=!real;
- $("avatarPicture").hidden=real;
- $("avatarHotspot").hidden=real;
- $("avatar3dMode").classList.toggle("active",real);
- $("avatar2dMode").classList.toggle("active",!real);
- $("avatar3dMode").setAttribute("aria-pressed",String(real));
- $("avatar2dMode").setAttribute("aria-pressed",String(!real));
- $("avatarModeLabel").textContent=real?
-   "MakeHuman · 三维模型 · 手指拖动旋转 / 双指缩放":
-   "二维原画：支持自定义高清图片，但不能三维旋转";
- if(real&&avatar3d){avatar3d.draw();}
-}
-async function bootMakeHuman(){
- const status=$("avatarLoading");
- try{
-  if(!window.BodyTraceReal3D||!window.__BT_MODEL_ASSETS__)
-   throw new Error("APK 未包含三维模型运行组件");
-  const runner=window.BodyTraceReal3D;
-  avatar3d=await runner.mount(
-   $("avatar3dCanvas"),window.__BT_MODEL_ASSETS__,
-   msg=>{if(status)status.textContent=msg;}
-  );
-  avatarPending=false;
-  window.__BT_MODEL_ASSETS__=null;
-  if(status)status.hidden=true;
-  const info=avatar3d.getInfo();
-  $("avatarModelDetail").textContent=
-   "MAKEHUMAN · "+info.meshCount+" meshes / "+info.morphCount+
-   " morph targets · 已加载 "+info.parts.length+" 个服饰组件";
-  avatarDisplayMode(avatarMode);
-  renderAvatar();  // Pull every valid metric from the locally synced daily JSON.
- }catch(error){
-  avatarLoadError=String(error?.message||error).slice(0,160);
-  avatarPending=false;
-  window.__BT_MODEL_ASSETS__=null;
-  if(status)status.hidden=true;
-  console.warn("[BodyTrace] MakeHuman unavailable:",error);
-  avatarDisplayMode("2d");
-  $("avatarModelDetail").textContent="当前设备未能加载三维人体；已切换到二维原画";
- }
-}
-avatarDisplayMode("3d");
-bootMakeHuman();
-$("avatar3dMode").onclick=()=>avatarDisplayMode("3d");
-$("avatar2dMode").onclick=()=>avatarDisplayMode("2d");
-$("avatarTurn").onclick=()=>{if(avatar3d)avatar3d.rotate(45)};
 $("avatarImport").onclick=()=>{
  if(!window.BodyTraceNative||typeof BodyTraceNative.pickAvatar!=="function"){
-  toast("请在 Android App 中导入本地高清图",true);return;
+  toast("当前 Android 版本不支持图片导入",true);return;
  }
  BodyTraceNative.pickAvatar();
 };
@@ -531,8 +452,6 @@ $("avatarMeasureDate").addEventListener("change",e=>{
  selectedAvatarDate=e.target.value;
  renderAvatar();
 });
-$("avatarFront").onclick=()=>avatarSetView("front");
-$("avatarBack").onclick=()=>avatarSetView("back");
 // Tap different vertical regions to inspect the closest relevant measurement.
 // This is a hotspot on a picture, not true 3D ray tracing.
 $("avatarHotspot").onclick=e=>{
@@ -541,15 +460,6 @@ $("avatarHotspot").onclick=e=>{
  selectedAvatarMetric=relativeY<.32?"chest_cm":relativeY<.65?"waist_cm":"hip_cm";
  renderAvatar();
 };
-let swipeStartX=null;
-$("avatarFrame").addEventListener("touchstart",e=>{
- if(e.touches.length===1)swipeStartX=e.touches[0].clientX;
-},{passive:true});
-$("avatarFrame").addEventListener("touchend",e=>{
- if(swipeStartX===null||!e.changedTouches.length)return;
- const dx=e.changedTouches[0].clientX-swipeStartX;swipeStartX=null;
- if(Math.abs(dx)>35)avatarSetView(dx<0?"back":"front");
-},{passive:true});
 function renderAllFeatures(){
  nutritionRender();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();
 }
@@ -558,8 +468,8 @@ window.bodyTraceReceive=function(evt){
   if(typeof originalReceive==="function") originalReceive(evt);
   if(evt.type==="avatar_imported"){
     $("avatarPicture").src="data:"+evt.mime+";base64,"+evt.base64;
-    avatarDisplayMode("2d");
-    toast("高清二维原画已保存在本机资源库，APK 覆盖升级后仍保留");
+    $("avatarModeLabel").textContent="你的高清卡通人物图 · 本机已保存 · 正常升级后仍保留";
+    toast("高清人物图导入成功；已保存在本机，升级 APK 不会丢失");
   }
   if(evt.type==="nutrition_local_saved"){
     const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : null;
