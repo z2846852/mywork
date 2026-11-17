@@ -1,36 +1,45 @@
 # 体迹 · BodyTrace
 
-Android 个人数据仪表盘：训练、身体指标，后续扩展饮食。参考了 [better](https://github.com/z2846852/better) 的原生 Java + Gradle + GitHub Actions 自动构建方式。
+Android 个人健康与训练记录实验应用：**本地优先，GitHub 按需同步**。未来逐步扩展饮食、体重、围度和力量趋势。参考 [better](https://github.com/z2846852/better) 的 Java + Gradle + GitHub Actions 自动构建方式。
 
-**[下载最新 Android APK](https://github.com/z2846852/mywork/releases/latest/download/BodyTrace-debug.apk)** · [Actions 构建](https://github.com/z2846852/mywork/actions) · [最新 Release](https://github.com/z2846852/mywork/releases/latest)
+**[下载最新 Android 测试 APK](https://github.com/z2846852/mywork/releases/latest/download/BodyTrace-debug.apk)** · [Actions 构建状态](https://github.com/z2846852/mywork/actions) · [全部版本](https://github.com/z2846852/mywork/releases)
 
-> 当前是使用临时 Debug 证书的测试版，更新安装可能需要先卸载旧版（会清空本机令牌、缓存和未上传队列）。不要将测试 APK 视为已经完成真机端到端验收。
+> **注意：测试版每次使用临时 Debug 证书。** 更新 APK 可能需要先卸载旧版，导致本地 JSON、PAT 和未同步训练全部丢失。升级前务必先手动同步到 GitHub。后续应配置固定签名来支持覆盖安装。
 
-## 双仓库数据架构
+## 本地优先架构
 
-- **私有 `z2846852/-`**：真正的数据主仓库，保存完整记录、历史 TXT、清洗逻辑和模型。无论 ChatGPT 还是 App，都向 `data/daily/YYYY-MM-DD.json` **按天单文件追加**。
-- **公开 `z2846852/mywork`**：Android App 源码、构建流程及 `data/demo/YYYY-MM-DD.json` 演示快照。用户已同意公开训练重量/次数、体重身高等基础数据用于演示；演示目录已排除原始备注、健康叙述和所有凭证。**演示快照不是实时同步的数据源，也不是写入目标。**
-- **GitHub Actions（手动兼容刷新）**：仅在 App 选择「触发 Actions」或在 GitHub 手动执行时，按每组 UUID 去重导入 `fitness_log.txt` 并重建旧 CSV、PNG/SVG 与 Markdown 报表。新训练数据写入每日 JSON **不会自动触发这套昂贵的旧图表流程**。
+- **Android App** 是随时可用的录入、清洗和可视化入口：不联网即可保存新训练组。手机用 Android Keystore AES-GCM 加密保存每日 JSON 数据的本地快照，以及未同步的事件队列。
+- **私有 [z2846852/-](https://github.com/z2846852/-)** 保存每天一个 JSON 文件：\`data/daily/YYYY-MM-DD.json\`。ChatGPT 继续直接写这里。App 只有用户主动点击「同步 GitHub」时才访问它：先上传未同步事件，再下载每日文件并按 UUID 合并。
+- **公共 [mywork](https://github.com/z2846852/mywork)** 保存 APK 源码、构建和经用户允许的历史演示快照 \`data/demo/*.json\`。演示快照不自动同步真实私有仓库，不包含个人备注或 PAT。
+- **GitHub Actions：仍负责构建/发布 APK。** 旧 TXT/CSV/SVG 兼容图表流程不是日常录入依赖，也不由 App 自动触发；如需重建旧报表，可在私有仓库 Actions 手动执行。
 
-```
-ChatGPT GitHub Connector ───┐
-                             ├──> Private data/daily/YYYY-MM-DD.json
-BodyTrace App (GitHub API) ──┘                |
-                                            v
-                                import_daily.py (idempotent)
-                                            |
-                                            v
-                   (仅手动触发) fitness_log.txt → CSV → charts
-                                            |
-                                            v
-                              BodyTrace App GET daily JSON
+\`\`\`text
+  [手机 BodyTrace]         [ChatGPT]
+        |                     |
+        | 本机加密每日 JSON    | 直接提交 JSON
+        |                     v
+        |  <== 手动同步 ==> 私有 GitHub data/daily/*.json
+        |      先推后拉
+        v
+  Android 本地解析/计算/画图
+  （不需要等待旧图表 Actions）
 
-Public mywork/data/demo/*.json: authorization-approved snapshot for demos
-```
+  ChatGPT 改 mywork 源码 → GitHub Actions 构建 APK
+\`\`\`
 
-### 每日 JSON v2 示例
+## 当前已实现
 
-```json
+- 无需 PAT、无需联网即可录入训练组；本机记录后立即在训练贡献日历显示。
+- 训练日历按照每日组数显示深浅，支持按日期查看所有组、按动作过滤。
+- 身体指标及体重、腰围、胸围、体脂的简易趋势图均由 App 从 JSON 本机计算。
+- GitHub fine-grained PAT 仅在手机本地 Keystore 加密存储，不随 APK 或公开源码分发。
+- 「同步 GitHub」：推送本地待上传组，再读取 ChatGPT 写入的每日 JSON，用每组 UUID 合并，远端同 ID 项优先，本地未上传项保留；写入有 SHA 冲突重试。
+- 「解除授权」只清除 PAT，**不删除本地数据和待同步队列**。
+- 饮食数据字段 \`nutrition\` 已预留；饮食录入、营养清洗规则和可视化尚未实现。
+
+## 每天一个 JSON · schema v2
+
+\`\`\`json
 {
   "schema_version": 2,
   "date": "2026-11-17",
@@ -41,50 +50,32 @@ Public mywork/data/demo/*.json: authorization-approved snapshot for demos
       "load_kg": 27.5,
       "reps": 8,
       "source": "chatgpt"
-    },
-    {
-      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      "exercise_id": "assisted_pullup",
-      "assistance_kg": 73,
-      "reps": 4,
-      "source": "bodytrace-android"
     }
   ],
   "measurements": [],
   "nutrition": []
 }
-```
+\`\`\`
 
-示例 ID 不能用于实际写入；每条记录都要生成唯一 UUID。**只使用 `assistance_kg` 表示辅助量**，其他负重使用 `load_kg`。无实际测量依据的 e1RM 和机器阻力系数不得描述为实测最大力量。
+例子中的 UUID 是示意。每组必须有独立 UUID，辅助引体用 \`assistance_kg\`，其他动作用 \`load_kg\`；均为器械标称值而非标定后的实际作用力。次数低于15而未明确 RIR 时，界面按用户个人规则显示「RIR0（规则）」，并非实际测试力竭。
 
-### App 实现情况
+## 首次测试步骤
 
-- 训练贡献热力日历（按组数分色）、按日期列出所有动作及各组、按动作筛选。
-- 从私有仓库 `data/daily/YYYY-MM-DD.json` 直接读取训练和身体数据，本地计算可视化；使用 Keystore 加密缓存和断网待提交队列。
-- 新增训练组：GET 当天 JSON 与 SHA，追加单个 UUID 组，PUT 完整当天 JSON 和 `sha`。发生 GitHub 409/422 冲突时重新获取文件、再次合并，最多重试。
-- GitHub fine-grained PAT 必须**由用户在 App 内输入**，仅授权私有 `z2846852/-` 仓库 Contents Read and write。PAT 不能写进 APK，也不会存到公开仓库。Android 本机使用 AES-GCM + Keystore 存储。
-- 体重、围度等展示已有测量；饮食录入与分析尚未接入。当前饮食字段在每日 JSON 中预留为 `nutrition` 数组。
-- App 直接读取 JSON 并绘图；不再等待 CSV/PNG/SVG 的生成。首页「刷新数据」直接请求 JSON，「触发 Actions」通过 `repository_dispatch` 启动私有仓库旧报表工作流；这两种操作独立。
+1. 安装 APK。**不需要登录**，进入「记录」完成一组真实训练；返回「概览」，应立即看见本地日期和组数。
+2. 在 GitHub 创建 fine-grained PAT，仅授权私有 \`z2846852/-\`，权限为 Contents Read/write。到 App「连接」粘贴，不要发到聊天里。
+3. 点击「同步 GitHub」。App 先上传待同步组，再拉取 ChatGPT 录入的每日 JSON，与本地按 ID 合并。检查私有仓库当天文件新增项目。
+4. 请 ChatGPT 写入另一组，然后回 App 点击「同步 GitHub」，确认两端都能看到完整记录。
+5. 「解除授权」后验证本机数据仍存在、仍可离线录入。
+6. 升级测试版 APK 前先同步。**临时 Debug 签名可能导致必须卸载旧版，本机未同步数据将丢失。**
 
-### 首次接入与验收
+## 范围与验证限制
 
-1. 下载并安装测试 APK。
-2. 在 GitHub 创建 fine-grained personal access token，仅选择 `z2846852/-`，授予 Contents Read/write。在 App「连接」页输入，不要发到聊天里。
-3. App「概览」直接读取私有每日 JSON；应看到过去的训练日历和全部组数。
-4. 在「记录」页录入**实际完成**的一组，检查私有仓库 `data/daily/当天.json` 对应的 `workouts` 数组多出一项，并且不丢失以前的组。
-5. 保存成功后直接刷新每日 JSON，新组应立即显示；如需重建旧 GitHub 报表，点「触发 Actions」，并在 GitHub Actions 页面检查执行状态。
-6. 检查 ChatGPT 继续读取、追加同一份每日 JSON。
+Android Actions 已用于编译与签名检查；但是 **真机上的 PAT 授权、离线录入持久化、同步及断线恢复仍需实际设备验收**。
 
-**验证边界：** 代码编译、APK 签名校验和私有 GitHub Actions 导入测试已经通过；尚未使用用户的真实 Android 设备和 PAT 验证双向网络写回。旧 APK 以独立 `app_events` 文件写入，私有兼容导入器暂时保留。
+V0.1 暂不支持编辑、删除已存在的某一组，也没有跨设备自动同步和后台自动计划任务。当前本地是加密的每日 JSON **集合快照**，不是每一天一个单独的磁盘文件；远端 GitHub 是严格「每天一个 JSON」。大量历史文件时可以再按年份分目录并做增量同步。
 
-## 数据发布与后续演进
+## 开发与更新
 
-`data/demo/*.json` 是用户授权用于公共演示的历史结构化快照。它不自动随私有仓库更新；本次公开不包括原始聊天文本、医疗信息、完整饮食记录或任何凭证。**公开 Git 历史不能被视为可随时完全撤回的私有存储。**
+Java 17、Android SDK 35、Gradle 8.9、AGP 8.7.3。原生 Java + 只加载内置 HTML 的 WebView，本地界面不访问外站，所有 GitHub 网络操作通过原生 Java HTTPS 完成。
 
-接下来可按相同 `data/daily/YYYY-MM-DD.json` 模式增加 `nutrition`（餐食、估算热量、蛋白质、份量来源）及 `measurements`（体重、腰围、胸围、体脂等）的录入和趋势分析，避免重构整体架构。
-
-## 开发
-
-Java 17 · Android SDK 35 · Gradle 8.9 · AGP 8.7.3。原生 Java + WebView 离线本地 UI，不在 WebView 暴露 GitHub 令牌。
-
-源码在 `app/src/main/`，CI 在 `.github/workflows/android.yml`，APK 发布于 GitHub Releases。
+源码在 \`app/src/main/\`，自动构建位于 \`.github/workflows/android.yml\`。ChatGPT 后续修改界面/新增字段时提交源码，Actions 自动发布新 APK，无需在手机里手动运行图表生成器。
