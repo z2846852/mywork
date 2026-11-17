@@ -69,29 +69,12 @@ public final class MainActivity extends Activity {
             String html = readAsset("index.html");
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
-            String js = readAsset("makehuman3d.bundle.js") + "\n" + readAsset("features.js");
+            String js = readAsset("features.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
-            // All 3D GLBs are packaged with the signed APK. No CDN, private data
-            // transfer or runtime WebView fetch. Binary GLBs arrive as data-only
-            // base64, never as executable code.
-            String[][] bundled = {
-                    {"body", "makehuman/base_body.glb"},
-                    {"hair", "makehuman/hair_short04.glb"},
-                    {"shorts", "makehuman/clothing_shorts.glb"},
-                    {"shoes", "makehuman/clothing_shoes.glb"}
-            };
-            StringBuilder modelData = new StringBuilder("window.__BT_MODEL_ASSETS__={");
-            for (int i = 0; i < bundled.length; ++i) {
-                if (i != 0) modelData.append(',');
-                modelData.append('"').append(bundled[i][0]).append("\":\"");
-                modelData.append(android.util.Base64.encodeToString(
-                        readAssetBytes(bundled[i][1]), android.util.Base64.NO_WRAP));
-                modelData.append('"');
-            }
-            modelData.append("};");
-            html = html.replace("</body>",
-                    "<script>" + modelData + "</script><script>" + js + "</script></body>");
-            // Embed the bundled front/back avatar as a data URI: the WebView
+            // The friendly cartoon avatar is a local SVG; no heavy GLB or
+            // third-party scripts are loaded in the 2D release.
+            html = html.replace("</body>", "<script>" + js + "</script></body>");
+            // Embed the bundled cartoon or imported artwork as a data URI: the WebView
             // intentionally cannot fetch network or local-file URLs.
             AvatarResource resource = activeAvatar();
             String avatar = android.util.Base64.encodeToString(
@@ -131,7 +114,7 @@ public final class MainActivity extends Activity {
                 }
             }
         }
-        return new AvatarResource(readAssetBytes("body_avatar_pair.jpg"), "image/jpeg");
+        return new AvatarResource(readAssetBytes("avatar_cartoon.svg"), "image/svg+xml");
     }
 
     private static String sniffAvatarMime(byte[] bytes) {
@@ -155,7 +138,7 @@ public final class MainActivity extends Activity {
             int n;
             while ((n = input.read(buffer)) != -1) {
                 if (output.size() + n > AVATAR_MAX_BYTES) {
-                    throw new IllegalArgumentException("图片超过12MB；建议使用原始1536×1024角色图");
+                    throw new IllegalArgumentException("图片超过12MB；请使用不超过12MB的原图");
                 }
                 output.write(buffer, 0, n);
             }
