@@ -441,7 +441,16 @@ function renderAvatar(){
  }
  w.append(name,value,change);
  avatarShowDetail();
-
+ // Derived picture contour only; measurement JSON remains canonical.
+ if(window.BodyTraceMorph){
+  const fields={};
+  for(const def of avatarMetrics){
+   const metric=selectedAvatarDate?metricAt(def.key,selectedAvatarDate):null;
+   if(metric)fields[def.key]=metric.value;
+  }
+  BodyTraceMorph.set(selectedAvatarDate,fields);
+ }
+ 
 }
 
 // Only measurements explicitly confirmed on the ruler are appended to JSON.
