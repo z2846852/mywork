@@ -1,71 +1,90 @@
 # 体迹 · BodyTrace
 
-个人身体数据仪表盘（Android）。在公开的 `mywork` 仓库维护**应用代码与界面**；训练原始记录仍然保留在私有仓库 `z2846852/-`。
+Android 个人数据仪表盘：训练、身体指标，后续扩展饮食。参考了 [better](https://github.com/z2846852/better) 的原生 Java + Gradle + GitHub Actions 自动构建方式。
 
-**数据保护原则：公开仓库绝不存放真实训练记录、饮食、体重、围度或 GitHub 访问令牌。**
+**[下载最新 Android APK](https://github.com/z2846852/mywork/releases/latest/download/BodyTrace-debug.apk)** · [Actions 构建](https://github.com/z2846852/mywork/actions) · [最新 Release](https://github.com/z2846852/mywork/releases/latest)
 
-**[直接下载最新测试 APK](https://github.com/z2846852/mywork/releases/latest/download/BodyTrace-debug.apk)** · [源码](https://github.com/z2846852/mywork) · [构建记录](https://github.com/z2846852/mywork/actions)
+> 当前是使用临时 Debug 证书的测试版，更新安装可能需要先卸载旧版（会清空本机令牌、缓存和未上传队列）。不要将测试 APK 视为已经完成真机端到端验收。
 
-> 当前构建为测试 APK，使用 Actions 临时 debug 证书。更新版本可能需要卸载后重装，导致本机令牌及未上传队列被清除。后续应改为私有签名密钥存储在 Actions Secrets 以支持直接覆盖安装。
+## 双仓库数据架构
 
-## 接入验收清单
-
-1. 安装 APK，进入「连接」，输入只对私有仓库 `z2846852/-` 有 Contents Read and write 权限的 fine-grained PAT。
-2. 「概览」读取私有 `workouts.csv`，应能看到 2026-11-17 的训练日；「身体/饮食」能读已有 `measurements.csv` 的最近指标。App 不会向公共仓库下载你的真实训练数据。
-3. 「记录」新增**真实完成**的训练组，App 显示已写入私有 GitHub。
-4. 打开 [私有事件目录](https://github.com/z2846852/-/tree/main/data/app_events)，确认有 `YYYY-MM-DD/<uuid>.json`。
-5. 私有 [图表工作流](https://github.com/z2846852/-/actions) 成功后，检查新组是否进入 `data/fitness_log.txt` 和 `data/workouts.csv`。
-6. 回到 App 点「同步」，确认新组显示在当天日历详情。
-
-**验证状态：** Android Actions 编译、打包、签名校验已通过；私有 Actions 的事件导入器已通过隔离数据单元测试。尚未在你的 Android 真机上验证 PAT 授权与真实网络写回。
-
-## V0.1 核心能力
-- Android App 内展示 GitHub 风格的训练贡献日历；按日期查看全部训练组、按动作筛选。
-- 通过用户自己创建的 fine-grained GitHub PAT 连接私有仓库；令牌由 Android Keystore 加密保存在本机，不提交到仓库、也不注入前端脚本。
-- 从私有仓库 `data/workouts.csv` 和 `data/measurements.csv` 读取真实数据，提供离线加密缓存。
-- 录入一组训练后写入私有仓库 `data/app_events/YYYY-MM-DD/<uuid>.json`，并由私有仓库 Actions 导入 `fitness_log.txt`、重建 CSV 和图表。
-- 按日期和动作查看历史记录；饮食、围度等模块预留扩展接口。
-- 使用 GitHub Actions 构建可下载的测试 APK。
-
-## 使用方式
-
-1. 在 GitHub 设置中创建 **Fine-grained personal access token**，Repository access 仅选择私有仓库 `z2846852/-`；授予 **Contents: Read and write**。不要授予 `mywork` 或其他仓库的写权限。
-2. 在应用的「连接」页粘贴令牌并验证。令牌只存于手机受 Android Keystore 保护的应用数据区域。
-3. 点击「同步」读取私有训练记录。点击日期即可查看动作和组数。
-4. 在「记录」页新增一组，提交后产生独立事件文件；私有仓库的 Actions 导入 CSV，之后再同步即可显示。
-
-## 安全边界
-
-- 不含固定 PAT、OAuth secret 或真实个人数据；没有服务器。
-- 仓库是公开的，APK 也可能被其他人下载，但没有你的令牌就无法访问私有数据。
-- V0.1 使用 Android Debug 签名，仅用于个人测试；不同构建可能无法覆盖安装。**不要将测试版当作生产级安全产品。**
-- 短期个人自用采用手动粘贴限定权限的 PAT；以后可升级为 GitHub App OAuth + PKCE。
-- 如果发生令牌泄露，立即在 GitHub 撤销该令牌。
-
-## 构建
-
-参考私有 `better` 仓库的原生 Java + Gradle + GitHub Actions 构建方式。Java 17、AGP 8.7.3、Gradle 8.9、Android SDK 35。
-
-在 [Actions](https://github.com/z2846852/mywork/actions) 的 `Build BodyTrace Android APK` 找到构建结果，在 Artifacts 中下载 APK。
-
-## 后续模块
-
-`workout`（训练）→ `nutrition`（饮食）→ `body`（围度/体重/体脂）→ `dashboard`（跨模块趋势）。
-
-后续通过共享版本化 JSON schema 接入不同数据类型，避免所有业务耦合到 `fitness_log.txt`。
-
-## 数据流
+- **私有 `z2846852/-`**：真正的数据主仓库，保存完整记录、历史 TXT、清洗逻辑和模型。无论 ChatGPT 还是 App，都向 `data/daily/YYYY-MM-DD.json` **按天单文件追加**。
+- **公开 `z2846852/mywork`**：Android App 源码、构建流程及 `data/demo/YYYY-MM-DD.json` 演示快照。用户已同意公开训练重量/次数、体重身高等基础数据用于演示；演示目录已排除原始备注、健康叙述和所有凭证。**演示快照不是实时同步的数据源，也不是写入目标。**
+- **GitHub Actions**：私有仓库发现每日 JSON 改动后，按每个训练组的 UUID 去重导入 `fitness_log.txt`，再重建 `workouts.csv`、`measurements.csv`、日历与图表。历史记录仍保留，避免重复统计。
 
 ```
-ChatGPT (GitHub connector) -------> Private z2846852/-
-                                        ^
-BodyTrace (encrypted local PAT) --------|
-            | PUT data/app_events/YYYY-MM-DD/{uuid}.json
-            v
-Private Actions: import_app_events.py -> fitness_log.txt -> workouts.csv
-            ^
-            |
-BodyTrace GET private CSV -> local graph / calendar
+ChatGPT GitHub Connector ───┐
+                             ├──> Private data/daily/YYYY-MM-DD.json
+BodyTrace App (GitHub API) ──┘                |
+                                            v
+                                import_daily.py (idempotent)
+                                            |
+                                            v
+                             fitness_log.txt → CSV → charts
+                                            |
+                                            v
+                              BodyTrace App GET private CSV
 
-Public mywork: Android source + build + demo (NO PERSONAL DATA)
+Public mywork/data/demo/*.json: authorization-approved snapshot for demos
 ```
+
+### 每日 JSON v2 示例
+
+```json
+{
+  "schema_version": 2,
+  "date": "2026-11-17",
+  "workouts": [
+    {
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "exercise_id": "row",
+      "load_kg": 27.5,
+      "reps": 8,
+      "source": "chatgpt"
+    },
+    {
+      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "exercise_id": "assisted_pullup",
+      "assistance_kg": 73,
+      "reps": 4,
+      "source": "bodytrace-android"
+    }
+  ],
+  "measurements": [],
+  "nutrition": []
+}
+```
+
+示例 ID 不能用于实际写入；每条记录都要生成唯一 UUID。**只使用 `assistance_kg` 表示辅助量**，其他负重使用 `load_kg`。无实际测量依据的 e1RM 和机器阻力系数不得描述为实测最大力量。
+
+### App 实现情况
+
+- 训练贡献热力日历（按组数分色）、按日期列出所有动作及各组、按动作筛选。
+- 读取私有仓库 `data/workouts.csv`、`data/measurements.csv`，本地 Keystore 加密缓存，断网保留待提交队列。
+- 新增训练组：GET 当天 JSON 与 SHA，追加单个 UUID 组，PUT 完整当天 JSON 和 `sha`。发生 GitHub 409/422 冲突时重新获取文件、再次合并，最多重试。
+- GitHub fine-grained PAT 必须**由用户在 App 内输入**，仅授权私有 `z2846852/-` 仓库 Contents Read and write。PAT 不能写进 APK，也不会存到公开仓库。Android 本机使用 AES-GCM + Keystore 存储。
+- 体重、围度等展示已有测量；饮食录入与分析尚未接入。当前饮食字段在每日 JSON 中预留为 `nutrition` 数组。
+- 读取仍依赖私有 CSV 的 Actions 派生结果，因此新组成功 PUT 后需要等待 Actions 更新，再在 App 内点击同步。
+
+### 首次接入与验收
+
+1. 下载并安装测试 APK。
+2. 在 GitHub 创建 fine-grained personal access token，仅选择 `z2846852/-`，授予 Contents Read/write。在 App「连接」页输入，不要发到聊天里。
+3. App「概览」读取私有训练 CSV；应看到过去的训练日历和全部组数。
+4. 在「记录」页录入**实际完成**的一组，检查私有仓库 `data/daily/当天.json` 对应的 `workouts` 数组多出一项，并且不丢失以前的组。
+5. 私有仓库 Actions 完成后，再次同步，看新组是否进入日历。
+6. 检查 ChatGPT 继续读取、追加同一份每日 JSON。
+
+**验证边界：** 代码编译、APK 签名校验和私有 GitHub Actions 导入测试已经通过；尚未使用用户的真实 Android 设备和 PAT 验证双向网络写回。旧 APK 以独立 `app_events` 文件写入，私有兼容导入器暂时保留。
+
+## 数据发布与后续演进
+
+`data/demo/*.json` 是用户授权用于公共演示的历史结构化快照。它不自动随私有仓库更新；本次公开不包括原始聊天文本、医疗信息、完整饮食记录或任何凭证。**公开 Git 历史不能被视为可随时完全撤回的私有存储。**
+
+接下来可按相同 `data/daily/YYYY-MM-DD.json` 模式增加 `nutrition`（餐食、估算热量、蛋白质、份量来源）及 `measurements`（体重、腰围、胸围、体脂等）的录入和趋势分析，避免重构整体架构。
+
+## 开发
+
+Java 17 · Android SDK 35 · Gradle 8.9 · AGP 8.7.3。原生 Java + WebView 离线本地 UI，不在 WebView 暴露 GitHub 令牌。
+
+源码在 `app/src/main/`，CI 在 `.github/workflows/android.yml`，APK 发布于 GitHub Releases。
