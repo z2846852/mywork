@@ -67,7 +67,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-record">
-<div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">提交后写入私有仓库的独立 JSON 事件，不覆盖旧训练组。</p>
+<div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">提交后追加到私有仓库当天的 JSON 文件（data/daily/YYYY-MM-DD.json），不覆盖旧组。</p>
 <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
 <div class="field"><label for="recordExercise">动作</label><select id="recordExercise">
 <option value="lateral_raise">Lateral Raise · 侧平举</option>
@@ -102,7 +102,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">断开并清除本机缓存</button><button id="syncSettings" class="secondary">同步</button></div>
 <div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
 </div>
-<div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、界面、APK 构建。<br>“-” （私有）：原始训练、事件、指标计算。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
+<div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、APK 和经允许发布的演示数据。<br>“-” （私有）：原始训练、事件、指标计算。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
 </section>
 </main>
 <nav class="tabs" aria-label="主导航">
@@ -234,8 +234,8 @@ window.bodyTraceReceive=function(evt){
  case "status":state.connected=!!evt.connected;renderStatus();if(state.connected)toast("GitHub 私有仓库已连接");break;
  case "disconnected":state.connected=false;state.rows=[];state.measurements=[];state.pending=0;state.hasCache=false;renderStatus();indexData();renderBody();toast("已清除本机连接与缓存");break;
  case "pending":state.pending=evt.count||0;renderStatus();break;
- case "queued":state.pending=evt.count||0;renderStatus();toast("已保存到本机队列，准备上传私有 GitHub");$("recordKg").value="";$("recordReps").value="";break;
- case "saved":toast("一组训练已写入私有 GitHub。Actions 导入后点击同步即可显示。");break;
+ case "queued":state.pending=evt.count||0;renderStatus();toast("已保存到本机队列，准备追加当天 JSON");$("recordKg").value="";$("recordReps").value="";break;
+ case "saved":toast("已追加到私有仓库当天 JSON。Actions 更新后点击同步即可显示。");break;
  case "data":state.rows=parseCSV(evt.csv||"");state.measurements=parseCSV(evt.measurements||"");
  state.hasCache=!!evt.cached;indexData();renderBody();renderStatus();$("sourceLabel").textContent=(evt.cached?"本机缓存":"已从私有 GitHub 同步")+" · "+state.rows.length+"组";break;
  case "error":toast(evt.message||"操作失败",true);break;
