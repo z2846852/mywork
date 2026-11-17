@@ -28,23 +28,94 @@ final class GitHubApi {
         return new String(Base64.decode(encoded, Base64.DEFAULT), StandardCharsets.UTF_8);
     }
 
+    /** Append a single event to ONE daily JSON file with SHA optimistic locking. */
     void createEvent(String token, JSONObject event) throws Exception {
         String date = event.getString("date");
         String id = event.getString("id");
         if (!date.matches("\\d{4}-\\d{2}-\\d{2}") ||
                 !id.matches("[0-9a-f]{8}-[0-9a-f-]{27,40}")) {
-            throw new IllegalArgumentException("Invalid event path");
+            throw new IllegalArgumentException("Invalid daily record identity");
         }
-        String path = "data/app_events/" + date + "/" + id + ".json";
-        JSONObject body = new JSONObject();
-        body.put("message", "app: training event " + date + " " + id.substring(0, 8));
-        body.put("branch", "main");
-        body.put("content", Base64.encodeToString(
-                (event.toString(2) + "\n").getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP));
-        request("PUT", REPO + "/contents/" + path, token, body.toString());
+        final String path = "data/daily/" + date + ".json";
+        final String url = REPO + "/contents/" + path;
+        for (int attempt = 0; attempt < 4; ++attempt) {
+            // A missing day is expected; a missing repository/token was already
+            // rejected when the user connected via the protected workouts CSV.
+            String existing = request("GET", url + "?ref=main", token, null, true);
+            JSONObject daily;
+            String sha = null;
+            if (existing == null) {
+                daily = new JSONObject();
+                daily.put("schema_version", 2);
+                daily.put("date", date);
+                daily.put("workouts", new org.json.JSONArray());
+                daily.put("measurements", new org.json.JSONArray());
+                daily.put("nutrition", new org.json.JSONArray());
+            } else {
+                JSONObject meta = new JSONObject(existing);
+                sha = meta.getString("sha");
+                if (!"base64".equals(meta.getString("encoding"))) {
+                    throw new IllegalStateException("Unexpected daily file encoding");
+                }
+                String decoded = new String(Base64.decode(
+                        meta.getString("content").replace("\n", ""), Base64.DEFAULT),
+                        StandardCharsets.UTF_8);
+                daily = new JSONObject(decoded);
+                if (daily.getInt("schema_version") != 2 ||
+                        !date.equals(daily.getString("date"))) {
+                    throw new IllegalStateException("Unsupported daily JSON format/date");
+                }
+            }
+            org.json.JSONArray workouts = daily.getJSONArray("workouts");
+            if (workouts.length() >= 500) throw new IllegalStateException("Daily record is full");
+            for (int i = 0; i < workouts.length(); ++i) {
+                if (id.equals(workouts.getJSONObject(i).optString("id"))) {
+                    return; // Upload succeeded previously; retry is idempotent.
+                }
+            }
+            JSONObject row = new JSONObject();
+            row.put("id", id);
+            row.put("exercise_id", event.getString("exercise_id"));
+            row.put("reps", event.getInt("reps"));
+            String weightKey = event.has("assistance_kg") ? "assistance_kg" : "load_kg";
+            row.put(weightKey, event.getDouble(weightKey));
+            row.put("source", "bodytrace-android");
+            row.put("created_at", event.getString("created_at"));
+            workouts.put(row);
+            JSONObject put = new JSONObject();
+            put.put("message", "daily: append workout " + date + " " + id.substring(0, 8));
+            put.put("branch", "main");
+            if (sha != null) put.put("sha", sha);
+            put.put("content", Base64.encodeToString(
+                    (daily.toString(2) + "\n").getBytes(StandardCharsets.UTF_8),
+                    Base64.NO_WRAP));
+            try {
+                request("PUT", url, token, put.toString());
+                return;
+            } catch (ApiStatusException conflict) {
+                if ((conflict.status == 409 || conflict.status == 422) && attempt < 3) {
+                    // Re-read latest SHA and reapply event, never clobber a group.
+                    continue;
+                }
+                throw conflict;
+            }
+        }
+        throw new IllegalStateException("Concurrent daily file update did not settle");
+    }
+    private static final class ApiStatusException extends IllegalStateException {
+        final int status;
+        ApiStatusException(int status, String text) {
+            super(text);
+            this.status = status;
+        }
     }
 
     private String request(String method, String address, String token, String json) throws Exception {
+        return request(method, address, token, json, false);
+    }
+
+    private String request(String method, String address, String token, String json,
+                           boolean allowMissing) throws Exception {
         if (!address.startsWith(REPO + "/contents/")) {
             throw new SecurityException("Unexpected API host/path");
         }
@@ -71,6 +142,7 @@ final class GitHubApi {
             InputStream stream = status >= 200 && status < 300
                     ? connection.getInputStream() : connection.getErrorStream();
             String response = stream == null ? "" : slurp(stream);
+            if (status == 404 && allowMissing) return null;
             if (status < 200 || status >= 300) {
                 // Never echo API response or bearer token into the WebView.
                 String label = status == 401 ? "令牌无效或过期"
@@ -79,7 +151,7 @@ final class GitHubApi {
                         : status == 409 ? "GitHub 写入冲突"
                         : status == 422 ? "事件已存在或请求不符合 GitHub 规则"
                         : "GitHub HTTP " + status;
-                throw new IllegalStateException(label);
+                throw new ApiStatusException(status, label);
             }
             return response;
         } finally {
