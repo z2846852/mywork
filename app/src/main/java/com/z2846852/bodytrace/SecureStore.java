@@ -12,7 +12,8 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
-/** Encrypt bearer token, cached CSV and queued events with Android Keystore AES-GCM. */
+/** Encrypt only GitHub bearer tokens. Previous encrypted cache keys are
+ * read solely for a one-time migration into plain app-private JSON. */
 final class SecureStore {
     private static final String ALIAS = "bodytrace-vault-v1";
     private static final int IV_BYTES = 12;
