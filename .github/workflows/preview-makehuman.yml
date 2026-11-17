@@ -31,6 +31,15 @@ jobs:
       - name: Render and verify real GLB using WebGL
         run: node scripts/preview_makehuman.cjs
       - uses: actions/upload-artifact@v4
+        with:
+          name: BodyTrace-MakeHuman-Source-GLBs
+          path: |
+            models/free/makehuman/base_body.glb
+            models/free/makehuman/clothing_shorts.glb
+            models/free/makehuman/clothing_shoes.glb
+            models/free/makehuman/hair_short02.glb
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: BodyTrace-MakeHuman-Visual-Preview
