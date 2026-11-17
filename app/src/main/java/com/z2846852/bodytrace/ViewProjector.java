@@ -78,6 +78,7 @@ final class ViewProjector {
                             ? src.get("machine_setting").toString() : "");
                     item.put("approx", src.optBoolean("approx", false));
                     item.put("source", src.optString("source", "daily-json"));
+                    item.put("created_at", src.optString("created_at", ""));
                     item.put("rir", src.has("rir") && !src.isNull("rir")
                             ? src.get("rir").toString() : "");
                     String rirSource = src.optString("rir_source", "");
