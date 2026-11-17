@@ -65,6 +65,8 @@ assert.ok(features.includes("orderedExerciseGroups(state.rows)"));
 assert.ok(features.includes("for(const group of groups)"));
 assert.ok(features.includes("musclePaths")&&features.includes("drawMuscleMap()"));
 assert.ok(native.includes('readAsset("wheel.js")')&&!native.includes('readAsset("avatar_morph.js")'));
+const manifest=fs.readFileSync(path.join(root,"app/src/main/AndroidManifest.xml"),"utf8");
+assert.ok(!manifest.includes('android.intent.action.SEND'),"No stale image-share registration in schematic-only App");
 assert.ok(native.includes("saveBatch(String batchJson)")&&native.includes("saveMeasurement(String measurementJson)"));
 assert.ok(features.includes("bodyEdited")&&features.includes("saveMeasurement("));
 const github=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
