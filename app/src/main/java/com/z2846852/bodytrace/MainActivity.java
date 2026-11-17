@@ -468,6 +468,9 @@ public final class MainActivity extends Activity {
                 try {
                     // GitHub is an optional sync backend, not the primary UI store.
                     ensureMigrated();
+                    // Do not describe a private-repo 404 as "repo missing":
+                    // first test repository metadata, then Contents permission.
+                    github.verifyRepositoryAccess(token);
                     JSONArray remote = github.readDaily(token);
                     JSONArray combined = mergeDays(localDays(), remote);
                     // Persist the JSON first; only the PAT remains encrypted.
