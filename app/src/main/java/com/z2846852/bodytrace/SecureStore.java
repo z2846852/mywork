@@ -7,7 +7,6 @@ import android.security.keystore.KeyProperties;
 import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.security.SecureRandom;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -39,10 +38,16 @@ final class SecureStore {
 
     synchronized void write(String name, String value) throws Exception {
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        byte[] iv = new byte[IV_BYTES];
-        new SecureRandom().nextBytes(iv);
-        cipher.init(Cipher.ENCRYPT_MODE, key(), new GCMParameterSpec(128, iv));
+        // Android Keystore keys with randomizedEncryptionRequired=true forbid a
+        // caller-provided IV on encryption. Keystore must generate it.
+        cipher.init(Cipher.ENCRYPT_MODE, key());
         byte[] ct = cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));
+        byte[] iv = cipher.getIV();
+        // Keep the original 12-byte-IV-prefix storage format so read() remains
+        // backward-compatible with any previously saved ciphertext.
+        if (iv == null || iv.length != IV_BYTES) {
+            throw new IllegalStateException("Unexpected Android Keystore GCM IV length");
+        }
         byte[] all = new byte[iv.length + ct.length];
         System.arraycopy(iv, 0, all, 0, iv.length);
         System.arraycopy(ct, 0, all, iv.length, ct.length);
