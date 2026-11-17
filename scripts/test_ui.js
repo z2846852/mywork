@@ -47,48 +47,47 @@ vm.runInNewContext(scrollHelper+"\nfocusCalendarLatest();",{
   $:id=>id==="heatScroll"?scroll:null,requestAnimationFrame:callback=>callback()
 });
 assert.equal(scroll.scrollLeft,900);
-// Cartoon-first contract: UI must not load the eerie MakeHuman renderer.
-const asset=fs.readFileSync(path.join(root,"app/src/main/assets/avatar_cartoon.svg"),"utf8");
+// Basic body schematic + all action charts. No image rendering or forced 2D morphs.
 const features=fs.readFileSync(path.join(root,"app/src/main/assets/features.js"),"utf8");
 const native=fs.readFileSync(path.join(root,
   "app/src/main/java/com/z2846852/bodytrace/MainActivity.java"),"utf8");
 const workflow=fs.readFileSync(path.join(root,".github/workflows/android.yml"),"utf8");
-assert.ok(asset.startsWith("<svg ")&&asset.includes("</svg>")&&asset.includes('viewBox="0 0 600 900"'),
- "Cartoon vector must exist and scale cleanly");
-assert.ok(!/<script\b/i.test(asset)&&!/https?:\/\//i.test(asset.replace("http://www.w3.org/2000/svg","")),
- "Bundled cartoon artwork must not execute code or load remote content");
 new vm.Script(features,{filename:"features.js"});
 const wheel=fs.readFileSync(path.join(root,"app/src/main/assets/wheel.js"),"utf8");
 new vm.Script(wheel,{filename:"wheel.js"});
-assert.ok(wheel.includes('pointermove')&&wheel.includes('wheelCanvas'));
-assert.ok(features.includes('saveMeasurement(')&&features.includes('bodyEdited'));
-assert.ok(features.includes('mostRecentMetric('));
-assert.ok(native.includes('saveBatch(String batchJson)')&&native.includes('saveMeasurement(String measurementJson)'));
-assert.ok(native.includes('validatedMeasurement(String request)'));
+assert.ok(wheel.includes("pointermove")&&wheel.includes("wheelCanvas"));
+assert.ok(html.includes('id="bodyMuscleView"')&&html.includes('id="avatarStatLeft"')&&html.includes('id="avatarStatRight"'));
+assert.ok(html.includes('id="avatarMeasureDate"')&&html.includes('id="bodyEntryPanel"'));
+assert.ok(!html.includes('id="avatarPicture"')&&!html.includes('id="avatarWarpCanvas"'));
+assert.ok(!html.includes('id="avatarImport"')&&!html.includes('id="bodyWarpEnabled"'));
+assert.ok(!html.includes('id="analyticsExercise"')&&html.includes('id="strengthList"'));
+assert.ok(features.includes("orderedExerciseGroups(state.rows)"));
+assert.ok(features.includes("for(const group of groups)"));
+assert.ok(features.includes("musclePaths")&&features.includes("drawMuscleMap()"));
+assert.ok(native.includes('readAsset("wheel.js")')&&!native.includes('readAsset("avatar_morph.js")'));
+assert.ok(native.includes("saveBatch(String batchJson)")&&native.includes("saveMeasurement(String measurementJson)"));
+assert.ok(features.includes("bodyEdited")&&features.includes("saveMeasurement("));
 const github=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
 assert.ok(github.includes('isMeasurement ? "measurements"'));
-assert.ok(github.includes('"weight_kg", "shoulder_cm", "chest_cm"'));
-assert.ok(native.includes('readAsset("wheel.js")'));
-const morph=fs.readFileSync(path.join(root,"app/src/main/assets/avatar_morph.js"),"utf8");
-new vm.Script(morph,{filename:"avatar_morph.js"});
-assert.ok(morph.includes("drawImage")&&morph.includes("waist_cm")&&morph.includes("shoulder_cm"));
-assert.ok(html.includes('id="avatarWarpCanvas"')&&html.includes('id="bodyWarpEnabled"'));
-assert.ok(native.includes('readAsset("avatar_morph.js")'));
-assert.ok(features.includes("BodyTraceMorph.set(selectedAvatarDate,fields)"));
+const projection=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
+assert.ok(projection.includes('item.put("created_at"'));
+assert.ok(html.includes('exerciseRegionById')&&html.includes('orderRecordOptionsByRecent(valid)'));
+assert.ok(html.includes('option.textContent="【"+prefix+"】"+option.textContent'));
+assert.ok(workflow.includes("app:assembleRelease")&&workflow.includes("Load fixed public signing identity"));
 
-assert.ok(html.includes('id="avatarPicture"'),"2D character image missing");
-assert.ok(html.includes('id="avatarImport"'),"User needs high-res import button");
-assert.ok(html.includes('id="avatarMeasureDate"'),"Measurements must remain date-selectable");
-assert.ok(!html.includes('id="avatar3dCanvas"'),"Uncanny old 3D renderer must not appear");
-assert.ok(!features.includes("bootMakeHuman")&&!features.includes("BodyTraceReal3D"),
- "No 3D startup or 3D model loading in the default body page");
-assert.ok(features.includes("avatar_imported")&&features.includes("renderAvatar()"),
- "Date and custom image updates must work");
-assert.ok(native.includes('readAssetBytes("avatar_cartoon_cutout.svg")'),"Native must use scalable transparent cartoon SVG as default");
-assert.ok(native.includes('new File(getFilesDir(), "resource_library/avatar")'),
- "User-selected image must survive ordinary APK upgrades");
-assert.ok(native.includes('readAsset("features.js")')&&!native.includes('readAsset("makehuman3d.bundle.js")'),
- "Default App must not load the massive GLB or Three.js bundle");
-assert.ok(workflow.includes("app:assembleRelease")&&workflow.includes("Load fixed public signing identity"),
- "New APK must keep the permanent release signing key");
-console.log("BodyTrace tests passed: mobile ruler (weight/reps/sets), offline measurement JSON append, same-day metric selection, cartoon UI, stable Release signature.");
+const start=features.indexOf("function orderedExerciseGroups(rows){");
+const end=features.indexOf("function renderStrength(){",start);
+assert.ok(start>=0&&end>start,"recent-first sorting function missing");
+const sorting=vm.runInNewContext(features.slice(start,end)+"\norderedExerciseGroups");
+const sample=[
+ {exercise_id:"row",session_date:"2026-11-17",created_at:"2026-11-17T11:00:00+08:00"},
+ {exercise_id:"chest_press",session_date:"2026-11-15"},
+ {exercise_id:"adductor",session_date:"2026-11-17",created_at:"2026-11-17T12:00:00+08:00"},
+ {exercise_id:"lateral_raise",session_date:"2026-04-15"},
+ {exercise_id:"row",session_date:"2026-11-01"}
+];
+assert.deepEqual(Array.from(sorting(sample),g=>g.id),[
+ "adductor","row","chest_press","lateral_raise"
+]);
+assert.deepEqual(Array.from(sorting([]),g=>g.id),[]);
+console.log("BodyTrace UI tests passed: recent-first all-action trends, region-prefixed selectors, simple anatomy, wheel input, JSON and signed Release.");
