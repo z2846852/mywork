@@ -337,6 +337,8 @@ $("analyticsExercise").onchange=renderStrengthPlot;
 // The character image is a consistent illustration; it never morphs into a
 // supposedly exact 3D reconstruction. Measurements come from daily JSON.
 let avatarView = "front";
+let avatar3d = null;
+let avatarMode = "3d";
 let selectedAvatarDate = "";
 let selectedAvatarMetric = "chest_cm";
 const avatarMetrics = [
@@ -369,6 +371,7 @@ function metricText(value){
 function avatarSetView(next){
  avatarView=next==="back"?"back":"front";
  $("avatarFrame").classList.toggle("view-back",avatarView==="back");
+ if(avatarMode==="3d"&&avatar3d)avatar3d.setView(avatarView);
  for(const [id,view] of [["avatarFront","front"],["avatarBack","back"]]){
   const button=$(id);
   button.classList.toggle("active",avatarView===view);
@@ -450,8 +453,50 @@ function renderAvatar(){
  }
  w.append(name,value,change);
  avatarShowDetail();
- avatarSetView(avatarView);
+ if(avatar3d) {
+  const shape={height_cm:FIXED_HEIGHT_CM};
+  const keys=["weight_kg","shoulder_cm","chest_cm","waist_cm","hip_cm",
+   "upper_arm_cm","thigh_cm","calf_cm"];
+  for(const k of keys){
+   const item=selectedAvatarDate?metricAt(k,selectedAvatarDate):null;
+   if(item)shape[k]=item.value;
+  }
+  avatar3d.setMeasurements(shape);
+ }
 }
+function avatarDisplayMode(target){
+ avatarMode=target==="2d"?"2d":"3d";
+ if(avatarMode==="3d"&&!avatar3d)avatarMode="2d";
+ const real=avatarMode==="3d",frame=$("avatarFrame");
+ frame.classList.toggle("real-3d",real);
+ frame.parentElement.parentElement.classList.toggle("has-webgl",real);
+ $("avatar3dCanvas").hidden=!real;
+ $("avatarPicture").hidden=real;
+ $("avatarHotspot").hidden=real;
+ $("avatar3dMode").classList.toggle("active",real);
+ $("avatar2dMode").classList.toggle("active",!real);
+ $("avatar3dMode").setAttribute("aria-pressed",String(real));
+ $("avatar2dMode").setAttribute("aria-pressed",String(!real));
+ $("avatarModeLabel").textContent=real?
+  "真实 WebGL 三维网格 · 手指拖动可360°旋转 · 模型按测量围度近似变化":
+  "二维原画：只有正背两帧，可导入高清 PNG；不是三维模型";
+ if(real){avatar3d.draw();avatar3d.setView(avatarView)}
+}
+try {
+ avatar3d=window.BodyTrace3D.mount($("avatar3dCanvas"));
+} catch(error){
+ avatar3d=null;
+ $("avatarModeLabel").textContent="当前设备不支持 WebGL，显示二维原画";
+}
+avatarDisplayMode(avatar3d?"3d":"2d");
+$("avatar3dMode").onclick=()=>avatarDisplayMode("3d");
+$("avatar2dMode").onclick=()=>avatarDisplayMode("2d");
+$("avatarImport").onclick=()=>{
+ if(!window.BodyTraceNative||typeof BodyTraceNative.pickAvatar!=="function"){
+  toast("请在 Android App 中导入本地高清图",true);return;
+ }
+ BodyTraceNative.pickAvatar();
+};
 $("avatarMeasureDate").addEventListener("change",e=>{
  selectedAvatarDate=e.target.value;
  renderAvatar();
@@ -481,6 +526,11 @@ function renderAllFeatures(){
 const originalReceive = window.bodyTraceReceive;
 window.bodyTraceReceive=function(evt){
   if(typeof originalReceive==="function") originalReceive(evt);
+  if(evt.type==="avatar_imported"){
+    $("avatarPicture").src="data:"+evt.mime+";base64,"+evt.base64;
+    avatarDisplayMode("2d");
+    toast("高清二维原画已保存在本机资源库，APK 覆盖升级后仍保留");
+  }
   if(evt.type==="nutrition_local_saved"){
     const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : null;
     if(parsed){
