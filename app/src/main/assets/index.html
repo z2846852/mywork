@@ -88,13 +88,13 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="formgrid"><div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="例如 27.5"></div>
 <div class="field"><label for="recordReps">次数</label><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" placeholder="例如 8"></div></div>
 <button class="primary" id="saveRecord">保存这一组 · 本机即时显示</button>
-<p class="note">保存不需要网络，数据首先加密保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
+<p class="note">保存不需要网络，数据首先按原样 JSON 保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
 <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
 </div></section>
 
 <section class="page" id="page-raw">
 <div class="panel"><div class="eyebrow">RAW / INBOX</div><h2>Raw 原文收件箱</h2>
-<p class="sub">不分类、不推测、不自动生成训练或饮食 JSON。原文加密保存在本机；已连接时立即尝试上传到私有 GitHub，交给未来的 ChatGPT 再解析。</p>
+<p class="sub">不分类、不推测、不自动生成训练或饮食 JSON。原文按 JSON 保存在 App 私有目录；已连接时立即尝试上传到私有 GitHub，交给未来的 ChatGPT 再解析。</p>
 <div class="field"><label for="rawText">原始想法、需求或训练口述</label>
 <textarea id="rawText" maxlength="10000" placeholder="例如：以后希望记录喝水量；把饮食分成早中晚三餐。也可以暂存尚不确定的训练器械描述……"></textarea></div>
 <div class="row" style="margin-top:8px"><p class="sub" id="rawCount">0 / 10000 字符</p><span class="tag">未解析</span></div>
@@ -114,11 +114,16 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <section class="page" id="page-settings">
 <div class="panel"><div class="eyebrow">SECURE CONNECTION</div><h2>连接 GitHub 私有仓库</h2>
 <p class="sub">目标仓库：<span class="code">z2846852/-</span> · main</p>
-<p class="note">在 GitHub 创建 Fine-grained personal access token，仅授权此仓库 Contents Read and write。令牌本机加密储存、不上传 mywork，也不会发送至第三方服务器。</p>
+<p class="note">在 GitHub 创建 Fine-grained personal access token，仅授权此仓库 Contents Read and write。令牌本机保存储存、不上传 mywork，也不会发送至第三方服务器。</p>
 <div class="field"><label for="token">GitHub Token</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_..."></div>
 <button id="connect" class="primary">验证并设置 GitHub 同步</button>
 <div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">解除授权（保留本地记录）</button><button id="syncSettings" class="secondary">⇅ 同步 GitHub</button></div>
 <div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
+</div>
+<div class="panel"><h2>可视化 JSON · 派生数据</h2>
+<p class="sub">App 本机将每日原始 JSON 转换为 view_model.json（版本1），用于训练日历、身体曲线和后续饮食图表。修改算法后可重新生成，不覆盖原始文件。</p>
+<button class="secondary" id="showViewJson" style="margin-top:12px;width:100%">查看生成的 view_model.json</button>
+<pre id="viewJsonPreview" style="display:none;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto;margin-top:14px;background:#0c171a;padding:14px;border:1px solid #305248;border-radius:12px;font-size:11px"></pre>
 </div>
 <div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、APK 和经允许发布的演示数据。<br>“-” （私有）：每日 JSON 为唯一新记录入口；App 本地保存、清洗并绘制训练与身体指标；GitHub 只负责备份以及与 ChatGPT 同步。<br>Actions 仍负责构建新版 APK，旧图表工作流仅供维护历史兼容报表。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
 </section>
@@ -174,6 +179,12 @@ function normaliseDays(days){
   }}
   if(Array.isArray(day.nutrition))nutrition.push(...day.nutrition);
  }
+ return {rows,measurements,nutrition};
+}
+function fromViewModel(model){
+ const rows=Array.isArray(model.workouts)?model.workouts.map(row=>({...row})):[];
+ const measurements=Array.isArray(model.measurements)?model.measurements.map(item=>({...item})):[];
+ const nutrition=Array.isArray(model.nutrition)?model.nutrition.map(item=>({...item})):[];
  return {rows,measurements,nutrition};
 }
 function addPreview(event){
@@ -256,7 +267,7 @@ function renderBody(){
  const fields=[["weight_kg","体重","kg"],["height_cm","身高","cm"],["body_fat_pct","体脂率","%"],["muscle_mass_kg","肌肉量","kg"],["chest_cm","胸围","cm"],["waist_cm","腰围","cm"],["abdomen_cm","腹围","cm"],["hip_cm","臀围","cm"],["shoulder_cm","肩围","cm"],["upper_arm_cm","上臂围","cm"]];
  let n=0;
  for(const [field,label,unit] of fields){
-  const v=state.measurements.filter(r=>r.reported_date&&r[field]!=="").sort((a,b)=>a.reported_date.localeCompare(b.reported_date)).at(-1);
+  const v=state.measurements.filter(r=>r.reported_date&&r[field]!==undefined&&r[field]!==null&&r[field]!==""&&Number.isFinite(Number(r[field]))).sort((a,b)=>a.reported_date.localeCompare(b.reported_date)).at(-1);
   if(!v)continue;n++;
   const row=document.createElement("div");row.className="metric";const lhs=document.createElement("div");
   const title=document.createElement("strong");title.textContent=label;
@@ -347,9 +358,10 @@ $("saveRecord").onclick=()=>{
 };
 $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("请先粘贴 GitHub token",true);return}
  $("token").value="";BodyTraceNative.connect(token);toast("正在验证连接…")};
-$("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的训练和未上传记录会保留。"))BodyTraceNative.disconnect()};
+$("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的原始 JSON 和未上传记录会保留。"))BodyTraceNative.disconnect()};
 const sync=()=>BodyTraceNative.sync();
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
+$("showViewJson").onclick=()=>{if(window.BodyTraceNative)BodyTraceNative.showViewModel();};
 window.bodyTraceReceive=function(evt){
  switch(evt.type){
  case "status":
@@ -385,11 +397,11 @@ window.bodyTraceReceive=function(evt){
  case "local_saved":{
   state.pending=evt.count||0;
   state.pendingEvents.push(evt.event);
-  const parsed=normaliseDays(evt.days||[]);
+  const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : normaliseDays(evt.days||[]);
   state.rows=parsed.rows;state.measurements=parsed.measurements;state.nutrition=parsed.nutrition;
   state.hasCache=true;indexData();state.selected=evt.event.date;renderHeat();renderDay();renderBody();
   renderStatus();navigate("home");
-  $("sourceLabel").textContent="已保存本机加密 JSON · "+state.rows.length+"组";
+  $("sourceLabel").textContent="已保存本机 JSON · "+state.rows.length+"组";
   toast(state.connected?"本机已保存，正在上传 GitHub":"本机已保存，等待连接 GitHub");
   $("recordKg").value="";$("recordReps").value="";
   break;
@@ -398,17 +410,23 @@ window.bodyTraceReceive=function(evt){
   state.pendingEvents=state.pendingEvents.filter(e=>e.id!==evt.event?.id);
   toast("已上传一组训练，正在同步其他记录");break;
  case "data":{
-  const parsed=normaliseDays(evt.days||[]);
+  const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : normaliseDays(evt.days||[]);
   state.rows=parsed.rows;state.measurements=parsed.measurements;
   state.nutrition=parsed.nutrition;state.hasCache=!!evt.cached;
   for(const e of state.pendingEvents){
    if(!state.rows.some(r=>r.id===e.id))state.rows.push(oneRow(e,e.date));
   }
   indexData();renderBody();renderStatus();
-  $("sourceLabel").textContent=(evt.cached?"本机加密 JSON":"GitHub 同步完成，数据已合并至本机")+
+  $("sourceLabel").textContent=(evt.cached?"本机明文 JSON":"GitHub 同步完成，数据已合并至本机")+
    " · "+state.rows.length+"组";
   if(!evt.cached)toast("已拉取 ChatGPT 录入的数据并与本机记录合并");
   break;
+ }
+ case "view_json":{
+  const pre=$("viewJsonPreview");
+  pre.textContent=JSON.stringify(evt.view_model||{},null,2);
+  pre.style.display="block";
+  toast("已显示由 App 本地生成的 view_model.json");break;
  }
  case "error":toast(evt.message||"操作失败",true);break;
  }
