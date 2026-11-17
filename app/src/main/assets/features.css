@@ -362,3 +362,17 @@
 #bodyEntryPanel .primary{margin-top:15px}
 @media(max-width:390px){.wheel-sheet{padding-left:14px;padding-right:14px}.body-entry-grid{gap:7px}
  .body-entry-metric{padding:10px 8px}.body-entry-metric strong{font-size:19px}}
+
+
+/* High-resolution 2D profile is a transparent vector in the APK.
+   Rendering a warped contour requires no remote services or GPUs. */
+.avatar-frame.illustrated{position:relative;background:
+ radial-gradient(ellipse 70% 60% at 50% 41%,#e7f3ee 0%,#edf1fa 68%,#e9ebf6 100%)}
+.avatar-frame.illustrated canvas#avatarWarpCanvas{
+ display:block!important;position:absolute;inset:0;width:100%;height:100%;
+ pointer-events:none;z-index:1;object-fit:contain}
+.avatar-frame.illustrated canvas#avatarWarpCanvas[hidden]{display:none!important}
+.avatar-frame.illustrated .avatar-hotspot{z-index:2}
+.body-morph-toggle{display:flex;align-items:center;justify-content:center;gap:8px;
+ margin:12px 3px 5px;color:#c8f0d7;font-size:12px;font-weight:600}
+.body-morph-toggle input{width:17px;height:17px;accent-color:#3ed59f}
