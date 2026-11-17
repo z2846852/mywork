@@ -496,12 +496,37 @@ $("saveRaw").onclick=()=>{
 $("filter").onchange=e=>{state.filter=e.target.value;renderHeat();renderDay()};
 $("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.selected=ds.at(-1)||today;renderHeat(true);renderDay()};
 $("recordExercise").onchange=()=>{weightEditedByUser=false;refreshExerciseRecommendation(true)};
+function openTrainingWheel(elementId, title, min, max, step, unit){
+ if(!window.BodyTraceWheel){toast("滚轮尚未初始化，请重新打开 App",true);return}
+ const input=$(elementId);
+ const value=input.value===""?min:Number(input.value);
+ BodyTraceWheel.open({title,min,max,step,unit,value,onConfirm:chosen=>{
+   input.value=String(chosen);
+   input.dispatchEvent(new Event("input",{bubbles:true}));
+ }});
+}
+$("recordKg").onclick=$("wheelKgOpen").onclick=()=>
+ openTrainingWheel("recordKg",$("weightLabel").textContent,0,500,0.5,"kg");
+$("recordReps").onclick=$("wheelRepsOpen").onclick=()=>
+ openTrainingWheel("recordReps","每组次数",1,200,1,"次");
+$("recordSets").onclick=$("wheelSetsOpen").onclick=()=>
+ openTrainingWheel("recordSets","连续保存组数",1,10,1,"组");
 $("saveRecord").onclick=()=>{
- const date=$("recordDate").value,exercise_id=$("recordExercise").value,kg=Number($("recordKg").value),reps=Number($("recordReps").value);
- if(!date||!$("recordKg").value||!Number.isFinite(kg)||kg<0||kg>500||Math.round(kg*10)!==kg*10||!Number.isInteger(reps)||reps<1||reps>200){toast("检查日期、重量和次数；重量最多一位小数。",true);return}
+ const date=$("recordDate").value,exercise_id=$("recordExercise").value,
+   kg=Number($("recordKg").value),reps=Number($("recordReps").value),
+   sets=Number($("recordSets").value);
+ if(!date||!$("recordKg").value||!Number.isFinite(kg)||kg<0||kg>500||
+    Math.abs(Math.round(kg*10)-kg*10)>0.00001||
+    !Number.isInteger(reps)||reps<1||reps>200||
+    !Number.isInteger(sets)||sets<1||sets>10){
+   toast("检查日期、重量、次数和组数；重量最多一位小数。",true);return
+ }
  if(!window.BodyTraceNative){toast("请在 Android App 内使用此功能。",true);return}
- BodyTraceNative.save(JSON.stringify({date,exercise_id,kg,reps}));
- $("saveRecord").disabled=true;setTimeout(()=>$("saveRecord").disabled=false,900);
+ if(typeof BodyTraceNative.saveBatch!=="function"){
+   if(sets!==1){toast("请安装支持批量训练组的最新 App",true);return}
+   BodyTraceNative.save(JSON.stringify({date,exercise_id,kg,reps}));
+ }else BodyTraceNative.saveBatch(JSON.stringify({date,exercise_id,kg,reps,sets}));
+ $("saveRecord").disabled=true;setTimeout(()=>$("saveRecord").disabled=false,1200);
 };
 $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("请先粘贴 GitHub token",true);return}
  $("token").value="";BodyTraceNative.connect(token);toast("正在验证连接…")};
@@ -543,13 +568,14 @@ window.bodyTraceReceive=function(evt){
   renderRawHistory();toast("Raw 原文已上传私有 GitHub 收件箱");break;
  case "local_saved":{
   state.pending=evt.count||0;
-  state.pendingEvents.push(evt.event);
+  const added=Array.isArray(evt.events)&&evt.events.length?evt.events:[evt.event];
+  state.pendingEvents.push(...added);
   const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : normaliseDays(evt.days||[]);
   state.rows=parsed.rows;state.measurements=parsed.measurements;state.nutrition=parsed.nutrition;
   state.hasCache=true;indexData();state.selected=evt.event.date;renderHeat();renderDay();renderBody();
   renderStatus();navigate("home");
   $("sourceLabel").textContent="已保存本机 JSON · "+state.rows.length+"组";
-  toast(state.connected?"本机已保存，正在上传 GitHub":"本机已保存，等待连接 GitHub");
+  toast(added.length+"组训练已保存本机"+(state.connected?"，正在逐组同步 GitHub":"，等待连接 GitHub"));
   weightEditedByUser=false;refreshExerciseRecommendation(true);
   break;
  }
