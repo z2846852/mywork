@@ -2,6 +2,7 @@ package com.z2846852.bodytrace;
 
 import android.util.Base64;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.io.ByteArrayOutputStream;
@@ -26,6 +27,47 @@ final class GitHubApi {
         }
         String encoded = response.getString("content").replace("\n", "");
         return new String(Base64.decode(encoded, Base64.DEFAULT), StandardCharsets.UTF_8);
+    }
+
+    /** List and retrieve daily JSON directly. No CSV or Actions required for charts. */
+    JSONArray readDaily(String token) throws Exception {
+        JSONArray listing = new JSONArray(request("GET", REPO + "/contents/data/daily?ref=main",
+                token, null));
+        if (listing.length() > 2000) {
+            throw new IllegalStateException("Too many daily files; pagination strategy required");
+        }
+        JSONArray result = new JSONArray();
+        for (int i = 0; i < listing.length(); i++) {
+            JSONObject entry = listing.getJSONObject(i);
+            String name = entry.optString("name");
+            if (!"file".equals(entry.optString("type")) ||
+                    !name.matches("\\d{4}-\\d{2}-\\d{2}\\.json")) continue;
+            if (entry.optLong("size") > 1000000) {
+                throw new IllegalStateException("One daily JSON file is too large");
+            }
+            String url = REPO + "/contents/data/daily/" + name + "?ref=main";
+            JSONObject meta = new JSONObject(request("GET", url, token, null));
+            if (!"base64".equals(meta.optString("encoding"))) {
+                throw new IllegalStateException("Unsupported daily file encoding");
+            }
+            String decoded = new String(Base64.decode(
+                    meta.getString("content").replace("\\n", ""), Base64.DEFAULT),
+                    StandardCharsets.UTF_8);
+            JSONObject daily = new JSONObject(decoded);
+            if (daily.getInt("schema_version") != 2 ||
+                    !name.equals(daily.getString("date") + ".json")) {
+                throw new IllegalStateException("Invalid daily JSON schema/date");
+            }
+            result.put(daily);
+        }
+        return result;
+    }
+
+    /** Triggers private workflow using the existing Contents:write token. */
+    void requestActionsRefresh(String token) throws Exception {
+        JSONObject event = new JSONObject();
+        event.put("event_type", "bodytrace_refresh");
+        request("POST", REPO + "/dispatches", token, event.toString());
     }
 
     /** Append a single event to ONE daily JSON file with SHA optimistic locking. */
@@ -116,7 +158,8 @@ final class GitHubApi {
 
     private String request(String method, String address, String token, String json,
                            boolean allowMissing) throws Exception {
-        if (!address.startsWith(REPO + "/contents/")) {
+        if (!address.startsWith(REPO + "/contents/") &&
+                !address.equals(REPO + "/dispatches")) {
             throw new SecurityException("Unexpected API host/path");
         }
         if (token == null || token.trim().isEmpty()) {
