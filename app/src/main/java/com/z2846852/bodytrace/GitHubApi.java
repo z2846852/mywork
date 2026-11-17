@@ -16,10 +16,39 @@ final class GitHubApi {
     private static final String REPO = "https://api.github.com/repos/z2846852/-";
     private static final int LIMIT = 4 * 1024 * 1024;
 
+    /** Distinguish private-repository PAT authorization from data-file access. */
+    void verifyRepositoryAccess(String token) throws Exception {
+        try {
+            JSONObject repo = new JSONObject(request("GET", REPO, token, null));
+            if (!"z2846852/-".equalsIgnoreCase(repo.optString("full_name"))) {
+                throw new IllegalStateException("GitHub 返回了非预期仓库");
+            }
+        } catch (ApiStatusException e) {
+            if (e.status == 404) {
+                throw new IllegalStateException(
+                        "HTTP 404（仓库授权）：私有 z2846852/- 已确认存在，当前 PAT 无权访问。" +
+                        "检查 Resource owner 是否为 z2846852，且 Only select repositories " +
+                        "确实勾选了名为 - 的私有仓库（不是 mywork）。");
+            }
+            throw e;
+        }
+    }
+
     /** List and retrieve daily JSON directly. No CSV or Actions required for charts. */
     JSONArray readDaily(String token) throws Exception {
-        JSONArray listing = new JSONArray(request("GET", REPO + "/contents/data/daily?ref=main",
-                token, null));
+        String listingJson;
+        try {
+            listingJson = request("GET", REPO + "/contents/data/daily?ref=main",
+                    token, null);
+        } catch (ApiStatusException e) {
+            if (e.status == 404) {
+                throw new IllegalStateException(
+                        "HTTP 404（数据目录）：仓库授权通过，但无法读取 data/daily。" +
+                        "请检查 PAT 的 Repository permissions → Contents 至少为 Read。");
+            }
+            throw e;
+        }
+        JSONArray listing = new JSONArray(listingJson);
         if (listing.length() >= 1000) {
             throw new IllegalStateException("GitHub directory listing reached 1000 files; shard by year before continuing");
         }
@@ -178,7 +207,7 @@ final class GitHubApi {
 
     private String request(String method, String address, String token, String json,
                            boolean allowMissing) throws Exception {
-        if (!address.startsWith(REPO + "/contents/")) {
+        if (!address.equals(REPO) && !address.startsWith(REPO + "/contents/")) {
             throw new SecurityException("Unexpected API host/path");
         }
         if (token == null || token.trim().isEmpty()) {
@@ -208,9 +237,9 @@ final class GitHubApi {
             if (status == 404 && allowMissing) return null;
             if (status < 200 || status >= 300) {
                 // Never echo API response or bearer token into the WebView.
-                String label = status == 401 ? "令牌无效或过期"
-                        : status == 403 ? "没有访问权限或触发 GitHub 限制"
-                        : status == 404 ? "文件不存在或仓库不可访问"
+                String label = status == 401 ? "HTTP 401：令牌无效、被撤销或已过期"
+                        : status == 403 ? "HTTP 403：权限不足或达到 GitHub API 限制"
+                        : status == 404 ? "HTTP 404：私有仓库/资源对当前令牌不可见"
                         : status == 409 ? "GitHub 写入冲突"
                         : status == 422 ? "事件已存在或请求不符合 GitHub 规则"
                         : "GitHub HTTP " + status;
