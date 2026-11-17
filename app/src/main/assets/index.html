@@ -190,7 +190,10 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="panel" id="bodyEntryPanel">
  <div class="eyebrow">NEW / BODY MEASUREMENTS</div><h2>记录身体围度</h2>
  <p class="sub">默认显示上次测量值作为参考。<strong>只有点击滚轮确认的项目才会作为本次测量保存</strong>；没有重新测量的不复制进当天 JSON。</p>
- <div class="field"><label for="bodyEntryDate">测量日期（北京时间）</label><input id="bodyEntryDate" type="date"></div>
+ <div class="formgrid">
+  <div class="field"><label for="bodyEntryDate">测量日期（北京时间）</label><input id="bodyEntryDate" type="date"></div>
+  <div class="field"><label for="bodyWeightUnit">体重显示单位</label><select id="bodyWeightUnit"><option value="kg">kg</option><option value="jin">斤</option></select></div>
+ </div>
  <div id="bodyEntryGrid" class="body-entry-grid"></div>
  <div class="row wrap" style="margin-top:13px"><span id="bodyChangedCount" class="tag">尚未选择本次测量项目</span><button type="button" id="bodyClearChanges" class="secondary" style="padding:8px 10px;font-size:11px">清除修改</button></div>
  <button type="button" id="bodySaveMeasurement" class="primary">保存本次身体测量 · 同步 GitHub</button>
