@@ -34,5 +34,5 @@ jobs:
         if: always()
         with:
           name: BodyTrace-MakeHuman-Visual-Preview
-          path: bodytrace-makehuman-preview.png
+          path: bodytrace-preview-*.png
           if-no-files-found: warn
