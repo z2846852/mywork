@@ -99,43 +99,43 @@ public final class MainActivity extends Activity {
             status.put("connected", token != null && !token.isEmpty());
             status.put("repo", "z2846852/-");
             reply(status);
-            String csv = vault.read("workouts");
-            String measurements = vault.read("measurements");
-            if (csv != null) {
+            String daily = vault.read("daily_json");
+            if (daily != null) {
                 JSONObject cached = message("data");
-                cached.put("csv", csv);
-                cached.put("measurements", measurements == null ? "" : measurements);
+                cached.put("days", new JSONArray(daily));
                 cached.put("cached", true);
                 reply(cached);
             }
-            int pending = new JSONArray(vault.read("pending") == null ? "[]" : vault.read("pending")).length();
+            String raw = vault.read("pending");
+            JSONArray pending = new JSONArray(raw == null ? "[]" : raw);
             JSONObject q = message("pending");
-            q.put("count", pending);
+            q.put("count", pending.length());
+            q.put("events", pending);
             reply(q);
             if (token != null && !token.isEmpty()) {
                 syncInternal(token);
             }
         } catch (Exception e) {
-            error("本机缓存不可读取；可以断开后重新连接。");
+            error("本机加密缓存无法读取，请检查系统密钥或重新连接。");
         }
     }
 
     private void syncInternal(String token) {
         try {
-            String csv = github.readFile(token, "data/workouts.csv");
-            String measurements;
-            try { measurements = github.readFile(token, "data/measurements.csv"); }
-            catch (Exception ignored) { measurements = ""; }
-            vault.write("workouts", csv);
-            vault.write("measurements", measurements);
+            // Upload pending sets first, then load JSON; no generated CSV is
+            // required for the new set to become visible in the calendar.
+            try { drainPending(token); }
+            catch (Exception upload) {
+                error("待上传队列暂未完全同步：" + safeMessage(upload));
+            }
+            JSONArray days = github.readDaily(token);
+            vault.write("daily_json", days.toString());
             JSONObject result = message("data");
-            result.put("csv", csv);
-            result.put("measurements", measurements);
+            result.put("days", days);
             result.put("cached", false);
             reply(result);
-            drainPending(token);
         } catch (Exception e) {
-            error("同步失败：" + safeMessage(e));
+            error("读取每日 JSON 失败：" + safeMessage(e));
         }
     }
 
@@ -209,14 +209,23 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 try {
-                    String csv = github.readFile(token, "data/workouts.csv");
+                    // Verify the PAT by reading private daily JSON before
+                    // storing it. This does not need an Actions run.
+                    JSONArray days = github.readDaily(token);
                     vault.write("token", token);
-                    vault.write("workouts", csv);
+                    vault.write("daily_json", days.toString());
                     JSONObject status = message("status");
                     status.put("connected", true);
                     status.put("repo", "z2846852/-");
                     reply(status);
-                    syncInternal(token);
+                    JSONObject data = message("data");
+                    data.put("days", days);
+                    data.put("cached", false);
+                    reply(data);
+                    try { drainPending(token); }
+                    catch (Exception upload) {
+                        error("有待上传记录：" + safeMessage(upload));
+                    }
                 } catch (Exception e) {
                     error("连接失败：" + safeMessage(e));
                 }
@@ -229,6 +238,19 @@ public final class MainActivity extends Activity {
                     if (token == null) { error("请先连接 GitHub"); return; }
                     syncInternal(token);
                 } catch (Exception e) { error(safeMessage(e)); }
+            });
+        }
+        @JavascriptInterface public void requestActionsRefresh() {
+            worker.execute(() -> {
+                try {
+                    String token = vault.read("token");
+                    if (token == null) { error("请先连接 GitHub"); return; }
+                    github.requestActionsRefresh(token);
+                    JSONObject response = message("actions_requested");
+                    reply(response);
+                } catch (Exception e) {
+                    error("触发 Actions 失败：" + safeMessage(e));
+                }
             });
         }
         @JavascriptInterface public void save(String eventJson) {
