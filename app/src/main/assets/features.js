@@ -469,6 +469,7 @@ window.bodyTraceReceive=function(evt){
   if(evt.type==="avatar_imported"){
     $("avatarPicture").src="data:"+evt.mime+";base64,"+evt.base64;
     $("avatarModeLabel").textContent="你的高清卡通人物图 · 本机已保存 · 正常升级后仍保留";
+    navigate("body");
     toast("高清人物图导入成功；已保存在本机，升级 APK 不会丢失");
   }
   if(evt.type==="nutrition_local_saved"){
