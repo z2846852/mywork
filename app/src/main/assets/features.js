@@ -339,6 +339,8 @@ $("analyticsExercise").onchange=renderStrengthPlot;
 let avatarView = "front";
 let avatar3d = null;
 let avatarMode = "3d";
+let avatarPending = true;
+let avatarLoadError = "";
 let selectedAvatarDate = "";
 let selectedAvatarMetric = "chest_cm";
 const avatarMetrics = [
@@ -466,7 +468,10 @@ function renderAvatar(){
 }
 function avatarDisplayMode(target){
  avatarMode=target==="2d"?"2d":"3d";
- if(avatarMode==="3d"&&!avatar3d)avatarMode="2d";
+ if(avatarMode==="3d"&&!avatar3d&&!avatarPending){
+  avatarMode="2d";
+  if(avatarLoadError)toast("三维模型加载失败："+avatarLoadError,true);
+ }
  const real=avatarMode==="3d",frame=$("avatarFrame");
  frame.classList.toggle("real-3d",real);
  frame.parentElement.parentElement.classList.toggle("has-webgl",real);
@@ -478,19 +483,44 @@ function avatarDisplayMode(target){
  $("avatar3dMode").setAttribute("aria-pressed",String(real));
  $("avatar2dMode").setAttribute("aria-pressed",String(!real));
  $("avatarModeLabel").textContent=real?
-  "真实 WebGL 三维网格 · 手指拖动可360°旋转 · 模型按测量围度近似变化":
-  "二维原画：只有正背两帧，可导入高清 PNG；不是三维模型";
- if(real){avatar3d.draw();avatar3d.setView(avatarView)}
+   "MakeHuman · 三维模型 · 手指拖动旋转 / 双指缩放":
+   "二维原画：支持自定义高清图片，但不能三维旋转";
+ if(real&&avatar3d){avatar3d.draw();}
 }
-try {
- avatar3d=window.BodyTrace3D.mount($("avatar3dCanvas"));
-} catch(error){
- avatar3d=null;
- $("avatarModeLabel").textContent="当前设备不支持 WebGL，显示二维原画";
+async function bootMakeHuman(){
+ const status=$("avatarLoading");
+ try{
+  if(!window.BodyTraceReal3D||!window.__BT_MODEL_ASSETS__)
+   throw new Error("APK 未包含三维模型运行组件");
+  const runner=window.BodyTraceReal3D;
+  avatar3d=await runner.mount(
+   $("avatar3dCanvas"),window.__BT_MODEL_ASSETS__,
+   msg=>{if(status)status.textContent=msg;}
+  );
+  avatarPending=false;
+  window.__BT_MODEL_ASSETS__=null;
+  if(status)status.hidden=true;
+  const info=avatar3d.getInfo();
+  $("avatarModelDetail").textContent=
+   "MAKEHUMAN · "+info.meshCount+" meshes / "+info.morphCount+
+   " morph targets · 已加载 "+info.parts.length+" 个服饰组件";
+  avatarDisplayMode(avatarMode);
+  renderAvatar();  // Pull every valid metric from the locally synced daily JSON.
+ }catch(error){
+  avatarLoadError=String(error?.message||error).slice(0,160);
+  avatarPending=false;
+  window.__BT_MODEL_ASSETS__=null;
+  if(status)status.hidden=true;
+  console.warn("[BodyTrace] MakeHuman unavailable:",error);
+  avatarDisplayMode("2d");
+  $("avatarModelDetail").textContent="当前设备未能加载三维人体；已切换到二维原画";
+ }
 }
-avatarDisplayMode(avatar3d?"3d":"2d");
+avatarDisplayMode("3d");
+bootMakeHuman();
 $("avatar3dMode").onclick=()=>avatarDisplayMode("3d");
 $("avatar2dMode").onclick=()=>avatarDisplayMode("2d");
+$("avatarTurn").onclick=()=>{if(avatar3d)avatar3d.rotate(45)};
 $("avatarImport").onclick=()=>{
  if(!window.BodyTraceNative||typeof BodyTraceNative.pickAvatar!=="function"){
   toast("请在 Android App 中导入本地高清图",true);return;
