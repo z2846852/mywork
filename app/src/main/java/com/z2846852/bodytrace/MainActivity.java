@@ -58,6 +58,11 @@ public final class MainActivity extends Activity {
         setContentView(web);
         try {
             String html = readAsset("index.html");
+            // Bundle all UI code with the APK: no remote scripts or styles.
+            String css = readAsset("features.css");
+            String js = readAsset("features.js");
+            html = html.replace("</head>", "<style>" + css + "</style></head>");
+            html = html.replace("</body>", "<script>" + js + "</script></body>");
             web.loadDataWithBaseURL("https://bodytrace.invalid/", html, "text/html", "UTF-8", null);
         } catch (Exception error) {
             web.loadData("<h1>本地界面加载失败</h1>", "text/html", "UTF-8");
