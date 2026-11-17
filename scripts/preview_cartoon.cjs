@@ -39,6 +39,36 @@ html=html.replace("__BODY_AVATAR_MIME__","image/svg+xml")
   if(days<1)throw Error("Historical measurement date selector missing");
   if(errors.length)throw Error("Browser JS errors: "+errors.join(" | "));
   await page.screenshot({path:"bodytrace-cartoon-preview.png",fullPage:true});
+  // Exercise the actual touch-ruler UI and batch-save protocol without a PAT.
+  await page.evaluate(()=>{
+    window.BodyTraceNative={
+      saveBatch:json=>{window.__capturedWorkout=JSON.parse(json)},
+      saveMeasurement:json=>{window.__capturedBody=JSON.parse(json)}
+    };
+    navigate("record");
+  });
+  await page.click("#recordKg");
+  if(await page.$eval("#wheelOverlay",x=>x.hidden))throw Error("Weight ruler did not open");
+  await page.screenshot({path:"bodytrace-wheel-preview.png",fullPage:false});
+  await page.fill("#wheelValue","27.5");
+  await page.click("#wheelDone");
+  await page.click("#recordSets");
+  await page.fill("#wheelValue","3");
+  await page.click("#wheelDone");
+  await page.click("#saveRecord");
+  const workout=await page.evaluate(()=>window.__capturedWorkout);
+  if(!workout||workout.kg!==27.5||workout.sets!==3)
+   throw Error("Workout ruler/batch protocol failed: "+JSON.stringify(workout));
+  await page.evaluate(()=>navigate("body"));
+  await page.locator("#bodyEntryGrid .body-entry-metric").first().click();
+  await page.fill("#wheelValue","74.5");
+  await page.click("#wheelDone");
+  await page.click("#bodySaveMeasurement");
+  const measured=await page.evaluate(()=>window.__capturedBody);
+  if(!measured||measured.weight_kg!==74.5||"shoulder_cm" in measured)
+   throw Error("Measurement ruler must save edited field only: "+JSON.stringify(measured));
+  console.log("PASS: weight 27.5kg x3 sets and body 74.5kg measured-only JSON protocol");
+
   console.log("PASS: cartoon avatar rendered",JSON.stringify(loaded),"date options",days);
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
