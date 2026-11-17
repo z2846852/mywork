@@ -248,6 +248,44 @@ const exerciseLabels={
  shoulder_press:"坐姿肩推器",incline_chest_press:"上斜胸推器",
  horizontal_bench:"水平卧推机"
 };
+const exerciseRegionById={
+ chest_press:"胸",smith_bench:"胸",pec_deck:"胸",incline_chest_press:"胸",
+ horizontal_bench:"胸",assisted_dip:"胸",
+ lateral_raise:"肩",reverse_fly:"肩",shoulder_press:"肩",
+ row:"背",assisted_pullup:"背",vertical_traction:"背",
+ leg_press:"腿",adductor:"腿",abductor:"腿",leg_extension:"腿",
+ prone_leg_curl:"腿",hip_thrust:"腿"
+};
+// Mark the muscle group in the exercise selector without changing saved IDs.
+for(const option of $("recordExercise").options){
+ const prefix=exerciseRegionById[option.value]||"其他";
+ option.textContent="【"+prefix+"】"+option.textContent;
+}
+let recordExerciseTouched=false;
+function orderRecordOptionsByRecent(rows){
+ const select=$("recordExercise"),current=select.value;
+ const last=new Map();
+ rows.forEach((row,index)=>{
+  if(!row.exercise_id||!/^\d{4}-\d{2}-\d{2}$/.test(row.session_date||""))return;
+  const prior=last.get(row.exercise_id);
+  const newRecord={date:row.session_date,created:String(row.created_at||""),index};
+  if(!prior||newRecord.date>prior.date||
+   newRecord.date===prior.date&&(newRecord.created>prior.created||
+    newRecord.created===prior.created&&index>prior.index))
+   last.set(row.exercise_id,newRecord);
+ });
+ const opts=[...select.options];
+ opts.sort((a,b)=>{
+  const one=last.get(a.value),two=last.get(b.value);
+  if(!one&&!two)return 0;
+  if(!one)return 1;if(!two)return -1;
+  return two.date.localeCompare(one.date)||two.created.localeCompare(one.created)||
+   two.index-one.index;
+ });
+ select.replaceChildren(...opts);
+ if(recordExerciseTouched&&opts.some(option=>option.value===current))select.value=current;
+ else if(opts.length)select.value=opts[0].value;
+}
 function oneRow(entry,date){
  const ex=entry.exercise_label||exerciseLabels[entry.exercise_id]||entry.exercise_id||"未知动作";
  const load=entry.load_kg===undefined?"":String(entry.load_kg);
@@ -258,7 +296,7 @@ function oneRow(entry,date){
   rir:entry.rir===undefined||entry.rir===null?"":String(entry.rir),
   rir_source:entry.rir_source||((entry.rir===undefined&&Number(entry.reps)<15)?"user_rule_under_15":""),
   approx:entry.approx===true,origin:entry.origin||"",
-  source:entry.source||"daily-json"};
+  created_at:entry.created_at||"",source:entry.source||"daily-json"};
 }
 function normaliseDays(days){
  const rows=[],measurements=[],nutrition=[];
@@ -347,10 +385,27 @@ function indexData(){
  $("statSets").textContent=valid.length;
  $("statDays").textContent=new Set(valid.map(r=>r.session_date)).size;
  $("statMovements").textContent=new Set(valid.map(r=>r.exercise)).size;
- const old=state.filter;const exs=[...new Set(valid.map(r=>r.exercise))].sort((a,b)=>a.localeCompare(b,"zh-CN"));
- $("filter").replaceChildren();let all=document.createElement("option");all.textContent="全部训练";all.value="";$("filter").append(all);
- for(const name of exs){const op=document.createElement("option");op.value=name;op.textContent=name;$("filter").append(op)}
- $("filter").value=old; const dates=valid.map(r=>r.session_date).sort(); if(dates.length)state.selected=dates[dates.length-1];
+ orderRecordOptionsByRecent(valid);
+ const old=state.filter;
+ const byExerciseName=new Map();
+ valid.forEach((row,index)=>{
+  const earlier=byExerciseName.get(row.exercise);
+  if(!earlier||row.session_date>earlier.date||
+    row.session_date===earlier.date&&index>earlier.index)
+   byExerciseName.set(row.exercise,{date:row.session_date,index,id:row.exercise_id});
+ });
+ const exs=[...byExerciseName.entries()].sort((a,b)=>
+   b[1].date.localeCompare(a[1].date)||b[1].index-a[1].index);
+ $("filter").replaceChildren();
+ const all=document.createElement("option");all.textContent="全部训练";all.value="";$("filter").append(all);
+ for(const [name,info] of exs){
+  const op=document.createElement("option");op.value=name;
+  op.textContent="【"+(exerciseRegionById[info.id]||"其他")+"】"+name;
+  $("filter").append(op);
+ }
+ $("filter").value=old;
+ const dates=valid.map(r=>r.session_date).sort();
+ if(dates.length)state.selected=dates[dates.length-1];
  refreshExerciseRecommendation(false);renderHeat(true);renderDay();
 }
 function renderHeat(focusLatest=false){
@@ -487,7 +542,7 @@ $("saveRaw").onclick=()=>{
 };
 $("filter").onchange=e=>{state.filter=e.target.value;renderHeat();renderDay()};
 $("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.selected=ds.at(-1)||today;renderHeat(true);renderDay()};
-$("recordExercise").onchange=()=>{weightEditedByUser=false;refreshExerciseRecommendation(true)};
+$("recordExercise").onchange=()=>{recordExerciseTouched=true;weightEditedByUser=false;refreshExerciseRecommendation(true)};
 function openTrainingWheel(elementId, title, min, max, step, unit){
  if(!window.BodyTraceWheel){toast("滚轮尚未初始化，请重新打开 App",true);return}
  const input=$(elementId);
