@@ -261,78 +261,133 @@ function renderProfile(){
     card.append(strong,small);list.append(card);
   }
 }
+// Recent means latest workout date per exercise; within the same day, use
+// source created_at if available, then stable input insertion order.
+function orderedExerciseGroups(rows){
+ const byId=new Map();
+ rows.forEach((row,index)=>{
+  const id=row.exercise_id;
+  if(!id)return;
+  if(!byId.has(id)){
+   byId.set(id,{id,records:[],latestDate:"",latestCreated:"",lastIndex:-1});
+  }
+  const group=byId.get(id);
+  group.records.push({row,index});
+  const date=/^\d{4}-\d{2}-\d{2}$/.test(row.session_date||"")?row.session_date:"";
+  const created=String(row.created_at||"");
+  if(date>group.latestDate||
+    date===group.latestDate&&(created>group.latestCreated||
+     created===group.latestCreated&&index>group.lastIndex)){
+   group.latestDate=date;group.latestCreated=created;group.lastIndex=index;
+  }
+ });
+ return [...byId.values()].sort((a,b)=>
+  b.latestDate.localeCompare(a.latestDate)||
+  b.latestCreated.localeCompare(a.latestCreated)||
+  b.lastIndex-a.lastIndex||a.id.localeCompare(b.id));
+}
 function renderStrength(){
-  const select=$("analyticsExercise"),rows=state.rows;
-  const available=[...new Set(rows.map(r=>r.exercise_id).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const previous=select.value;
-  select.replaceChildren();
-  if(!available.length){
-    const item=document.createElement("option");item.value="";item.textContent="暂无训练记录";select.append(item);
-    $("strengthChart").textContent="同步或录入训练后显示力量曲线";return;
-  }
-  for(const id of available){
-    const opt=document.createElement("option");opt.value=id;
-    opt.textContent=exerciseLabels[id]||id;select.append(opt);
-  }
-  select.value=available.includes(previous)?previous:available[0];
-  renderStrengthPlot();
+ const root=$("strengthList");root.replaceChildren();
+ const groups=orderedExerciseGroups(state.rows);
+ if(!groups.length){
+  const empty=document.createElement("p");
+  empty.className="note";
+  empty.textContent="还没有训练动作。录入或同步 GitHub 后，这里自动显示全部动作的趋势。";
+  root.append(empty);return;
+ }
+ for(const group of groups){
+  const region=exRegion[group.id]||"其他";
+  const card=document.createElement("article");card.className="strength-exercise-card";
+  card.dataset.exerciseId=group.id;
+  const heading=document.createElement("div");heading.className="strength-exercise-heading";
+  const header=document.createElement("div");header.className="strength-exercise-info";
+  const title=document.createElement("h3");
+  title.textContent="【"+region+"】"+(exerciseLabels[group.id]||group.records.at(-1)?.row.exercise||group.id);
+  const date=document.createElement("small");
+  date.textContent="最近训练 "+(group.latestDate||"未知日期");
+  header.append(title,date);
+  const count=document.createElement("span");count.className="tag";
+  count.textContent=group.records.length+"组";
+  heading.append(header,count);
+  const range=document.createElement("div");range.className="strength-exercise-range";
+  const chart=document.createElement("div");chart.className="feature-chart";
+  const disclaimer=document.createElement("p");disclaimer.className="note strength-exercise-note";
+  card.append(heading,range,chart,disclaimer);
+  root.append(card);
+  renderStrengthPlot(group,chart,range,disclaimer);
+ }
 }
-function renderStrengthPlot() {
-  const ex=$("analyticsExercise").value;
-  const list=state.rows.map((row,i)=>({...row,sequence:i}))
-    .filter(r=>r.exercise_id===ex&&validNum(r.reps)&&safeNum(r.reps)>0&&
-       validNum(ex==="assisted_pullup"||ex==="assisted_dip"?r.assistance_kg:r.load_kg))
-    .sort((a,b)=>a.session_date.localeCompare(b.session_date)||a.sequence-b.sequence);
-  const chart=$("strengthChart");chart.replaceChildren();
-  const isAssist=ex==="assisted_pullup"||ex==="assisted_dip";
-  $("analyticsSets").textContent=list.length+"组";
-  if(!list.length){chart.textContent="该动作缺少可比较的数值记录";$("analyticsRange").textContent="—";return}
-  const values=list.map(r=>{
-    const load=Number(isAssist?r.assistance_kg:r.load_kg);
-    const reps=Number(r.reps);
-    return {...r,load,estimated:!isAssist&&reps<=15?load*(1+reps/30):null};
+function renderStrengthPlot(group,chart,range,disclaimer){
+ const ex=group.id;
+ const list=group.records.map(({row,index})=>({...row,sequence:index}))
+   .filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date||"")&&
+      validNum(r.reps)&&safeNum(r.reps)>0&&
+      validNum(ex==="assisted_pullup"||ex==="assisted_dip"?r.assistance_kg:r.load_kg))
+   .sort((a,b)=>a.session_date.localeCompare(b.session_date)||a.sequence-b.sequence);
+ const isAssist=ex==="assisted_pullup"||ex==="assisted_dip";
+ chart.replaceChildren();
+ if(!list.length){
+  range.textContent="可比较数据 0 组";
+  chart.textContent="该动作暂缺重量和次数记录";
+  disclaimer.textContent="记录保存不受影响；缺失值不会被自动填补。";
+  return;
+ }
+ const values=list.map(r=>{
+  const load=Number(isAssist?r.assistance_kg:r.load_kg);
+  const reps=Number(r.reps);
+  return {...r,load,estimated:!isAssist&&reps<=15?load*(1+reps/30):null};
+ });
+ const tracked=values.map(v=>isAssist?v.load:(v.estimated??v.load));
+ const maximum=Math.max(...tracked),minimum=Math.min(...tracked);
+ const spread=Math.max(1,maximum-minimum,maximum*.05);
+ const lo=Math.max(0,minimum-spread*.25),hi=maximum+spread*.25;
+ range.textContent=round1(minimum)+"–"+round1(maximum)+
+   (isAssist?" kg 辅助量":" kg 参考值")+" · "+list.length+" 组有效记录";
+ const NS="http://www.w3.org/2000/svg";
+ const el=(tag,attrs={})=>{
+  const item=document.createElementNS(NS,tag);
+  for(const [key,val] of Object.entries(attrs))item.setAttribute(key,String(val));
+  return item;
+ };
+ const svg=el("svg",{viewBox:"0 0 400 225",role:"img",
+   "aria-label":(exerciseLabels[ex]||ex)+"训练重量趋势"});
+ const days=[...new Set(values.map(v=>v.session_date))].sort();
+ const xVal=day=>days.length===1?200:32+days.indexOf(day)/(days.length-1)*338;
+ const yVal=num=>199-(num-lo)/(hi-lo)*160;
+ for(let i=0;i<5;i++){
+  const y=28+i*42;
+  svg.append(el("line",{x1:31,y1:y,x2:378,y2:y,stroke:"#365249","stroke-width":.8}));
+ }
+ const labels=[days[0],days[days.length-1]];
+ for(let i=0;i<labels.length;i++){
+  const t=el("text",{x:i?375:32,y:217,"text-anchor":i?"end":"start",
+    fill:"#9eafa7","font-size":10});
+  t.textContent=labels[i].slice(5);svg.append(t);
+ }
+ const byDate=new Map();
+ for(const v of values){
+  const numeric=isAssist?v.load:(v.estimated??v.load);
+  const point=el("circle",{cx:xVal(v.session_date),cy:yVal(numeric),r:4.5,
+    fill:"#70edb3",stroke:"#0a2419","stroke-width":1});
+  const tooltip=el("title");
+  tooltip.textContent=v.session_date+" "+v.load+"kg × "+v.reps+
+    (isAssist?"次（标称辅助量）":"次（e1RM仅为公式参考）");
+  point.append(tooltip);svg.append(point);
+  const old=byDate.get(v.session_date);
+  if(old===undefined||(isAssist?numeric<old:numeric>old))byDate.set(v.session_date,numeric);
+ }
+ if(days.length>1){
+  const poly=el("polyline",{
+    points:days.map(d=>xVal(d)+","+yVal(byDate.get(d))).join(" "),
+    fill:"none",stroke:"#3cb4db","stroke-width":2,"stroke-linejoin":"round"
   });
-  const tracked=values.map(v=>isAssist?v.load:(v.estimated??v.load));
-  const maximum=Math.max(...tracked),minimum=Math.min(...tracked),spread=Math.max(1,maximum-minimum,maximum*.05);
-  const lo=Math.max(0,minimum-spread*.25),hi=maximum+spread*.25;
-  $("analyticsRange").textContent=round1(minimum)+"–"+round1(maximum)+(isAssist?"kg辅助":"kg参考");
-  const NS="http://www.w3.org/2000/svg";
-  const el=(tag,attrs={})=>{const n=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n};
-  const svg=el("svg",{viewBox:"0 0 400 245",role:"img","aria-label":ex+"训练趋势图"});
-  const days=[...new Set(values.map(v=>v.session_date))].sort();
-  const xVal=day=>days.length===1?200:32+days.indexOf(day)/(days.length-1)*338;
-  const yVal=num=>210-(num-lo)/(hi-lo)*178;
-  for(let i=0;i<5;i++){
-    const y=30+i*45;svg.append(el("line",{x1:31,y1:y,x2:378,y2:y,stroke:"#365249","stroke-width":.8}));
-  }
-  const labels=[days[0],days[days.length-1]];
-  for(let i=0;i<labels.length;i++){
-    const t=el("text",{x:i?375:32,y:234,"text-anchor":i?"end":"start",fill:"#9eafa7","font-size":10});
-    t.textContent=labels[i].slice(5);svg.append(t);
-  }
-  const byDate=new Map();
-  for(const v of values){
-    const val=isAssist?v.load:(v.estimated??v.load);
-    const point=el("circle",{cx:xVal(v.session_date),cy:yVal(val),r:4.5,
-      fill:"#70edb3",stroke:"#0a2419","stroke-width":1});
-    const title=el("title");title.textContent=v.session_date+" "+v.load+"kg × "+v.reps+
-       (isAssist?"次（辅助量）":"次（e1RM仅为简化参考）");
-    point.append(title);svg.append(point);
-    const old=byDate.get(v.session_date);
-    if(old===undefined||(isAssist?val<old:val>old))byDate.set(v.session_date,val);
-  }
-  if(days.length>1){
-    const poly=el("polyline",{points:days.map(d=>xVal(d)+","+yVal(byDate.get(d))).join(" "),
-      fill:"none",stroke:"#3cb4db","stroke-width":2,"stroke-linejoin":"round"});
-    svg.insertBefore(poly,svg.firstChild);
-  }
-  chart.append(svg);
-  $("strengthDisclaimer").textContent=isAssist
-    ?"纵轴为器械标称辅助量，数值越低通常更难。不同档位下次数不同，不能仅凭辅助量判断力量进步。"
-    :"绿色点是各训练组的简化 Epley e1RM 参考（只对不超过15次使用），蓝线是每天最高参考值；器械标称负重不等于实际肌肉力。";
+  svg.insertBefore(poly,svg.firstChild);
+ }
+ chart.append(svg);
+ disclaimer.textContent=isAssist
+  ?"绿色点为器械标称辅助量（越低通常越难）；蓝线为当天最低辅助量，不直接代表力量增幅。"
+  :"绿色点为各组负重/简化 Epley e1RM 参考值（仅不超过15次的组计算 e1RM）；蓝线为当天最高参考值，器械重量不等于实际肌肉力。";
 }
-$("analyticsExercise").onchange=renderStrengthPlot;
-
 
 // The character image is a consistent illustration; it never morphs into a
 // supposedly exact 3D reconstruction. Measurements come from daily JSON.
