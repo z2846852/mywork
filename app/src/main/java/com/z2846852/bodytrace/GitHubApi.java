@@ -33,8 +33,8 @@ final class GitHubApi {
     JSONArray readDaily(String token) throws Exception {
         JSONArray listing = new JSONArray(request("GET", REPO + "/contents/data/daily?ref=main",
                 token, null));
-        if (listing.length() > 2000) {
-            throw new IllegalStateException("Too many daily files; pagination strategy required");
+        if (listing.length() >= 1000) {
+            throw new IllegalStateException("GitHub directory listing reached 1000 files; shard by year before continuing");
         }
         JSONArray result = new JSONArray();
         for (int i = 0; i < listing.length(); i++) {
@@ -182,6 +182,7 @@ final class GitHubApi {
                 }
             }
             int status = connection.getResponseCode();
+            if (status == 204) return ""; // repository_dispatch success has no body
             InputStream stream = status >= 200 && status < 300
                     ? connection.getInputStream() : connection.getErrorStream();
             String response = stream == null ? "" : slurp(stream);
