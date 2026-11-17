@@ -389,8 +389,8 @@ function renderStrengthPlot(group,chart,range,disclaimer){
   :"绿色点为各组负重/简化 Epley e1RM 参考值（仅不超过15次的组计算 e1RM）；蓝线为当天最高参考值，器械重量不等于实际肌肉力。";
 }
 
-// The character image is a consistent illustration; it never morphs into a
-// supposedly exact 3D reconstruction. Measurements come from daily JSON.
+// Basic body diagram is a training-zone schematic, never inferred anatomy.
+// Actual body measurements are read directly from the daily JSON records.
 let selectedAvatarDate = "";
 let selectedAvatarMetric = "chest_cm";
 const avatarMetrics = [
@@ -496,15 +496,6 @@ function renderAvatar(){
  }
  w.append(name,value,change);
  avatarShowDetail();
- // Derived picture contour only; measurement JSON remains canonical.
- if(window.BodyTraceMorph){
-  const fields={};
-  for(const def of avatarMetrics){
-   const metric=selectedAvatarDate?metricAt(def.key,selectedAvatarDate):null;
-   if(metric)fields[def.key]=metric.value;
-  }
-  BodyTraceMorph.set(selectedAvatarDate,fields);
- }
  
 }
 
@@ -582,36 +573,16 @@ $("bodySaveMeasurement").onclick=()=>{
  $("bodySaveMeasurement").disabled=true;
  setTimeout(()=>$("bodySaveMeasurement").disabled=false,1500);
 };
-$("avatarImport").onclick=()=>{
- if(!window.BodyTraceNative||typeof BodyTraceNative.pickAvatar!=="function"){
-  toast("当前 Android 版本不支持图片导入",true);return;
- }
- BodyTraceNative.pickAvatar();
-};
 $("avatarMeasureDate").addEventListener("change",e=>{
  selectedAvatarDate=e.target.value;
  renderAvatar();
 });
-// Tap different vertical regions to inspect the closest relevant measurement.
-// This is a hotspot on a picture, not true 3D ray tracing.
-$("avatarHotspot").onclick=e=>{
- const rect=e.currentTarget.getBoundingClientRect();
- const relativeY=(e.clientY-rect.top)/rect.height;
- selectedAvatarMetric=relativeY<.32?"chest_cm":relativeY<.65?"waist_cm":"hip_cm";
- renderAvatar();
-};
 function renderAllFeatures(){
  nutritionRender();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();renderBodyEntry();
 }
 const originalReceive = window.bodyTraceReceive;
 window.bodyTraceReceive=function(evt){
   if(typeof originalReceive==="function") originalReceive(evt);
-  if(evt.type==="avatar_imported"){
-    $("avatarPicture").src="data:"+evt.mime+";base64,"+evt.base64;
-    $("avatarModeLabel").textContent="你的高清卡通人物图 · 本机已保存 · 正常升级后仍保留";
-    navigate("body");
-    toast("高清人物图导入成功；已保存在本机，升级 APK 不会丢失");
-  }
   if(evt.type==="measurement_local_saved"){
     const parsed=evt.view_model?.view_schema_version===1?fromViewModel(evt.view_model):null;
     if(parsed){
