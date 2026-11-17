@@ -39,10 +39,13 @@ public final class MainActivity extends Activity {
     private static final ZoneOffset BEIJING = ZoneOffset.ofHours(8);
     private static final int PICK_AVATAR_REQUEST = 7005;
     private static final int AVATAR_MAX_BYTES = 12 * 1024 * 1024;
+    private volatile Uri pendingSharedAvatar = null;
+    private volatile boolean uiReady = false;
 
     @Override @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        pendingSharedAvatar = sharedImageUri(getIntent());
         getWindow().setStatusBarColor(Color.rgb(13, 17, 23));
         getWindow().setNavigationBarColor(Color.rgb(13, 17, 23));
         vault = new SecureStore(getApplicationContext());
@@ -85,6 +88,37 @@ public final class MainActivity extends Activity {
         } catch (Exception error) {
             web.loadData("<h1>本地界面加载失败</h1>", "text/html", "UTF-8");
         }
+    }
+
+    // Android share sheet: users can share the downloaded cartoon image
+    // directly from a gallery or file app. Only an image URI is consumed.
+    private static Uri sharedImageUri(Intent intent) {
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return null;
+        String type = intent.getType();
+        if (type == null || !type.startsWith("image/")) return null;
+        Object shared = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+        return shared instanceof Uri ? (Uri) shared : null;
+    }
+
+    private void consumePendingSharedAvatar() {
+        Uri image = pendingSharedAvatar;
+        pendingSharedAvatar = null;
+        if (image == null) return;
+        try {
+            importAvatar(image);
+        } catch (Exception e) {
+            error("分享图片导入失败：" + safeMessage(e));
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        Uri image = sharedImageUri(intent);
+        if (image == null) return;
+        pendingSharedAvatar = image;
+        if (uiReady) worker.execute(this::consumePendingSharedAvatar);
     }
 
     private static final class AvatarResource {
@@ -615,7 +649,11 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void ready() {
-            worker.execute(MainActivity.this::restore);
+            worker.execute(() -> {
+                restore();
+                uiReady = true;
+                consumePendingSharedAvatar();
+            });
         }
         @JavascriptInterface public void connect(String rawToken) {
             worker.execute(() -> {
