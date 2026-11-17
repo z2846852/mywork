@@ -78,3 +78,47 @@
   .avatar-metric small,.avatar-metric .delta {font-size:9px}
   .avatar-toolbar .field{min-width:145px}
 }
+
+/* The primary avatar is a genuine interactive WebGL canvas, not a JPEG flip. */
+.avatar-frame.real-3d {
+ aspect-ratio:auto;
+ height:440px;
+ background:radial-gradient(ellipse at 50% 46%, #25443b 0%, #101f1c 70%, #0c1815 100%);
+}
+.avatar-frame.real-3d canvas{
+ display:block;
+ width:100%;
+ height:100%;
+ cursor:grab;
+ touch-action:none;
+}
+.avatar-frame.real-3d canvas:active{cursor:grabbing}
+.avatar-body-layout.has-webgl{
+ display:grid;
+ grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+ gap:10px;
+ align-items:start;
+}
+.avatar-body-layout.has-webgl .avatar-render {
+ grid-column:1 / -1;
+ grid-row:1;
+ width:100%;
+ max-width:none;
+}
+.avatar-body-layout.has-webgl .avatar-stat-column {
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ align-content:start;
+ min-height:0;
+ gap:7px;
+}
+.avatar-body-layout.has-webgl .avatar-metric{min-width:0}
+.avatar-body-layout.has-webgl .avatar-metric strong{font-size:15px}
+.avatar-view-buttons button.active {color:#74ffb9}
+.avatar-frame img[hidden], .avatar-frame button[hidden] {display:none!important}
+.avatar-frame:not(.real-3d) canvas {display:none}
+@media(max-width:390px){
+ .avatar-frame.real-3d{height:375px}
+ .avatar-body-layout.has-webgl{gap:6px}
+ .avatar-body-layout.has-webgl .avatar-stat-column{grid-template-columns:1fr;gap:5px}
+}
