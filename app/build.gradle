@@ -1,0 +1,26 @@
+plugins { id 'com.android.application' }
+
+def buildNumber = (project.findProperty('appBuildNumber') ?: '1').toString().toInteger()
+android {
+    namespace 'com.z2846852.bodytrace'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.z2846852.bodytrace'
+        minSdk 26
+        targetSdk 34
+        versionCode buildNumber
+        versionName "0.1." + buildNumber
+    }
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
