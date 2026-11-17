@@ -85,6 +85,10 @@ function setMappedMorphs(root,controls){
  if(DEBUG.forceMorph)Object.assign(map,DEBUG.forceMorph);
  root.traverse(o=>{
   if(!o.isMesh||!o.morphTargetDictionary||!o.morphTargetInfluences)return;
+  // Critical: the source GLB exports mesh.weights with ALL 92 channels = 1.
+  // Without clearing them, unrelated breast/face/body morphs add together
+  // and create the visibly broken anatomy seen in the visual test.
+  o.morphTargetInfluences.fill(0);
   for(const [key,value] of Object.entries(map)){
    const id=o.morphTargetDictionary[key];
    if(id!==undefined)o.morphTargetInfluences[id]=value;
