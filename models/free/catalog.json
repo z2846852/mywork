@@ -1,0 +1,92 @@
+{
+  "catalog_version": 1,
+  "purpose": "CC0 candidate 3D assets for BodyTrace; importing files does not mean the Android viewer already renders them.",
+  "candidates": [
+    {
+      "id": "makehuman-parametric",
+      "name": "MakeHuman/MPFB CharacterCreator",
+      "license": "CC0-1.0",
+      "source_repo": "kblood/CharacterCreator",
+      "source_ref": "852e48f316b90a0937234886630e4fb4cdfd1f78",
+      "source_licenses": "https://github.com/kblood/CharacterCreator/blob/master/LICENSE-NOTES.md",
+      "status": "source_verified; large files to be imported by GitHub Actions",
+      "features": [
+        "real skinned humanoid GLB",
+        "~92 morph targets",
+        "short hair options",
+        "shorts",
+        "shoes",
+        "body-skeleton sidecar"
+      ],
+      "files": [
+        {
+          "path": "models/free/makehuman/base_body.glb",
+          "source": "https://raw.githubusercontent.com/kblood/CharacterCreator/852e48f316b90a0937234886630e4fb4cdfd1f78/output/base_body.glb",
+          "git_blob_sha1": "a5632913dddae4f7f50188e9f8eb273b78d7d1b0",
+          "size_bytes": 7234380
+        },
+        {
+          "path": "models/free/makehuman/hair_short02.glb",
+          "source": "https://raw.githubusercontent.com/kblood/CharacterCreator/852e48f316b90a0937234886630e4fb4cdfd1f78/output/hair_short02.glb",
+          "git_blob_sha1": "55243e1eb018ca44bd890f9acacb8c874eeb96f8",
+          "size_bytes": 1103288
+        },
+        {
+          "path": "models/free/makehuman/hair_short04.glb",
+          "source": "https://raw.githubusercontent.com/kblood/CharacterCreator/852e48f316b90a0937234886630e4fb4cdfd1f78/output/hair_short04.glb",
+          "git_blob_sha1": "2be20f473553de135a73c04bcfaaa4b66ccca674",
+          "size_bytes": 1132824
+        },
+        {
+          "path": "models/free/makehuman/clothing_shorts.glb",
+          "source": "https://raw.githubusercontent.com/kblood/CharacterCreator/852e48f316b90a0937234886630e4fb4cdfd1f78/output/clothing_shorts.glb",
+          "git_blob_sha1": "28ad2e22376347539ebd63a6620f095241385799",
+          "size_bytes": 242008
+        },
+        {
+          "path": "models/free/makehuman/clothing_shoes.glb",
+          "source": "https://raw.githubusercontent.com/kblood/CharacterCreator/852e48f316b90a0937234886630e4fb4cdfd1f78/output/clothing_shoes.glb",
+          "git_blob_sha1": "aab06a01a235242c7e8aac4fda83278c6e0b42f4",
+          "size_bytes": 847684
+        },
+        {
+          "path": "models/free/makehuman/base_body.joints.json",
+          "source": "https://raw.githubusercontent.com/kblood/CharacterCreator/852e48f316b90a0937234886630e4fb4cdfd1f78/output/base_body.joints.json",
+          "git_blob_sha1": "85c678206c9978215d3009a6ac476d93f57652b0"
+        },
+        {
+          "path": "models/free/makehuman/clothing.json",
+          "source": "https://raw.githubusercontent.com/kblood/CharacterCreator/852e48f316b90a0937234886630e4fb4cdfd1f78/output/clothing.json",
+          "git_blob_sha1": "f6a1dbfd3069d1faa5bd4124e85ad47c2b62f143"
+        },
+        {
+          "path": "models/free/makehuman/hair.json",
+          "source": "https://raw.githubusercontent.com/kblood/CharacterCreator/852e48f316b90a0937234886630e4fb4cdfd1f78/output/hair.json",
+          "git_blob_sha1": "5b9bcb26cc3c3646fc550bcd82c92e6bc1372777"
+        }
+      ]
+    },
+    {
+      "id": "quaternius-superhero",
+      "name": "Quaternius Superhero Male",
+      "license": "CC0-1.0",
+      "source_repo": "programasweights/avatar",
+      "source_ref": "a488723e3a93d73d5c562d88f8a85353c37bc721",
+      "source_licenses": "https://github.com/programasweights/avatar/blob/main/public/assets/QUATERNIUS-LICENSE.txt",
+      "status": "downloaded full GLB",
+      "features": [
+        "single rigged stylized character",
+        "not suitable as final realistic body model",
+        "small fallback/GLB loader test"
+      ],
+      "files": [
+        {
+          "path": "models/free/quaternius/character.glb",
+          "source": "https://raw.githubusercontent.com/programasweights/avatar/a488723e3a93d73d5c562d88f8a85353c37bc721/public/assets/character.glb",
+          "git_blob_sha1": "b3fd79533fdb9fcedd077744f7e120920eb6cc97",
+          "size_bytes": 741320
+        }
+      ]
+    }
+  ]
+}

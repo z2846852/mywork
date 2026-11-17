@@ -1,0 +1,68 @@
+name: Import free CC0 3D models
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-free-3d.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and validate CC0 assets
+        run: |
+          from pathlib import Path
+          import hashlib, json, struct, time, urllib.request
+          root=Path("models/free/makehuman")
+          root.mkdir(parents=True,exist_ok=True)
+          catalog=json.loads(Path("models/free/catalog.json").read_text(encoding="utf-8"))
+          assets=catalog["candidates"][0]["files"]
+          for entry in assets:
+              dest=Path(entry["path"])
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              expected=entry["git_blob_sha1"]
+              def sha(data): return hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
+              if dest.exists() and sha(dest.read_bytes())==expected:
+                  print("verified existing",dest,len(dest.read_bytes()))
+                  continue
+              data=None
+              for attempt in range(3):
+                  try:
+                      req=urllib.request.Request(entry["source"],headers={"User-Agent":"BodyTrace-FreeModelImporter/1.0"})
+                      with urllib.request.urlopen(req,timeout=90) as response:
+                          data=response.read(30*1024*1024+1)
+                      if len(data)>30*1024*1024: raise ValueError("asset too large")
+                      break
+                  except Exception as exc:
+                      print("download retry",attempt+1,str(exc))
+                      if attempt==2: raise
+                      time.sleep(3*(attempt+1))
+              assert sha(data)==expected, "Git blob SHA mismatch: "+entry["source"]
+              if dest.suffix==".glb":
+                  assert data[:4]==b"glTF" and struct.unpack_from("<I",data,4)[0]==2, "invalid GLB header"
+                  assert struct.unpack_from("<I",data,8)[0]==len(data), "GLB length mismatch"
+                  json_length,json_type=struct.unpack_from("<I4s",data,12)
+                  assert json_type==b"JSON"
+                  scene=json.loads(data[20:20+json_length])
+                  if dest.name=="base_body.glb":
+                      targets=max((len(p.get("targets",[])) for m in scene.get("meshes",[]) for p in m.get("primitives",[])),default=0)
+                      print("Body morph targets",targets,"meshes",len(scene.get("meshes",[])))
+                      assert targets>=32, "not a parametrically editable body"
+              dest.write_bytes(data)
+              print("downloaded verified",dest,len(data))
+          print("all CC0 model candidates ready")
+      - name: Commit imported models to mywork
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add models/free/makehuman/
+          if git diff --cached --quiet; then
+            echo "No new model data."
+          else
+            git commit -m 'assets: import validated free MakeHuman GLB body and modules'
+            git push origin HEAD:main
+          fi
