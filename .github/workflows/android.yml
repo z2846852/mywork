@@ -5,6 +5,9 @@ on:
     paths:
       - 'app/**'
       - 'scripts/test_ui.js'
+      - 'scripts/test_makehuman_assets.js'
+      - 'scripts/makehuman_viewer.mjs'
+      - 'models/free/makehuman/**'
       - '*.gradle'
       - 'gradle.properties'
       - '.github/workflows/android.yml'
@@ -30,8 +33,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check UI and data conversion tests
-        run: node scripts/test_ui.js
+      - name: Build offline Three.js runtime and include CC0 MakeHuman GLBs
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts --no-audit --no-fund \
+            three@0.170.0 esbuild@0.24.2
+          ./node_modules/.bin/esbuild scripts/makehuman_viewer.mjs \
+            --bundle --platform=browser --format=iife --target=es2020 \
+            --minify --outfile=app/src/main/assets/makehuman3d.bundle.js
+          mkdir -p app/src/main/assets/makehuman
+          cp models/free/makehuman/base_body.glb app/src/main/assets/makehuman/
+          cp models/free/makehuman/hair_short02.glb app/src/main/assets/makehuman/
+          cp models/free/makehuman/clothing_shorts.glb app/src/main/assets/makehuman/
+          cp models/free/makehuman/clothing_shoes.glb app/src/main/assets/makehuman/
+      - name: Check UI, asset and morph interoperability
+        run: |
+          node scripts/test_ui.js
+          node scripts/test_makehuman_assets.js
       - name: Android SDK platform
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
