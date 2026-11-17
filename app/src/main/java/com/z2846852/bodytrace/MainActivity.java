@@ -104,7 +104,7 @@ public final class MainActivity extends Activity {
         if (pointer.isFile()) {
             byte[] nameBytes = java.nio.file.Files.readAllBytes(pointer.toPath());
             String currentName = new String(nameBytes, StandardCharsets.UTF_8).trim();
-            if (currentName.matches("sha256-[0-9a-f]{64}\\\\.(png|jpg|webp)")) {
+            if (currentName.matches("sha256-[0-9a-f]{64}\\.(png|jpg|webp)")) {
                 File stored = new File(folder, currentName);
                 if (stored.isFile() && stored.length() > 0 && stored.length() <= AVATAR_MAX_BYTES) {
                     byte[] bytes = java.nio.file.Files.readAllBytes(stored.toPath());
