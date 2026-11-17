@@ -31,5 +31,5 @@ jobs:
         if: always()
         with:
           name: BodyTrace-Cartoon-Preview
-          path: bodytrace-cartoon-preview.png
+          path: bodytrace-*-preview.png
           if-no-files-found: warn
