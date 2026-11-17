@@ -43,54 +43,30 @@ vm.runInNewContext(scrollHelper+"\nfocusCalendarLatest();",{
   $:id=>id==="heatScroll"?scroll:null,requestAnimationFrame:callback=>callback()
 });
 assert.equal(scroll.scrollLeft,900);
-// Verify actual WebGL rendering + camera orbit + geometry responding to measurements.
-// A PNG-only toggle must not satisfy this regression test.
-const engineText = fs.readFileSync(path.join(root, "app/src/main/assets/body3d.js"), "utf8");
-const featuresText = fs.readFileSync(path.join(root, "app/src/main/assets/features.js"), "utf8");
-new vm.Script(engineText);
-new vm.Script(featuresText);
-assert.ok(html.includes('id="avatar3dCanvas"'));
-assert.ok(html.includes('avatar3dMode'));
-assert.ok(featuresText.includes("avatar3d.setMeasurements(shape)"));
-const calls={models:[],mvps:[],draws:0};
-const fakeGl={
- VERTEX_SHADER:1,FRAGMENT_SHADER:2,COMPILE_STATUS:3,LINK_STATUS:4,
- ARRAY_BUFFER:5,ELEMENT_ARRAY_BUFFER:6,STATIC_DRAW:7,FLOAT:8,
- TRIANGLES:9,UNSIGNED_SHORT:10,DEPTH_TEST:11,LEQUAL:12,
- COLOR_BUFFER_BIT:13,DEPTH_BUFFER_BIT:14,
- createShader(){return{}},shaderSource(){},compileShader(){},getShaderParameter(){return true},
- createProgram(){return{}},attachShader(){},linkProgram(){},getProgramParameter(){return true},
- useProgram(){},createBuffer(){return{}},bindBuffer(){},bufferData(){},
- getAttribLocation(){return 0},getUniformLocation(_,name){return name},
- enableVertexAttribArray(){},vertexAttribPointer(){},enable(){},depthFunc(){},
- viewport(){},clearColor(){},clear(){},uniformMatrix3fv(){},uniform3fv(){},
- uniformMatrix4fv(name,transpose,value){
-  if(name==="uModel")calls.models.push(Array.from(value));
-  if(name==="uMvp")calls.mvps.push(Array.from(value));
- },drawElements(){calls.draws++}
-};
-const view={devicePixelRatio:1};
-vm.runInNewContext(engineText,{window:view,Math,Float32Array,Uint16Array});
-assert.equal(typeof view.BodyTrace3D.mount,"function");
-const canvas={
- clientWidth:340,clientHeight:480,isConnected:true,
- style:{},getContext(type){assert.equal(type,"webgl");return fakeGl},
- addEventListener(){},setPointerCapture(){}
-};
-const body3d=view.BodyTrace3D.mount(canvas);
-body3d.setMeasurements({height_cm:173.5,chest_cm:90.2,waist_cm:84});
-assert.ok(calls.draws>10,"3D engine should issue multiple actual draw calls");
-const firstChest=calls.models[0][0];
-const firstMvp=calls.mvps[0].join(",");
-calls.models.length=0;calls.mvps.length=0;
-body3d.setMeasurements({height_cm:173.5,chest_cm:105,waist_cm:92});
-assert.ok(calls.models[0][0]>firstChest,
-  "A larger chest measurement must make the 3D mesh wider");
-body3d.setView("back");
-assert.ok(Math.abs(body3d.getYaw()-Math.PI)<.0001);
-body3d.rotate(32);
-assert.notEqual(body3d.getYaw(),Math.PI);
-assert.notEqual(calls.mvps.at(-1).join(","),firstMvp,
-  "Rotating the camera must change 3D projection, not swap 2D images");
-
-console.log("BodyTrace tests passed: 3D WebGL draw, data-driven mesh scaling, free camera rotation, default values, and heatmap.");
+// Cartoon-first contract: UI must not load the eerie MakeHuman renderer.
+const asset=fs.readFileSync(path.join(root,"app/src/main/assets/avatar_cartoon.svg"),"utf8");
+const features=fs.readFileSync(path.join(root,"app/src/main/assets/features.js"),"utf8");
+const native=fs.readFileSync(path.join(root,
+  "app/src/main/java/com/z2846852/bodytrace/MainActivity.java"),"utf8");
+const workflow=fs.readFileSync(path.join(root,".github/workflows/android.yml"),"utf8");
+assert.ok(asset.startsWith("<svg ")&&asset.includes("</svg>")&&asset.includes('viewBox="0 0 600 900"'),
+ "Cartoon vector must exist and scale cleanly");
+assert.ok(!/<script\b/i.test(asset)&&!/https?:\/\//i.test(asset.replace("http://www.w3.org/2000/svg","")),
+ "Bundled cartoon artwork must not execute code or load remote content");
+new vm.Script(features,{filename:"features.js"});
+assert.ok(html.includes('id="avatarPicture"'),"2D character image missing");
+assert.ok(html.includes('id="avatarImport"'),"User needs high-res import button");
+assert.ok(html.includes('id="avatarMeasureDate"'),"Measurements must remain date-selectable");
+assert.ok(!html.includes('id="avatar3dCanvas"'),"Uncanny old 3D renderer must not appear");
+assert.ok(!features.includes("bootMakeHuman")&&!features.includes("BodyTraceReal3D"),
+ "No 3D startup or 3D model loading in the default body page");
+assert.ok(features.includes("avatar_imported")&&features.includes("renderAvatar()"),
+ "Date and custom image updates must work");
+assert.ok(native.includes('readAssetBytes("avatar_cartoon.svg")'),"Native must use cartoon SVG as default");
+assert.ok(native.includes('new File(getFilesDir(), "resource_library/avatar")'),
+ "User-selected image must survive ordinary APK upgrades");
+assert.ok(native.includes('readAsset("features.js")')&&!native.includes('readAsset("makehuman3d.bundle.js")'),
+ "Default App must not load the massive GLB or Three.js bundle");
+assert.ok(workflow.includes("app:assembleRelease")&&workflow.includes("Load fixed public signing identity"),
+ "New APK must keep the permanent release signing key");
+console.log("BodyTrace cartoon-first UI tests passed: 2D avatar, date-driven body stats, persisted custom image and stable Release signing.");
