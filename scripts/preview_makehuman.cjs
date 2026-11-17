@@ -37,9 +37,11 @@ const startup=[
   const scenarios=[
   {name:"01-original",debug:{}},
   {name:"02-no-local-deformation",debug:{noLocalDeform:true}},
-  {name:"03-no-morph",debug:{noLocalDeform:true,noMorph:true}},
-  {name:"04-original-material",debug:{noLocalDeform:true,noTint:true}},
-  {name:"05-bare-model",debug:{noLocalDeform:true,noAccessories:true,noTint:true}}
+  {name:"03-female-gender",debug:{noLocalDeform:true,forceMorph:{gender_male:0,gender_female:1}}},
+  {name:"04-breast-cup-min",debug:{noLocalDeform:true,forceMorph:{breast_cup_min:1}}},
+  {name:"05-breast-cup-max",debug:{noLocalDeform:true,forceMorph:{breast_cup_max:1}}},
+  {name:"06-breast-firm-min",debug:{noLocalDeform:true,forceMorph:{breast_firm_min:1}}},
+  {name:"07-combined-flat",debug:{noLocalDeform:true,forceMorph:{breast_cup_min:1,breast_firm_max:1}}},
  ];
  for(const scenario of scenarios){
   const page=await browser.newPage({viewport:{width:520,height:780},deviceScaleFactor:1.5});
