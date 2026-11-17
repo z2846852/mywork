@@ -16,19 +16,6 @@ final class GitHubApi {
     private static final String REPO = "https://api.github.com/repos/z2846852/-";
     private static final int LIMIT = 4 * 1024 * 1024;
 
-    String readFile(String token, String path) throws Exception {
-        if (!path.equals("data/workouts.csv") && !path.equals("data/measurements.csv")) {
-            throw new IllegalArgumentException("Read path not allowed");
-        }
-        String address = REPO + "/contents/" + path + "?ref=main";
-        JSONObject response = new JSONObject(request("GET", address, token, null));
-        if (!"base64".equals(response.optString("encoding"))) {
-            throw new IllegalStateException("GitHub file encoding unsupported");
-        }
-        String encoded = response.getString("content").replace("\n", "");
-        return new String(Base64.decode(encoded, Base64.DEFAULT), StandardCharsets.UTF_8);
-    }
-
     /** List and retrieve daily JSON directly. No CSV or Actions required for charts. */
     JSONArray readDaily(String token) throws Exception {
         JSONArray listing = new JSONArray(request("GET", REPO + "/contents/data/daily?ref=main",
