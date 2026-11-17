@@ -51,7 +51,7 @@ final class GitHubApi {
                 throw new IllegalStateException("Unsupported daily file encoding");
             }
             String decoded = new String(Base64.decode(
-                    meta.getString("content").replace("\\n", ""), Base64.DEFAULT),
+                    meta.getString("content"), Base64.DEFAULT),
                     StandardCharsets.UTF_8);
             JSONObject daily = new JSONObject(decoded);
             if (daily.getInt("schema_version") != 2 ||
