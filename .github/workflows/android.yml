@@ -44,7 +44,7 @@ jobs:
             --minify --outfile=app/src/main/assets/makehuman3d.bundle.js
           mkdir -p app/src/main/assets/makehuman
           cp models/free/makehuman/base_body.glb app/src/main/assets/makehuman/
-          cp models/free/makehuman/hair_short02.glb app/src/main/assets/makehuman/
+          cp models/free/makehuman/hair_short04.glb app/src/main/assets/makehuman/
           cp models/free/makehuman/clothing_shorts.glb app/src/main/assets/makehuman/
           cp models/free/makehuman/clothing_shoes.glb app/src/main/assets/makehuman/
       - name: Check UI, asset and morph interoperability
