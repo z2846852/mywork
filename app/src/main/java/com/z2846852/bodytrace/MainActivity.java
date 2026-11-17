@@ -26,6 +26,8 @@ public final class MainActivity extends Activity {
     private WebView web;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private SecureStore vault;
+    private JsonStore plain;
+    private boolean migrated = false;
     private final GitHubApi github = new GitHubApi();
     private static final ZoneOffset BEIJING = ZoneOffset.ofHours(8);
 
@@ -35,6 +37,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(13, 17, 23));
         getWindow().setNavigationBarColor(Color.rgb(13, 17, 23));
         vault = new SecureStore(getApplicationContext());
+        plain = new JsonStore(getApplicationContext());
         web = new WebView(this);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -93,9 +96,62 @@ public final class MainActivity extends Activity {
     }
 
     private JSONArray localDays() throws Exception {
-        String value = vault.read("daily_json");
-        return new JSONArray(value == null ? "[]" : value);
+        return plain.getDays();
     }
+
+    /** Migrate old encrypted JSON once; leave PAT encrypted in Keystore. */
+    private void ensureMigrated() throws Exception {
+        if (migrated) return;
+        String oldDays = vault.read("daily_json");
+        if (oldDays != null) {
+            JSONArray combined = mergeDays(plain.getDays(), new JSONArray(oldDays));
+            plain.putDays(combined);
+            vault.delete("daily_json");
+        }
+        String oldPending = vault.read("pending");
+        if (oldPending != null) {
+            JSONArray combined = plain.getPending();
+            java.util.HashSet<String> ids = new java.util.HashSet<>();
+            for (int i = 0; i < combined.length(); ++i) {
+                ids.add(combined.getJSONObject(i).optString("id", ""));
+            }
+            JSONArray old = new JSONArray(oldPending);
+            for (int i = 0; i < old.length(); ++i) {
+                JSONObject row = old.getJSONObject(i);
+                if (ids.add(row.optString("id", ""))) combined.put(row);
+            }
+            plain.putPending(combined);
+            vault.delete("pending");
+        }
+        String oldRaw = vault.read("raw_entries");
+        if (oldRaw != null) {
+            JSONArray combined = plain.getRaw();
+            java.util.HashSet<String> ids = new java.util.HashSet<>();
+            for (int i = 0; i < combined.length(); ++i) {
+                ids.add(combined.getJSONObject(i).optString("id", ""));
+            }
+            JSONArray old = new JSONArray(oldRaw);
+            for (int i = 0; i < old.length(); ++i) {
+                JSONObject row = old.getJSONObject(i);
+                if (ids.add(row.optString("id", ""))) combined.put(row);
+            }
+            plain.putRaw(combined);
+            vault.delete("raw_entries");
+        }
+        plain.putView(ViewProjector.project(plain.getDays()));
+        migrated = true;
+    }
+
+    private void replyData(JSONArray days, boolean cached) throws Exception {
+        JSONObject view = ViewProjector.project(days);
+        plain.putView(view);
+        JSONObject result = message("data");
+        result.put("days", days);
+        result.put("view_model", view);
+        result.put("cached", cached);
+        reply(result);
+    }
+
 
     /** A daily array is a local encrypted snapshot, not a CSV or derived chart. */
     private static JSONArray appendLocal(JSONArray days, JSONObject event) throws Exception {
@@ -179,17 +235,14 @@ public final class MainActivity extends Activity {
 
     private void restore() {
         try {
+            ensureMigrated();
             String token = vault.read("token");
             JSONObject status = message("status");
             status.put("connected", token != null && !token.isEmpty());
             status.put("repo", "z2846852/-");
             reply(status);
-            JSONObject cached = message("data");
-            cached.put("days", localDays());
-            cached.put("cached", true);
-            reply(cached);
-            String raw = vault.read("pending");
-            JSONArray pending = new JSONArray(raw == null ? "[]" : raw);
+            replyData(localDays(), true);
+            JSONArray pending = plain.getPending();
             JSONObject q = message("pending");
             q.put("count", pending.length());
             q.put("events", pending);
@@ -199,7 +252,7 @@ public final class MainActivity extends Activity {
             reply(rawHistory);
             // No network pull on startup. Records are still locally available. User controls sync.
         } catch (Exception e) {
-            error("本机加密缓存无法读取，请检查系统密钥或重新连接。");
+            error("本机 JSON 读取或旧版本迁移失败，可先在 GitHub 检查备份。");
         }
     }
 
@@ -212,11 +265,8 @@ public final class MainActivity extends Activity {
             }
             JSONArray remote = github.readDaily(token);
             JSONArray combined = mergeDays(localDays(), remote);
-            vault.write("daily_json", combined.toString());
-            JSONObject result = message("data");
-            result.put("days", combined);
-            result.put("cached", false);
-            reply(result);
+            plain.putDays(combined);
+            replyData(combined, false);
         } catch (Exception e) {
             error("GitHub 同步失败，本地数据仍保留：" + safeMessage(e));
         }
@@ -224,13 +274,11 @@ public final class MainActivity extends Activity {
 
 
     private JSONArray localRawNotes() throws Exception {
-        String value = vault.read("raw_entries");
-        return new JSONArray(value == null ? "[]" : value);
+        return plain.getRaw();
     }
 
     private void sendPending() throws Exception {
-        String value = vault.read("pending");
-        JSONArray pending = new JSONArray(value == null ? "[]" : value);
+        JSONArray pending = plain.getPending();
         JSONObject update = message("pending");
         update.put("count", pending.length());
         update.put("events", pending);
@@ -246,15 +294,14 @@ public final class MainActivity extends Activity {
                 break;
             }
         }
-        vault.write("raw_entries", history.toString());
+        plain.putRaw(history);
         JSONObject update = message("raw_history");
         update.put("notes", history);
         reply(update);
     }
 
     private void drainPending(String token) throws Exception {
-        String str = vault.read("pending");
-        JSONArray pending = new JSONArray(str == null ? "[]" : str);
+        JSONArray pending = plain.getPending();
         while (pending.length() > 0) {
             JSONObject event = pending.getJSONObject(0);
             boolean isRaw = "raw_note".equals(event.optString("type"));
@@ -266,7 +313,7 @@ public final class MainActivity extends Activity {
             }
             JSONArray remaining = new JSONArray();
             for (int i = 1; i < pending.length(); ++i) remaining.put(pending.getJSONObject(i));
-            vault.write("pending", remaining.toString());
+            plain.putPending(remaining);
             pending = remaining;
             if (isRaw) {
                 markRawUploaded(event.getString("id"));
@@ -351,18 +398,17 @@ public final class MainActivity extends Activity {
                 }
                 try {
                     // GitHub is an optional sync backend, not the primary UI store.
+                    ensureMigrated();
                     JSONArray remote = github.readDaily(token);
                     JSONArray combined = mergeDays(localDays(), remote);
+                    // Persist the JSON first; only the PAT remains encrypted.
+                    plain.putDays(combined);
                     vault.write("token", token);
-                    vault.write("daily_json", combined.toString());
                     JSONObject status = message("status");
                     status.put("connected", true);
                     status.put("repo", "z2846852/-");
                     reply(status);
-                    JSONObject data = message("data");
-                    data.put("days", combined);
-                    data.put("cached", false);
-                    reply(data);
+                    replyData(combined, false);
                     // Connected App writes upload immediately; new local records
                     // are always saved before network starts.
                     try { drainPending(token); }
@@ -377,6 +423,7 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void sync() {
             worker.execute(() -> {
                 try {
+                    ensureMigrated();
                     String token = vault.read("token");
                     if (token == null) { error("请先连接 GitHub"); return; }
                     syncInternal(token);
@@ -386,19 +433,21 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void save(String eventJson) {
             worker.execute(() -> {
                 try {
+                    ensureMigrated();
                     JSONObject event = validatedEvent(eventJson);
-                    String raw = vault.read("pending");
-                    JSONArray pending = new JSONArray(raw == null ? "[]" : raw);
+                    JSONArray pending = plain.getPending();
                     pending.put(event);
-                    // Keep the outbox first: recovery can replay it if storage
-                    // fails between the two encrypted preference writes.
-                    vault.write("pending", pending.toString());
+                    // Outbox is persisted first, so interrupted saves can retry.
+                    plain.putPending(pending);
                     JSONArray days = appendLocal(localDays(), event);
-                    vault.write("daily_json", days.toString());
+                    plain.putDays(days);
+                    JSONObject view = ViewProjector.project(days);
+                    plain.putView(view);
                     JSONObject saved = message("local_saved");
                     saved.put("event", event);
                     saved.put("count", pending.length());
                     saved.put("days", days);
+                    saved.put("view_model", view);
                     reply(saved);
                     // Persist-first, then upload immediately when authenticated.
                     String token = vault.read("token");
@@ -417,16 +466,16 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void saveRaw(String text) {
             worker.execute(() -> {
                 try {
+                    ensureMigrated();
                     JSONObject raw = validatedRaw(text);
-                    JSONArray pending = new JSONArray(
-                            vault.read("pending") == null ? "[]" : vault.read("pending"));
+                    JSONArray pending = plain.getPending();
                     pending.put(raw);
-                    vault.write("pending", pending.toString());
+                    plain.putPending(pending);
                     JSONArray history = localRawNotes();
                     JSONObject copy = new JSONObject(raw.toString());
                     copy.put("local_status", "queued");
                     history.put(copy);
-                    vault.write("raw_entries", history.toString());
+                    plain.putRaw(history);
                     JSONObject saved = message("raw_local_saved");
                     saved.put("note", copy);
                     saved.put("count", pending.length());
