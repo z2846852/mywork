@@ -45,6 +45,11 @@ final class ViewProjector {
         JSONArray nutrition = new JSONArray();
         TreeMap<String, Integer> counts = new TreeMap<>();
         TreeMap<String, JSONArray> metricSeries = new TreeMap<>();
+        TreeMap<String, JSONObject> nutritionTotals = new TreeMap<>();
+        TreeMap<String, Integer> regionCounts = new TreeMap<>();
+        JSONArray strengthPoints = new JSONArray();
+        final String[] areas = {"胸","肩","背","腿","手臂","核心"};
+        for (String area : areas) regionCounts.put(area, 0);
         String[] metrics = { "weight_kg", "height_cm", "waist_cm", "chest_cm",
                 "abdomen_cm", "hip_cm", "body_fat_pct", "muscle_mass_kg",
                 "shoulder_cm", "upper_arm_cm", "thigh_cm", "calf_cm" };
@@ -82,6 +87,36 @@ final class ViewProjector {
                     item.put("rir_source", rirSource);
                     workouts.put(item);
                     counts.put(date, counts.getOrDefault(date, 0) + 1);
+                    String region;
+                    switch (ex) {
+                        case "chest_press": case "smith_bench": case "pec_deck":
+                        case "incline_chest_press": case "horizontal_bench":
+                        case "assisted_dip": region = "胸"; break;
+                        case "lateral_raise": case "reverse_fly": case "shoulder_press":
+                            region = "肩"; break;
+                        case "row": case "assisted_pullup": case "vertical_traction":
+                            region = "背"; break;
+                        case "adductor": case "abductor": case "leg_press":
+                        case "leg_extension": case "prone_leg_curl": case "hip_thrust":
+                            region = "腿"; break;
+                        default: region = null;
+                    }
+                    if (region != null) regionCounts.put(region, regionCounts.get(region) + 1);
+                    if (src.has("load_kg") && src.has("reps") &&
+                            !src.isNull("load_kg") && !src.isNull("reps")) {
+                        double load = src.optDouble("load_kg", Double.NaN);
+                        int reps = src.optInt("reps", 0);
+                        if (Double.isFinite(load) && load >= 0 && reps > 0 && reps <= 15) {
+                            strengthPoints.put(new JSONObject()
+                                    .put("id", src.optString("id"))
+                                    .put("date", date)
+                                    .put("exercise_id", ex)
+                                    .put("load_kg", load)
+                                    .put("reps", reps)
+                                    .put("e1rm_reference_kg",
+                                            Math.round(load * (1 + reps / 30.0) * 10.0) / 10.0));
+                        }
+                    }
                 }
             }
             JSONArray body = day.optJSONArray("measurements");
@@ -113,6 +148,28 @@ final class ViewProjector {
                         JSONObject normalized = new JSONObject(item.toString());
                         normalized.put("date", date);
                         nutrition.put(normalized);
+                        JSONObject daily = nutritionTotals.get(date);
+                        if (daily == null) {
+                            daily = new JSONObject().put("date", date)
+                                    .put("entry_count", 0).put("known_calories", 0)
+                                    .put("missing_calories", 0);
+                            nutritionTotals.put(date, daily);
+                        }
+                        daily.put("entry_count", daily.getInt("entry_count") + 1);
+                        double calories = Double.NaN;
+                        if (item.has("grams") && item.has("kcal_per_100g")) {
+                            calories = item.optDouble("grams", Double.NaN) *
+                                    item.optDouble("kcal_per_100g", Double.NaN) / 100.0;
+                        } else if (item.has("kcal_total")) {
+                            calories = item.optDouble("kcal_total", Double.NaN);
+                        }
+                        if (Double.isFinite(calories) && calories >= 0) {
+                            daily.put("known_calories",
+                                    Math.round((daily.getDouble("known_calories") +
+                                            calories) * 10.0) / 10.0);
+                        } else {
+                            daily.put("missing_calories", daily.getInt("missing_calories") + 1);
+                        }
                     }
                 }
             }
@@ -132,7 +189,13 @@ final class ViewProjector {
                 .put("measurements", measurements)
                 .put("nutrition", nutrition)
                 .put("heatmap", heatmap)
-                .put("metric_series", series);
+                .put("metric_series", series)
+                .put("strength_points", strengthPoints)
+                .put("region_total_sets", new JSONObject(regionCounts))
+                .put("nutrition_daily", new JSONArray(nutritionTotals.values()))
+                .put("profile_defaults",
+                        new JSONObject().put("height_cm", 173.5)
+                                .put("height_source", "user_selected_constant"));
     }
 
     private ViewProjector() { }
