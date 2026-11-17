@@ -82,6 +82,7 @@ function setMappedMorphs(root,controls){
  map.corr_gender_male__muscle_min=map.muscle_min;
  map.corr_weight_max__muscle_max=map.weight_max*map.muscle_max;
  map.corr_weight_min__muscle_max=map.weight_min*map.muscle_max;
+ if(DEBUG.forceMorph)Object.assign(map,DEBUG.forceMorph);
  root.traverse(o=>{
   if(!o.isMesh||!o.morphTargetDictionary||!o.morphTargetInfluences)return;
   for(const [key,value] of Object.entries(map)){
