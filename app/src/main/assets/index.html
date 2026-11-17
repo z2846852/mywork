@@ -63,11 +63,11 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="scroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
 <div class="legend"><span>少</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>多</span></div></div>
 <div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div><div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
-<div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">未连接 · 未同步</p><div style="display:flex;gap:9px;flex-wrap:wrap"><button id="syncHome" class="secondary" style="font-size:12px">↻ 刷新数据</button><button id="runActionsHome" class="secondary" style="font-size:12px">▶ 触发 Actions</button></div></div>
+<div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
 </section>
 
 <section class="page" id="page-record">
-<div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">提交后追加到私有仓库当天的 JSON 文件（data/daily/YYYY-MM-DD.json），不覆盖旧组。</p>
+<div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">立即保存到本机每日 JSON 并更新图表；需要备份或读取 ChatGPT 的新记录时，再点击「同步 GitHub」。</p>
 <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
 <div class="field"><label for="recordExercise">动作</label><select id="recordExercise">
 <option value="lateral_raise">Lateral Raise · 侧平举</option>
@@ -83,9 +83,9 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </select></div>
 <div class="formgrid"><div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="例如 27.5"></div>
 <div class="field"><label for="recordReps">次数</label><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" placeholder="例如 8"></div></div>
-<button class="primary" id="saveRecord">保存这一组 → GitHub</button>
-<p class="note">无网络时先进入本机加密队列。辅助引体的重量代表“标称辅助量”，与其他动作的负重方向相反。少于15次按你的规则记录RIR0，不能当作真实力竭测量。</p>
-<div id="saveHelp" class="alert" style="display:none">当前未连接仓库。可以先离线记录，连接后自动尝试上传。</div>
+<button class="primary" id="saveRecord">保存这一组 · 本机即时显示</button>
+<p class="note">保存不需要网络，数据会存入本机加密 JSON，并在同步时上传到 GitHub。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
+<div id="saveHelp" class="alert" style="display:none">当前是本地模式，可正常记录；连接后点击「同步 GitHub」再上传。</div>
 </div></section>
 
 <section class="page" id="page-body">
@@ -98,11 +98,11 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <p class="sub">目标仓库：<span class="code">z2846852/-</span> · main</p>
 <p class="note">在 GitHub 创建 Fine-grained personal access token，仅授权此仓库 Contents Read and write。令牌本机加密储存、不上传 mywork，也不会发送至第三方服务器。</p>
 <div class="field"><label for="token">GitHub Token</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_..."></div>
-<button id="connect" class="primary">验证连接并保存</button>
-<div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">断开并清除本机缓存</button><button id="syncSettings" class="secondary">同步</button></div>
+<button id="connect" class="primary">验证并设置 GitHub 同步</button>
+<div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">解除授权（保留本地记录）</button><button id="syncSettings" class="secondary">⇅ 同步 GitHub</button></div>
 <div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
 </div>
-<div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、APK 和经允许发布的演示数据。<br>“-” （私有）：每日 JSON 为唯一新记录入口；App 直接绘制训练热力图与身体指标。<br>手动触发 Actions 仅用于重建旧 TXT/CSV 等兼容产物，平时刷新数据不需要运行 Actions。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
+<div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、APK 和经允许发布的演示数据。<br>“-” （私有）：每日 JSON 为唯一新记录入口；App 本地保存、清洗并绘制训练与身体指标；GitHub 只负责备份以及与 ChatGPT 同步。<br>Actions 仍负责构建新版 APK，旧图表工作流仅供维护历史兼容报表。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
 </section>
 </main>
 <nav class="tabs" aria-label="主导航">
@@ -176,7 +176,7 @@ function navigate(name){
 document.querySelectorAll(".tabs button").forEach(btn=>btn.onclick=()=>navigate(btn.dataset.page));
 function renderStatus(){
  $("statusDot").classList.toggle("on",state.connected);
- $("statusText").textContent=state.connected?(state.hasCache?"已连接 · 离线缓存":"已连接 · 私有仓库"):"尚未连接私有仓库";
+ $("statusText").textContent=state.connected?"本地模式 · 已配置 GitHub 同步":"本地模式 · 未连接 GitHub";
  $("pendingStatus").textContent=state.pending?" · 待上传 "+state.pending+" 组":"";
  $("saveHelp").style.display=state.connected?"none":"block";
 }
@@ -304,11 +304,9 @@ $("saveRecord").onclick=()=>{
 };
 $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("请先粘贴 GitHub token",true);return}
  $("token").value="";BodyTraceNative.connect(token);toast("正在验证连接…")};
-$("disconnect").onclick=()=>{if(confirm("断开连接，并清除本机加密缓存和未上传队列？"))BodyTraceNative.disconnect()};
+$("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的训练和未上传记录会保留。"))BodyTraceNative.disconnect()};
 const sync=()=>BodyTraceNative.sync();
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
-$("runActionsHome").onclick=()=>{if(!state.connected){toast("先连接私有 GitHub 仓库",true);return}
- BodyTraceNative.requestActionsRefresh();toast("正在请求启动兼容工作流…")};
 window.bodyTraceReceive=function(evt){
  switch(evt.type){
  case "status":
