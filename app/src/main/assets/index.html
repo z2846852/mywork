@@ -63,7 +63,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="scroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
 <div class="legend"><span>少</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>多</span></div></div>
 <div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div><div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
-<div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">未连接 · 未同步</p><button id="syncHome" class="secondary" style="font-size:12px">↻ 同步数据</button></div>
+<div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">未连接 · 未同步</p><div style="display:flex;gap:9px;flex-wrap:wrap"><button id="syncHome" class="secondary" style="font-size:12px">↻ 刷新数据</button><button id="runActionsHome" class="secondary" style="font-size:12px">▶ 触发 Actions</button></div></div>
 </section>
 
 <section class="page" id="page-record">
@@ -89,7 +89,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div></section>
 
 <section class="page" id="page-body">
-<div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从私有仓库已有 measurements.csv 读取；暂不支持本页新增测量。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div>
+<div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从私有仓库每日 JSON 读取身体记录，App 本机计算并展示；暂不支持本页新增测量。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div>
 <div class="panel"><div class="eyebrow">NEXT / MODULES</div><h2>饮食分析</h2><p class="sub">下一阶段接入饮食事件、蛋白质/热量、体重及围度趋势。默认仍存私有仓库，不公开个人记录。</p><div class="tag" style="display:inline-block;margin-top:12px">尚未接入写入</div></div>
 </section>
 
@@ -102,7 +102,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">断开并清除本机缓存</button><button id="syncSettings" class="secondary">同步</button></div>
 <div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
 </div>
-<div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、APK 和经允许发布的演示数据。<br>“-” （私有）：原始训练、事件、指标计算。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
+<div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、APK 和经允许发布的演示数据。<br>“-” （私有）：每日 JSON 为唯一新记录入口；App 直接绘制训练热力图与身体指标。<br>手动触发 Actions 仅用于重建旧 TXT/CSV 等兼容产物，平时刷新数据不需要运行 Actions。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
 </section>
 </main>
 <nav class="tabs" aria-label="主导航">
@@ -114,21 +114,53 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-const state={rows:[],measurements:[],filter:"",selected:"",connected:false,hasCache:false,pending:0};
-const workoutsCol=["session_date","exercise","set_no","reps","load_kg","assistance_kg","rir","rir_source"];
-function parseCSV(csv){
- const lines=[];let line=[],field="",quoted=false;
- for(let i=0;i<csv.length;i++){const ch=csv[i];
-  if(quoted){if(ch==='"'&&csv[i+1]==='"'){field+='"';i++}else if(ch==='"'){quoted=false}else{field+=ch}}
-  else if(ch==='"'){quoted=true}
-  else if(ch===','){line.push(field);field=""}
-  else if(ch==='\n'){line.push(field);if(line.some(x=>x.length))lines.push(line);line=[];field=""}
-  else if(ch!=='\r'){field+=ch}
+const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[]};
+// Convert authoritative JSON v2 into a stable UI model. No CSV conversion.
+const exerciseLabels={
+ adductor:"坐姿髋内收机（Adductor）",abductor:"坐姿髋外展机（Abductor）",
+ lateral_raise:"坐姿侧平举机（Lateral Raise）",row:"坐姿单侧划船（Seated Row）",
+ assisted_pullup:"辅助引体向上",assisted_dip:"辅助双杠臂屈伸",
+ smith_bench:"史密斯卧推（Smith Machine Bench Press）",chest_press:"坐姿胸推器",
+ pec_deck:"蝴蝶机夹胸（正向）",reverse_fly:"反向蝴蝶机",
+ vertical_traction:"垂直下拉（Vertical Traction）",
+ prone_leg_curl:"俯卧腿弯举（Prone Leg Curl）",hip_thrust:"臀推（Hip Thrust）",
+ leg_press:"倒蹬（Leg Press）",leg_extension:"坐姿腿屈伸",
+ shoulder_press:"坐姿肩推器",incline_chest_press:"上斜胸推器",
+ horizontal_bench:"水平卧推机"
+};
+function oneRow(entry,date){
+ const ex=entry.exercise_label||exerciseLabels[entry.exercise_id]||entry.exercise_id||"未知动作";
+ const load=entry.load_kg===undefined?"":String(entry.load_kg);
+ const assist=entry.assistance_kg===undefined?"":String(entry.assistance_kg);
+ return {id:entry.id||"",session_date:date,exercise:ex,reps:String(entry.reps??""),
+  set_no:"",load_kg:load,assistance_kg:assist,
+  machine_setting:entry.machine_setting===undefined?"":String(entry.machine_setting),
+  rir:entry.rir===undefined||entry.rir===null?"":String(entry.rir),
+  rir_source:entry.rir_source||((entry.rir===undefined&&Number(entry.reps)<15)?"user_rule_under_15":""),
+  approx:entry.approx===true,origin:entry.origin||"",
+  source:entry.source||"daily-json"};
+}
+function normaliseDays(days){
+ const rows=[],measurements=[],nutrition=[];
+ for(const day of days){
+  if(!day||day.schema_version!==2||!/^\d{4}-\d{2}-\d{2}$/.test(day.date))continue;
+  if(Array.isArray(day.workouts)){for(const row of day.workouts){
+   if(row&&typeof row==="object")rows.push(oneRow(row,day.date));
+  }}
+  if(Array.isArray(day.measurements)){for(const row of day.measurements){
+   if(!row||typeof row!=="object")continue;
+   const metric={reported_date:day.date,id:row.id||""};
+   for(const key in row)if(typeof row[key]==="number")metric[key]=String(row[key]);
+   measurements.push(metric);
+  }}
+  if(Array.isArray(day.nutrition))nutrition.push(...day.nutrition);
  }
- if(field||line.length){line.push(field);lines.push(line)}
- if(!lines.length)return[];
- const cols=lines[0].map(x=>x.replace(/^\uFEFF/,""));
- return lines.slice(1).map(fields=>Object.fromEntries(cols.map((c,i)=>[c,fields[i]||""])));
+ return {rows,measurements,nutrition};
+}
+function addPreview(event){
+ if(!event||!event.id||state.rows.some(row=>row.id===event.id))return;
+ state.rows.push(oneRow(event,event.date));
+ indexData();
 }
 function pad(n){return String(n).padStart(2,"0")}
 function iso(d){return d.getUTCFullYear()+"-"+pad(d.getUTCMonth()+1)+"-"+pad(d.getUTCDate())}
@@ -194,7 +226,7 @@ function renderDay(){
   const sets=document.createElement("div");sets.className="sets";
   items.forEach((r,i)=>{
    const p=document.createElement("div");p.className="set";const b=document.createElement("b");
-   const approx=r.notes&&r.notes.includes("第1组约15次")&&r.set_no==="1"&&r.load_kg==="14"&&r.exercise.includes("Lateral Raise");
+   const approx=r.approx===true;
    b.textContent=weight(r)+" × "+(approx?"约":"")+r.reps+"次";p.append(b);
    const meta=document.createElement("small");meta.textContent="第"+(i+1)+"组 · "+(r.rir_source==="user_rule_under_15"?"RIR0 (规则)":r.rir?"RIR "+r.rir:"RIR未知");p.append(meta);sets.append(p);
   });section.append(sets);view.append(section);
@@ -229,15 +261,48 @@ $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("
 $("disconnect").onclick=()=>{if(confirm("断开连接，并清除本机加密缓存和未上传队列？"))BodyTraceNative.disconnect()};
 const sync=()=>BodyTraceNative.sync();
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
+$("runActionsHome").onclick=()=>{if(!state.connected){toast("先连接私有 GitHub 仓库",true);return}
+ BodyTraceNative.requestActionsRefresh();toast("正在请求启动兼容工作流…")};
 window.bodyTraceReceive=function(evt){
  switch(evt.type){
- case "status":state.connected=!!evt.connected;renderStatus();if(state.connected)toast("GitHub 私有仓库已连接");break;
- case "disconnected":state.connected=false;state.rows=[];state.measurements=[];state.pending=0;state.hasCache=false;renderStatus();indexData();renderBody();toast("已清除本机连接与缓存");break;
- case "pending":state.pending=evt.count||0;renderStatus();break;
- case "queued":state.pending=evt.count||0;renderStatus();toast("已保存到本机队列，准备追加当天 JSON");$("recordKg").value="";$("recordReps").value="";break;
- case "saved":toast("已追加到私有仓库当天 JSON。Actions 更新后点击同步即可显示。");break;
- case "data":state.rows=parseCSV(evt.csv||"");state.measurements=parseCSV(evt.measurements||"");
- state.hasCache=!!evt.cached;indexData();renderBody();renderStatus();$("sourceLabel").textContent=(evt.cached?"本机缓存":"已从私有 GitHub 同步")+" · "+state.rows.length+"组";break;
+ case "status":
+  state.connected=!!evt.connected;renderStatus();
+  if(state.connected)toast("GitHub 私有仓库已连接");
+  break;
+ case "disconnected":
+  state.connected=false;state.rows=[];state.measurements=[];state.nutrition=[];
+  state.pending=0;state.pendingEvents=[];state.hasCache=false;
+  renderStatus();indexData();renderBody();toast("已清除本机连接与缓存");
+  break;
+ case "pending":
+  state.pending=evt.count||0;
+  if(Array.isArray(evt.events)){state.pendingEvents=evt.events;
+   for(const e of evt.events)addPreview(e);
+  }
+  renderStatus();break;
+ case "queued":
+  state.pending=evt.count||0;
+  state.pendingEvents.push(evt.event);addPreview(evt.event);
+  renderStatus();toast("已保存到本机队列并显示在日历，准备上传每日 JSON");
+  $("recordKg").value="";$("recordReps").value="";break;
+ case "saved":
+  state.pendingEvents=state.pendingEvents.filter(e=>e.id!==evt.event?.id);
+  addPreview(evt.event);
+  toast("这一组已经写入 GitHub 每日 JSON，无需等待 Actions。");break;
+ case "data":{
+  const parsed=normaliseDays(evt.days||[]);
+  state.rows=parsed.rows;state.measurements=parsed.measurements;
+  state.nutrition=parsed.nutrition;state.hasCache=!!evt.cached;
+  for(const e of state.pendingEvents){
+   if(!state.rows.some(r=>r.id===e.id))state.rows.push(oneRow(e,e.date));
+  }
+  indexData();renderBody();renderStatus();
+  $("sourceLabel").textContent=(evt.cached?"本机 JSON 缓存":"已从私有 GitHub 直接读取 JSON")+
+   " · "+state.rows.length+"组";
+  break;
+ }
+ case "actions_requested":
+  toast("已发送 GitHub Actions 启动请求；工作流是否完成需在 GitHub 查看。");break;
  case "error":toast(evt.message||"操作失败",true);break;
  }
 };
