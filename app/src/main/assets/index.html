@@ -171,9 +171,12 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <div class="avatar-frame illustrated" id="avatarFrame">
       <img id="avatarPicture" src="data:__BODY_AVATAR_MIME__;base64,__BODY_AVATAR_BASE64__"
         alt="健康友好的寸头卡通男性全身插画" draggable="false">
+      <canvas id="avatarWarpCanvas" aria-label="依据身体围度近似调整的二维人物轮廓" hidden></canvas>
       <button type="button" class="avatar-hotspot" id="avatarHotspot" aria-label="点击人物胸部、腰部或臀部查看测量数据"></button>
     </div>
-    <div class="avatar-pager" id="avatarModeLabel">人物是静态插画，不会随围度自动改变形状</div>
+    <div class="avatar-pager" id="avatarModeLabel">人物为卡通示意图，体型变化是二维近似映射</div>
+    <label class="body-morph-toggle"><input id="bodyWarpEnabled" type="checkbox" checked> 随围度近似调整人物轮廓（可关闭）</label>
+    <p id="bodyMorphLegend" class="sub" style="font-size:10px;margin-top:5px">仅用于观察相对变化，不等于真实人体扫描或按围度精确拟合。</p>
     <button type="button" id="avatarImport" class="secondary avatar-import">从手机选择喜欢的高清卡通人物图</button>
   </div>
 
@@ -181,7 +184,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 <div class="avatar-weight-summary" id="avatarWeightSummary"></div>
 <div id="avatarSelectedDetail" class="note">选择日期后显示真实围度；点选人物或指标可查看细节。</div>
-<div class="avatar-subtitle">卡通形象只负责展示，不代表按围度推算的真实体型。<strong>测量日期、体重、围度与变化方向是真实 JSON 数据。</strong> 你导入的高清图片将保存在手机资源库里，正常覆盖安装不会丢失。旧 3D 实验模型不再默认加载。</div>
+<div class="avatar-subtitle"><strong>人物轮廓</strong>按选中日期的胸、腰、臀、肩、臂、腿围相对于 4 月 15 日基线进行平滑二维宽度调整；这种变形只模拟视觉趋势。<strong>旁边的围度数值才是真实记录</strong>。导入的 PNG/JPEG/WebP 可继续作为角色素材。</div>
 <details class="training-region-details"><summary>查看训练部位热力分布（按组数）</summary>
 <div id="bodyMuscleView" class="muscle-view"></div>
 </details>
