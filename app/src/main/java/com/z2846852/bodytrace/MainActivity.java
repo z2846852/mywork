@@ -403,9 +403,12 @@ public final class MainActivity extends Activity {
         }
         double grams = input.getDouble("grams");
         double kcal = input.getDouble("kcal_per_100g");
-        double protein = input.optDouble("protein_per_100g", 0);
-        double carbs = input.optDouble("carbs_per_100g", 0);
-        double fat = input.optDouble("fat_per_100g", 0);
+        double protein = input.has("protein_per_100g") ?
+                input.getDouble("protein_per_100g") : 0;
+        double carbs = input.has("carbs_per_100g") ?
+                input.getDouble("carbs_per_100g") : 0;
+        double fat = input.has("fat_per_100g") ?
+                input.getDouble("fat_per_100g") : 0;
         if (!Double.isFinite(grams) || grams <= 0 || grams > 5000 ||
                 !Double.isFinite(kcal) || kcal < 0 || kcal > 1200 ||
                 !Double.isFinite(protein) || protein < 0 || protein > 100 ||
@@ -422,9 +425,9 @@ public final class MainActivity extends Activity {
         event.put("food", food);
         event.put("grams", grams);
         event.put("kcal_per_100g", kcal);
-        event.put("protein_per_100g", protein);
-        event.put("carbs_per_100g", carbs);
-        event.put("fat_per_100g", fat);
+        if (input.has("protein_per_100g")) event.put("protein_per_100g", protein);
+        if (input.has("carbs_per_100g")) event.put("carbs_per_100g", carbs);
+        if (input.has("fat_per_100g")) event.put("fat_per_100g", fat);
         event.put("source", "bodytrace-android");
         event.put("created_at", OffsetDateTime.now(BEIJING).toString());
         return event;
