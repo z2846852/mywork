@@ -69,6 +69,12 @@ const github=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/body
 assert.ok(github.includes('isMeasurement ? "measurements"'));
 assert.ok(github.includes('"weight_kg", "shoulder_cm", "chest_cm"'));
 assert.ok(native.includes('readAsset("wheel.js")'));
+const morph=fs.readFileSync(path.join(root,"app/src/main/assets/avatar_morph.js"),"utf8");
+new vm.Script(morph,{filename:"avatar_morph.js"});
+assert.ok(morph.includes("drawImage")&&morph.includes("waist_cm")&&morph.includes("shoulder_cm"));
+assert.ok(html.includes('id="avatarWarpCanvas"')&&html.includes('id="bodyWarpEnabled"'));
+assert.ok(native.includes('readAsset("avatar_morph.js")'));
+assert.ok(features.includes("BodyTraceMorph.set(selectedAvatarDate,fields)"));
 
 assert.ok(html.includes('id="avatarPicture"'),"2D character image missing");
 assert.ok(html.includes('id="avatarImport"'),"User needs high-res import button");
@@ -78,7 +84,7 @@ assert.ok(!features.includes("bootMakeHuman")&&!features.includes("BodyTraceReal
  "No 3D startup or 3D model loading in the default body page");
 assert.ok(features.includes("avatar_imported")&&features.includes("renderAvatar()"),
  "Date and custom image updates must work");
-assert.ok(native.includes('readAssetBytes("avatar_cartoon.svg")'),"Native must use cartoon SVG as default");
+assert.ok(native.includes('readAssetBytes("avatar_cartoon_cutout.svg")'),"Native must use scalable transparent cartoon SVG as default");
 assert.ok(native.includes('new File(getFilesDir(), "resource_library/avatar")'),
  "User-selected image must survive ordinary APK upgrades");
 assert.ok(native.includes('readAsset("features.js")')&&!native.includes('readAsset("makehuman3d.bundle.js")'),
