@@ -258,7 +258,7 @@ function renderDay(){
    const p=document.createElement("div");p.className="set";const b=document.createElement("b");
    const approx=r.approx===true;
    b.textContent=weight(r)+" × "+(approx?"约":"")+r.reps+"次";p.append(b);
-   const meta=document.createElement("small");meta.textContent="第"+(i+1)+"组 · "+(r.rir_source==="user_rule_under_15"?"RIR0 (规则)":r.rir?"RIR "+r.rir:"RIR未知");p.append(meta);sets.append(p);
+   const meta=document.createElement("small");meta.textContent="第"+(i+1)+"组 · "+(r.rir_source==="user_rule_under_15"?"RIR0 (规则)":(r.rir!==""&&r.rir!==null&&r.rir!==undefined)?"RIR "+r.rir:"RIR未知");p.append(meta);sets.append(p);
   });section.append(sets);view.append(section);
  }
 }
