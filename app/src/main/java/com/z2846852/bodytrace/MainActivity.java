@@ -2,6 +2,8 @@ package com.z2846852.bodytrace;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
@@ -12,7 +14,12 @@ import android.webkit.WebViewClient;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -30,6 +37,8 @@ public final class MainActivity extends Activity {
     private boolean migrated = false;
     private final GitHubApi github = new GitHubApi();
     private static final ZoneOffset BEIJING = ZoneOffset.ofHours(8);
+    private static final int PICK_AVATAR_REQUEST = 7005;
+    private static final int AVATAR_MAX_BYTES = 12 * 1024 * 1024;
 
     @Override @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     protected void onCreate(Bundle state) {
@@ -65,13 +74,132 @@ public final class MainActivity extends Activity {
             html = html.replace("</body>", "<script>" + js + "</script></body>");
             // Embed the bundled front/back avatar as a data URI: the WebView
             // intentionally cannot fetch network or local-file URLs.
+            AvatarResource resource = activeAvatar();
             String avatar = android.util.Base64.encodeToString(
-                    readAssetBytes("body_avatar_pair.jpg"), android.util.Base64.NO_WRAP);
-            html = html.replace("__BODY_AVATAR_BASE64__", avatar);
+                    resource.bytes, android.util.Base64.NO_WRAP);
+            html = html.replace("__BODY_AVATAR_BASE64__", avatar)
+                    .replace("__BODY_AVATAR_MIME__", resource.mime);
             web.loadDataWithBaseURL("https://bodytrace.invalid/", html, "text/html", "UTF-8", null);
         } catch (Exception error) {
             web.loadData("<h1>本地界面加载失败</h1>", "text/html", "UTF-8");
         }
+    }
+
+    private static final class AvatarResource {
+        final byte[] bytes;
+        final String mime;
+        AvatarResource(byte[] bytes, String mime) {
+            this.bytes = bytes;
+            this.mime = mime;
+        }
+    }
+
+    private File avatarDirectory() {
+        return new File(getFilesDir(), "resource_library/avatar");
+    }
+
+    private AvatarResource activeAvatar() throws Exception {
+        File folder = avatarDirectory();
+        File pointer = new File(folder, "current.txt");
+        if (pointer.isFile()) {
+            byte[] nameBytes = java.nio.file.Files.readAllBytes(pointer.toPath());
+            String currentName = new String(nameBytes, StandardCharsets.UTF_8).trim();
+            if (currentName.matches("sha256-[0-9a-f]{64}\\\\.(png|jpg|webp)")) {
+                File stored = new File(folder, currentName);
+                if (stored.isFile() && stored.length() > 0 && stored.length() <= AVATAR_MAX_BYTES) {
+                    byte[] bytes = java.nio.file.Files.readAllBytes(stored.toPath());
+                    return new AvatarResource(bytes, sniffAvatarMime(bytes));
+                }
+            }
+        }
+        return new AvatarResource(readAssetBytes("body_avatar_pair.jpg"), "image/jpeg");
+    }
+
+    private static String sniffAvatarMime(byte[] bytes) {
+        if (bytes.length >= 8 && (bytes[0] & 255) == 0x89 &&
+                bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G') return "image/png";
+        if (bytes.length >= 3 && (bytes[0] & 255) == 0xFF &&
+                (bytes[1] & 255) == 0xD8 && (bytes[2] & 255) == 0xFF) return "image/jpeg";
+        if (bytes.length >= 12 && bytes[0]=='R' && bytes[1]=='I' &&
+                bytes[2]=='F' && bytes[3]=='F' &&
+                bytes[8]=='W' && bytes[9]=='E' && bytes[10]=='B' && bytes[11]=='P')
+            return "image/webp";
+        throw new IllegalArgumentException("请选择有效 PNG / JPEG / WebP 图像");
+    }
+
+    private void importAvatar(Uri uri) throws Exception {
+        if (uri == null) throw new IllegalArgumentException("没有选择图片");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (InputStream input = getContentResolver().openInputStream(uri)) {
+            if (input == null) throw new IllegalArgumentException("无法读取图片");
+            byte[] buffer = new byte[8192];
+            int n;
+            while ((n = input.read(buffer)) != -1) {
+                if (output.size() + n > AVATAR_MAX_BYTES) {
+                    throw new IllegalArgumentException("图片超过12MB；建议使用原始1536×1024角色图");
+                }
+                output.write(buffer, 0, n);
+            }
+        }
+        byte[] bytes = output.toByteArray();
+        String mime = sniffAvatarMime(bytes);
+        byte[] hash = MessageDigest.getInstance("SHA-256").digest(bytes);
+        StringBuilder hex = new StringBuilder();
+        for (byte b : hash) hex.append(String.format(java.util.Locale.ROOT, "%02x", b & 0xFF));
+        String suffix = "image/png".equals(mime) ? "png" :
+                "image/webp".equals(mime) ? "webp" : "jpg";
+        String name = "sha256-" + hex + "." + suffix;
+        File folder = avatarDirectory();
+        if (!folder.isDirectory() && !folder.mkdirs())
+            throw new IllegalStateException("创建角色资源目录失败");
+        File dest = new File(folder, name);
+        if (!dest.isFile()) {
+            File tmp = File.createTempFile("incoming-", ".tmp", folder);
+            try {
+                try (OutputStream stream = new FileOutputStream(tmp)) {
+                    stream.write(bytes);
+                    stream.flush();
+                }
+                if (!tmp.renameTo(dest)) throw new IllegalStateException("保存角色图失败");
+            } finally {
+                if (tmp.exists()) tmp.delete();
+            }
+        }
+        File pointerTemp = File.createTempFile("current-", ".tmp", folder);
+        try {
+            try (OutputStream stream = new FileOutputStream(pointerTemp)) {
+                stream.write(name.getBytes(StandardCharsets.UTF_8));
+            }
+            File pointer = new File(folder, "current.txt");
+            if (pointer.isFile() && !pointer.delete())
+                throw new IllegalStateException("切换当前人物图失败");
+            if (!pointerTemp.renameTo(pointer))
+                throw new IllegalStateException("保存当前人物图引用失败");
+        } finally {
+            if (pointerTemp.exists()) pointerTemp.delete();
+        }
+        // Only the active resource is shown; older versions stay on disk.
+        JSONObject result = message("avatar_imported");
+        result.put("mime", mime);
+        result.put("base64", android.util.Base64.encodeToString(
+                bytes, android.util.Base64.NO_WRAP));
+        result.put("sha256", hex.toString());
+        result.put("size_bytes", bytes.length);
+        reply(result);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_AVATAR_REQUEST || resultCode != RESULT_OK) return;
+        Uri uri = data == null ? null : data.getData();
+        worker.execute(() -> {
+            try {
+                importAvatar(uri);
+            } catch (Exception error) {
+                error("导入高清人物图失败：" + safeMessage(error));
+            }
+        });
     }
 
     private byte[] readAssetBytes(String name) throws Exception {
@@ -470,6 +598,20 @@ public final class MainActivity extends Activity {
     }
 
     private final class Bridge {
+        @JavascriptInterface public void pickAvatar() {
+            runOnUiThread(() -> {
+                try {
+                    Intent choose = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    choose.addCategory(Intent.CATEGORY_OPENABLE);
+                    choose.setType("image/*");
+                    choose.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(choose, PICK_AVATAR_REQUEST);
+                } catch (Exception e) {
+                    error("打开图片选择器失败：" + safeMessage(e));
+                }
+            });
+        }
+
         @JavascriptInterface public void ready() {
             worker.execute(MainActivity.this::restore);
         }
