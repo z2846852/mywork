@@ -85,10 +85,16 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <option value="reverse_fly">Reverse Fly · 反向蝴蝶机</option>
 <option value="vertical_traction">Vertical Traction · 垂直下拉</option>
 </select></div>
-<div class="formgrid"><div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="无历史值，请输入"></div>
-<div class="field"><label for="recordReps">次数</label><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" value="10" placeholder="10"></div></div>
+<div class="formgrid">
+ <div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label>
+ <div class="wheel-entry"><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="点此用滚轮选择" readonly aria-label="选择器械重量"><button type="button" id="wheelKgOpen" class="wheel-open" aria-label="打开重量滚轮">▥</button></div></div>
+ <div class="field"><label for="recordReps">每组次数</label>
+ <div class="wheel-entry"><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" value="10" readonly aria-label="选择次数"><button type="button" id="wheelRepsOpen" class="wheel-open" aria-label="打开次数滚轮">▥</button></div></div>
+</div>
+<div class="field"><label for="recordSets">连续保存相同重量和次数的组数</label><div class="wheel-entry"><input id="recordSets" type="number" min="1" max="10" step="1" value="1" readonly aria-label="选择组数"><button type="button" class="wheel-open" id="wheelSetsOpen" aria-label="打开组数滚轮">▥</button></div></div>
+<p class="sub">点数字使用横向刻度滚轮；点滚轮中间的大数字可直接键盘输入。组数大于1时，会分别生成多条独立训练 JSON。</p>
 <p class="sub" id="suggestedLoad" role="status">次数默认10次。重量根据该动作最近10组记录推荐。</p>
-<button class="primary" id="saveRecord">保存这一组 · 本机即时显示</button>
+<button class="primary" id="saveRecord">保存训练 · 本机即时显示</button>
 <p class="note">保存不需要网络，数据首先按原样 JSON 保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
 <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
 </div></section>
@@ -181,6 +187,15 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </details>
 <div id="muscleDetail" class="note">点选胸、肩、背、腿、手臂、核心区域查看训练统计。</div>
 </div>
+<div class="panel" id="bodyEntryPanel">
+ <div class="eyebrow">NEW / BODY MEASUREMENTS</div><h2>记录身体围度</h2>
+ <p class="sub">默认显示上次测量值作为参考。<strong>只有点击滚轮确认的项目才会作为本次测量保存</strong>；没有重新测量的不复制进当天 JSON。</p>
+ <div class="field"><label for="bodyEntryDate">测量日期（北京时间）</label><input id="bodyEntryDate" type="date"></div>
+ <div id="bodyEntryGrid" class="body-entry-grid"></div>
+ <div class="row wrap" style="margin-top:13px"><span id="bodyChangedCount" class="tag">尚未选择本次测量项目</span><button type="button" id="bodyClearChanges" class="secondary" style="padding:8px 10px;font-size:11px">清除修改</button></div>
+ <button type="button" id="bodySaveMeasurement" class="primary">保存本次身体测量 · 同步 GitHub</button>
+ <p class="note">多次保存不会删除此前数据。只追加本次实际输入的项目；App 显示同一天最后一次录入的有效值。</p>
+</div>
 <div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从本机每日 JSON 直接读取身体指标；更新后无需重新生成图表文件。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div><div class="panel"><h2>身体指标趋势</h2><p class="sub">仅使用已报告的日期与数值；未校正测量设备、时间或条件差异。</p><div id="bodyTrends" style="margin-top:12px"></div></div>
 
 </section>
@@ -202,6 +217,19 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、APK 和经允许发布的演示数据。<br>“-” （私有）：每日 JSON 为唯一新记录入口；App 本地保存、清洗并绘制训练与身体指标；GitHub 只负责备份以及与 ChatGPT 同步。<br>Actions 仍负责构建新版 APK，旧图表工作流仅供维护历史兼容报表。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
 </section>
 </main>
+<div id="wheelOverlay" class="wheel-overlay" hidden aria-hidden="true">
+  <div class="wheel-scrim" id="wheelScrim"></div>
+  <section class="wheel-sheet" role="dialog" aria-modal="true" aria-labelledby="wheelTitle">
+    <div class="wheel-grip"></div>
+    <div class="wheel-topline"><h2 id="wheelTitle">调整数值</h2><button id="wheelClose" type="button" aria-label="关闭">×</button></div>
+    <div class="wheel-value-wrap"><input id="wheelValue" type="number" inputmode="decimal" aria-label="可直接输入数值"><span id="wheelUnit">kg</span></div>
+    <p id="wheelHint" class="sub" style="text-align:center">左右拖动刻度选择 · 点击数值可直接输入</p>
+    <div class="wheel-ruler-wrap"><canvas id="wheelCanvas" aria-label="左右滑动的数值刻度滚轮"></canvas><span class="wheel-center-indicator" aria-hidden="true"></span></div>
+    <div class="wheel-controls"><button id="wheelMinus" type="button">−</button><button id="wheelPlus" type="button">＋</button></div>
+    <button id="wheelDone" type="button" class="primary">确认</button>
+  </section>
+</div>
+
 <nav class="tabs" aria-label="主导航">
 <button data-page="home" class="active"><span class="ico">▦</span>概览</button>
 <button data-page="record"><span class="ico">＋</span>记录</button>
