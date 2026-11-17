@@ -173,19 +173,23 @@ public final class MainActivity extends Activity {
             current.put("nutrition", new JSONArray());
             days.put(current);
         }
-        JSONArray workouts = current.getJSONArray("workouts");
-        for (int i = 0; i < workouts.length(); ++i) {
-            if (event.getString("id").equals(workouts.getJSONObject(i).optString("id"))) {
+        boolean nutrition = "nutrition".equals(event.optString("type"));
+        String category = nutrition ? "nutrition" : "workouts";
+        JSONArray entries = current.optJSONArray(category);
+        if (entries == null) {
+            entries = new JSONArray();
+            current.put(category, entries);
+        }
+        for (int i = 0; i < entries.length(); ++i) {
+            if (event.getString("id").equals(entries.getJSONObject(i).optString("id"))) {
                 return days;
             }
         }
-        JSONObject set = new JSONObject();
-        for (String key : new String[]{"id", "exercise_id", "reps", "source", "created_at"}) {
-            if (event.has(key)) set.put(key, event.get(key));
-        }
-        String loadKey = event.has("assistance_kg") ? "assistance_kg" : "load_kg";
-        set.put(loadKey, event.getDouble(loadKey));
-        workouts.put(set);
+        JSONObject row = new JSONObject(event.toString());
+        row.remove("schema_version");
+        row.remove("date");
+        row.remove("type");
+        entries.put(row);
         return days;
     }
 
@@ -333,6 +337,8 @@ public final class MainActivity extends Activity {
             } else {
                 JSONObject saved = message("saved");
                 saved.put("event", event);
+                saved.put("category", "nutrition".equals(event.optString("type")) ?
+                        "nutrition" : "workouts");
                 reply(saved);
             }
             sendPending();
@@ -377,6 +383,51 @@ public final class MainActivity extends Activity {
         result.put("created_at", OffsetDateTime.now(BEIJING).toString());
         result.put("source", "bodytrace-android");
         return result;
+    }
+
+    private static JSONObject validatedNutrition(String request) throws Exception {
+        JSONObject input = new JSONObject(request);
+        String date = input.getString("date");
+        LocalDate day = LocalDate.parse(date);
+        if (!date.equals(day.toString()) || day.isAfter(LocalDate.now(BEIJING).plusDays(1))) {
+            throw new IllegalArgumentException("饮食日期不合法");
+        }
+        String food = input.getString("food").trim();
+        if (food.isEmpty() || food.length() > 100) {
+            throw new IllegalArgumentException("食物名称需1至100字符");
+        }
+        String meal = input.optString("meal", "other");
+        if (!meal.equals("breakfast") && !meal.equals("lunch") &&
+                !meal.equals("dinner") && !meal.equals("snack") && !meal.equals("other")) {
+            throw new IllegalArgumentException("餐次不合法");
+        }
+        double grams = input.getDouble("grams");
+        double kcal = input.getDouble("kcal_per_100g");
+        double protein = input.optDouble("protein_per_100g", 0);
+        double carbs = input.optDouble("carbs_per_100g", 0);
+        double fat = input.optDouble("fat_per_100g", 0);
+        if (!Double.isFinite(grams) || grams <= 0 || grams > 5000 ||
+                !Double.isFinite(kcal) || kcal < 0 || kcal > 1200 ||
+                !Double.isFinite(protein) || protein < 0 || protein > 100 ||
+                !Double.isFinite(carbs) || carbs < 0 || carbs > 100 ||
+                !Double.isFinite(fat) || fat < 0 || fat > 100) {
+            throw new IllegalArgumentException("重量、热量或营养素超出合理输入范围");
+        }
+        JSONObject event = new JSONObject();
+        event.put("schema_version", 1);
+        event.put("type", "nutrition");
+        event.put("id", UUID.randomUUID().toString());
+        event.put("date", date);
+        event.put("meal", meal);
+        event.put("food", food);
+        event.put("grams", grams);
+        event.put("kcal_per_100g", kcal);
+        event.put("protein_per_100g", protein);
+        event.put("carbs_per_100g", carbs);
+        event.put("fat_per_100g", fat);
+        event.put("source", "bodytrace-android");
+        event.put("created_at", OffsetDateTime.now(BEIJING).toString());
+        return event;
     }
 
     private static JSONObject validatedRaw(String text) throws Exception {
@@ -482,6 +533,33 @@ public final class MainActivity extends Activity {
                     }
                 } catch (Exception e) {
                     error("记录失败：" + safeMessage(e));
+                }
+            });
+        }
+        @JavascriptInterface public void saveNutrition(String nutritionJson) {
+            worker.execute(() -> {
+                try {
+                    ensureMigrated();
+                    JSONObject event = validatedNutrition(nutritionJson);
+                    JSONArray pending = plain.getPending();
+                    pending.put(event);
+                    plain.putPending(pending);
+                    JSONArray days = appendLocal(localDays(), event);
+                    plain.putDays(days);
+                    JSONObject msg = message("nutrition_local_saved");
+                    msg.put("event", event);
+                    msg.put("count", pending.length());
+                    msg.put("view_model", ViewProjector.project(days));
+                    reply(msg);
+                    String token = vault.read("token");
+                    if (token != null && !token.isEmpty()) {
+                        try { drainPending(token); }
+                        catch (Exception e) {
+                            error("饮食记录已保留本机，尚未同步 GitHub：" + safeMessage(e));
+                        }
+                    }
+                } catch (Exception e) {
+                    error("饮食记录失败：" + safeMessage(e));
                 }
             });
         }
