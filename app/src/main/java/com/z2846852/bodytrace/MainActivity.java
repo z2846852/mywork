@@ -63,9 +63,24 @@ public final class MainActivity extends Activity {
             String js = readAsset("features.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             html = html.replace("</body>", "<script>" + js + "</script></body>");
+            // Embed the bundled front/back avatar as a data URI: the WebView
+            // intentionally cannot fetch network or local-file URLs.
+            String avatar = android.util.Base64.encodeToString(
+                    readAssetBytes("body_avatar_pair.jpg"), android.util.Base64.NO_WRAP);
+            html = html.replace("__BODY_AVATAR_BASE64__", avatar);
             web.loadDataWithBaseURL("https://bodytrace.invalid/", html, "text/html", "UTF-8", null);
         } catch (Exception error) {
             web.loadData("<h1>本地界面加载失败</h1>", "text/html", "UTF-8");
+        }
+    }
+
+    private byte[] readAssetBytes(String name) throws Exception {
+        try (InputStream in = getAssets().open(name);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] bytes = new byte[4096];
+            int count;
+            while ((count = in.read(bytes)) > 0) out.write(bytes, 0, count);
+            return out.toByteArray();
         }
     }
 
