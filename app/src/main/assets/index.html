@@ -64,7 +64,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <section class="page active" id="page-home">
 <div class="stats"><div class="stat"><strong id="statDays">—</strong><span>训练天数</span></div><div class="stat"><strong id="statSets">—</strong><span>总训练组</span></div><div class="stat"><strong id="statMovements">—</strong><span>训练动作</span></div></div>
 <div class="panel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，色块越亮表示当天记录组数越多</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
-<div class="scroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
+<div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
 <div class="legend"><span>少</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>多</span></div></div>
 <div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div><div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
 <div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
@@ -85,8 +85,9 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <option value="reverse_fly">Reverse Fly · 反向蝴蝶机</option>
 <option value="vertical_traction">Vertical Traction · 垂直下拉</option>
 </select></div>
-<div class="formgrid"><div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="例如 27.5"></div>
-<div class="field"><label for="recordReps">次数</label><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" placeholder="例如 8"></div></div>
+<div class="formgrid"><div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="无历史值，请输入"></div>
+<div class="field"><label for="recordReps">次数</label><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" value="10" placeholder="10"></div></div>
+<p class="sub" id="suggestedLoad" role="status">次数默认10次。重量根据该动作最近10组记录推荐。</p>
 <button class="primary" id="saveRecord">保存这一组 · 本机即时显示</button>
 <p class="note">保存不需要网络，数据首先按原样 JSON 保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
 <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
@@ -156,7 +157,7 @@ function oneRow(entry,date){
  const ex=entry.exercise_label||exerciseLabels[entry.exercise_id]||entry.exercise_id||"未知动作";
  const load=entry.load_kg===undefined?"":String(entry.load_kg);
  const assist=entry.assistance_kg===undefined?"":String(entry.assistance_kg);
- return {id:entry.id||"",session_date:date,exercise:ex,reps:String(entry.reps??""),
+ return {id:entry.id||"",exercise_id:entry.exercise_id||"",session_date:date,exercise:ex,reps:String(entry.reps??""),
   set_no:"",load_kg:load,assistance_kg:assist,
   machine_setting:entry.machine_setting===undefined?"":String(entry.machine_setting),
   rir:entry.rir===undefined||entry.rir===null?"":String(entry.rir),
@@ -211,6 +212,41 @@ function renderStatus(){
  $("saveHelp").style.display=state.connected?"none":"block";
 }
 function filtered(){return state.rows.filter(r=>!state.filter||r.exercise===state.filter)}
+// Recommended *selector setting*, not an estimated 10RM.
+let weightEditedByUser=false;
+function loadRecommendation(rows,exerciseId){
+ const isAssist=exerciseId==="assisted_pullup"||exerciseId==="assisted_dip";
+ const key=isAssist?"assistance_kg":"load_kg";
+ const latest=rows.map((row,index)=>({row,index}))
+  .filter(x=>x.row.exercise_id===exerciseId&&x.row[key]!==""&&x.row[key]!==undefined
+    &&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
+  .sort((a,b)=>b.row.session_date.localeCompare(a.row.session_date)||b.index-a.index)
+  .slice(0,10);
+ if(!latest.length)return null;
+ const weights=latest.map(x=>Number(x.row[key])).sort((a,b)=>a-b);
+ // Conservative lower median: always an actually used machine setting.
+ const amount=weights[Math.floor((weights.length-1)/2)];
+ return {amount,count:weights.length,isAssist};
+}
+function refreshExerciseRecommendation(force=false){
+ const id=$("recordExercise").value;
+ const isAssist=id==="assisted_pullup"||id==="assisted_dip";
+ $("weightLabel").textContent=isAssist?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
+ const suggestion=loadRecommendation(state.rows,id);
+ if(force||!weightEditedByUser){
+  $("recordKg").value=suggestion?String(suggestion.amount):"";
+ }
+ if(force)$("recordReps").value="10";
+ const hint=$("suggestedLoad");
+ if(!suggestion){
+  hint.textContent="该动作暂无可用历史重量，需要手动填写；次数默认10次。";
+ }else{
+  hint.textContent="已根据该动作最近"+suggestion.count+"组"+
+   (isAssist?"标称辅助量":"标称负重")+"推荐 "+suggestion.amount+
+   "kg（历史下中位档，非10RM测试）；次数默认10次，可以修改。";
+ }
+}
+$("recordKg").addEventListener("input",()=>{weightEditedByUser=true});
 function indexData(){
  const valid=state.rows.filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date)&&r.exercise);
  $("statSets").textContent=valid.length;
@@ -220,9 +256,9 @@ function indexData(){
  $("filter").replaceChildren();let all=document.createElement("option");all.textContent="全部训练";all.value="";$("filter").append(all);
  for(const name of exs){const op=document.createElement("option");op.value=name;op.textContent=name;$("filter").append(op)}
  $("filter").value=old; const dates=valid.map(r=>r.session_date).sort(); if(dates.length)state.selected=dates[dates.length-1];
- renderHeat();renderDay();
+ refreshExerciseRecommendation(false);renderHeat(true);renderDay();
 }
-function renderHeat(){
+function renderHeat(focusLatest=false){
  const entries=filtered(),counts=new Map();
  for(const r of entries){counts.set(r.session_date,(counts.get(r.session_date)||0)+1)}
  const dateEnd=today>state.selected?today:state.selected;
@@ -239,6 +275,14 @@ function renderHeat(){
    cell.onclick=()=>{state.selected=day;renderHeat();renderDay()};heat.append(cell);
   }
  }
+ if(focusLatest)focusCalendarLatest();
+}
+function focusCalendarLatest(){
+ // DOM must lay out the 52-week grid before horizontal scrollWidth is known.
+ requestAnimationFrame(()=>{
+  const sc=$("heatScroll");
+  if(sc)sc.scrollLeft=Math.max(0,sc.scrollWidth-sc.clientWidth);
+ });
 }
 function weight(r){if(r.assistance_kg)return "辅助 "+r.assistance_kg+"kg";if(r.load_kg!=="")return r.load_kg+"kg";return r.machine_setting?"刻度 "+r.machine_setting:"未记录负重"}
 function renderDay(){
@@ -347,8 +391,8 @@ $("saveRaw").onclick=()=>{
  BodyTraceNative.saveRaw(value);
 };
 $("filter").onchange=e=>{state.filter=e.target.value;renderHeat();renderDay()};
-$("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.selected=ds.at(-1)||today;renderHeat();renderDay()};
-$("recordExercise").onchange=()=>{$("weightLabel").textContent=$("recordExercise").value==="assisted_pullup"?"器械标称辅助量 (kg)":"器械标称重量 (kg)"};
+$("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.selected=ds.at(-1)||today;renderHeat(true);renderDay()};
+$("recordExercise").onchange=()=>{weightEditedByUser=false;refreshExerciseRecommendation(true)};
 $("saveRecord").onclick=()=>{
  const date=$("recordDate").value,exercise_id=$("recordExercise").value,kg=Number($("recordKg").value),reps=Number($("recordReps").value);
  if(!date||!$("recordKg").value||!Number.isFinite(kg)||kg<0||kg>500||Math.round(kg*10)!==kg*10||!Number.isInteger(reps)||reps<1||reps>200){toast("检查日期、重量和次数；重量最多一位小数。",true);return}
@@ -403,7 +447,7 @@ window.bodyTraceReceive=function(evt){
   renderStatus();navigate("home");
   $("sourceLabel").textContent="已保存本机 JSON · "+state.rows.length+"组";
   toast(state.connected?"本机已保存，正在上传 GitHub":"本机已保存，等待连接 GitHub");
-  $("recordKg").value="";$("recordReps").value="";
+  weightEditedByUser=false;refreshExerciseRecommendation(true);
   break;
  }
  case "saved":
@@ -431,6 +475,6 @@ window.bodyTraceReceive=function(evt){
  case "error":toast(evt.message||"操作失败",true);break;
  }
 };
-renderStatus();renderHeat();renderDay();renderRawHistory();
+refreshExerciseRecommendation(true);renderStatus();renderHeat(true);renderDay();renderRawHistory();
 if(window.BodyTraceNative)BodyTraceNative.ready();
 </script></body></html>
