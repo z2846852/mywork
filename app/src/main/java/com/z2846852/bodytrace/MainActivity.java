@@ -357,8 +357,9 @@ public final class MainActivity extends Activity {
             current.put("nutrition", new JSONArray());
             days.put(current);
         }
-        boolean nutrition = "nutrition".equals(event.optString("type"));
-        String category = nutrition ? "nutrition" : "workouts";
+        String type = event.optString("type");
+        String category = "nutrition".equals(type) ? "nutrition" :
+                "measurement".equals(type) ? "measurements" : "workouts";
         JSONArray entries = current.optJSONArray(category);
         if (entries == null) {
             entries = new JSONArray();
@@ -522,7 +523,8 @@ public final class MainActivity extends Activity {
                 JSONObject saved = message("saved");
                 saved.put("event", event);
                 saved.put("category", "nutrition".equals(event.optString("type")) ?
-                        "nutrition" : "workouts");
+                        "nutrition" : "measurement".equals(event.optString("type")) ?
+                        "measurements" : "workouts");
                 reply(saved);
             }
             sendPending();
@@ -612,6 +614,43 @@ public final class MainActivity extends Activity {
         if (input.has("protein_per_100g")) event.put("protein_per_100g", protein);
         if (input.has("carbs_per_100g")) event.put("carbs_per_100g", carbs);
         if (input.has("fat_per_100g")) event.put("fat_per_100g", fat);
+        event.put("source", "bodytrace-android");
+        event.put("created_at", OffsetDateTime.now(BEIJING).toString());
+        return event;
+    }
+
+
+    /** Preserve only fields explicitly measured/edited; never copy old measurements. */
+    private static JSONObject validatedMeasurement(String request) throws Exception {
+        JSONObject input = new JSONObject(request);
+        String date = input.getString("date");
+        LocalDate day = LocalDate.parse(date);
+        if (!date.equals(day.toString()) || day.isAfter(LocalDate.now(BEIJING).plusDays(1))) {
+            throw new IllegalArgumentException("测量日期不合法");
+        }
+        JSONObject event = new JSONObject();
+        event.put("schema_version", 1);
+        event.put("type", "measurement");
+        event.put("id", UUID.randomUUID().toString());
+        event.put("date", date);
+        final String[] keys = {"weight_kg", "shoulder_cm", "chest_cm", "waist_cm",
+                "upper_arm_cm", "hip_cm", "thigh_cm", "calf_cm"};
+        int supplied = 0;
+        for (String key : keys) {
+            if (!input.has(key) || input.isNull(key)) continue;
+            Object raw = input.get(key);
+            if (!(raw instanceof Number)) throw new IllegalArgumentException(key + " 需要数字");
+            double value = ((Number) raw).doubleValue();
+            double min = key.equals("weight_kg") ? 20 : 10;
+            double max = key.equals("weight_kg") ? 300 : 300;
+            if (!Double.isFinite(value) || value < min || value > max ||
+                    Math.abs(value * 10 - Math.rint(value * 10)) > 0.00001) {
+                throw new IllegalArgumentException(key + " 超出范围或不是0.1精度");
+            }
+            event.put(key, Math.round(value * 10.0) / 10.0);
+            supplied++;
+        }
+        if (supplied == 0) throw new IllegalArgumentException("请先选择至少一项本次实际测量数据");
         event.put("source", "bodytrace-android");
         event.put("created_at", OffsetDateTime.now(BEIJING).toString());
         return event;
@@ -711,36 +750,82 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+
         @JavascriptInterface public void save(String eventJson) {
+            saveBatch(eventJson); // Backward compatible one-set bridge method.
+        }
+        @JavascriptInterface public void saveBatch(String batchJson) {
             worker.execute(() -> {
                 try {
                     ensureMigrated();
-                    JSONObject event = validatedEvent(eventJson);
+                    JSONObject params = new JSONObject(batchJson);
+                    int setCount = params.optInt("sets", 1);
+                    if (setCount < 1 || setCount > 10)
+                        throw new IllegalArgumentException("连续组数仅支持1–10组");
+                    // Validate every request before mutating local storage.
+                    JSONObject first = validatedEvent(batchJson);
+                    JSONArray created = new JSONArray().put(first);
+                    for (int i = 1; i < setCount; ++i) created.put(validatedEvent(batchJson));
+
+                    JSONArray pending = plain.getPending();
+                    JSONArray days = localDays();
+                    for (int i = 0; i < created.length(); ++i) {
+                        JSONObject event = created.getJSONObject(i);
+                        pending.put(event);
+                        days = appendLocal(days, event);
+                    }
+                    // Persist queue before UI refresh/network to survive interruptions.
+                    plain.putPending(pending);
+                    plain.putDays(days);
+                    JSONObject view = ViewProjector.project(days);
+                    plain.putView(view);
+                    JSONObject saved = message("local_saved");
+                    saved.put("event", first);
+                    saved.put("events", created);
+                    saved.put("count", pending.length());
+                    saved.put("days", days);
+                    saved.put("view_model", view);
+                    reply(saved);
+                    String token = vault.read("token");
+                    if (token != null) {
+                        try { drainPending(token); }
+                        catch (Exception upload) {
+                            error("训练已保存本机，GitHub 上传失败，稍后可重试：" + safeMessage(upload));
+                            sendPending();
+                        }
+                    }
+                } catch (Exception e) {
+                    error("记录训练失败：" + safeMessage(e));
+                }
+            });
+        }
+        @JavascriptInterface public void saveMeasurement(String measurementJson) {
+            worker.execute(() -> {
+                try {
+                    ensureMigrated();
+                    JSONObject event = validatedMeasurement(measurementJson);
                     JSONArray pending = plain.getPending();
                     pending.put(event);
-                    // Outbox is persisted first, so interrupted saves can retry.
                     plain.putPending(pending);
                     JSONArray days = appendLocal(localDays(), event);
                     plain.putDays(days);
                     JSONObject view = ViewProjector.project(days);
                     plain.putView(view);
-                    JSONObject saved = message("local_saved");
+                    JSONObject saved = message("measurement_local_saved");
                     saved.put("event", event);
                     saved.put("count", pending.length());
-                    saved.put("days", days);
                     saved.put("view_model", view);
                     reply(saved);
-                    // Persist-first, then upload immediately when authenticated.
                     String token = vault.read("token");
                     if (token != null) {
                         try { drainPending(token); }
                         catch (Exception upload) {
-                            error("已保存本地，GitHub 上传失败，稍后可重试：" + safeMessage(upload));
+                            error("测量已保存本机，GitHub 上传失败，稍后可重试：" + safeMessage(upload));
                             sendPending();
                         }
                     }
                 } catch (Exception e) {
-                    error("记录失败：" + safeMessage(e));
+                    error("记录身体数据失败：" + safeMessage(e));
                 }
             });
         }
