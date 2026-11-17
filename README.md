@@ -10,7 +10,7 @@ Android 个人数据仪表盘：训练、身体指标，后续扩展饮食。参
 
 - **私有 `z2846852/-`**：真正的数据主仓库，保存完整记录、历史 TXT、清洗逻辑和模型。无论 ChatGPT 还是 App，都向 `data/daily/YYYY-MM-DD.json` **按天单文件追加**。
 - **公开 `z2846852/mywork`**：Android App 源码、构建流程及 `data/demo/YYYY-MM-DD.json` 演示快照。用户已同意公开训练重量/次数、体重身高等基础数据用于演示；演示目录已排除原始备注、健康叙述和所有凭证。**演示快照不是实时同步的数据源，也不是写入目标。**
-- **GitHub Actions**：私有仓库发现每日 JSON 改动后，按每个训练组的 UUID 去重导入 `fitness_log.txt`，再重建 `workouts.csv`、`measurements.csv`、日历与图表。历史记录仍保留，避免重复统计。
+- **GitHub Actions（手动兼容刷新）**：仅在 App 选择「触发 Actions」或在 GitHub 手动执行时，按每组 UUID 去重导入 `fitness_log.txt` 并重建旧 CSV、PNG/SVG 与 Markdown 报表。新训练数据写入每日 JSON **不会自动触发这套昂贵的旧图表流程**。
 
 ```
 ChatGPT GitHub Connector ───┐
@@ -20,7 +20,7 @@ BodyTrace App (GitHub API) ──┘                |
                                 import_daily.py (idempotent)
                                             |
                                             v
-                             fitness_log.txt → CSV → charts
+                   (仅手动触发) fitness_log.txt → CSV → charts
                                             |
                                             v
                               BodyTrace App GET daily JSON
@@ -70,9 +70,9 @@ Public mywork/data/demo/*.json: authorization-approved snapshot for demos
 
 1. 下载并安装测试 APK。
 2. 在 GitHub 创建 fine-grained personal access token，仅选择 `z2846852/-`，授予 Contents Read/write。在 App「连接」页输入，不要发到聊天里。
-3. App「概览」读取私有训练 CSV；应看到过去的训练日历和全部组数。
+3. App「概览」直接读取私有每日 JSON；应看到过去的训练日历和全部组数。
 4. 在「记录」页录入**实际完成**的一组，检查私有仓库 `data/daily/当天.json` 对应的 `workouts` 数组多出一项，并且不丢失以前的组。
-5. 私有仓库 Actions 完成后，再次同步，看新组是否进入日历。
+5. 保存成功后直接刷新每日 JSON，新组应立即显示；如需重建旧 GitHub 报表，点「触发 Actions」，并在 GitHub Actions 页面检查执行状态。
 6. 检查 ChatGPT 继续读取、追加同一份每日 JSON。
 
 **验证边界：** 代码编译、APK 签名校验和私有 GitHub Actions 导入测试已经通过；尚未使用用户的真实 Android 设备和 PAT 验证双向网络写回。旧 APK 以独立 `app_events` 文件写入，私有兼容导入器暂时保留。
