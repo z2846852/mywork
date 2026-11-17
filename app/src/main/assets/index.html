@@ -146,49 +146,35 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-analytics">
-<div class="panel"><div class="eyebrow">STRENGTH / PROGRESSION</div><h2>训练力量趋势</h2>
-<p class="sub">迁移原仓库按动作追踪负重、次数及简化力量参考值的思路，App 本地交互绘图。</p>
-<div class="field"><label for="analyticsExercise">对比器械</label><select id="analyticsExercise"></select></div>
-<div class="row" style="margin-top:13px"><span class="tag" id="analyticsSets">—</span><span class="tag" id="analyticsRange">—</span></div>
-<div id="strengthChart" class="feature-chart"></div>
-<p class="note" id="strengthDisclaimer">e1RM 只是公式参考值。不同器械和辅助负重不可直接按公斤比较。</p>
+<div class="panel"><div class="eyebrow">STRENGTH / ALL EXERCISES</div><h2>各动作力量趋势</h2>
+<p class="sub">不再筛选动作。每个动作独立绘图，按<strong>最近一次训练日期从新到旧</strong>排列；同日优先展示最近录入的动作。辅助重量和普通负重分别标注，不直接比较。</p>
+<div id="strengthList" class="strength-list" aria-label="全部已记录训练动作趋势"></div>
 </div>
 <div class="panel"><h2>训练区域分布</h2><p class="sub">最近28天各部位记录组数，不代表真实肌肉大小或训练效果。</p>
 <div id="regionSummary"></div></div>
 </section>
 
 <section class="page" id="page-body">
-<div class="panel panel-avatar"><div class="eyebrow">BODY / PERSONAL ILLUSTRATION</div><div class="avatar-title-line"><h2>我的身体</h2><span class="tag">清爽卡通版</span></div>
-<p class="sub">身高固定 173.5cm · 角色是卡通示意图，日期、体重和围度来自 GitHub 每日 JSON；训练区域热力图单独展示。</p>
-<div id="profileStats" class="profile-stats"></div>
-<div class="avatar-toolbar">
-  <div class="field"><label for="avatarMeasureDate">选择测量日期</label><select id="avatarMeasureDate" aria-label="查看身体数据日期"></select></div>
-  <span class="tag">2D · 插画示意</span>
-</div>
-<div class="avatar-body-layout">
-  <div class="avatar-stat-column" id="avatarStatLeft"></div>
-  <div class="avatar-render">
-    <div class="avatar-frame illustrated" id="avatarFrame">
-      <img id="avatarPicture" src="data:__BODY_AVATAR_MIME__;base64,__BODY_AVATAR_BASE64__"
-        alt="健康友好的寸头卡通男性全身插画" draggable="false">
-      <canvas id="avatarWarpCanvas" aria-label="依据身体围度近似调整的二维人物轮廓" hidden></canvas>
-      <button type="button" class="avatar-hotspot" id="avatarHotspot" aria-label="点击人物胸部、腰部或臀部查看测量数据"></button>
-    </div>
-    <div class="avatar-pager" id="avatarModeLabel">人物为卡通示意图，体型变化是二维近似映射</div>
-    <label class="body-morph-toggle"><input id="bodyWarpEnabled" type="checkbox" checked> 随围度近似调整人物轮廓（可关闭）</label>
-    <p id="bodyMorphLegend" class="sub" style="font-size:10px;margin-top:5px">仅用于观察相对变化，不等于真实人体扫描或按围度精确拟合。</p>
-    <button type="button" id="avatarImport" class="secondary avatar-import">从手机选择喜欢的高清卡通人物图</button>
-  </div>
-
-  <div class="avatar-stat-column" id="avatarStatRight"></div>
-</div>
-<div class="avatar-weight-summary" id="avatarWeightSummary"></div>
-<div id="avatarSelectedDetail" class="note">选择日期后显示真实围度；点选人物或指标可查看细节。</div>
-<div class="avatar-subtitle"><strong>人物轮廓</strong>按选中日期的胸、腰、臀、肩、臂、腿围相对于 4 月 15 日基线进行平滑二维宽度调整；这种变形只模拟视觉趋势。<strong>旁边的围度数值才是真实记录</strong>。导入的 PNG/JPEG/WebP 可继续作为角色素材。</div>
-<details class="training-region-details"><summary>查看训练部位热力分布（按组数）</summary>
-<div id="bodyMuscleView" class="muscle-view"></div>
-</details>
-<div id="muscleDetail" class="note">点选胸、肩、背、腿、手臂、核心区域查看训练统计。</div>
+<div class="panel panel-avatar">
+ <div class="eyebrow">BODY / SIMPLE DIAGRAM</div>
+ <div class="avatar-title-line"><h2>身体数据</h2><span class="tag">基础部位示意</span></div>
+ <p class="sub">身高固定 173.5cm。图示仅标记训练部位，不表示你的真实身材比例；身体围度以右侧记录数值为准。</p>
+ <div id="profileStats" class="profile-stats"></div>
+ <div class="avatar-toolbar">
+   <div class="field"><label for="avatarMeasureDate">测量日期</label><select id="avatarMeasureDate" aria-label="查看身体数据日期"></select></div>
+ </div>
+ <div class="body-schematic-panel">
+   <div id="bodyMuscleView" class="muscle-view" aria-label="正面和背面训练部位基础示意"></div>
+   <p class="note">点击胸、肩、背、腿等区域可查看训练统计；颜色代表最近28天记录组数，不代表肌肉体积。</p>
+ </div>
+ <div class="body-metric-heading">身体围度 <small>点击指标查看变化</small></div>
+ <div class="avatar-body-layout body-simple-metrics">
+   <div class="avatar-stat-column" id="avatarStatLeft"></div>
+   <div class="avatar-stat-column" id="avatarStatRight"></div>
+ </div>
+ <div class="avatar-weight-summary" id="avatarWeightSummary"></div>
+ <div id="avatarSelectedDetail" class="note">选择日期后显示测量数值与变化。</div>
+ <div id="muscleDetail" class="note">点选图中的区域查看对应训练组数。</div>
 </div>
 <div class="panel" id="bodyEntryPanel">
  <div class="eyebrow">NEW / BODY MEASUREMENTS</div><h2>记录身体围度</h2>
