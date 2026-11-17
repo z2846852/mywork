@@ -69,9 +69,28 @@ public final class MainActivity extends Activity {
             String html = readAsset("index.html");
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
-            String js = readAsset("body3d.js") + "\n" + readAsset("features.js");
+            String js = readAsset("makehuman3d.bundle.js") + "\n" + readAsset("features.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
-            html = html.replace("</body>", "<script>" + js + "</script></body>");
+            // All 3D GLBs are packaged with the signed APK. No CDN, private data
+            // transfer or runtime WebView fetch. Binary GLBs arrive as data-only
+            // base64, never as executable code.
+            String[][] bundled = {
+                    {"body", "makehuman/base_body.glb"},
+                    {"hair", "makehuman/hair_short02.glb"},
+                    {"shorts", "makehuman/clothing_shorts.glb"},
+                    {"shoes", "makehuman/clothing_shoes.glb"}
+            };
+            StringBuilder modelData = new StringBuilder("window.__BT_MODEL_ASSETS__={");
+            for (int i = 0; i < bundled.length; ++i) {
+                if (i != 0) modelData.append(',');
+                modelData.append('"').append(bundled[i][0]).append("\":\"");
+                modelData.append(android.util.Base64.encodeToString(
+                        readAssetBytes(bundled[i][1]), android.util.Base64.NO_WRAP));
+                modelData.append('"');
+            }
+            modelData.append("};");
+            html = html.replace("</body>",
+                    "<script>" + modelData + "</script><script>" + js + "</script></body>");
             // Embed the bundled front/back avatar as a data URI: the WebView
             // intentionally cannot fetch network or local-file URLs.
             AvatarResource resource = activeAvatar();
