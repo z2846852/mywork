@@ -311,28 +311,34 @@ window.bodyTraceReceive=function(evt){
  switch(evt.type){
  case "status":
   state.connected=!!evt.connected;renderStatus();
-  if(state.connected)toast("GitHub 私有仓库已连接");
+  if(state.connected)toast("GitHub 连接已配置；本地录入无需联网");
   break;
  case "disconnected":
-  state.connected=false;state.rows=[];state.measurements=[];state.nutrition=[];
-  state.pending=0;state.pendingEvents=[];state.hasCache=false;
-  renderStatus();indexData();renderBody();toast("已清除本机连接与缓存");
+  state.connected=false;renderStatus();
+  toast("GitHub 授权已解除，本机训练与待上传记录均保留");
   break;
  case "pending":
   state.pending=evt.count||0;
-  if(Array.isArray(evt.events)){state.pendingEvents=evt.events;
+  if(Array.isArray(evt.events)){
+   state.pendingEvents=evt.events;
    for(const e of evt.events)addPreview(e);
   }
   renderStatus();break;
- case "queued":
+ case "local_saved":{
   state.pending=evt.count||0;
-  state.pendingEvents.push(evt.event);addPreview(evt.event);
-  renderStatus();toast("已保存到本机队列并显示在日历，准备上传每日 JSON");
-  $("recordKg").value="";$("recordReps").value="";break;
+  state.pendingEvents.push(evt.event);
+  const parsed=normaliseDays(evt.days||[]);
+  state.rows=parsed.rows;state.measurements=parsed.measurements;state.nutrition=parsed.nutrition;
+  state.hasCache=true;indexData();state.selected=evt.event.date;renderHeat();renderDay();renderBody();
+  renderStatus();navigate("home");
+  $("sourceLabel").textContent="已保存本机加密 JSON · "+state.rows.length+"组";
+  toast("保存成功：已更新本地日历；可稍后同步 GitHub");
+  $("recordKg").value="";$("recordReps").value="";
+  break;
+ }
  case "saved":
   state.pendingEvents=state.pendingEvents.filter(e=>e.id!==evt.event?.id);
-  addPreview(evt.event);
-  toast("这一组已经写入 GitHub 每日 JSON，无需等待 Actions。");break;
+  toast("已上传一组训练，正在同步其他记录");break;
  case "data":{
   const parsed=normaliseDays(evt.days||[]);
   state.rows=parsed.rows;state.measurements=parsed.measurements;
@@ -341,12 +347,11 @@ window.bodyTraceReceive=function(evt){
    if(!state.rows.some(r=>r.id===e.id))state.rows.push(oneRow(e,e.date));
   }
   indexData();renderBody();renderStatus();
-  $("sourceLabel").textContent=(evt.cached?"本机 JSON 缓存":"已从私有 GitHub 直接读取 JSON")+
+  $("sourceLabel").textContent=(evt.cached?"本机加密 JSON":"GitHub 同步完成，数据已合并至本机")+
    " · "+state.rows.length+"组";
+  if(!evt.cached)toast("已拉取 ChatGPT 录入的数据并与本机记录合并");
   break;
  }
- case "actions_requested":
-  toast("已发送 GitHub Actions 启动请求；工作流是否完成需在 GitHub 查看。");break;
  case "error":toast(evt.message||"操作失败",true);break;
  }
 };
