@@ -333,8 +333,150 @@ function renderStrengthPlot() {
 }
 $("analyticsExercise").onchange=renderStrengthPlot;
 
+
+// The character image is a consistent illustration; it never morphs into a
+// supposedly exact 3D reconstruction. Measurements come from daily JSON.
+let avatarView = "front";
+let selectedAvatarDate = "";
+let selectedAvatarMetric = "chest_cm";
+const avatarMetrics = [
+  {key:"chest_cm",label:"胸围",unit:"cm",column:"left"},
+  {key:"waist_cm",label:"腰围",unit:"cm",column:"left"},
+  {key:"thigh_cm",label:"大腿围",unit:"cm",column:"left"},
+  {key:"shoulder_cm",label:"肩围",unit:"cm",column:"right"},
+  {key:"upper_arm_cm",label:"手臂围",unit:"cm",column:"right"},
+  {key:"hip_cm",label:"臀围",unit:"cm",column:"right"},
+  {key:"calf_cm",label:"小腿围",unit:"cm",column:"right"}
+];
+function measuredDates(){
+ return [...new Set(state.measurements.map(x=>x.reported_date).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)))]
+  .sort((a,b)=>b.localeCompare(a));
+}
+function metricAt(key,date){
+ return state.measurements.filter(m=>m.reported_date<=date&&validNum(m[key]))
+   .sort((a,b)=>b.reported_date.localeCompare(a.reported_date))
+   .map(m=>({date:m.reported_date,value:Number(m[key])}))[0]||null;
+}
+function metricPrevious(key, date){
+ return state.measurements.filter(m=>m.reported_date<date&&validNum(m[key]))
+   .sort((a,b)=>b.reported_date.localeCompare(a.reported_date))
+   .map(m=>({date:m.reported_date,value:Number(m[key])}))[0]||null;
+}
+function metricText(value){
+ if(value===null)return "—";
+ return (Math.round(value*10)/10).toFixed(1);
+}
+function avatarSetView(next){
+ avatarView=next==="back"?"back":"front";
+ $("avatarFrame").classList.toggle("view-back",avatarView==="back");
+ for(const [id,view] of [["avatarFront","front"],["avatarBack","back"]]){
+  const button=$(id);
+  button.classList.toggle("active",avatarView===view);
+  button.setAttribute("aria-pressed",String(avatarView===view));
+ }
+}
+function avatarShowDetail(){
+ const def=avatarMetrics.find(x=>x.key===selectedAvatarMetric);
+ const label=def?def.label:"体重",unit=def?def.unit:"kg";
+ const current=metricAt(selectedAvatarMetric,selectedAvatarDate);
+ const previous=current?metricPrevious(selectedAvatarMetric,current.date):null;
+ let message=label+": ";
+ if(!current)message+="此日期之前无有效数据";
+ else {
+  message+=metricText(current.value)+unit+"（"+current.date+"）";
+  if(previous){
+   const diff=Math.round((current.value-previous.value)*10)/10;
+   message+="，相比 "+previous.date+" "+(diff>0?"增加":diff<0?"减少":"不变")+
+     (diff===0?"":Math.abs(diff).toFixed(1)+unit);
+  }
+ }
+ $("avatarSelectedDetail").textContent=message+"。人物外形并未由围度精确重建。";
+}
+function renderAvatar(){
+ const dates=measuredDates();
+ const dateSelect=$("avatarMeasureDate");
+ const oldSelected=selectedAvatarDate;
+ dateSelect.replaceChildren();
+ if(!dates.length){
+  const option=document.createElement("option");option.value="";option.textContent="暂无身体测量";
+  dateSelect.append(option);
+  selectedAvatarDate="";
+ }else{
+  for(const day of dates){
+   const option=document.createElement("option");
+   option.value=day;option.textContent=day;
+   dateSelect.append(option);
+  }
+  selectedAvatarDate=dates.includes(oldSelected)?oldSelected:dates[0];
+  dateSelect.value=selectedAvatarDate;
+ }
+ for(const side of ["left","right"]){
+  const root=$("avatarStat"+(side==="left"?"Left":"Right"));
+  root.replaceChildren();
+  for(const def of avatarMetrics.filter(x=>x.column===side)){
+   const now=selectedAvatarDate?metricAt(def.key,selectedAvatarDate):null;
+   const previous=now?metricPrevious(def.key,now.date):null;
+   const button=document.createElement("button");button.type="button";button.className="avatar-metric";
+   button.classList.toggle("selected",selectedAvatarMetric===def.key);
+   const label=document.createElement("small");label.textContent=def.label;
+   const value=document.createElement("strong");
+   value.textContent=now?metricText(now.value)+def.unit:"—";
+   const delta=document.createElement("span");delta.className="delta";
+   if(!now)delta.textContent="未测量";
+   else if(!previous)delta.textContent=now.date===selectedAvatarDate?"首次记录":"截至 "+now.date;
+   else {
+    const difference=Math.round((now.value-previous.value)*10)/10;
+    delta.classList.add(difference>0?"up":difference<0?"down":"same");
+    delta.textContent=difference>0?"↑ "+difference.toFixed(1):
+      difference<0?"↓ "+Math.abs(difference).toFixed(1):"→ 0.0";
+    if(now.date!==selectedAvatarDate)delta.textContent+=" · "+now.date.slice(5);
+   }
+   button.append(label,value,delta);
+   button.onclick=()=>{selectedAvatarMetric=def.key;renderAvatar()};
+   root.append(button);
+  }
+ }
+ const weight=selectedAvatarDate?metricAt("weight_kg",selectedAvatarDate):null;
+ const wprevious=weight?metricPrevious("weight_kg",weight.date):null;
+ const w=$("avatarWeightSummary");w.replaceChildren();
+ const name=document.createElement("span");name.textContent="体重";
+ const value=document.createElement("strong");
+ value.textContent=weight?metricText(weight.value)+"kg":"—";
+ const change=document.createElement("span");
+ if(weight&&wprevious){
+  const difference=weight.value-wprevious.value;
+  change.textContent=(difference>0?" ↑ ":difference<0?" ↓ ":" → ")+
+    Math.abs(difference).toFixed(1)+"kg";
+ }
+ w.append(name,value,change);
+ avatarShowDetail();
+ avatarSetView(avatarView);
+}
+$("avatarMeasureDate").addEventListener("change",e=>{
+ selectedAvatarDate=e.target.value;
+ renderAvatar();
+});
+$("avatarFront").onclick=()=>avatarSetView("front");
+$("avatarBack").onclick=()=>avatarSetView("back");
+// Tap different vertical regions to inspect the closest relevant measurement.
+// This is a hotspot on a picture, not true 3D ray tracing.
+$("avatarHotspot").onclick=e=>{
+ const rect=e.currentTarget.getBoundingClientRect();
+ const relativeY=(e.clientY-rect.top)/rect.height;
+ selectedAvatarMetric=relativeY<.32?"chest_cm":relativeY<.65?"waist_cm":"hip_cm";
+ renderAvatar();
+};
+let swipeStartX=null;
+$("avatarFrame").addEventListener("touchstart",e=>{
+ if(e.touches.length===1)swipeStartX=e.touches[0].clientX;
+},{passive:true});
+$("avatarFrame").addEventListener("touchend",e=>{
+ if(swipeStartX===null||!e.changedTouches.length)return;
+ const dx=e.changedTouches[0].clientX-swipeStartX;swipeStartX=null;
+ if(Math.abs(dx)>35)avatarSetView(dx<0?"back":"front");
+},{passive:true});
 function renderAllFeatures(){
- nutritionRender();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();
+ nutritionRender();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();
 }
 const originalReceive = window.bodyTraceReceive;
 window.bodyTraceReceive=function(evt){
