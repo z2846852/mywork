@@ -152,44 +152,30 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-body">
-<div class="panel panel-avatar"><div class="eyebrow">PERSONAL / 3D MORPHOLOGY</div><div class="avatar-title-line"><h2>我的身体 · 3D</h2><span class="tag">离线高精度模型</span></div>
-<p class="sub">个人身高档案 173.5cm（固定默认值）；身体围度按实测显示。部位颜色代表最近28天训练组数，<b>不是</b>3D体型预测。</p>
+<div class="panel panel-avatar"><div class="eyebrow">BODY / PERSONAL ILLUSTRATION</div><div class="avatar-title-line"><h2>我的身体</h2><span class="tag">清爽卡通版</span></div>
+<p class="sub">身高固定 173.5cm · 角色是卡通示意图，日期、体重和围度来自 GitHub 每日 JSON；训练区域热力图单独展示。</p>
 <div id="profileStats" class="profile-stats"></div>
 <div class="avatar-toolbar">
-  <div class="field"><label for="avatarMeasureDate">查看测量日期</label><select id="avatarMeasureDate" aria-label="查看身体数据日期"></select></div>
-  <div class="avatar-view-buttons" role="group" aria-label="人物视角">
-    <button type="button" id="avatarFront" class="secondary active" aria-pressed="true">正面</button>
-    <button type="button" id="avatarBack" class="secondary" aria-pressed="false">背面</button>
-  </div>
+  <div class="field"><label for="avatarMeasureDate">选择测量日期</label><select id="avatarMeasureDate" aria-label="查看身体数据日期"></select></div>
+  <span class="tag">2D · 插画示意</span>
 </div>
 <div class="avatar-body-layout">
   <div class="avatar-stat-column" id="avatarStatLeft"></div>
   <div class="avatar-render">
-    <div class="avatar-frame real-3d" id="avatarFrame">
-      <canvas id="avatar3dCanvas" aria-label="MakeHuman 三维人体，可自由拖动旋转并缩放" role="img"></canvas>
-      <div id="avatarLoading" class="avatar-loading" role="status">正在装配高清 3D 人体…</div>
-      <div class="avatar-studio-mark">BODYTRACE <span>STUDIO / 01</span></div>
-      <div class="avatar-studio-hint">↔ 滑动旋转 · 双指缩放</div>
+    <div class="avatar-frame illustrated" id="avatarFrame">
       <img id="avatarPicture" src="data:__BODY_AVATAR_MIME__;base64,__BODY_AVATAR_BASE64__"
-        alt="二维人物原画；三维渲染不可用时显示" draggable="false" hidden>
-      <button type="button" class="avatar-hotspot" id="avatarHotspot" aria-label="查看二维图片部位数据" hidden></button>
+        alt="健康友好的寸头卡通男性全身插画" draggable="false">
+      <button type="button" class="avatar-hotspot" id="avatarHotspot" aria-label="点击人物胸部、腰部或臀部查看测量数据"></button>
     </div>
-    <div class="avatar-detail-row">
-      <span id="avatarModelDetail">MAKEHUMAN · 92 形变目标 · PBR 光照</span>
-      <button type="button" class="avatar-rotate" id="avatarTurn">↻ 转动45°</button>
-    </div>
-    <div class="avatar-pager" id="avatarModeLabel">加载中 · 真正的 3D 网格模型</div>
-    <div class="avatar-view-buttons" role="group" style="justify-content:center;margin-top:10px">
-      <button type="button" id="avatar3dMode" class="secondary active" aria-pressed="true">3D 模型</button>
-      <button type="button" id="avatar2dMode" class="secondary" aria-pressed="false">二维原画</button>
-    </div>
-    <button type="button" id="avatarImport" class="secondary" style="font-size:11px;margin:10px auto 0;width:100%">更换备用二维原画（PNG/JPEG）</button>
+    <div class="avatar-pager" id="avatarModeLabel">人物是静态插画，不会随围度自动改变形状</div>
+    <button type="button" id="avatarImport" class="secondary avatar-import">从手机选择喜欢的高清卡通人物图</button>
   </div>
+
   <div class="avatar-stat-column" id="avatarStatRight"></div>
 </div>
 <div class="avatar-weight-summary" id="avatarWeightSummary"></div>
 <div id="avatarSelectedDetail" class="note">选择日期后显示真实围度；点选人物或指标可查看细节。</div>
-<div class="avatar-subtitle">三维模型由 WebGL 网格构成，可以任意角度旋转；根据当日或此前最新的肩、胸、腰、臀和四肢围度进行近似三维形变。该近似形体<strong>不是</strong>你的真实人体扫描。二维原画只是备用展示素材，不参与变形。</div>
+<div class="avatar-subtitle">卡通形象只负责展示，不代表按围度推算的真实体型。<strong>测量日期、体重、围度与变化方向是真实 JSON 数据。</strong> 你导入的高清图片将保存在手机资源库里，正常覆盖安装不会丢失。旧 3D 实验模型不再默认加载。</div>
 <details class="training-region-details"><summary>查看训练部位热力分布（按组数）</summary>
 <div id="bodyMuscleView" class="muscle-view"></div>
 </details>
