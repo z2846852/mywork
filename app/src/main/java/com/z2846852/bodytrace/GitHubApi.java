@@ -88,24 +88,30 @@ final class GitHubApi {
                     throw new IllegalStateException("Unsupported daily JSON format/date");
                 }
             }
-            org.json.JSONArray workouts = daily.getJSONArray("workouts");
-            if (workouts.length() >= 500) throw new IllegalStateException("Daily record is full");
-            for (int i = 0; i < workouts.length(); ++i) {
-                if (id.equals(workouts.getJSONObject(i).optString("id"))) {
-                    return; // Upload succeeded previously; retry is idempotent.
+            boolean isNutrition = "nutrition".equals(event.optString("type"));
+            String category = isNutrition ? "nutrition" : "workouts";
+            JSONArray records = daily.optJSONArray(category);
+            if (records == null) {
+                records = new JSONArray();
+                daily.put(category, records);
+            }
+            if (records.length() >= 500) throw new IllegalStateException("Daily record is full");
+            for (int i = 0; i < records.length(); ++i) {
+                if (id.equals(records.getJSONObject(i).optString("id"))) {
+                    return; // Successful earlier upload: idempotent retry.
                 }
             }
             JSONObject row = new JSONObject();
-            row.put("id", id);
-            row.put("exercise_id", event.getString("exercise_id"));
-            row.put("reps", event.getInt("reps"));
-            String weightKey = event.has("assistance_kg") ? "assistance_kg" : "load_kg";
-            row.put(weightKey, event.getDouble(weightKey));
-            row.put("source", "bodytrace-android");
-            row.put("created_at", event.getString("created_at"));
-            workouts.put(row);
+            String[] allowed = isNutrition ?
+                    new String[]{"id", "meal", "food", "grams", "kcal_per_100g",
+                        "protein_per_100g", "carbs_per_100g", "fat_per_100g",
+                        "source", "created_at"} :
+                    new String[]{"id", "exercise_id", "reps", "load_kg",
+                        "assistance_kg", "source", "created_at"};
+            for (String key : allowed) if (event.has(key)) row.put(key, event.get(key));
+            records.put(row);
             JSONObject put = new JSONObject();
-            put.put("message", "daily: append workout " + date + " " + id.substring(0, 8));
+            put.put("message", "daily: append " + category + " " + date + " " + id.substring(0, 8));
             put.put("branch", "main");
             if (sha != null) put.put("sha", sha);
             put.put("content", Base64.encodeToString(
