@@ -69,7 +69,7 @@ public final class MainActivity extends Activity {
             String html = readAsset("index.html");
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
-            String js = readAsset("features.js");
+            String js = readAsset("body3d.js") + "\n" + readAsset("features.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             html = html.replace("</body>", "<script>" + js + "</script></body>");
             // Embed the bundled front/back avatar as a data URI: the WebView
