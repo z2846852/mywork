@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,"..");
 const read=name=>fs.readFileSync(path.join(root,"app/src/main/assets",name),"utf8");
 let html=read("index.html");
 html=html.replace("</head>","<style>"+read("features.css")+"</style></head>");
-html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"</script></body>");
+html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"</script></body>");
 (async()=>{
  const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
  try{
@@ -53,13 +53,40 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.evaluate(()=>{
    window.BodyTraceNative={
     saveBatch:json=>{window.__capturedWorkout=JSON.parse(json)},
-    saveMeasurement:json=>{window.__capturedBody=JSON.parse(json)}
+    saveMeasurement:json=>{window.__capturedBody=JSON.parse(json)},
+    saveCatalog:json=>{window.__capturedCatalog=JSON.parse(json)}
    };
    navigate("record");
   });
   const first=await page.locator("#recordExercise option").first().evaluate(e=>({id:e.value,label:e.textContent}));
   if(first.id!=="adductor"||!first.label.startsWith("【腿】"))
    throw Error("Recent-first labeled dropdown failed: "+JSON.stringify(first));
+  await page.selectOption("#recordSortMode","region");
+  const regionFirst=await page.$eval("#recordExercise",x=>x.value);
+  if(regionFirst!=="chest_press")throw Error("Region ordering should start from chest: "+regionFirst);
+  await page.selectOption("#recordSortMode","recent");
+  await page.click("#manageExercises");
+  if(await page.$eval("#exerciseManager",x=>x.hidden))throw Error("Manager did not open");
+  await page.locator('[data-exercise-id="leg_extension"] button').first().click();
+  const hidden=await page.locator('#recordExercise option[value="leg_extension"]').count();
+  if(hidden)throw Error("Hidden action remained selectable");
+  await page.locator('[data-exercise-id="leg_extension"] button').first().click();
+  const restored=await page.locator('#recordExercise option[value="leg_extension"]').count();
+  if(restored!==1)throw Error("Restored action missing");
+  await page.fill("#customActionName","自定义三角肌训练");
+  await page.selectOption("#customActionRegion","肩");
+  await page.click("#addCustomExercise");
+  const added=await page.$eval("#recordExercise",x=>x.value);
+  if(!added.startsWith("custom_"))throw Error("Custom action not selectable: "+added);
+  const removeButton=page.locator('[data-exercise-id="'+added+'"] .danger-soft');
+  await removeButton.click();
+  await removeButton.click();
+  if(await page.locator('#recordExercise option[value="'+added+'"]').count())
+    throw Error("Removed custom action still selectable");
+  const stored=await page.evaluate(()=>window.__capturedCatalog);
+  if(!stored||stored.sort_mode!=="recent"||stored.custom.length)
+    throw Error("Catalog changes not sent to native JSON store");
+  await page.click("#closeExerciseManager");
   await page.click("#recordKg");
   if(await page.$eval("#wheelOverlay",x=>x.hidden))throw Error("Weight ruler did not open");
   await page.screenshot({path:"bodytrace-wheel-preview.png",fullPage:false});
