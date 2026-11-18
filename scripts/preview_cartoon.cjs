@@ -62,7 +62,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(first.id!=="adductor"||!first.label.startsWith("【腿】"))
    throw Error("Recent-first labeled dropdown failed: "+JSON.stringify(first));
   await page.selectOption("#recordSortMode","region");
-  const regionFirst=await page.$eval("#recordExercise",x=>x.value);
+  const regionFirst=await page.$eval("#recordExercise",x=>x.options[0]?.value);
   if(regionFirst!=="chest_press")throw Error("Region ordering should start from chest: "+regionFirst);
   await page.selectOption("#recordSortMode","recent");
   await page.click("#manageExercises");
