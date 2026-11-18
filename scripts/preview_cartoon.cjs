@@ -16,6 +16,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   page.on("pageerror",e=>errors.push(e.message));
   page.on("console",m=>{if(m.type()==="error")errors.push(m.text())});
   await page.setContent(html,{waitUntil:"load"});
+  const headerHeight=await page.locator(".quick-head").evaluate(x=>x.getBoundingClientRect().height);
+  if(headerHeight>60)throw Error("Header is not compact: "+headerHeight);
   await page.evaluate(()=>{
    window.bodyTraceReceive({type:"data",cached:true,days:[
     {schema_version:2,date:"2026-04-15",
@@ -36,6 +38,13 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   });
   const bodies=await page.locator("#bodyMuscleView .muscle-person svg").count();
   if(bodies!==2)throw Error("Expected front/back simple body outlines: "+bodies);
+  const inner=await page.locator('#bodyMuscleView [aria-label^="髋内收肌群"]').count();
+  const outer=await page.locator('#bodyMuscleView [aria-label^="髋外展肌群"]').count();
+  if(inner<2||outer<2)throw Error("Inner thigh and outer hip are not separate regions: "+inner+"/"+outer);
+  const muscleChoice=page.locator("#muscleLegend .muscle-legend-btn").filter({hasText:"髋外展肌群"});
+  await muscleChoice.click();
+  const regionDetail=await page.$eval("#muscleDetail",x=>x.textContent);
+  if(!regionDetail.startsWith("髋外展肌群"))throw Error("Muscle legend selection failed");
   const dates=await page.$eval("#avatarMeasureDate",e=>e.options.length);
   if(dates!==2)throw Error("Body measurement history failed: "+dates);
   if(await page.locator("#avatarPicture").count())throw Error("Old cartoon still visible");
@@ -49,6 +58,12 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(await page.locator("#analyticsExercise").count())throw Error("Trend dropdown still visible");
   const plots=await page.locator("#strengthList .feature-chart svg").count();
   if(plots!==4)throw Error("Expected every recorded exercise to have a chart: "+plots);
+  const overview=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
+   nodes=>nodes.map(node=>node.dataset.region));
+  if(JSON.stringify(overview)!==JSON.stringify(["胸","肩","背","腿"]))
+   throw Error("Four-region dashboard is incomplete: "+JSON.stringify(overview));
+  const sparks=await page.locator("#regionTrendGrid .region-overview-spark rect").count();
+  if(sparks!==32)throw Error("Each region must have eight weekly bars: "+sparks);
   await page.screenshot({path:"bodytrace-trends-preview.png",fullPage:true});
   await page.evaluate(()=>{
    window.BodyTraceNative={
@@ -58,6 +73,14 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    };
    navigate("record");
   });
+  const docked=await page.evaluate(()=>{
+   const dock=document.querySelector(".record-save-dock"),tabs=document.querySelector(".tabs");
+   const action=document.getElementById("saveRecord").getBoundingClientRect();
+   const nav=tabs.getBoundingClientRect();
+   return {position:getComputedStyle(dock).position,top:action.top,bottom:action.bottom,navTop:nav.top};
+  });
+  if(docked.position!=="fixed"||docked.top<0||docked.bottom>docked.navTop+3)
+   throw Error("Save button not visible above navigation: "+JSON.stringify(docked));
   const initialGroup=await page.$eval("#recordGroup",e=>e.value);
   if(initialGroup!=="")throw Error("Default group should be All: "+initialGroup);
   const first=await page.locator("#recordExercise option").first().evaluate(e=>({id:e.value,label:e.textContent}));

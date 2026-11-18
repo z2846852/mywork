@@ -58,8 +58,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </style></head>
 <body>
 <main class="screen">
-<header class="top"><div><div class="eyebrow">BODYTRACE / PERSONAL METRICS</div><h1>体迹 <span style="font-weight:300;color:#a8c5b7">BodyTrace</span></h1><p>训练、饮食与身体指标的长期记录</p></div><div class="circle">◈</div></header>
-<div class="status"><i id="statusDot" class="dot"></i><span id="statusText">尚未连接私有仓库</span><span id="pendingStatus"></span></div>
+<header class="quick-head"><span class="quick-head-intro">体迹 · 训练 / 饮食 / 身体</span><div class="status" aria-label="同步状态"><i id="statusDot" class="dot"></i><span id="statusText">本地</span><span id="pendingStatus"></span></div></header>
 
 <section class="page active" id="page-home">
 <div class="stats"><div class="stat"><strong id="statDays">—</strong><span>训练天数</span></div><div class="stat"><strong id="statSets">—</strong><span>总训练组</span></div><div class="stat"><strong id="statMovements">—</strong><span>训练动作</span></div></div>
@@ -71,7 +70,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-record">
-<div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">写入本地 JSON 后立即更新图表；已配置 GitHub 则尝试即时上传。点击「同步 GitHub」可拉取 ChatGPT 新增的记录。</p>
+<div class="panel record-panel"><h2>记录训练</h2><p class="sub record-hint">本机即时保存；连接 GitHub 后自动上传。</p>
 <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
 <div class="formgrid exercise-top-row">
  <div class="field"><label for="recordGroup">训练部位</label>
@@ -118,7 +117,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <p class="sub" id="suggestedLoad" role="status" style="flex:1;min-width:160px;margin:0">默认沿用上次保存的重量和次数。</p>
  <button type="button" class="secondary mini" id="resetTrainingDefault">Reset · 旧版10组</button>
  </div>
- <button class="primary" id="saveRecord">保存训练 · 本机即时显示</button>
+ <div class="record-save-dock"><button class="primary" id="saveRecord">＋ 保存本组训练</button></div>
 <p class="note">保存不需要网络，数据首先按原样 JSON 保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
 <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
 </div></section>
@@ -170,6 +169,12 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-analytics">
+<div class="panel overview-panel">
+<div class="eyebrow">TRAINING OVERVIEW</div><h2>训练总览 · 胸 / 肩 / 背 / 腿</h2>
+<p class="sub">按实际保存的组数统计；最近 8 个连续 7 天周期。不同器械重量不相加，不把组数当作肌肉增长。</p>
+<div id="trainingOverview" class="training-overview" aria-label="近28天训练总览"></div>
+<div id="regionTrendGrid" class="region-trend-grid" aria-label="胸肩背腿四个训练趋势图"></div>
+</div>
 <div class="panel"><div class="eyebrow">STRENGTH / ALL EXERCISES</div><h2>各动作力量趋势</h2>
 <p class="sub">不再筛选动作。每个动作独立绘图，按<strong>最近一次训练日期从新到旧</strong>排列；同日优先展示最近录入的动作。辅助重量和普通负重分别标注，不直接比较。</p>
 <div id="strengthList" class="strength-list" aria-label="全部已记录训练动作趋势"></div>
@@ -180,16 +185,17 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 
 <section class="page" id="page-body">
 <div class="panel panel-avatar">
- <div class="eyebrow">BODY / SIMPLE DIAGRAM</div>
- <div class="avatar-title-line"><h2>身体数据</h2><span class="tag">基础部位示意</span></div>
+ <div class="eyebrow">BODY / MUSCLE TARGETS</div>
+ <div class="avatar-title-line"><h2>身体数据</h2><span class="tag">细分肌群</span></div>
  <p class="sub">身高固定 173.5cm。图示仅标记训练部位，不表示你的真实身材比例；身体围度以右侧记录数值为准。</p>
  <div id="profileStats" class="profile-stats"></div>
  <div class="avatar-toolbar">
    <div class="field"><label for="avatarMeasureDate">测量日期</label><select id="avatarMeasureDate" aria-label="查看身体数据日期"></select></div>
  </div>
  <div class="body-schematic-panel">
-   <div id="bodyMuscleView" class="muscle-view" aria-label="正面和背面训练部位基础示意"></div>
-   <p class="note">点击胸、肩、背、腿等区域可查看训练统计；颜色代表最近28天记录组数，不代表肌肉体积。</p>
+   <div id="bodyMuscleView" class="muscle-view" aria-label="正面和背面细分肌群示意"></div>
+   <div id="muscleLegend" class="muscle-legend" aria-label="点击选择细分肌群"></div>
+   <p class="note">内收肌位于大腿内侧；外展肌主要在髋外侧和臀部。颜色仅反映相关动作最近28天的组数，不代表实际肌肉刺激量。</p>
  </div>
  <div class="body-metric-heading">身体围度 <small>点击指标查看变化</small></div>
  <div class="avatar-body-layout body-simple-metrics">
@@ -356,8 +362,8 @@ function navigate(name){
 document.querySelectorAll(".tabs button").forEach(btn=>btn.onclick=()=>navigate(btn.dataset.page));
 function renderStatus(){
  $("statusDot").classList.toggle("on",state.connected);
- $("statusText").textContent=state.connected?"本地模式 · 已配置 GitHub 同步":"本地模式 · 未连接 GitHub";
- $("pendingStatus").textContent=state.pending?" · 待上传 "+state.pending+" 组":"";
+ $("statusText").textContent=state.connected?"已连接":"本地";
+ $("pendingStatus").textContent=state.pending?" · 待传"+state.pending+"组":"";
  $("saveHelp").style.display=state.connected?"none":"block";
 }
 function filtered(){return state.rows.filter(r=>!state.filter||r.exercise===state.filter)}
