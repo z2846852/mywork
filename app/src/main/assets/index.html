@@ -74,17 +74,21 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">写入本地 JSON 后立即更新图表；已配置 GitHub 则尝试即时上传。点击「同步 GitHub」可拉取 ChatGPT 新增的记录。</p>
 <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
 <div class="formgrid exercise-top-row">
- <div class="field"><label for="recordExercise">动作</label><select id="recordExercise" aria-label="选择训练动作"></select></div>
- <div class="field"><label for="recordSortMode">排序方式</label><select id="recordSortMode">
-  <option value="recent">最近使用</option>
-  <option value="region">按部位</option>
- </select></div>
-</div>
-<div class="row wrap exercise-actions-row">
- <span class="sub">动作列表按需要显示，隐藏动作不会删除任何训练记录。</span>
- <button type="button" class="secondary mini" id="manageExercises">管理 / 删除动作</button>
-</div>
-<div id="exerciseManager" class="exercise-manager panel inner" hidden>
+ <div class="field"><label for="recordGroup">训练部位</label>
+ <select id="recordGroup" aria-label="先选训练部位">
+ <option value="胸">胸</option><option value="肩">肩</option><option value="背">背</option>
+ <option value="腿">腿</option><option value="手臂">手臂</option>
+ <option value="核心">核心</option><option value="其他">其他</option></select></div>
+ <div class="field"><label for="recordExercise">训练动作</label>
+ <select id="recordExercise" aria-label="再选训练动作"></select></div>
+ </div>
+ <div class="row wrap exercise-actions-row">
+ <select id="recordSortMode" class="select" aria-label="动作排序" style="width:auto;max-width:120px">
+ <option value="recent">最近使用</option><option value="region">按部位</option>
+ </select><button type="button" class="secondary mini" id="manageExercises">管理 / 删除动作</button>
+ </div>
+ <p class="sub">先选部位、再选动作；隐藏动作不会删除历史训练。</p>
+ <div id="exerciseManager" class="exercise-manager panel inner" hidden>
  <div class="row"><h3>动作管理</h3><button type="button" id="closeExerciseManager" class="mini">完成</button></div>
  <p class="sub">内置动作可以隐藏或恢复；自定义动作可以永久移出目录，但历史训练仍然保留。</p>
  <div class="formgrid">
@@ -109,8 +113,11 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 <div class="field"><label for="recordSets">连续保存相同重量和次数的组数</label><div class="wheel-entry"><input id="recordSets" type="number" min="1" max="10" step="1" value="1" readonly aria-label="选择组数"><button type="button" class="wheel-open" id="wheelSetsOpen" aria-label="打开组数滚轮">▥</button></div></div>
 <p class="sub">点数字使用横向刻度滚轮；点滚轮中间的大数字可直接键盘输入。组数大于1时，会分别生成多条独立训练 JSON。</p>
-<p class="sub" id="suggestedLoad" role="status">次数默认10次。重量根据该动作最近10组记录推荐。</p>
-<button class="primary" id="saveRecord">保存训练 · 本机即时显示</button>
+<div class="row wrap" style="gap:8px;margin-top:8px">
+ <p class="sub" id="suggestedLoad" role="status" style="flex:1;min-width:160px;margin:0">默认沿用上次保存的重量和次数。</p>
+ <button type="button" class="secondary mini" id="resetTrainingDefault">Reset · 旧版10组</button>
+ </div>
+ <button class="primary" id="saveRecord">保存训练 · 本机即时显示</button>
 <p class="note">保存不需要网络，数据首先按原样 JSON 保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
 <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
 </div></section>
@@ -217,7 +224,15 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">解除授权（保留本地记录）</button><button id="syncSettings" class="secondary">⇅ 同步 GitHub</button></div>
 <div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
 </div>
-<div class="panel"><h2>可视化 JSON · 派生数据</h2>
+<div class="panel" id="gitHistoryPanel">
+ <div class="row wrap"><div><h2>Git log · 最近10次提交</h2>
+ <p class="sub">私有 z2846852/- 仓库 main 分支，显示文件增删改及差异。</p></div>
+ <button type="button" class="secondary mini" id="refreshGitLog">刷新</button></div>
+ <p class="sub" id="gitLogStatus" role="status" style="margin-top:12px">需要连接 GitHub 才能读取。</p>
+ <div id="gitLogList"></div>
+ <p class="note">追加到已有每日 JSON 也属于“修改文件”；可展开 Git diff 检查具体变动。</p>
+ </div>
+ <div class="panel"><h2>可视化 JSON · 派生数据</h2>
 <p class="sub">App 本机将每日原始 JSON 转换为 view_model.json（版本1），用于训练日历、身体曲线和后续饮食图表。修改算法后可重新生成，不覆盖原始文件。</p>
 <button class="secondary" id="showViewJson" style="margin-top:12px;width:100%">查看生成的 view_model.json</button>
 <pre id="viewJsonPreview" style="display:none;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto;margin-top:14px;background:#0c171a;padding:14px;border:1px solid #305248;border-radius:12px;font-size:11px"></pre>
