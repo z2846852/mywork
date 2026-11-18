@@ -13,6 +13,7 @@ const helpers = script.slice(script.indexOf("function loadRecommendation("),
   script.indexOf("function refreshExerciseRecommendation("));
 assert.ok(helpers.startsWith("function loadRecommendation"));
 const load = vm.runInNewContext(helpers + "\nloadRecommendation");
+const legacy = vm.runInNewContext(helpers + "\nhistoricalRecommendation");
 const demo = JSON.parse(fs.readFileSync(path.join(root, "data/demo/2026-11-17.json"), "utf8"));
 const rows = demo.workouts.map(x => ({
   exercise_id: x.exercise_id,
@@ -23,16 +24,25 @@ const rows = demo.workouts.map(x => ({
 function check(ex,expected) {
   assert.deepEqual(JSON.parse(JSON.stringify(load(rows,ex))),expected);
 }
-check("lateral_raise",{amount:18,count:4,isAssist:false});
-check("adductor",{amount:20,count:3,isAssist:false});
-check("row",{amount:27.5,count:1,isAssist:false});
-check("assisted_pullup",{amount:73,count:1,isAssist:true});
+check("lateral_raise",{amount:27,reps:10,count:1,isAssist:false});
+check("adductor",{amount:25,reps:10,count:1,isAssist:false});
+check("row",{amount:27.5,reps:10,count:1,isAssist:false});
+check("assisted_pullup",{amount:73,reps:10,count:1,isAssist:true});
+assert.deepEqual(JSON.parse(JSON.stringify(legacy(rows,"lateral_raise"))),
+ {amount:18,count:4,isAssist:false});
 check("horizontal_bench",null);
 const recent = Array.from({length:12},(_,i)=>({
   exercise_id:"row",session_date:"2026-10-"+String(i+1).padStart(2,"0"),
   load_kg:String(i+1),assistance_kg:""
 }));
-assert.deepEqual(JSON.parse(JSON.stringify(load(recent,"row"))),{amount:7,count:10,isAssist:false});
+assert.deepEqual(JSON.parse(JSON.stringify(load(recent,"row"))),{amount:12,reps:10,count:1,isAssist:false});
+assert.deepEqual(JSON.parse(JSON.stringify(legacy(recent,"row"))),{amount:7,count:10,isAssist:false});
+const userChanges=rows.concat([
+ {exercise_id:"lateral_raise",session_date:"2026-11-18",load_kg:"23",reps:"12"},
+ {exercise_id:"lateral_raise",session_date:"2026-11-18",load_kg:"32",reps:"7",created_at:"2026-11-18T12:56:14+08:00"}
+]);
+assert.deepEqual(JSON.parse(JSON.stringify(load(userChanges,"lateral_raise"))),
+ {amount:32,reps:7,count:1,isAssist:false});
 assert.ok(html.includes('id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" value="10" readonly'));
 assert.ok(html.includes('id="recordSets" type="number" min="1" max="10"'));
 assert.ok(html.includes('id="wheelCanvas"')&&html.includes('id="wheelOverlay"'));
@@ -80,6 +90,14 @@ assert.ok(catalogJS.includes('option.textContent="【"+entry.region+"】"+entry.
 assert.ok(catalogJS.includes('compareUsage')&&catalogJS.includes('config.sort_mode==="region"'));
 assert.ok(catalogJS.includes('saveCatalog(JSON.stringify(config))'));
 assert.ok(html.includes('id="recordSortMode"')&&html.includes('id="exerciseManager"'));
+assert.ok(html.includes('id="recordGroup"')&&html.includes('id="resetTrainingDefault"'));
+assert.ok(catalogJS.includes('sorted.filter(a=>a.region===group)'));
+assert.ok(html.includes('id="gitLogList"')&&html.includes('id="refreshGitLog"'));
+const gitLogJS=fs.readFileSync(path.join(root,"app/src/main/assets/git_log.js"),"utf8");
+new vm.Script(gitLogJS,{filename:"git_log.js"});
+assert.ok(github.includes('readRecentCommits(String token)'));
+assert.ok(native.includes('void readGitLog()')&&native.includes('readAsset("git_log.js")'));
+assert.ok(github.includes('currentSha.equals(expectedSha)'));
 assert.ok(html.includes('id="manageExercises"')&&html.includes('id="addCustomExercise"'));
 for(const id of ["leg_extension","leg_press","leg_press_45","barbell_bench","dumbbell_bench","front_raise","rear_delt_fly","face_pull"]){
  assert.ok(html.includes(id+":"),"Built-in action missing: "+id);
