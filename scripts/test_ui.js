@@ -128,6 +128,34 @@ assert.deepEqual(Array.from(sorting(sample),g=>g.id),[
 ]);
 assert.deepEqual(Array.from(sorting([]),g=>g.id),[]);
 
+// Calendar browsing should not be reset to the latest date by an unrelated sync.
+const indexStart=script.indexOf("function indexData(){");
+const indexEnd=script.indexOf("function renderHeat(",indexStart);
+assert.ok(indexStart>=0&&indexEnd>indexStart);
+const indexNodes={statSets:{},statDays:{},statMovements:{},filter:element("select")};
+const calendarState={
+ rows:[
+  {exercise:"Row",exercise_id:"row",session_date:"2026-11-01"},
+  {exercise:"Leg Extension",exercise_id:"leg_extension",session_date:"2026-11-18"}
+ ],
+ selected:"2026-11-01",calendarBrowsing:true,filter:""
+};
+const renderFocus=[];
+const calendarIndex=vm.runInNewContext(script.slice(indexStart,indexEnd)+"\nindexData",{
+ state:calendarState,
+ $:id=>indexNodes[id],
+ document:{createElement:element},
+ exerciseRegionById:{row:"背",leg_extension:"腿"},
+ orderRecordOptionsByRecent(){},refreshExerciseRecommendation(){},
+ renderHeat:focus=>renderFocus.push(focus),renderDay(){}
+});
+calendarIndex();
+assert.equal(calendarState.selected,"2026-11-01","Browsing old dates must survive syncing");
+assert.equal(renderFocus.at(-1),false,"Do not scroll away from an old date");
+calendarState.calendarBrowsing=false;
+calendarIndex();
+assert.equal(calendarState.selected,"2026-11-18","Latest mode should track fresh workouts");
+
 // UI behavior regression: actual catalog controller under a minimal DOM.
 assert.ok(html.includes('<option value="">全部动作</option>'));
 assert.ok(html.includes('if(trainingFormDirty&&!force)return;'));
