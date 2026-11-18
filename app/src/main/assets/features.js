@@ -160,6 +160,117 @@ function regionalCounts() {
   }
   return counts;
 }
+// Four comparable trend cards: charted metric is workout-set count, never total kg.
+const dashboardRegions=["胸","肩","背","腿"];
+const dashboardNames={胸:"CHEST",肩:"SHOULDERS",背:"BACK",腿:"LEGS"};
+const dashboardColors={胸:"#f39a8c",肩:"#b6a1f4",背:"#74d5f6",腿:"#84e6aa"};
+const dashboardClasses={胸:"region-chest",肩:"region-shoulder",背:"region-back",腿:"region-leg"};
+function computeRegionDashboard(rows,anchorDate=today){
+ const first=plus(anchorDate,-55),prevEnd=plus(anchorDate,-28),currentStart=plus(anchorDate,-27);
+ const stats=dashboardRegions.map(region=>({
+  region,weeks:Array(8).fill(0),total28:0,previous28:0,latest:null,frequency:new Map()
+ }));
+ const byRegion=new Map(stats.map(item=>[item.region,item]));
+ const activeDays=new Set();
+ let currentTotal=0;
+ for(const [index,row] of rows.entries()){
+  const date=row.session_date,card=byRegion.get(categoryForRow(row));
+  if(!card||!(/^\d{4}-\d{2}-\d{2}$/.test(date||""))||date<first||date>anchorDate)continue;
+  // Relative 7-day blocks, oldest to newest; includes the current date.
+  const diffDays=Math.round((parse(date)-parse(first))/86400000);
+  const week=Math.floor(diffDays/7);
+  if(week>=0&&week<8)card.weeks[week]++;
+  if(date<=prevEnd){card.previous28++;continue}
+  if(date<currentStart)continue;
+  card.total28++;currentTotal++;activeDays.add(date);
+  const name=exerciseLabels[row.exercise_id]||row.exercise||row.exercise_id||"未知动作";
+  card.frequency.set(name,(card.frequency.get(name)||0)+1);
+  const created=String(row.created_at||"");
+  if(!card.latest||date>card.latest.date||
+   date===card.latest.date&&(created>card.latest.created||
+    created===card.latest.created&&index>card.latest.index)){
+   card.latest={date,created,index,name};
+  }
+ }
+ for(const card of stats){
+  card.last7=card.weeks[7];
+  card.topAction=[...card.frequency].sort((a,b)=>b[1]-a[1])[0]?.[0]||"尚无训练";
+ }
+ return {cards:stats,total28:currentTotal,activeDays:activeDays.size};
+}
+function renderRegionDashboard(){
+ const dashboard=$("trainingOverview"),root=$("regionTrendGrid");
+ dashboard.replaceChildren();root.replaceChildren();
+ const data=computeRegionDashboard(state.rows);
+ const main=document.createElement("div");main.className="training-overview-main";
+ const title=document.createElement("span");title.textContent="四大部位 · 最近28天";
+ const number=document.createElement("strong");number.textContent=data.total28+" 组";
+ main.append(title,number);
+ const aside=document.createElement("div");aside.className="training-overview-stat";
+ const detail=document.createElement("div");detail.textContent="活跃训练日期";
+ const days=document.createElement("b");days.textContent=data.activeDays+" 天";
+ aside.append(detail,days);
+ dashboard.append(main,aside);
+ const NS="http://www.w3.org/2000/svg";
+ for(const card of data.cards){
+  const node=document.createElement("article");
+  node.className="region-overview-card "+dashboardClasses[card.region];
+  node.dataset.region=card.region;
+  const heading=document.createElement("div");heading.className="region-overview-heading";
+  const cn=document.createElement("span");cn.textContent=card.region;
+  const en=document.createElement("small");en.textContent=dashboardNames[card.region];
+  heading.append(cn,en);node.append(heading);
+  const count=document.createElement("div");count.className="region-overview-count";
+  count.textContent=card.total28;
+  const unit=document.createElement("span");unit.textContent="组 / 28天";
+  count.append(unit);node.append(count);
+  const svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("viewBox","0 0 320 116");
+  svg.setAttribute("class","region-overview-spark");
+  svg.setAttribute("role","img");
+  svg.setAttribute("aria-label",card.region+"最近8个7天窗口各组数："+card.weeks.join("、"));
+  const defs=document.createElementNS(NS,"defs");
+  const gradient=document.createElementNS(NS,"linearGradient");
+  const gradId="dashboard-gradient-"+dashboardClasses[card.region];
+  gradient.setAttribute("id",gradId);gradient.setAttribute("x1","0");gradient.setAttribute("y1","0");
+  gradient.setAttribute("x2","0");gradient.setAttribute("y2","1");
+  for(const [at,opacity] of [["0%","1"],["100%","0.42"]]){
+   const stop=document.createElementNS(NS,"stop");
+   stop.setAttribute("offset",at);stop.setAttribute("stop-color",dashboardColors[card.region]);
+   stop.setAttribute("stop-opacity",opacity);gradient.append(stop);
+  }
+  defs.append(gradient);svg.append(defs);
+  const baseline=document.createElementNS(NS,"line");
+  for(const [k,v] of Object.entries({x1:7,y1:94,x2:313,y2:94,stroke:"#426055","stroke-width":"1"}))baseline.setAttribute(k,v);
+  svg.append(baseline);
+  const top=Math.max(1,...card.weeks);
+  card.weeks.forEach((value,i)=>{
+   const height=value?Math.max(5,(value/top)*70):2;
+   const rect=document.createElementNS(NS,"rect");
+   for(const [k,v] of Object.entries({x:12+i*38,y:94-height,width:24,height,rx:4,
+     fill:"url(#"+gradId+")",opacity:i===7?"1":"0.75"}))rect.setAttribute(k,String(v));
+   const tooltip=document.createElementNS(NS,"title");
+   tooltip.textContent="第"+(i+1)+"个7天周期："+value+"组";
+   rect.append(tooltip);svg.append(rect);
+  });
+  for(const [x,value] of [[7,"8周前"],[312,"最近"]]){
+   const text=document.createElementNS(NS,"text");
+   text.setAttribute("x",String(x));text.setAttribute("y","112");
+   text.setAttribute("text-anchor",x===7?"start":"end");
+   text.setAttribute("fill","#acc8b8");text.setAttribute("font-size","11");
+   text.textContent=value;svg.append(text);
+  }
+  node.append(svg);
+  const meta=document.createElement("div");meta.className="region-overview-meta";
+  const change=card.total28-card.previous28;
+  meta.textContent="近7天 "+card.last7+"组 · 对前28天 "+(change>0?"+":"")+change+"组";
+  node.append(meta);
+  const topAction=document.createElement("div");topAction.className="region-overview-latest";
+  topAction.title="本期最多组动作："+card.topAction;
+  topAction.textContent="常练："+card.topAction;node.append(topAction);
+  root.append(node);
+ }
+}
 function renderRegionSummary(){
   const node=$("regionSummary");node.replaceChildren();
   const counts=regionalCounts(),max=Math.max(1,...Object.values(counts));
@@ -580,7 +691,7 @@ $("avatarMeasureDate").addEventListener("change",e=>{
  renderAvatar();
 });
 function renderAllFeatures(){
- nutritionRender();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();renderBodyEntry();
+ nutritionRender();renderRegionDashboard();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();renderBodyEntry();
 }
 const originalReceive = window.bodyTraceReceive;
 window.bodyTraceReceive=function(evt){
