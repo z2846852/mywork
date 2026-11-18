@@ -74,7 +74,24 @@ assert.ok(github.includes('isMeasurement ? "measurements"'));
 const projection=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
 assert.ok(projection.includes('item.put("created_at"'));
 assert.ok(html.includes('exerciseRegionById')&&html.includes('orderRecordOptionsByRecent(valid)'));
-assert.ok(html.includes('option.textContent="【"+prefix+"】"+option.textContent'));
+const catalogJS=fs.readFileSync(path.join(root,"app/src/main/assets/exercise_catalog.js"),"utf8");
+new vm.Script(catalogJS,{filename:"exercise_catalog.js"});
+assert.ok(catalogJS.includes('option.textContent="【"+entry.region+"】"+entry.label'));
+assert.ok(catalogJS.includes('compareUsage')&&catalogJS.includes('config.sort_mode==="region"'));
+assert.ok(catalogJS.includes('saveCatalog(JSON.stringify(config))'));
+assert.ok(html.includes('id="recordSortMode"')&&html.includes('id="exerciseManager"'));
+assert.ok(html.includes('id="manageExercises"')&&html.includes('id="addCustomExercise"'));
+for(const id of ["leg_extension","leg_press","leg_press_45","barbell_bench","dumbbell_bench","front_raise","rear_delt_fly","face_pull"]){
+ assert.ok(html.includes(id+":"),"Built-in action missing: "+id);
+ assert.ok(native.includes('case "'+id+'"'),"Native action must accept: "+id);
+}
+assert.ok(native.includes('void saveCatalog(String catalogJson)'));
+assert.ok(native.includes('syncExerciseCatalog(String token)'));
+assert.ok(native.includes('custom_[a-z0-9]{8,32}'));
+const store=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/JsonStore.java"),"utf8");
+assert.ok(store.includes('exercise_catalog.json'));
+assert.ok(github.includes('readExerciseCatalog(String token)')&&github.includes('writeExerciseCatalog(String token'));
+assert.ok(native.includes('readAsset("exercise_catalog.js")'));
 assert.ok(workflow.includes("app:assembleRelease")&&workflow.includes("Load fixed public signing identity"));
 
 const start=features.indexOf("function orderedExerciseGroups(rows){");
@@ -92,4 +109,4 @@ assert.deepEqual(Array.from(sorting(sample),g=>g.id),[
  "adductor","row","chest_press","lateral_raise"
 ]);
 assert.deepEqual(Array.from(sorting([]),g=>g.id),[]);
-console.log("BodyTrace UI tests passed: recent-first all-action trends, region-prefixed selectors, simple anatomy, wheel input, JSON and signed Release.");
+console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/restore/delete actions, leg extension, body schematic, wheel and fixed Release signing.");
