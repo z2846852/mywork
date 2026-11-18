@@ -95,6 +95,26 @@ final class JsonStore {
         atomicWrite(new File(root, "raw_entries.json"), list.toString(2) + "\n");
     }
 
+    /** User-editable exercise catalog persists across APK upgrades. */
+    synchronized JSONObject getCatalog() throws Exception {
+        String s = read(new File(root, "exercise_catalog.json"));
+        if (s == null) {
+            JSONObject defaults = new JSONObject();
+            defaults.put("schema_version", 1);
+            defaults.put("sort_mode", "recent");
+            defaults.put("custom", new JSONArray());
+            defaults.put("hidden", new JSONArray());
+            defaults.put("_dirty", false);
+            return defaults;
+        }
+        return new JSONObject(s);
+    }
+
+    synchronized void putCatalog(JSONObject catalog) throws Exception {
+        atomicWrite(new File(root, "exercise_catalog.json"),
+                catalog.toString(2) + "\n");
+    }
+
     synchronized void putView(JSONObject projection) throws Exception {
         atomicWrite(new File(root, "view_model.json"), projection.toString(2) + "\n");
     }
