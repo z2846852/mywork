@@ -201,8 +201,11 @@ final class GitHubApi {
                             if (remote.has(key)) entry.put(key, remote.get(key));
                         }
                         String patch = remote.optString("patch", "");
-                        if (patch.length() > 5000) {
-                            patch = patch.substring(0, 5000) + "\n…（diff 截断）";
+                        if (patch.length() > 20000) {
+                            // Preserve more lines for an always-visible review, but bound
+                            // WebView payload size for unusually large GitHub commits.
+                            patch = patch.substring(0, 20000);
+                            entry.put("patch_truncated", true);
                         }
                         entry.put("patch", patch);
                         files.put(entry);
