@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,"..");
 const read=name=>fs.readFileSync(path.join(root,"app/src/main/assets",name),"utf8");
 let html=read("index.html");
 html=html.replace("</head>","<style>"+read("features.css")+"</style></head>");
-html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"</script></body>");
+html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"\n"+read("git_log.js")+"</script></body>");
 (async()=>{
  const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
  try{
@@ -142,6 +142,31 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const measured=await page.evaluate(()=>window.__capturedBody);
   if(!measured||measured.weight_kg!==74.5||"shoulder_cm" in measured)
    throw Error("Body JSON should contain edited values only: "+JSON.stringify(measured));
+  // Settings are Git-log-first and render colored unified diffs without any disclosures.
+  await page.evaluate(()=>{
+   navigate("settings");
+   window.bodyTraceReceive({type:"git_log",commits:[{
+    sha:"0123456789abcdef0123456789abcdef01234567",
+    message:"record: workout updated",date:"2026-11-18T10:00:00+08:00",
+    additions:2,deletions:1,files:[{
+     filename:"data/daily/2026-11-18.json",status:"modified",
+     additions:2,deletions:1,
+     patch:"@@ -1,2 +1,3 @@\n- old set\n+ new set\n+ extra set\n unchanged"
+    }]
+   }]});
+  });
+  if(await page.locator("#gitLogList details").count())
+   throw Error("Git diffs must be visible without an expand action");
+  if(await page.locator("#gitLogList .git-diff-added").count()!==2||
+     await page.locator("#gitLogList .git-diff-removed").count()!==1)
+   throw Error("Gerrit-style diff row classification failed");
+  const styles=await page.locator("#gitLogList .git-diff-added, #gitLogList .git-diff-removed")
+   .evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).backgroundColor));
+  if(styles[0]===styles.at(-1))throw Error("Added and removed diff backgrounds must differ");
+  const lastSettings=await page.locator("#page-settings > .panel").last().innerText();
+  if(!lastSettings.includes("连接 GitHub 私有仓库"))
+   throw Error("GitHub authorization must be the last settings panel");
+  await page.screenshot({path:"bodytrace-git-diff-preview.png",fullPage:true});
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.join(" | "));
   console.log("PASS: 2 schematic figures, "+plots+" recent-first charts, group labels, ruler, batch/measurement JSON");
  }finally{await browser.close()}
