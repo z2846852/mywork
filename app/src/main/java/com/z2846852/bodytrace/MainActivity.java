@@ -599,7 +599,8 @@ public final class MainActivity extends Activity {
     private void syncExerciseCatalog(String token) throws Exception {
         JSONObject local = plain.getCatalog();
         if (local.optBoolean("_dirty", false)) {
-            github.writeExerciseCatalog(token,local);
+            String updatedSha = github.writeExerciseCatalog(token,local);
+            local.put("_remote_sha", updatedSha);
             local.put("_dirty",false);
             plain.putCatalog(local);
             sendCatalog(local);
@@ -607,6 +608,7 @@ public final class MainActivity extends Activity {
             JSONObject remote = github.readExerciseCatalog(token);
             if (remote != null) {
                 JSONObject clean = validateCatalog(remote.toString());
+                clean.put("_remote_sha", remote.optString("_remote_sha", ""));
                 clean.put("_dirty",false);
                 plain.putCatalog(clean);
                 sendCatalog(clean);
@@ -849,6 +851,25 @@ public final class MainActivity extends Activity {
                 } catch (Exception e) { error(safeMessage(e)); }
             });
         }
+        @JavascriptInterface public void readGitLog() {
+            worker.execute(() -> {
+                try {
+                    String token = vault.read("token");
+                    if (token == null || token.isEmpty()) {
+                        throw new IllegalStateException("请先连接 GitHub");
+                    }
+                    JSONObject result = message("git_log");
+                    result.put("commits", github.readRecentCommits(token));
+                    reply(result);
+                } catch (Exception e) {
+                    try {
+                        JSONObject response = message("git_log_error");
+                        response.put("message", safeMessage(e));
+                        reply(response);
+                    } catch (Exception ignored) { }
+                }
+            });
+        }
         @JavascriptInterface public void showViewModel() {
             worker.execute(() -> {
                 try {
@@ -867,6 +888,7 @@ public final class MainActivity extends Activity {
                 try {
                     ensureMigrated();
                     JSONObject clean = validateCatalog(catalogJson);
+                    clean.put("_remote_sha", plain.getCatalog().optString("_remote_sha", ""));
                     clean.put("_dirty",true);
                     plain.putCatalog(clean);
                     sendCatalog(clean); // UI responds immediately offline.
