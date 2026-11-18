@@ -217,21 +217,13 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-settings">
-<div class="panel"><div class="eyebrow">SECURE CONNECTION</div><h2>连接 GitHub 私有仓库</h2>
-<p class="sub">目标仓库：<span class="code">z2846852/-</span> · main</p>
-<p class="note">在 GitHub 创建 Fine-grained personal access token，仅授权此仓库 Contents Read and write。令牌本机保存储存、不上传 mywork，也不会发送至第三方服务器。</p>
-<div class="field"><label for="token">GitHub Token</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_..."></div>
-<button id="connect" class="primary">验证并设置 GitHub 同步</button>
-<div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">解除授权（保留本地记录）</button><button id="syncSettings" class="secondary">⇅ 同步 GitHub</button></div>
-<div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
-</div>
 <div class="panel" id="gitHistoryPanel">
  <div class="row wrap"><div><h2>Git log · 最近10次提交</h2>
- <p class="sub">私有 z2846852/- 仓库 main 分支，显示文件增删改及差异。</p></div>
+ <p class="sub">私有 z2846852/- 仓库 main 分支，直接展示文件差异：绿色新增、红色删除，无需展开。</p></div>
  <button type="button" class="secondary mini" id="refreshGitLog">刷新</button></div>
  <p class="sub" id="gitLogStatus" role="status" style="margin-top:12px">需要连接 GitHub 才能读取。</p>
  <div id="gitLogList"></div>
- <p class="note">追加到已有每日 JSON 也属于“修改文件”；可展开 Git diff 检查具体变动。</p>
+ <p class="note">追加到已有每日 JSON 也属于“修改文件”；下方会直接显示所有可获取的 Git diff，绿色为新增行、红色为删除行；行删除不等于训练记录删除。</p>
  </div>
  <div class="panel"><h2>可视化 JSON · 派生数据</h2>
 <p class="sub">App 本机将每日原始 JSON 转换为 view_model.json（版本1），用于训练日历、身体曲线和后续饮食图表。修改算法后可重新生成，不覆盖原始文件。</p>
@@ -239,6 +231,14 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <pre id="viewJsonPreview" style="display:none;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto;margin-top:14px;background:#0c171a;padding:14px;border:1px solid #305248;border-radius:12px;font-size:11px"></pre>
 </div>
 <div class="panel"><h2>架构</h2><p class="note">mywork（公开）：代码、APK 和经允许发布的演示数据。<br>“-” （私有）：每日 JSON 为唯一新记录入口；App 本地保存、清洗并绘制训练与身体指标；GitHub 只负责备份以及与 ChatGPT 同步。<br>Actions 仍负责构建新版 APK，旧图表工作流仅供维护历史兼容报表。<br>ChatGPT 的 GitHub 连接独立于 App，不受影响。</p></div>
+<div class="panel"><div class="eyebrow">SECURE CONNECTION</div><h2>连接 GitHub 私有仓库</h2>
+<p class="sub">目标仓库：<span class="code">z2846852/-</span> · main</p>
+<p class="note">在 GitHub 创建 Fine-grained personal access token，仅授权此仓库 Contents Read and write。令牌存于本机加密存储，不上传 mywork，也不会发送至第三方服务器。</p>
+<div class="field"><label for="token">GitHub Token</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_..."></div>
+<button id="connect" class="primary">验证并设置 GitHub 同步</button>
+<div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">解除授权（保留本地记录）</button><button id="syncSettings" class="secondary">⇅ 同步 GitHub</button></div>
+<div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
+</div>
 </section>
 </main>
 <div id="wheelOverlay" class="wheel-overlay" hidden aria-hidden="true">
@@ -261,7 +261,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <button data-page="nutrition"><span class="ico">▤</span>饮食</button>
 <button data-page="analytics"><span class="ico">▥</span>趋势</button>
 <button data-page="body"><span class="ico">◉</span>身体</button>
-<button data-page="settings"><span class="ico">⚙</span>连接</button>
+<button data-page="settings"><span class="ico">≡</span>日志</button>
 </nav><div id="toast" role="status"></div>
 <script>
 "use strict";
