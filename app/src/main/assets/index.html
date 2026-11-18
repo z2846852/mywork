@@ -360,41 +360,40 @@ function renderStatus(){
  $("saveHelp").style.display=state.connected?"none":"block";
 }
 function filtered(){return state.rows.filter(r=>!state.filter||r.exercise===state.filter)}
-// Recommended *selector setting*, not an estimated 10RM.
-let weightEditedByUser=false;
-function loadRecommendation(rows,exerciseId){
- const isAssist=exerciseId==="assisted_pullup"||exerciseId==="assisted_dip";
- const key=isAssist?"assistance_kg":"load_kg";
- const latest=rows.map((row,index)=>({row,index}))
-  .filter(x=>x.row.exercise_id===exerciseId&&x.row[key]!==""&&x.row[key]!==undefined
-    &&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
-  .sort((a,b)=>b.row.session_date.localeCompare(a.row.session_date)||b.index-a.index)
-  .slice(0,10);
- if(!latest.length)return null;
- const weights=latest.map(x=>Number(x.row[key])).sort((a,b)=>a-b);
- // Conservative lower median: always an actually used machine setting.
- const amount=weights[Math.floor((weights.length-1)/2)];
- return {amount,count:weights.length,isAssist};
+// Latest saved record is the next default; no need for a separate preference file.
+let weightEditedByUser=false,repsEditedByUser=false;
+function loadRecommendation(rows,id){
+ const assist=id==="assisted_pullup"||id==="assisted_dip",key=assist?"assistance_kg":"load_kg";
+ const items=rows.map((row,index)=>({row,index})).filter(x=>x.row.exercise_id===id&&/^\d{4}-\d{2}-\d{2}$/.test(x.row.session_date||"")&&x.row[key]!==""&&x.row[key]!==undefined&&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
+ .sort((a,b)=>b.row.session_date.localeCompare(a.row.session_date)||(a.row.created_at&&b.row.created_at?b.row.created_at.localeCompare(a.row.created_at):0)||b.index-a.index);
+ if(!items.length)return null;
+ const row=items[0].row,reps=Number(row.reps);
+ return {amount:Number(row[key]),reps:Number.isInteger(reps)&&reps>=1&&reps<=200?reps:10,count:1,isAssist:assist};
+}
+function historicalRecommendation(rows,id){
+ const assist=id==="assisted_pullup"||id==="assisted_dip",key=assist?"assistance_kg":"load_kg";
+ const items=rows.map((row,index)=>({row,index})).filter(x=>x.row.exercise_id===id&&x.row[key]!==""&&x.row[key]!==undefined&&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
+ .sort((a,b)=>b.row.session_date.localeCompare(a.row.session_date)||b.index-a.index).slice(0,10);
+ if(!items.length)return null;
+ const weights=items.map(x=>Number(x.row[key])).sort((a,b)=>a-b);
+ return {amount:weights[Math.floor((weights.length-1)/2)],count:weights.length,isAssist:assist};
 }
 function refreshExerciseRecommendation(force=false){
  const id=$("recordExercise").value;
- const isAssist=id==="assisted_pullup"||id==="assisted_dip";
- $("weightLabel").textContent=isAssist?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
- const suggestion=loadRecommendation(state.rows,id);
- if(force||!weightEditedByUser){
-  $("recordKg").value=suggestion?String(suggestion.amount):"";
- }
- if(force)$("recordReps").value="10";
- const hint=$("suggestedLoad");
- if(!suggestion){
-  hint.textContent="该动作暂无可用历史重量，需要手动填写；次数默认10次。";
- }else{
-  hint.textContent="已根据该动作最近"+suggestion.count+"组"+
-   (isAssist?"标称辅助量":"标称负重")+"推荐 "+suggestion.amount+
-   "kg（历史下中位档，非10RM测试）；次数默认10次，可以修改。";
- }
+ $("weightLabel").textContent=id==="assisted_pullup"||id==="assisted_dip"?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
+ const last=loadRecommendation(state.rows,id);
+ if(force||!weightEditedByUser)$("recordKg").value=last?String(last.amount):"";
+ if(force||!repsEditedByUser)$("recordReps").value=last?String(last.reps):"10";
+ $("suggestedLoad").textContent=last?"沿用上次 "+last.amount+"kg × "+last.reps+"次（非训练建议）；Reset 使用旧版10组规则。":"无历史重量，请手动填写；次数默认10次。";
 }
-$("recordKg").addEventListener("input",()=>{weightEditedByUser=true});
+$("recordKg").addEventListener("input",()=>weightEditedByUser=true);
+$("recordReps").addEventListener("input",()=>repsEditedByUser=true);
+$("resetTrainingDefault").onclick=()=>{
+ const old=historicalRecommendation(state.rows,$("recordExercise").value);
+ $("recordKg").value=old?String(old.amount):"";$("recordReps").value="10";
+ weightEditedByUser=true;repsEditedByUser=true;
+ $("suggestedLoad").textContent=old?"Reset：最近"+old.count+"组低中位 "+old.amount+"kg × 10次（仅本次输入）。":"Reset：无历史重量，次数恢复10次。";
+};
 function indexData(){
  const valid=state.rows.filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date)&&r.exercise);
  $("statSets").textContent=valid.length;
@@ -557,7 +556,7 @@ $("saveRaw").onclick=()=>{
 };
 $("filter").onchange=e=>{state.filter=e.target.value;renderHeat();renderDay()};
 $("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.selected=ds.at(-1)||today;renderHeat(true);renderDay()};
-$("recordExercise").onchange=()=>{recordExerciseTouched=true;weightEditedByUser=false;refreshExerciseRecommendation(true)};
+$("recordExercise").onchange=()=>{recordExerciseTouched=true;weightEditedByUser=false;repsEditedByUser=false;refreshExerciseRecommendation(true)};
 function openTrainingWheel(elementId, title, min, max, step, unit){
  if(!window.BodyTraceWheel){toast("滚轮尚未初始化，请重新打开 App",true);return}
  const input=$(elementId);
@@ -638,7 +637,7 @@ window.bodyTraceReceive=function(evt){
   renderStatus();navigate("home");
   $("sourceLabel").textContent="已保存本机 JSON · "+state.rows.length+"组";
   toast(added.length+"组训练已保存本机"+(state.connected?"，正在逐组同步 GitHub":"，等待连接 GitHub"));
-  weightEditedByUser=false;refreshExerciseRecommendation(true);
+  weightEditedByUser=false;repsEditedByUser=false;refreshExerciseRecommendation(true);
   break;
  }
  case "saved":
