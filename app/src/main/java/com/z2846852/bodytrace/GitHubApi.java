@@ -229,13 +229,17 @@ final class GitHubApi {
         }
         byte[] bytes = Base64.decode(meta.getString("content"), Base64.DEFAULT);
         if (bytes.length > 50000) throw new IllegalStateException("Exercise catalog too large");
-        return new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+        JSONObject result = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+        result.put("_remote_sha", meta.getString("sha"));
+        return result;
     }
 
-    void writeExerciseCatalog(String token, JSONObject catalog) throws Exception {
+    String writeExerciseCatalog(String token, JSONObject catalog) throws Exception {
         final String url = REPO + "/contents/data/exercise_catalog.json";
         JSONObject publicPart = new JSONObject(catalog.toString());
         publicPart.remove("_dirty"); // Local upload queue state is never remote JSON.
+        publicPart.remove("_remote_sha"); // SHA baseline is never public JSON.
+        String expectedSha = catalog.optString("_remote_sha", "");
         if (publicPart.optInt("schema_version") != 1) {
             throw new IllegalArgumentException("Unsupported catalog schema");
         }
@@ -244,13 +248,33 @@ final class GitHubApi {
             JSONObject put = new JSONObject();
             put.put("message", "settings: update BodyTrace exercise catalog");
             put.put("branch", "main");
-            if (existing != null) put.put("sha", new JSONObject(existing).getString("sha"));
+            if (existing != null) {
+                JSONObject meta = new JSONObject(existing);
+                String currentSha = meta.getString("sha");
+                if (!currentSha.equals(expectedSha)) {
+                    // The response might have been lost after a successful upload.
+                    String remoteText = new String(Base64.decode(
+                            meta.getString("content"), Base64.DEFAULT), StandardCharsets.UTF_8);
+                    JSONObject remote = new JSONObject(remoteText);
+                    boolean equivalent = publicPart.optString("sort_mode").equals(remote.optString("sort_mode"))
+                            && publicPart.getJSONArray("custom").toString().equals(
+                                remote.optJSONArray("custom") == null ? "" : remote.getJSONArray("custom").toString())
+                            && publicPart.getJSONArray("hidden").toString().equals(
+                                remote.optJSONArray("hidden") == null ? "" : remote.getJSONArray("hidden").toString());
+                    if (equivalent) return currentSha;
+                    throw new IllegalStateException(
+                        "远端动作目录已被其他人修改，本机设置已保留，拒绝覆盖远端；请先比较变更。");
+                }
+                put.put("sha", currentSha);
+            } else if (!expectedSha.isEmpty()) {
+                throw new IllegalStateException("远端动作目录已被删除，本机设置已保留，拒绝覆盖");
+            }
             put.put("content", Base64.encodeToString(
                     (publicPart.toString(2) + "\n").getBytes(StandardCharsets.UTF_8),
                     Base64.NO_WRAP));
             try {
-                request("PUT", url, token, put.toString());
-                return;
+                JSONObject uploaded = new JSONObject(request("PUT", url, token, put.toString()));
+                return uploaded.getJSONObject("content").getString("sha");
             } catch (ApiStatusException err) {
                 if ((err.status == 409 || err.status == 422) && attempt < 3) continue;
                 throw err;
