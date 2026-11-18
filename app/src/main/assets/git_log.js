@@ -1,13 +1,13 @@
-/* Read-only private Git commit audit: no external WebView networking. */
+/* Read-only GitHub commit audit. Render text, never interpret a diff as HTML. */
 (function(){
  "use strict";
  const $=id=>document.getElementById(id);
  const root=$("gitLogList"),status=$("gitLogStatus"),refreshButton=$("refreshGitLog");
- let inFlight=false,loaded=false;
+ let inFlight=false;
  const labels={added:"新增文件",modified:"修改文件",removed:"删除文件",renamed:"重命名",copied:"复制",changed:"修改"};
  function refresh(){
   if(inFlight)return;
-  if(!state.connected){status.textContent="请先在连接页面授权私有 GitHub 仓库";return}
+  if(!state.connected){status.textContent="请先在本页底部授权 GitHub 私有仓库";return}
   if(!window.BodyTraceNative?.readGitLog){
    status.textContent="当前 APK 尚不支持 Git log，请更新 APP";return;
   }
@@ -22,6 +22,31 @@
   node.textContent=text;
   return node;
  }
+ // Unified diff: additions and deletions keep their +/- prefixes and get
+ // Gerrit-like full-row backgrounds. Diff text is always assigned via textContent.
+ function diffLineClass(line){
+  if(line.startsWith("@@"))return "git-diff-hunk";
+  if(line.startsWith("+++")||line.startsWith("---")||
+     line.startsWith("diff --git ")||line.startsWith("index ")||
+     line.startsWith("\\ No newline at end of file"))return "git-diff-meta";
+  if(line.startsWith("+"))return "git-diff-added";
+  if(line.startsWith("-"))return "git-diff-removed";
+  return "git-diff-context";
+ }
+ function renderPatch(file){
+  const diff=item("div","","git-diff");
+  if(!file.patch){
+   diff.append(item("div","GitHub 未提供文本 diff（可能是二进制文件或过大的变更）。","git-diff-unavailable"));
+   return diff;
+  }
+  for(const line of String(file.patch).split(/\r?\n/)){
+   diff.append(item("div",line,"git-diff-line "+diffLineClass(line)));
+  }
+  if(file.patch_truncated){
+   diff.append(item("div","… APP 为避免过大响应而截断此 diff，请到 GitHub 查看完整版本。","git-diff-unavailable"));
+  }
+  return diff;
+ }
  function render(list){
   root.replaceChildren();
   if(!Array.isArray(list)||!list.length){
@@ -29,10 +54,10 @@
   }
   status.textContent="已读取私有仓库 z2846852/- 最近 "+list.length+" 次提交";
   for(const commit of list){
-   const card=item("section","","raw-note");
+   const card=item("section","","raw-note git-commit");
    const header=item("div","","row wrap");
    const title=item("strong",commit.message||"（无提交说明）");
-   title.style.cssText="font-size:12px;overflow-wrap:anywhere;flex:1";
+   title.className="git-commit-message";
    const shortId=item("span",String(commit.sha||"").slice(0,8),"tag");
    header.append(title,shortId);card.append(header);
    const timestamp=commit.date?new Date(commit.date):null;
@@ -52,42 +77,40 @@
    const sum="新增文件 "+counts.added+" / 修改文件 "+counts.modified+
     " / 删除文件 "+counts.removed+" / 重命名 "+counts.renamed+
     " · 行变更 +"+(commit.additions||0)+" / -"+(commit.deletions||0);
-   card.append(item("p",sum,"sub"));
-   const details=document.createElement("details");
-   details.append(item("summary","展开文件及 Git diff（"+files.length+"项）"));
+   card.append(item("p",sum,"sub git-commit-summary"));
+   if(!files.length)card.append(item("p","本次提交没有可显示的文件差异。","sub"));
    for(const file of files){
-    const part=document.createElement("details");
-    part.style.cssText="padding:8px 0;border-top:1px solid #2a4140";
+    const part=item("section","","git-commit-file");
     const summary=(labels[file.status]||file.status||"更改")+" · "+
       (file.filename||"未知文件")+"  (+"+(file.additions||0)+"/-"+(file.deletions||0)+")";
-    const head=item("summary",summary);
-    head.style.cssText="font-size:11px;overflow-wrap:anywhere";
-    part.append(head);
-    const patch=item("pre",file.patch||"GitHub 未提供文本 diff；可能是二进制或较大的更改。");
-    patch.style.cssText="font-size:10px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;max-height:320px;color:#c9e8d5";
-    part.append(patch);
-    details.append(part);
+    part.append(item("div",summary,"git-file-header"));
+    part.append(renderPatch(file));
+    card.append(part);
    }
-   if(commit.incomplete)details.append(item("p","此提交的文件列表可能不完整。请到 GitHub 核实。","sub"));
-   card.append(details);root.append(card);
+   if(commit.incomplete)card.append(item("p","此提交的文件列表可能不完整，请到 GitHub 核实。","sub"));
+   root.append(card);
   }
  }
  refreshButton.addEventListener("click",refresh);
  const settingsTab=document.querySelector('.tabs button[data-page="settings"]');
- if(settingsTab)settingsTab.addEventListener("click",()=>{if(!loaded&&!inFlight)refresh()});
+ // Every revisit gets fresh commits, including those uploaded since last opening.
+ if(settingsTab)settingsTab.addEventListener("click",refresh);
  const previous=window.bodyTraceReceive;
  window.bodyTraceReceive=function(event){
   if(typeof previous==="function")previous(event);
   if(!event)return;
   if(event.type==="git_log"){
-   inFlight=false;loaded=true;refreshButton.disabled=false;
+   inFlight=false;refreshButton.disabled=false;
    render(event.commits);
   }else if(event.type==="git_log_error"){
    inFlight=false;refreshButton.disabled=false;
    status.textContent="读取 Git log 失败："+(event.message||"未知错误");
   }else if(event.type==="disconnected"){
-   inFlight=false;loaded=false;refreshButton.disabled=false;
-   root.replaceChildren();status.textContent="已解除授权；Git log 需要连接私有仓库";
+   inFlight=false;refreshButton.disabled=false;
+   root.replaceChildren();status.textContent="已解除授权；请在本页底部连接 GitHub";
+  }else if(event.type==="status"&&event.connected&&
+   document.getElementById("page-settings").classList.contains("active")){
+   refresh();
   }
  };
 })();

@@ -95,6 +95,85 @@ assert.ok(catalogJS.includes('sorted.filter(a=>a.region===group)'));
 assert.ok(html.includes('id="gitLogList"')&&html.includes('id="refreshGitLog"'));
 const gitLogJS=fs.readFileSync(path.join(root,"app/src/main/assets/git_log.js"),"utf8");
 new vm.Script(gitLogJS,{filename:"git_log.js"});
+
+// Git log renders every file's lines directly and uses textContent, not HTML injection.
+const themeCSS=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
+assert.ok(themeCSS.includes(".git-diff-added{background:")&&
+ themeCSS.includes(".git-diff-removed{background:"));
+assert.ok(!gitLogJS.includes('createElement("details")')&&
+ !gitLogJS.includes('item("summary"'));
+const settingsHTML=html.slice(html.indexOf('id="page-settings"'),
+ html.indexOf('</section>',html.indexOf('id="page-settings"')));
+assert.ok(settingsHTML.indexOf('id="gitHistoryPanel"')<
+ settingsHTML.indexOf('SECURE CONNECTION'),
+ "Git log should come before GitHub authorization");
+assert.ok(settingsHTML.indexOf('可视化 JSON')<
+ settingsHTML.indexOf('SECURE CONNECTION'),
+ "GitHub authorization belongs at the bottom of the page");
+assert.ok(html.includes('<span class="ico">≡</span>日志</button>'));
+function logElement(tag){
+ return {tagName:tag,children:[],className:"",textContent:"",style:{},
+  handlers:{},disabled:false,
+  classList:{contains:()=>true},
+  append(...children){this.children.push(...children)},
+  replaceChildren(){this.children=[]},
+  addEventListener(name,handler){this.handlers[name]=handler}
+ };
+}
+const logNodes={
+ gitLogList:logElement("div"),gitLogStatus:logElement("p"),
+ refreshGitLog:logElement("button"),"page-settings":logElement("section")
+};
+const logTab=logElement("button");
+let refreshCount=0;
+const nativeLog={readGitLog:()=>refreshCount++};
+const logContext={
+ state:{connected:true},
+ window:{BodyTraceNative:nativeLog,bodyTraceReceive(){}},
+ BodyTraceNative:nativeLog,
+ document:{
+  getElementById:id=>logNodes[id],
+  createElement:logElement,
+  querySelector:selector=>selector.includes('data-page="settings"')?logTab:null
+ }
+};
+vm.runInNewContext(gitLogJS,logContext);
+logTab.handlers.click();
+assert.equal(refreshCount,1,"Opening the log page fetches latest commits");
+logContext.window.bodyTraceReceive({type:"git_log",commits:[{
+ sha:"1234567890123456789012345678901234567890",
+ message:"record: add lateral raise",date:"2026-11-18T12:00:00+08:00",
+ additions:2,deletions:1,files:[
+  {filename:"data/daily/2026-11-18.json",status:"modified",additions:2,deletions:1,
+   patch:"@@ -1,2 +1,3 @@\n- old value\n+ new value\n+ <script>alert('x')</script>\n unchanged\n\\ No newline at end of file"},
+  {filename:"data/raw_inbox/test.json",status:"added",additions:1,deletions:0,patch:"",patch_truncated:false},
+  {filename:"data/archive.json",status:"modified",additions:1,deletions:0,
+   patch:"@@ -4 +4 @@\n+ sample",patch_truncated:true}
+ ]
+}]});
+function descend(root){
+ return [root,...root.children.flatMap(descend)];
+}
+const allLogNodes=descend(logNodes.gitLogList);
+assert.equal(allLogNodes.filter(el=>el.tagName==="details").length,0,
+ "Commit and file diffs must never be collapsed");
+assert.equal(allLogNodes.filter(el=>el.className.includes("git-commit-file")).length,3);
+assert.ok(allLogNodes.some(el=>el.className.includes("git-diff-added")&&
+ el.textContent==="+ new value"));
+assert.ok(allLogNodes.some(el=>el.className.includes("git-diff-removed")&&
+ el.textContent==="- old value"));
+assert.ok(allLogNodes.some(el=>el.className.includes("git-diff-hunk")&&
+ el.textContent.startsWith("@@")));
+assert.ok(allLogNodes.some(el=>el.className.includes("git-diff-meta")&&
+ el.textContent.startsWith("\\ No newline")));
+assert.ok(allLogNodes.some(el=>el.className.includes("git-diff-added")&&
+ el.textContent.includes("<script>")),"Untrusted diff must be assigned as plain text");
+assert.ok(allLogNodes.some(el=>el.className==="git-diff-unavailable"&&
+ el.textContent.includes("GitHub 未提供")));
+assert.ok(allLogNodes.some(el=>el.className==="git-diff-unavailable"&&
+ el.textContent.includes("截断")));
+logTab.handlers.click();
+assert.equal(refreshCount,2,"Reopening log page must refetch instead of caching stale history");
 assert.ok(github.includes('readRecentCommits(String token)'));
 assert.ok(native.includes('void readGitLog()')&&native.includes('readAsset("git_log.js")'));
 assert.ok(github.includes('currentSha.equals(expectedSha)'));

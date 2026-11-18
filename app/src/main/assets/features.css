@@ -462,3 +462,21 @@
  .exercise-manage-name{font-size:11px}
  .exercise-manage-controls .mini{padding:7px;font-size:10px}
 }
+
+/* Git log: Gerrit-style line-by-line diff, always visible without disclosures. */
+.git-commit{padding:15px 0}
+.git-commit-message{font-size:12px;overflow-wrap:anywhere;flex:1;min-width:0}
+.git-commit-summary{margin-bottom:10px}
+.git-commit-file{margin-top:11px;border:1px solid #34504a;border-radius:10px;overflow:hidden}
+.git-file-header{font-size:11px;font-weight:700;line-height:1.5;overflow-wrap:anywhere;
+ padding:9px 10px;background:#1e3430;border-bottom:1px solid #34504a}
+.git-diff{background:#111b1b;overflow-wrap:anywhere}
+.git-diff-line{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+ font-size:10.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;
+ word-break:break-word;padding:2px 8px;border-left:3px solid transparent}
+.git-diff-added{background:#173e2c;color:#c4f8d7;border-left-color:#5bdf90}
+.git-diff-removed{background:#49282e;color:#ffd7d5;border-left-color:#fa8587}
+.git-diff-hunk{background:#243c43;color:#b5deed;border-left-color:#79b0d1}
+.git-diff-meta{background:#202d32;color:#adc8d1}
+.git-diff-context{color:#d3dfd9}
+.git-diff-unavailable{padding:10px;color:#c2b9a1;font-size:11px;line-height:1.6}
