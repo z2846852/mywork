@@ -531,7 +531,7 @@ public final class MainActivity extends Activity {
         return s == null ? "未知错误" : s.length() > 140 ? s.substring(0, 140) : s;
     }
 
-    private static JSONObject validatedEvent(String request) throws Exception {
+    private JSONObject validatedEvent(String request) throws Exception {
         JSONObject input = new JSONObject(request);
         String date = input.getString("date");
         LocalDate day = LocalDate.parse(date);
@@ -539,13 +539,35 @@ public final class MainActivity extends Activity {
             throw new IllegalArgumentException("训练日期不合法");
         }
         String id = input.getString("exercise_id");
-        String ex;
+        String ex = id, customLabel = null, customRegion = null;
         switch (id) {
             case "adductor": case "abductor": case "lateral_raise": case "row":
-            case "assisted_pullup": case "smith_bench": case "chest_press":
-            case "pec_deck": case "reverse_fly": case "vertical_traction":
-                ex = id; break;
-            default: throw new IllegalArgumentException("暂不支持该训练动作");
+            case "assisted_pullup": case "assisted_dip":
+            case "smith_bench": case "chest_press": case "pec_deck":
+            case "reverse_fly": case "vertical_traction":
+            case "prone_leg_curl": case "seated_leg_curl": case "hip_thrust":
+            case "leg_press": case "leg_press_45": case "single_leg_press":
+            case "leg_extension": case "shoulder_press": case "incline_chest_press":
+            case "horizontal_bench": case "barbell_bench": case "dumbbell_bench":
+            case "incline_dumbbell_bench": case "decline_bench":
+            case "front_raise": case "rear_delt_fly":
+            case "dumbbell_shoulder_press": case "overhead_press": case "face_pull":
+                break;
+            default:
+                if (!id.matches("custom_[a-z0-9]{8,32}")) {
+                    throw new IllegalArgumentException("未知训练动作，请在动作管理中新增");
+                }
+                JSONArray configured = plain.getCatalog().optJSONArray("custom");
+                boolean found = false;
+                if (configured != null) for (int i=0; i<configured.length(); ++i) {
+                    JSONObject option = configured.getJSONObject(i);
+                    if (id.equals(option.optString("id"))) {
+                        customLabel = option.optString("label");
+                        customRegion = option.optString("region");
+                        found = true;break;
+                    }
+                }
+                if (!found) throw new IllegalArgumentException("自定义动作不存在，请先保存动作目录");
         }
         int reps = input.getInt("reps");
         double kg = input.getDouble("kg");
@@ -559,8 +581,13 @@ public final class MainActivity extends Activity {
         result.put("id", UUID.randomUUID().toString());
         result.put("date", date);
         result.put("exercise_id", ex);
+        if (customLabel != null) {
+            result.put("exercise_label", customLabel);
+            result.put("exercise_region", customRegion);
+        }
         result.put("reps", reps);
-        result.put(ex.equals("assisted_pullup") ? "assistance_kg" : "load_kg", kg);
+        result.put(ex.equals("assisted_pullup") || ex.equals("assisted_dip") ?
+                "assistance_kg" : "load_kg", kg);
         result.put("created_at", OffsetDateTime.now(BEIJING).toString());
         result.put("source", "bodytrace-android");
         return result;
