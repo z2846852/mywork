@@ -531,6 +531,85 @@ public final class MainActivity extends Activity {
         return s == null ? "未知错误" : s.length() > 140 ? s.substring(0, 140) : s;
     }
 
+    private static JSONObject validateCatalog(String request) throws Exception {
+        JSONObject input = new JSONObject(request);
+        if (input.optInt("schema_version", 1) != 1) {
+            throw new IllegalArgumentException("动作库 JSON 版本不兼容");
+        }
+        String mode = input.optString("sort_mode", "recent");
+        if (!"recent".equals(mode) && !"region".equals(mode)) {
+            throw new IllegalArgumentException("动作排序方式不合法");
+        }
+        JSONArray custom = input.optJSONArray("custom");
+        if (custom == null) custom = new JSONArray();
+        if (custom.length() > 64) throw new IllegalArgumentException("自定义动作最多64项");
+        JSONArray hidden = input.optJSONArray("hidden");
+        if (hidden == null) hidden = new JSONArray();
+        if (hidden.length() > 128) throw new IllegalArgumentException("隐藏动作数量超出限制");
+
+        JSONArray sanitizedCustom = new JSONArray();
+        java.util.HashSet<String> ids = new java.util.HashSet<>();
+        for (int i=0; i<custom.length(); ++i) {
+            JSONObject item = custom.getJSONObject(i);
+            String id = item.optString("id");
+            String label = item.optString("label").trim();
+            String region = item.optString("region").trim();
+            if (!id.matches("custom_[a-z0-9]{8,32}") || !ids.add(id) ||
+                    label.isEmpty() || label.length()>60 ||
+                    label.matches("(?s).*?[\\p{Cntrl}].*") ||
+                    !("胸".equals(region)||"肩".equals(region)||"背".equals(region)||
+                      "腿".equals(region)||"手臂".equals(region)||
+                      "核心".equals(region)||"其他".equals(region))) {
+                throw new IllegalArgumentException("自定义动作 ID、名称或部位不合法");
+            }
+            JSONObject entry = new JSONObject();
+            entry.put("id", id);entry.put("label",label);entry.put("region",region);
+            sanitizedCustom.put(entry);
+        }
+        java.util.HashSet<String> hideIds = new java.util.HashSet<>();
+        JSONArray sanitizedHidden = new JSONArray();
+        for (int i=0; i<hidden.length(); ++i) {
+            String id = hidden.getString(i);
+            if (!id.matches("[a-z][a-z0-9_]{1,50}")) {
+                throw new IllegalArgumentException("隐藏动作标识不合法");
+            }
+            if (hideIds.add(id)) sanitizedHidden.put(id);
+        }
+        JSONObject result = new JSONObject();
+        result.put("schema_version", 1);
+        result.put("sort_mode", mode);
+        result.put("custom",sanitizedCustom);
+        result.put("hidden",sanitizedHidden);
+        return result;
+    }
+
+    private void sendCatalog(JSONObject catalog) throws Exception {
+        JSONObject response = message("exercise_catalog");
+        response.put("catalog",catalog);
+        reply(response);
+    }
+
+    /** Prefer local unsynced catalog over remote; otherwise pull the shared GitHub file. */
+    private void syncExerciseCatalog(String token) throws Exception {
+        JSONObject local = plain.getCatalog();
+        if (local.optBoolean("_dirty", false)) {
+            github.writeExerciseCatalog(token,local);
+            local.put("_dirty",false);
+            plain.putCatalog(local);
+            sendCatalog(local);
+        } else {
+            JSONObject remote = github.readExerciseCatalog(token);
+            if (remote != null) {
+                JSONObject clean = validateCatalog(remote.toString());
+                clean.put("_dirty",false);
+                plain.putCatalog(clean);
+                sendCatalog(clean);
+            } else {
+                sendCatalog(local);
+            }
+        }
+    }
+
     private JSONObject validatedEvent(String request) throws Exception {
         JSONObject input = new JSONObject(request);
         String date = input.getString("date");
