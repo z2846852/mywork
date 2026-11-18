@@ -127,4 +127,86 @@ assert.deepEqual(Array.from(sorting(sample),g=>g.id),[
  "adductor","row","chest_press","lateral_raise"
 ]);
 assert.deepEqual(Array.from(sorting([]),g=>g.id),[]);
+
+// UI behavior regression: actual catalog controller under a minimal DOM.
+assert.ok(html.includes('<option value="">全部动作</option>'));
+assert.ok(html.includes('if(trainingFormDirty&&!force)return;'));
+assert.ok(html.includes('if(dates.length&&!state.calendarBrowsing)'));
+assert.ok(html.includes('state.calendarBrowsing=true;state.selected=day'));
+assert.ok(html.includes('!exercise_id||'),"Cannot save when the selected action disappeared");
+function element(tag="div"){
+ return {
+  tagName:tag,value:"",textContent:"",children:[],dataset:{},style:{},listeners:{},
+  classList:{add(){},remove(){}},
+  append(...items){this.children.push(...items)},
+  replaceChildren(){this.children=[];this.value=""},
+  addEventListener(kind,fn){this.listeners[kind]=fn}
+ };
+}
+const nodeIds=["recordGroup","recordExercise","recordSortMode","exerciseManageList",
+ "suggestedLoad","manageExercises","closeExerciseManager","exerciseManager",
+ "addCustomExercise","customActionName","customActionRegion","recordKg","recordReps",
+ "recordSets","recordDate","weightLabel"];
+const nodes=Object.fromEntries(nodeIds.map(id=>[id,element(
+ ["recordGroup","recordExercise","recordSortMode"].includes(id)?"select":"div")]));
+const catalogContext={
+ state:{rows:[]},
+ document:{getElementById:id=>nodes[id],createElement:element},
+ exerciseLabels:{chest_press:"Chest Press",lateral_raise:"Lateral Raise",
+   row:"Seated Row",leg_extension:"Leg Extension"},
+ exerciseRegionById:{chest_press:"胸",lateral_raise:"肩",row:"背",leg_extension:"腿"},
+ recordExerciseTouched:false,weightEditedByUser:false,repsEditedByUser:false,
+ trainingFormDirty:false,
+ window:{BodyTraceNative:{saveCatalog(){}},bodyTraceReceive(){}},
+ clearTrainingEdits(){this.trainingFormDirty=false;this.weightEditedByUser=false;this.repsEditedByUser=false},
+ refreshExerciseRecommendation(force){if(force){nodes.recordKg.value="auto";nodes.recordReps.value="auto"}},
+ toast(){}
+};
+// JS sees these as free functions, not methods, so bind explicitly.
+catalogContext.clearTrainingEdits=()=>{
+ catalogContext.trainingFormDirty=false;
+ catalogContext.weightEditedByUser=false;
+ catalogContext.repsEditedByUser=false;
+};
+vm.runInNewContext(catalogJS,catalogContext);
+const selectIds=()=>Array.from(nodes.recordExercise.children,item=>item.value);
+assert.equal(nodes.recordGroup.value,"","Default muscle filter must be All");
+catalogContext.state.rows=[
+ {exercise_id:"row",session_date:"2026-11-01"},
+ {exercise_id:"lateral_raise",session_date:"2026-11-17"},
+ {exercise_id:"leg_extension",session_date:"2026-11-18"}
+];
+catalogContext.window.BodyTraceExerciseCatalog.refresh(catalogContext.state.rows);
+assert.deepEqual(selectIds().slice(0,3),["leg_extension","lateral_raise","row"],
+ "All movements should be sorted newest-first");
+assert.equal(nodes.recordExercise.value,"leg_extension");
+// While typing, a remote workout or catalog refresh must not switch action or override inputs.
+catalogContext.trainingFormDirty=true;
+catalogContext.recordExerciseTouched=true;
+nodes.recordExercise.value="lateral_raise";
+nodes.recordKg.value="32";nodes.recordReps.value="7";
+catalogContext.state.rows.push({exercise_id:"row",session_date:"2026-11-19"});
+catalogContext.window.BodyTraceExerciseCatalog.refresh(catalogContext.state.rows);
+assert.equal(nodes.recordExercise.value,"lateral_raise");
+assert.equal(nodes.recordKg.value,"32");assert.equal(nodes.recordReps.value,"7");
+catalogContext.window.BodyTraceExerciseCatalog.apply({sort_mode:"region",custom:[],hidden:[]});
+assert.equal(nodes.recordExercise.value,"lateral_raise");
+assert.equal(nodes.recordKg.value,"32");assert.equal(nodes.recordReps.value,"7");
+// Switching the group intentionally selects the latest in that group.
+catalogContext.trainingFormDirty=false;
+nodes.recordGroup.value="腿";nodes.recordGroup.listeners.change();
+assert.deepEqual(selectIds(),["leg_extension"]);
+assert.equal(nodes.recordExercise.value,"leg_extension");
+// A hidden exercise must not turn an in-progress draft into a different exercise.
+catalogContext.trainingFormDirty=true;
+catalogContext.recordExerciseTouched=true;
+nodes.recordKg.value="35";nodes.recordReps.value="12";
+catalogContext.window.BodyTraceExerciseCatalog.apply({
+ sort_mode:"recent",custom:[],hidden:["leg_extension"]
+});
+assert.equal(nodes.recordExercise.value,"");
+assert.equal(nodes.recordKg.value,"35");
+catalogContext.window.BodyTraceExerciseCatalog.refresh(catalogContext.state.rows);
+assert.equal(nodes.recordExercise.value,"");
+assert.equal(nodes.recordReps.value,"12");
 console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/restore/delete actions, leg extension, body schematic, wheel and fixed Release signing.");
