@@ -73,7 +73,7 @@ public final class MainActivity extends Activity {
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
             String js = readAsset("wheel.js") + "\n" + readAsset("features.js") +
-                    "\n" + readAsset("exercise_catalog.js");
+                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             // The friendly cartoon avatar is a local SVG; no heavy GLB or
             // third-party scripts are loaded in the 2D release.
