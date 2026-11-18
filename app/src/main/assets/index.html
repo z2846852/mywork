@@ -76,6 +76,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="formgrid exercise-top-row">
  <div class="field"><label for="recordGroup">训练部位</label>
  <select id="recordGroup" aria-label="先选训练部位">
+ <option value="">全部 · 最近使用</option>
  <option value="胸">胸</option><option value="肩">肩</option><option value="背">背</option>
  <option value="腿">腿</option><option value="手臂">手臂</option>
  <option value="核心">核心</option><option value="其他">其他</option></select></div>
@@ -87,7 +88,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <option value="recent">最近使用</option><option value="region">按部位</option>
  </select><button type="button" class="secondary mini" id="manageExercises">管理 / 删除动作</button>
  </div>
- <p class="sub">先选部位、再选动作；隐藏动作不会删除历史训练。</p>
+ <p class="sub">默认“全部”展示所有动作，按最近使用排序；也可先选部位再选动作。</p>
  <div id="exerciseManager" class="exercise-manager panel inner" hidden>
  <div class="row"><h3>动作管理</h3><button type="button" id="closeExerciseManager" class="mini">完成</button></div>
  <p class="sub">内置动作可以隐藏或恢复；自定义动作可以永久移出目录，但历史训练仍然保留。</p>
@@ -265,7 +266,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[],rawNotes:[]};
+const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[],rawNotes:[],calendarBrowsing:false};
 // Convert authoritative JSON v2 into a stable UI model. No CSV conversion.
 const exerciseLabels={
  adductor:"坐姿髋内收机（Adductor）",abductor:"坐姿髋外展机（Abductor）",
@@ -362,6 +363,10 @@ function renderStatus(){
 function filtered(){return state.rows.filter(r=>!state.filter||r.exercise===state.filter)}
 // Latest saved record is the next default; no need for a separate preference file.
 let weightEditedByUser=false,repsEditedByUser=false;
+let trainingFormDirty=false;
+function clearTrainingEdits(){
+ trainingFormDirty=false;weightEditedByUser=false;repsEditedByUser=false;
+}
 function loadRecommendation(rows,id){
  const assist=id==="assisted_pullup"||id==="assisted_dip",key=assist?"assistance_kg":"load_kg";
  const items=rows.map((row,index)=>({row,index})).filter(x=>x.row.exercise_id===id&&/^\d{4}-\d{2}-\d{2}$/.test(x.row.session_date||"")&&x.row[key]!==""&&x.row[key]!==undefined&&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
@@ -379,6 +384,7 @@ function historicalRecommendation(rows,id){
  return {amount:weights[Math.floor((weights.length-1)/2)],count:weights.length,isAssist:assist};
 }
 function refreshExerciseRecommendation(force=false){
+ if(trainingFormDirty&&!force)return;
  const id=$("recordExercise").value;
  $("weightLabel").textContent=id==="assisted_pullup"||id==="assisted_dip"?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
  const last=loadRecommendation(state.rows,id);
@@ -386,12 +392,14 @@ function refreshExerciseRecommendation(force=false){
  if(force||!repsEditedByUser)$("recordReps").value=last?String(last.reps):"10";
  $("suggestedLoad").textContent=last?"沿用上次 "+last.amount+"kg × "+last.reps+"次（非训练建议）；Reset 使用旧版10组规则。":"无历史重量，请手动填写；次数默认10次。";
 }
-$("recordKg").addEventListener("input",()=>weightEditedByUser=true);
-$("recordReps").addEventListener("input",()=>repsEditedByUser=true);
+$("recordKg").addEventListener("input",()=>{weightEditedByUser=true;trainingFormDirty=true;});
+$("recordReps").addEventListener("input",()=>{repsEditedByUser=true;trainingFormDirty=true;});
+$("recordSets").addEventListener("input",()=>{trainingFormDirty=true;});
+$("recordDate").addEventListener("input",()=>{trainingFormDirty=true;});
 $("resetTrainingDefault").onclick=()=>{
  const old=historicalRecommendation(state.rows,$("recordExercise").value);
  $("recordKg").value=old?String(old.amount):"";$("recordReps").value="10";
- weightEditedByUser=true;repsEditedByUser=true;
+ weightEditedByUser=true;repsEditedByUser=true;trainingFormDirty=true;
  $("suggestedLoad").textContent=old?"Reset：最近"+old.count+"组低中位 "+old.amount+"kg × 10次（仅本次输入）。":"Reset：无历史重量，次数恢复10次。";
 };
 function indexData(){
@@ -419,8 +427,8 @@ function indexData(){
  }
  $("filter").value=old;
  const dates=valid.map(r=>r.session_date).sort();
- if(dates.length)state.selected=dates[dates.length-1];
- refreshExerciseRecommendation(false);renderHeat(true);renderDay();
+ if(dates.length&&!state.calendarBrowsing)state.selected=dates[dates.length-1];
+ refreshExerciseRecommendation(false);renderHeat(!state.calendarBrowsing);renderDay();
 }
 function renderHeat(focusLatest=false){
  const entries=filtered(),counts=new Map();
@@ -436,7 +444,7 @@ function renderHeat(focusLatest=false){
    cell.type="button";cell.className="cell"+(state.selected===day?" active":"")+(day>today?" dim":"");
    cell.dataset.level=String(count===0?0:count<=2?1:count<=5?2:count<=8?3:4);
    cell.title=day+" · "+count+"组";cell.setAttribute("aria-label",cell.title);
-   cell.onclick=()=>{state.selected=day;renderHeat();renderDay()};heat.append(cell);
+   cell.onclick=()=>{state.calendarBrowsing=true;state.selected=day;renderHeat();renderDay()};heat.append(cell);
   }
  }
  if(focusLatest)focusCalendarLatest();
@@ -555,8 +563,8 @@ $("saveRaw").onclick=()=>{
  BodyTraceNative.saveRaw(value);
 };
 $("filter").onchange=e=>{state.filter=e.target.value;renderHeat();renderDay()};
-$("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.selected=ds.at(-1)||today;renderHeat(true);renderDay()};
-$("recordExercise").onchange=()=>{recordExerciseTouched=true;weightEditedByUser=false;repsEditedByUser=false;refreshExerciseRecommendation(true)};
+$("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.calendarBrowsing=false;state.selected=ds.at(-1)||today;renderHeat(true);renderDay()};
+$("recordExercise").onchange=()=>{recordExerciseTouched=true;clearTrainingEdits();refreshExerciseRecommendation(true)};
 function openTrainingWheel(elementId, title, min, max, step, unit){
  if(!window.BodyTraceWheel){toast("滚轮尚未初始化，请重新打开 App",true);return}
  const input=$(elementId);
@@ -576,7 +584,7 @@ $("saveRecord").onclick=()=>{
  const date=$("recordDate").value,exercise_id=$("recordExercise").value,
    kg=Number($("recordKg").value),reps=Number($("recordReps").value),
    sets=Number($("recordSets").value);
- if(!date||!$("recordKg").value||!Number.isFinite(kg)||kg<0||kg>500||
+ if(!date||!exercise_id||!$("recordKg").value||!Number.isFinite(kg)||kg<0||kg>500||
     Math.abs(Math.round(kg*10)-kg*10)>0.00001||
     !Number.isInteger(reps)||reps<1||reps>200||
     !Number.isInteger(sets)||sets<1||sets>10){
@@ -633,11 +641,11 @@ window.bodyTraceReceive=function(evt){
   state.pendingEvents.push(...added);
   const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : normaliseDays(evt.days||[]);
   state.rows=parsed.rows;state.measurements=parsed.measurements;state.nutrition=parsed.nutrition;
-  state.hasCache=true;indexData();state.selected=evt.event.date;renderHeat();renderDay();renderBody();
+  state.hasCache=true;state.calendarBrowsing=false;indexData();state.selected=evt.event.date;renderHeat();renderDay();renderBody();
   renderStatus();navigate("home");
   $("sourceLabel").textContent="已保存本机 JSON · "+state.rows.length+"组";
   toast(added.length+"组训练已保存本机"+(state.connected?"，正在逐组同步 GitHub":"，等待连接 GitHub"));
-  weightEditedByUser=false;repsEditedByUser=false;refreshExerciseRecommendation(true);
+  clearTrainingEdits();refreshExerciseRecommendation(true);
   break;
  }
  case "saved":
