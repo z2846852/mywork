@@ -444,6 +444,7 @@ public final class MainActivity extends Activity {
             JSONObject rawHistory = message("raw_history");
             rawHistory.put("notes", localRawNotes());
             reply(rawHistory);
+            sendCatalog(plain.getCatalog());
             // No network pull on startup. Records are still locally available. User controls sync.
         } catch (Exception e) {
             error("本机 JSON 读取或旧版本迁移失败，可先在 GitHub 检查备份。");
@@ -456,6 +457,10 @@ public final class MainActivity extends Activity {
             try { drainPending(token); }
             catch (Exception upload) {
                 error("有记录尚未上传，已保留本地：" + safeMessage(upload));
+            }
+            try { syncExerciseCatalog(token); }
+            catch (Exception catalogError) {
+                error("动作目录尚未同步，保留本机设置：" + safeMessage(catalogError));
             }
             JSONArray remote = github.readDaily(token);
             JSONArray combined = mergeDays(localDays(), remote);
@@ -818,6 +823,10 @@ public final class MainActivity extends Activity {
                     status.put("repo", "z2846852/-");
                     reply(status);
                     replyData(combined, false);
+                    try { syncExerciseCatalog(token); }
+                    catch (Exception catalogError) {
+                        error("动作目录未同步，本机已保留：" + safeMessage(catalogError));
+                    }
                     // Connected App writes upload immediately; new local records
                     // are always saved before network starts.
                     try { drainPending(token); }
@@ -848,6 +857,27 @@ public final class MainActivity extends Activity {
                     reply(out);
                 } catch (Exception e) {
                     error("读取派生 JSON 失败：" + safeMessage(e));
+                }
+            });
+        }
+
+        @JavascriptInterface public void saveCatalog(String catalogJson) {
+            worker.execute(() -> {
+                try {
+                    ensureMigrated();
+                    JSONObject clean = validateCatalog(catalogJson);
+                    clean.put("_dirty",true);
+                    plain.putCatalog(clean);
+                    sendCatalog(clean); // UI responds immediately offline.
+                    String token = vault.read("token");
+                    if (token != null && !token.isEmpty()) {
+                        try { syncExerciseCatalog(token); }
+                        catch (Exception e) {
+                            error("动作设置已保存本机，GitHub 未同步：" + safeMessage(e));
+                        }
+                    }
+                } catch (Exception e) {
+                    error("动作管理保存失败：" + safeMessage(e));
                 }
             });
         }
