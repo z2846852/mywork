@@ -30,7 +30,19 @@ final class ViewProjector {
             case "vertical_traction": return "垂直下拉（Vertical Traction）";
             case "hip_thrust": return "臀推（Hip Thrust）";
             case "leg_press": return "倒蹬（Leg Press）";
-            case "leg_extension": return "坐姿腿屈伸";
+            case "leg_extension": return "坐姿腿屈伸（Leg Extension）";
+            case "seated_leg_curl": return "坐姿腿弯举";
+            case "leg_press_45": return "45°倒蹬";
+            case "single_leg_press": return "单腿倒蹬";
+            case "barbell_bench": return "杠铃平板卧推";
+            case "dumbbell_bench": return "哑铃平板卧推";
+            case "incline_dumbbell_bench": return "上斜哑铃卧推";
+            case "decline_bench": return "下斜卧推";
+            case "front_raise": return "三角肌前束 · 前平举";
+            case "rear_delt_fly": return "三角肌后束 · 反向飞鸟";
+            case "dumbbell_shoulder_press": return "哑铃肩推";
+            case "overhead_press": return "杠铃推举";
+            case "face_pull": return "面拉";
             case "shoulder_press": return "坐姿肩推器";
             case "incline_chest_press": return "上斜胸推器";
             case "horizontal_bench": return "水平卧推机";
@@ -69,6 +81,7 @@ final class ViewProjector {
                     String ex = src.optString("exercise_id", "unknown");
                     item.put("exercise_id", ex);
                     item.put("exercise", src.optString("exercise_label", label(ex)));
+                    item.put("exercise_region", src.optString("exercise_region", ""));
                     item.put("set_no", String.valueOf(i + 1));
                     item.put("reps", src.optString("reps", ""));
                     item.put("load_kg", src.has("load_kg") ? src.get("load_kg").toString() : "");
@@ -88,21 +101,26 @@ final class ViewProjector {
                     item.put("rir_source", rirSource);
                     workouts.put(item);
                     counts.put(date, counts.getOrDefault(date, 0) + 1);
-                    String region;
-                    switch (ex) {
+                    String region = src.optString("exercise_region", "");
+                    if (region.isEmpty()) switch (ex) {
                         case "chest_press": case "smith_bench": case "pec_deck":
                         case "incline_chest_press": case "horizontal_bench":
-                        case "assisted_dip": region = "胸"; break;
+                        case "assisted_dip": case "barbell_bench": case "dumbbell_bench":
+                        case "incline_dumbbell_bench": case "decline_bench":
+                            region = "胸"; break;
                         case "lateral_raise": case "reverse_fly": case "shoulder_press":
+                        case "front_raise": case "rear_delt_fly":
+                        case "dumbbell_shoulder_press": case "overhead_press": case "face_pull":
                             region = "肩"; break;
                         case "row": case "assisted_pullup": case "vertical_traction":
                             region = "背"; break;
                         case "adductor": case "abductor": case "leg_press":
                         case "leg_extension": case "prone_leg_curl": case "hip_thrust":
+                        case "leg_press_45": case "single_leg_press": case "seated_leg_curl":
                             region = "腿"; break;
-                        default: region = null;
+                        default: region = "";
                     }
-                    if (region != null) regionCounts.put(region, regionCounts.get(region) + 1);
+                    if (regionCounts.containsKey(region)) regionCounts.put(region, regionCounts.get(region) + 1);
                     if (src.has("load_kg") && src.has("reps") &&
                             !src.isNull("load_kg") && !src.isNull("reps")) {
                         double load = src.optDouble("load_kg", Double.NaN);
