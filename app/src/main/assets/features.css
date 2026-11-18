@@ -480,3 +480,70 @@
 .git-diff-meta{background:#202d32;color:#adc8d1}
 .git-diff-context{color:#d3dfd9}
 .git-diff-unavailable{padding:10px;color:#c2b9a1;font-size:11px;line-height:1.6}
+
+/* Compact app chrome: one line of context plus connectivity indicator. */
+.quick-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+ padding:5px 0 8px;border-bottom:1px solid #27433b;min-height:36px}
+.quick-head-intro{font-size:12px;letter-spacing:.02em;font-weight:700;color:#c4e4d4;white-space:nowrap}
+.quick-head .status{margin:0;display:flex;justify-content:flex-end;align-items:center;
+ gap:5px;min-width:0;font-size:10px;white-space:nowrap}
+.quick-head #pendingStatus{color:#edb47b}
+@media(max-width:365px){.quick-head-intro{font-size:11px}.quick-head .status{font-size:9px}}
+
+/* Save remains tappable above the bottom navigation, without scrolling the form. */
+#page-record{padding-bottom:104px}
+.record-panel{padding-top:15px}
+.record-panel .field{margin-top:10px}
+.record-panel .field label{margin-bottom:5px}
+.record-panel .exercise-actions-row{margin:4px 0 7px}
+.record-hint{font-size:11px}
+.record-save-dock{position:fixed;left:0;right:0;bottom:calc(67px + env(safe-area-inset-bottom, 0px));
+ display:flex;justify-content:center;z-index:6;padding:9px 16px 6px;
+ background:linear-gradient(to bottom,rgba(11,22,21,.88),rgba(13,23,23,.98));
+ border-top:1px solid #345948;backdrop-filter:blur(10px)}
+.record-save-dock #saveRecord{width:min(100%,620px);margin:0;padding:13px 16px;
+ box-shadow:0 4px 22px rgba(25,173,108,.23);font-size:15px;min-height:47px}
+@media(min-width:740px){.record-save-dock{left:50%;right:auto;
+ transform:translateX(-50%);width:min(100%,720px);border-radius:16px 16px 0 0}}
+
+/* Dashboard shows four comparable activity summaries; never sums machine kg. */
+.overview-panel{background:linear-gradient(145deg,#152a28,#121f25 72%);
+ border-color:#386558}
+.training-overview{border:1px solid #3e7762;border-radius:16px;padding:14px 15px;
+ margin-top:16px;background:radial-gradient(ellipse at 100% 0%,#275645 0%,#18342f 58%,#142322 100%);
+ display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.training-overview-main{font-size:12px;color:#b8d4c6}
+.training-overview-main strong{display:block;font-size:33px;color:#78f3b5;line-height:1.25;font-variant-numeric:tabular-nums}
+.training-overview-stat{text-align:right;font-size:11px;color:#b5d1c3;line-height:1.65}
+.training-overview-stat b{color:#f3fff8;font-variant-numeric:tabular-nums}
+.region-trend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.region-overview-card{--accent:#65dfac;--dark:#17362b;min-width:0;
+ border:1px solid #355850;border-radius:16px;padding:12px 10px 11px;
+ background:linear-gradient(160deg,var(--dark),#112321 82%);overflow:hidden}
+.region-overview-card.region-chest{--accent:#f39a8c;--dark:#3c282c}
+.region-overview-card.region-shoulder{--accent:#b6a1f4;--dark:#2c2a42}
+.region-overview-card.region-back{--accent:#74d5f6;--dark:#1e3543}
+.region-overview-card.region-leg{--accent:#84e6aa;--dark:#1b3e31}
+.region-overview-heading{display:flex;align-items:center;justify-content:space-between;gap:5px;
+ font-size:14px;font-weight:800;color:#ecfff3}
+.region-overview-heading small{font-size:9px;color:var(--accent);font-weight:600}
+.region-overview-count{font-size:28px;letter-spacing:-.04em;color:var(--accent);
+ font-weight:850;line-height:1.25;font-variant-numeric:tabular-nums;margin-top:5px}
+.region-overview-count span{font-size:11px;letter-spacing:0;color:#a5c1b5;font-weight:500;margin-left:4px}
+.region-overview-spark{display:block;width:100%;height:auto;max-height:104px;margin:4px 0 1px}
+.region-overview-meta{font-size:10px;line-height:1.55;color:#b5cdc2}
+.region-overview-latest{font-size:10px;color:#e8faf0;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+@media(min-width:780px){.region-trend-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* Clickable muscle target diagram and its accessible text selector. */
+.muscle-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:10px 0 11px}
+.muscle-legend-btn{display:flex;align-items:center;justify-content:space-between;gap:5px;
+ min-width:0;padding:8px 9px;border:1px solid #315b49;border-radius:9px;
+ background:#152d27;color:#bddbcb;text-align:left;font-size:11px;line-height:1.4}
+.muscle-legend-btn strong{flex-shrink:0;font-variant-numeric:tabular-nums;color:#79ecb0}
+.muscle-legend-btn.selected{background:#25503c;border-color:#8ff5b3;color:#f5fff9;
+ box-shadow:inset 0 0 0 1px #72d9a0}
+.muscle-path{stroke:#557966;stroke-width:1.35;stroke-linejoin:round}
+.muscle-path.selected{stroke:#fff;stroke-width:2.5;filter:drop-shadow(0 0 3px rgba(255,255,255,.65))}
+@media(min-width:580px){.muscle-legend{grid-template-columns:repeat(3,minmax(0,1fr))}}
