@@ -295,7 +295,8 @@ function oneRow(entry,date){
   rir:entry.rir===undefined||entry.rir===null?"":String(entry.rir),
   rir_source:entry.rir_source||((entry.rir===undefined&&Number(entry.reps)<15)?"user_rule_under_15":""),
   approx:entry.approx===true,origin:entry.origin||"",
-  created_at:entry.created_at||"",source:entry.source||"daily-json"};
+  created_at:entry.created_at||"",exercise_region:entry.exercise_region||"",
+  source:entry.source||"daily-json"};
 }
 function normaliseDays(days){
  const rows=[],measurements=[],nutrition=[];
