@@ -79,6 +79,67 @@ const manifest=fs.readFileSync(path.join(root,"app/src/main/AndroidManifest.xml"
 assert.ok(!manifest.includes('android.intent.action.SEND'),"No stale image-share registration in schematic-only App");
 assert.ok(native.includes("saveBatch(String batchJson)")&&native.includes("saveMeasurement(String measurementJson)"));
 assert.ok(features.includes("bodyEdited")&&features.includes("saveMeasurement("));
+// Compact chrome, always reachable save, and distinct muscle categories.
+const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
+assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),
+ "App chrome should be a single small line, not a tall page title");
+assert.ok(html.includes('class="record-save-dock"')&&
+ featureStyles.includes(".record-save-dock{position:fixed;"),
+ "Save must be bottom-docked above the fixed navigation");
+assert.ok(featureStyles.includes("env(safe-area-inset-bottom"),
+ "Fixed action must account for device safe-area inset");
+assert.ok(html.includes('id="trainingOverview"')&&html.includes('id="regionTrendGrid"'));
+assert.ok(html.includes('id="muscleLegend"'));
+const chartStart=features.indexOf("const dashboardRegions=");
+const chartEnd=features.indexOf("function renderRegionSummary()",chartStart);
+assert.ok(chartStart>=0&&chartEnd>chartStart);
+const chartFuncs=vm.runInNewContext(features.slice(chartStart,chartEnd)+
+ "\ncomputeRegionDashboard",{
+  today:"2026-11-18",
+  plus:(s,n)=>new Date(Date.parse(s+"T12:00:00Z")+n*86400000).toISOString().slice(0,10),
+  parse:s=>new Date(s+"T12:00:00Z"),
+  categoryForRow:r=>({
+   adductor:"腿",abductor:"腿",chest_press:"胸",
+   lateral_raise:"肩",row:"背"
+  })[r.exercise_id],
+  exerciseLabels:{adductor:"髋内收",abductor:"髋外展",chest_press:"胸推",
+   lateral_raise:"侧平举",row:"划船"}
+});
+const chartStats=chartFuncs([
+ {exercise_id:"adductor",session_date:"2026-11-18"},
+ {exercise_id:"abductor",session_date:"2026-11-17"},
+ {exercise_id:"chest_press",session_date:"2026-11-17"},
+ {exercise_id:"lateral_raise",session_date:"2026-10-28"},
+ {exercise_id:"row",session_date:"2026-10-18"},
+ {exercise_id:"row",session_date:"2026-09-01"}
+],"2026-11-18");
+assert.deepEqual(Array.from(chartStats.cards,c=>c.region),["胸","肩","背","腿"]);
+assert.deepEqual(Array.from(chartStats.cards,c=>c.total28),[1,1,0,2]);
+assert.deepEqual(Array.from(chartStats.cards,c=>c.previous28),[0,0,1,0]);
+assert.equal(chartStats.total28,4);
+assert.equal(chartStats.activeDays,3);
+assert.equal(chartStats.cards[3].last7,2);
+assert.equal(chartStats.cards[2].last7,0);
+assert.ok(features.includes('renderRegionDashboard();renderStrength();'),
+ "The overview must refresh whenever training records refresh");
+const targetsStart=features.indexOf("const muscleTargets=");
+const targetsEnd=features.indexOf("const musclePaths=",targetsStart);
+assert.ok(targetsStart>=0&&targetsEnd>targetsStart);
+const targetFor=vm.runInNewContext(features.slice(targetsStart,targetsEnd)+
+ "\ntargetForExercise");
+assert.equal(targetFor("adductor"),"髋内收肌群");
+assert.equal(targetFor("abductor"),"髋外展肌群");
+assert.equal(targetFor("leg_extension"),"股四头肌");
+assert.equal(targetFor("prone_leg_curl"),"腘绳肌群");
+assert.equal(targetFor("custom_unknown"),null,"Never infer muscle target of an unknown action");
+const pathsStart=features.indexOf("const musclePaths=");
+const pathsEnd=features.indexOf("function strengthShade(",pathsStart);
+const anatomy=vm.runInNewContext(features.slice(pathsStart,pathsEnd)+"\nmusclePaths");
+assert.ok(anatomy.front.some(([label])=>label==="髋内收肌群"));
+assert.ok(anatomy.back.some(([label])=>label==="髋外展肌群"));
+assert.ok(anatomy.front.some(([label])=>label==="股四头肌"));
+assert.ok(anatomy.back.some(([label])=>label==="腘绳肌群"));
+
 const github=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
 assert.ok(github.includes('isMeasurement ? "measurements"'));
 const projection=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
