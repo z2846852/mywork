@@ -59,36 +59,41 @@
    return compareUsage(a,b,recent);
   });
  }
- function rebuild(rows,keepSelection=true){
-  const select=$("recordExercise");
-  const before=select.value;
-  const hidden=new Set(config.hidden);
-  const sorted=order(allActions().filter(a=>!hidden.has(a.id)),rows||[]);
-  select.replaceChildren();
-  for(const entry of sorted){
-   const option=document.createElement("option");
-   option.value=entry.id;
-   option.textContent="【"+entry.region+"】"+entry.label;
-   select.append(option);
-   // Common and user-added training names are also used by charts.
-   exerciseLabels[entry.id]=entry.label;
-   exerciseRegionById[entry.id]=entry.region;
-  }
-  if(keepSelection&&recordExerciseTouched&&sorted.some(a=>a.id===before)){
-   select.value=before;
-  }else if(sorted.length){
-   select.value=sorted[0].id;
-  }
-  if(!sorted.length){
-   const option=document.createElement("option");
-   option.value="";option.textContent="没有可选动作，请在动作管理中恢复";
-   select.append(option);
-  }
-  $("recordSortMode").value=config.sort_mode;
-  refreshExerciseRecommendation(false);
-  renderManager();
+ let groupTouched=false;
+function rebuild(rows,keepSelection=true){
+ const select=$("recordExercise"),groupSelect=$("recordGroup");
+ const previous=select.value,oldGroup=groupSelect.value;
+ const sorted=order(allActions().filter(a=>!new Set(config.hidden).has(a.id)),rows||[]);
+ if(!groupTouched){
+  const prior=recordExerciseTouched?sorted.find(a=>a.id===previous):null;
+  const preferred=prior||sorted[0];
+  if(preferred)groupSelect.value=preferred.region;
  }
- function commit(){
+ const group=groupSelect.value,visible=sorted.filter(a=>a.region===group);
+ select.replaceChildren();
+ for(const entry of visible){
+  const option=document.createElement("option");
+  option.value=entry.id;option.textContent="【"+entry.region+"】"+entry.label;
+  select.append(option);
+ }
+ for(const entry of allActions()){
+  exerciseLabels[entry.id]=entry.label;exerciseRegionById[entry.id]=entry.region;
+ }
+ const same=keepSelection&&recordExerciseTouched&&visible.some(a=>a.id===previous);
+ if(same)select.value=previous;else if(visible.length)select.value=visible[0].id;
+ if(!visible.length){
+  const option=document.createElement("option");
+  option.value="";option.textContent="该部位暂无动作；请到管理中恢复";
+  select.append(option);
+ }
+ $("recordSortMode").value=config.sort_mode;
+ if(!same||oldGroup!==group){
+  weightEditedByUser=false;repsEditedByUser=false;
+  refreshExerciseRecommendation(true);
+ }else refreshExerciseRecommendation(false);
+ renderManager();
+}
+function commit(){
   rebuild(state.rows);
   if(window.BodyTraceNative?.saveCatalog){
    BodyTraceNative.saveCatalog(JSON.stringify(config));
@@ -147,7 +152,12 @@
   }
   rebuild(state.rows,false);
  }
- $("recordSortMode").addEventListener("change",e=>{
+ $("recordGroup").addEventListener("change",()=>{
+ groupTouched=true;recordExerciseTouched=false;
+ weightEditedByUser=false;repsEditedByUser=false;
+ rebuild(state.rows,false);
+});
+$("recordSortMode").addEventListener("change",e=>{
   config.sort_mode=e.target.value==="region"?"region":"recent";
   // Changing sort must not unexpectedly change the selected action.
   recordExerciseTouched=true;commit();
@@ -175,7 +185,8 @@
   config.hidden=config.hidden.filter(x=>x!==id);
   deleteConfirmId="";
   recordExerciseTouched=true;
-  // Select the new action after immediately rebuilding the options.
+  // Select the new action within its assigned muscle group.
+  $("recordGroup").value=region;groupTouched=true;
   rebuild(state.rows,false);
   $("recordExercise").value=id;
   refreshExerciseRecommendation(true);
