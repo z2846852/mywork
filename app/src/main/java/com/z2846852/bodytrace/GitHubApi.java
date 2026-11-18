@@ -164,6 +164,60 @@ final class GitHubApi {
         }
         throw new IllegalStateException("Concurrent daily file update did not settle");
     }
+    /** Fetch the latest 10 commit snapshots and their changed-file diffs from private data repo. */
+    JSONArray readRecentCommits(String token) throws Exception {
+        JSONArray listing = new JSONArray(request(
+                "GET", REPO + "/commits?sha=main&per_page=10", token, null));
+        JSONArray result = new JSONArray();
+        for (int i = 0; i < listing.length() && i < 10; ++i) {
+            JSONObject item = listing.getJSONObject(i);
+            String sha = item.getString("sha");
+            if (!sha.matches("[0-9a-f]{40}")) {
+                throw new IllegalStateException("Git SHA 格式不合法");
+            }
+            JSONObject out = new JSONObject();
+            out.put("sha", sha);
+            JSONObject commit = item.optJSONObject("commit");
+            if (commit != null) {
+                String msg = commit.optString("message", "");
+                int newLine = msg.indexOf('\n');
+                out.put("message", newLine < 0 ? msg : msg.substring(0, newLine));
+                JSONObject author = commit.optJSONObject("author");
+                out.put("date", author == null ? "" : author.optString("date"));
+            }
+            try {
+                JSONObject detail = new JSONObject(request(
+                        "GET", REPO + "/commits/" + sha, token, null));
+                JSONObject stats = detail.optJSONObject("stats");
+                out.put("additions", stats == null ? 0 : stats.optInt("additions"));
+                out.put("deletions", stats == null ? 0 : stats.optInt("deletions"));
+                JSONArray changed = detail.optJSONArray("files");
+                JSONArray files = new JSONArray();
+                if (changed != null) {
+                    for (int n = 0; n < changed.length() && n < 120; ++n) {
+                        JSONObject remote = changed.getJSONObject(n);
+                        JSONObject entry = new JSONObject();
+                        for (String key : new String[]{"filename", "status", "additions", "deletions"}) {
+                            if (remote.has(key)) entry.put(key, remote.get(key));
+                        }
+                        String patch = remote.optString("patch", "");
+                        if (patch.length() > 5000) {
+                            patch = patch.substring(0, 5000) + "\n…（diff 截断）";
+                        }
+                        entry.put("patch", patch);
+                        files.put(entry);
+                    }
+                }
+                out.put("files", files);
+                out.put("incomplete", changed == null || changed.length() > files.length());
+            } catch (Exception detailError) {
+                out.put("detail_error", true);
+            }
+            result.put(out);
+        }
+        return result;
+    }
+
     /** User-editable exercise settings; separate from daily training events. */
     JSONObject readExerciseCatalog(String token) throws Exception {
         String url = REPO + "/contents/data/exercise_catalog.json?ref=main";
@@ -253,7 +307,11 @@ final class GitHubApi {
 
     private String request(String method, String address, String token, String json,
                            boolean allowMissing) throws Exception {
-        if (!address.equals(REPO) && !address.startsWith(REPO + "/contents/")) {
+        boolean allowedLogRead = "GET".equals(method) &&
+                (address.equals(REPO + "/commits?sha=main&per_page=10")
+                 || address.matches(java.util.regex.Pattern.quote(REPO) + "/commits/[0-9a-f]{40}"));
+        if (!address.equals(REPO) && !address.startsWith(REPO + "/contents/")
+                && !allowedLogRead) {
             throw new SecurityException("Unexpected API host/path");
         }
         if (token == null || token.trim().isEmpty()) {
