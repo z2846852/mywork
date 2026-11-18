@@ -432,3 +432,33 @@
  .body-simple-metrics .avatar-metric{padding:9px 7px}
  .body-simple-metrics .avatar-metric strong{font-size:15px}
 }
+
+
+/* Editable movement catalog: compact group-first and recently-used selectors. */
+.exercise-top-row{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:8px}
+.exercise-top-row .field{min-width:0}
+#recordExercise{font-size:11.5px!important;letter-spacing:-.22px;padding:11px 6px}
+#recordSortMode{font-size:11.5px!important;letter-spacing:-.1px;padding:11px 5px}
+.exercise-actions-row{margin:7px 0 12px;justify-content:space-between;gap:10px}
+.exercise-actions-row .sub{font-size:10px;flex:1;line-height:1.5}
+#manageExercises{white-space:nowrap;padding:9px 10px;font-size:11px}
+.exercise-manager[hidden]{display:none!important}
+.exercise-manager{margin:10px 0 17px;border:1px solid #42775e;padding:15px 11px}
+.exercise-manager h3{font-size:15px;margin:0}
+.exercise-manager .primary{margin-top:10px;padding:12px}
+.exercise-manage-list{display:flex;flex-direction:column;gap:5px;margin-top:17px;max-height:410px;overflow:auto}
+.exercise-manage-item{display:flex;align-items:center;justify-content:space-between;
+ min-height:47px;gap:6px;border-bottom:1px solid #2e5042;padding:8px 2px}
+.exercise-manage-name{font-size:12px;line-height:1.55;overflow-wrap:anywhere;flex:1;min-width:0}
+.exercise-manage-name.muted{opacity:.55}
+.exercise-manage-controls{display:flex;gap:5px;flex-shrink:0}
+.exercise-manage-controls .mini{font-size:11px;padding:8px 9px}
+.danger-soft{background:#422f31;color:#f9c5bf;border:1px solid #8b5754;border-radius:8px}
+@media(max-width:390px){
+ .exercise-top-row{gap:5px}
+ #recordExercise{font-size:10.5px!important;padding:10px 4px}
+ #recordSortMode{font-size:10.5px!important;padding:10px 4px}
+ .exercise-manage-item{gap:3px}
+ .exercise-manage-name{font-size:11px}
+ .exercise-manage-controls .mini{padding:7px;font-size:10px}
+}
