@@ -73,18 +73,34 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <section class="page" id="page-record">
 <div class="panel"><div class="eyebrow">NEW SET</div><h2>记录一组训练</h2><p class="sub">写入本地 JSON 后立即更新图表；已配置 GitHub 则尝试即时上传。点击「同步 GitHub」可拉取 ChatGPT 新增的记录。</p>
 <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
-<div class="field"><label for="recordExercise">动作</label><select id="recordExercise">
-<option value="lateral_raise">Lateral Raise · 侧平举</option>
-<option value="adductor">Adductor · 髋内收</option>
-<option value="abductor">Abductor · 髋外展</option>
-<option value="row">Seated Row · 单侧划船</option>
-<option value="assisted_pullup">Assisted Pull-up · 辅助引体</option>
-<option value="smith_bench">Smith Bench Press · 史密斯卧推</option>
-<option value="chest_press">Chest Press · 坐姿胸推</option>
-<option value="pec_deck">Pec Deck · 蝴蝶机正向</option>
-<option value="reverse_fly">Reverse Fly · 反向蝴蝶机</option>
-<option value="vertical_traction">Vertical Traction · 垂直下拉</option>
-</select></div>
+<div class="formgrid exercise-top-row">
+ <div class="field"><label for="recordExercise">动作</label><select id="recordExercise" aria-label="选择训练动作"></select></div>
+ <div class="field"><label for="recordSortMode">排序方式</label><select id="recordSortMode">
+  <option value="recent">最近使用</option>
+  <option value="region">按部位</option>
+ </select></div>
+</div>
+<div class="row wrap exercise-actions-row">
+ <span class="sub">动作列表按需要显示，隐藏动作不会删除任何训练记录。</span>
+ <button type="button" class="secondary mini" id="manageExercises">管理 / 删除动作</button>
+</div>
+<div id="exerciseManager" class="exercise-manager panel inner" hidden>
+ <div class="row"><h3>动作管理</h3><button type="button" id="closeExerciseManager" class="mini">完成</button></div>
+ <p class="sub">内置动作可以隐藏或恢复；自定义动作可以永久移出目录，但历史训练仍然保留。</p>
+ <div class="formgrid">
+  <div class="field"><label for="customActionName">新增动作名称</label><input id="customActionName" maxlength="60" placeholder="例如：单臂哑铃划船"></div>
+  <div class="field"><label for="customActionRegion">训练部位</label>
+   <select id="customActionRegion">
+    <option value="胸">胸</option><option value="肩">肩</option><option value="背">背</option>
+    <option value="腿">腿</option><option value="手臂">手臂</option><option value="核心">核心</option>
+    <option value="其他">其他</option>
+   </select>
+  </div>
+ </div>
+ <button type="button" id="addCustomExercise" class="primary">＋ 新增到动作列表</button>
+ <div id="exerciseManageList" class="exercise-manage-list"></div>
+ <p class="note">动作设置本机即时保存，并同步至 GitHub <span class="code">data/exercise_catalog.json</span>。仅管理动作目录，不删除按天保存的训练组。</p>
+</div>
 <div class="formgrid">
  <div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label>
  <div class="wheel-entry"><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="点此用滚轮选择" readonly aria-label="选择器械重量"><button type="button" id="wheelKgOpen" class="wheel-open" aria-label="打开重量滚轮">▥</button></div></div>
@@ -244,47 +260,30 @@ const exerciseLabels={
  pec_deck:"蝴蝶机夹胸（正向）",reverse_fly:"反向蝴蝶机",
  vertical_traction:"垂直下拉（Vertical Traction）",
  prone_leg_curl:"俯卧腿弯举（Prone Leg Curl）",hip_thrust:"臀推（Hip Thrust）",
- leg_press:"倒蹬（Leg Press）",leg_extension:"坐姿腿屈伸",
+ leg_press:"倒蹬（Leg Press）",leg_extension:"坐姿腿屈伸（Leg Extension）",
  shoulder_press:"坐姿肩推器",incline_chest_press:"上斜胸推器",
- horizontal_bench:"水平卧推机"
+ horizontal_bench:"水平卧推机",
+ barbell_bench:"杠铃平板卧推",dumbbell_bench:"哑铃平板卧推",
+ incline_dumbbell_bench:"上斜哑铃卧推",decline_bench:"下斜卧推",
+ leg_press_45:"45°倒蹬",single_leg_press:"单腿倒蹬",seated_leg_curl:"坐姿腿弯举",
+ front_raise:"三角肌前束 · 前平举",rear_delt_fly:"三角肌后束 · 反向飞鸟",
+ dumbbell_shoulder_press:"哑铃肩推",overhead_press:"杠铃推举",face_pull:"面拉"
 };
 const exerciseRegionById={
  chest_press:"胸",smith_bench:"胸",pec_deck:"胸",incline_chest_press:"胸",
- horizontal_bench:"胸",assisted_dip:"胸",
+ horizontal_bench:"胸",assisted_dip:"胸",barbell_bench:"胸",
+ dumbbell_bench:"胸",incline_dumbbell_bench:"胸",decline_bench:"胸",
  lateral_raise:"肩",reverse_fly:"肩",shoulder_press:"肩",
+ front_raise:"肩",rear_delt_fly:"肩",dumbbell_shoulder_press:"肩",
+ overhead_press:"肩",face_pull:"肩",
  row:"背",assisted_pullup:"背",vertical_traction:"背",
  leg_press:"腿",adductor:"腿",abductor:"腿",leg_extension:"腿",
- prone_leg_curl:"腿",hip_thrust:"腿"
+ prone_leg_curl:"腿",hip_thrust:"腿",leg_press_45:"腿",
+ single_leg_press:"腿",seated_leg_curl:"腿"
 };
-// Mark the muscle group in the exercise selector without changing saved IDs.
-for(const option of $("recordExercise").options){
- const prefix=exerciseRegionById[option.value]||"其他";
- option.textContent="【"+prefix+"】"+option.textContent;
-}
 let recordExerciseTouched=false;
 function orderRecordOptionsByRecent(rows){
- const select=$("recordExercise"),current=select.value;
- const last=new Map();
- rows.forEach((row,index)=>{
-  if(!row.exercise_id||!/^\d{4}-\d{2}-\d{2}$/.test(row.session_date||""))return;
-  const prior=last.get(row.exercise_id);
-  const newRecord={date:row.session_date,created:String(row.created_at||""),index};
-  if(!prior||newRecord.date>prior.date||
-   newRecord.date===prior.date&&(newRecord.created>prior.created||
-    newRecord.created===prior.created&&index>prior.index))
-   last.set(row.exercise_id,newRecord);
- });
- const opts=[...select.options];
- opts.sort((a,b)=>{
-  const one=last.get(a.value),two=last.get(b.value);
-  if(!one&&!two)return 0;
-  if(!one)return 1;if(!two)return -1;
-  return two.date.localeCompare(one.date)||two.created.localeCompare(one.created)||
-   two.index-one.index;
- });
- select.replaceChildren(...opts);
- if(recordExerciseTouched&&opts.some(option=>option.value===current))select.value=current;
- else if(opts.length)select.value=opts[0].value;
+ if(window.BodyTraceExerciseCatalog)window.BodyTraceExerciseCatalog.refresh(rows);
 }
 function oneRow(entry,date){
  const ex=entry.exercise_label||exerciseLabels[entry.exercise_id]||entry.exercise_id||"未知动作";
