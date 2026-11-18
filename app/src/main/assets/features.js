@@ -22,7 +22,7 @@ const exRegion = {
   leg_press:"腿",adductor:"腿",abductor:"腿",leg_extension:"腿",
   prone_leg_curl:"腿",hip_thrust:"腿"
 };
-let selectedRegion = "背";
+let selectedRegion = "髋内收肌群";
 const round1 = v => Math.round(v*10)/10;
 const validNum = x => x !== "" && x !== null && x !== undefined && Number.isFinite(Number(x));
 const safeNum = x => Number(x);
@@ -284,70 +284,128 @@ function renderRegionSummary(){
     row.append(label,track,amount);node.append(row);
   }
 }
+// Exercise-to-primary-target classification. One set is assigned ONE target for
+// visualization only; this is not measured EMG or precise activation of a muscle.
+const muscleTargets={
+ adductor:"髋内收肌群",abductor:"髋外展肌群",
+ leg_extension:"股四头肌",leg_press:"股四头肌",leg_press_45:"股四头肌",
+ single_leg_press:"股四头肌",prone_leg_curl:"腘绳肌群",seated_leg_curl:"腘绳肌群",
+ hip_thrust:"臀大肌",
+ lateral_raise:"三角肌中束",front_raise:"三角肌前束",
+ rear_delt_fly:"三角肌后束",reverse_fly:"三角肌后束",
+ shoulder_press:"三角肌前束",dumbbell_shoulder_press:"三角肌前束",
+ overhead_press:"三角肌前束",face_pull:"三角肌后束",
+ row:"上背肌群",assisted_pullup:"背阔肌",vertical_traction:"背阔肌",
+ chest_press:"胸大肌",smith_bench:"胸大肌",pec_deck:"胸大肌",
+ incline_chest_press:"胸大肌",horizontal_bench:"胸大肌",assisted_dip:"胸大肌",
+ barbell_bench:"胸大肌",dumbbell_bench:"胸大肌",
+ incline_dumbbell_bench:"胸大肌",decline_bench:"胸大肌"
+};
+const muscleLabels=[
+ "胸大肌","三角肌前束","三角肌中束","三角肌后束",
+ "背阔肌","上背肌群","肱二头肌","肱三头肌","腹部肌群",
+ "髋外展肌群","髋内收肌群","臀大肌","股四头肌","腘绳肌群","小腿后群"
+];
+function targetForExercise(id){
+ return muscleTargets[id]||null;
+}
+function muscleCounts(){
+ const start=plus(today,-27),count=Object.fromEntries(muscleLabels.map(label=>[label,0]));
+ for(const row of state.rows){
+  const label=targetForExercise(row.exercise_id);
+  if(label&&row.session_date>=start&&row.session_date<=today)count[label]++;
+ }
+ return count;
+}
+// Simple positional schematic, not a photorealistic or diagnostic anatomy atlas.
+// Particularly, abduction is located at LATERAL HIP, not on outer mid-thigh.
 const musclePaths={
-  front:[
-    ["肩","M35 54 L56 50 L56 69 L39 77 L28 70 Z"],
-    ["肩","M94 50 L115 54 L122 70 L111 77 L94 69 Z"],
-    ["胸","M56 57 L75 60 L75 95 L55 93 L43 79 L56 70 Z"],
-    ["胸","M75 60 L94 57 L107 79 L95 93 L75 95 Z"],
-    ["手臂","M26 73 L40 78 L33 112 L24 132 L14 126 Z"],
-    ["手臂","M110 78 L124 73 L136 126 L126 132 L117 112 Z"],
-    ["核心","M55 97 L75 98 L95 97 L90 144 L60 144 Z"],
-    ["腿","M58 147 L74 147 L74 207 L63 237 L52 232 L49 180 Z"],
-    ["腿","M76 147 L92 147 L102 180 L98 232 L87 237 L76 207 Z"]
-  ],
-  back:[
-    ["肩","M35 54 L56 50 L58 70 L37 77 L28 68 Z"],
-    ["肩","M94 50 L115 54 L122 68 L113 77 L92 70 Z"],
-    ["背","M56 57 L75 64 L94 57 L109 83 L98 118 L75 135 L52 118 L41 83 Z"],
-    ["手臂","M26 73 L40 78 L33 112 L24 132 L14 126 Z"],
-    ["手臂","M110 78 L124 73 L136 126 L126 132 L117 112 Z"],
-    ["核心","M58 135 L75 139 L92 135 L90 144 L60 144 Z"],
-    ["腿","M58 147 L74 147 L74 207 L63 237 L52 232 L49 180 Z"],
-    ["腿","M76 147 L92 147 L102 180 L98 232 L87 237 L76 207 Z"]
-  ]
+ front:[
+  ["三角肌前束","M42 54 Q50 51 56 54 L54 69 L40 77 L35 68 Z"],
+  ["三角肌前束","M94 54 Q101 51 109 54 L115 68 L110 77 L96 69 Z"],
+  ["三角肌中束","M33 57 L42 54 L39 77 L28 72 L26 66 Z"],
+  ["三角肌中束","M108 54 L117 57 L124 66 L122 72 L111 77 Z"],
+  ["胸大肌","M55 70 L73 62 L74 95 L59 96 L43 82 Z"],
+  ["胸大肌","M77 62 L95 70 L107 82 L91 96 L76 95 Z"],
+  ["肱二头肌","M27 79 L37 79 L34 108 L24 121 L19 116 Z"],
+  ["肱二头肌","M113 79 L123 79 L131 116 L126 121 L116 108 Z"],
+  ["腹部肌群","M60 98 L75 100 L90 98 L90 141 L60 141 Z"],
+  ["股四头肌","M52 160 L67 155 L69 197 L62 207 L53 195 L50 177 Z"],
+  ["股四头肌","M83 155 L98 160 L100 177 L97 195 L88 207 L81 197 Z"],
+  ["髋外展肌群","M49 144 L61 145 L61 162 L50 171 L47 157 Z"],
+  ["髋外展肌群","M89 145 L101 144 L103 157 L100 171 L89 162 Z"],
+  ["髋内收肌群","M66 149 L74 153 L74 198 L68 190 L63 162 Z"],
+  ["髋内收肌群","M76 153 L84 149 L87 162 L82 190 L76 198 Z"]
+ ],
+ back:[
+  ["三角肌后束","M34 55 L56 52 L54 72 L37 78 L27 70 Z"],
+  ["三角肌后束","M94 52 L116 55 L123 70 L113 78 L96 72 Z"],
+  ["上背肌群","M60 56 L75 63 L90 56 L101 73 L91 91 L75 98 L59 91 L49 73 Z"],
+  ["背阔肌","M48 78 L61 97 L73 101 L72 129 L54 123 L42 93 Z"],
+  ["背阔肌","M102 78 L108 93 L96 123 L78 129 L77 101 L89 97 Z"],
+  ["肱三头肌","M26 79 L38 81 L34 110 L23 125 L17 118 Z"],
+  ["肱三头肌","M112 81 L124 79 L133 118 L127 125 L116 110 Z"],
+  ["腹部肌群","M60 130 L75 135 L90 130 L91 142 L59 142 Z"],
+  ["臀大肌","M54 149 L74 146 L74 167 L64 175 L52 167 Z"],
+  ["臀大肌","M76 146 L96 149 L98 167 L86 175 L76 167 Z"],
+  ["髋外展肌群","M49 143 L60 143 L60 159 L51 167 L46 157 Z"],
+  ["髋外展肌群","M90 143 L101 143 L104 157 L99 167 L90 159 Z"],
+  ["腘绳肌群","M53 171 L72 175 L70 207 L62 214 L53 203 Z"],
+  ["腘绳肌群","M78 175 L97 171 L97 203 L88 214 L80 207 Z"],
+  ["小腿后群","M54 208 L65 215 L66 230 L57 236 L51 223 Z"],
+  ["小腿后群","M85 215 L96 208 L99 223 L93 236 L84 230 Z"]
+ ]
 };
 function strengthShade(n,max){
-  if(!n)return "#28413a";
-  const alpha=n/max;
-  return alpha>.75?"#54edaa":alpha>.4?"#2dab78":"#206a54";
+ if(!n)return "#28413a";
+ const alpha=n/max;
+ return alpha>.75?"#54edaa":alpha>.4?"#2dab78":"#206a54";
 }
 function drawMuscleMap(){
-  const root=$("bodyMuscleView");root.replaceChildren();
-  const counts=regionalCounts(),max=Math.max(1,...Object.values(counts));
-  for(const orientation of ["front","back"]){
-    const group=document.createElement("div");group.className="muscle-person";
-    const title=document.createElement("small");title.textContent=orientation==="front"?"正面":"背面";
-    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
-    svg.setAttribute("viewBox","0 0 150 250");svg.setAttribute("role","img");
-    svg.setAttribute("aria-label",title.textContent+"训练部位示意");
-    const bg=document.createElementNS("http://www.w3.org/2000/svg","path");
-    bg.setAttribute("d","M51 40 L43 51 L27 55 L13 91 L7 128 L25 140 L42 95 L48 145 L49 184 L53 238 L72 238 L75 181 L78 238 L97 238 L101 184 L102 145 L108 95 L125 140 L143 128 L137 91 L123 55 L107 51 L99 40 Z");
-    bg.setAttribute("fill","#172d29");bg.setAttribute("stroke","#3c6454");
-    svg.append(bg);
-    const head=document.createElementNS("http://www.w3.org/2000/svg","ellipse");
-    head.setAttribute("cx","75");head.setAttribute("cy","23");head.setAttribute("rx","18");head.setAttribute("ry","22");
-    head.setAttribute("fill","#2a493e");head.setAttribute("stroke","#7fa994");svg.append(head);
-    for(const [label,d] of musclePaths[orientation]){
-      const path=document.createElementNS("http://www.w3.org/2000/svg","path");
-      path.setAttribute("d",d);
-      path.setAttribute("fill",strengthShade(counts[label],max));
-      path.setAttribute("class","muscle-path"+(selectedRegion===label?" selected":""));
-      path.setAttribute("tabindex","0");
-      path.setAttribute("role","button");
-      path.setAttribute("aria-label",label+"：最近28天"+counts[label]+"组");
-      const labelEl=document.createElementNS("http://www.w3.org/2000/svg","title");
-      labelEl.textContent=label+" · 最近28天 "+counts[label]+"组";path.append(labelEl);
-      path.addEventListener("click",()=>{selectedRegion=label;drawMuscleMap()});
-      path.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();selectedRegion=label;drawMuscleMap()}});
-      svg.append(path);
-    }
-    group.append(svg,title);root.append(group);
+ const root=$("bodyMuscleView"),legend=$("muscleLegend");
+ root.replaceChildren();legend.replaceChildren();
+ const counts=muscleCounts(),max=Math.max(1,...Object.values(counts));
+ for(const orientation of ["front","back"]){
+  const group=document.createElement("div");group.className="muscle-person";
+  const title=document.createElement("small");title.textContent=orientation==="front"?"正面":"背面";
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("viewBox","0 0 150 250");svg.setAttribute("role","img");
+  svg.setAttribute("aria-label",title.textContent+"细分肌群示意");
+  const bg=document.createElementNS("http://www.w3.org/2000/svg","path");
+  bg.setAttribute("d","M51 40 L43 51 L27 55 L13 91 L7 128 L25 140 L42 95 L48 145 L49 184 L53 238 L72 238 L75 181 L78 238 L97 238 L101 184 L102 145 L108 95 L125 140 L143 128 L137 91 L123 55 L107 51 L99 40 Z");
+  bg.setAttribute("fill","#172d29");bg.setAttribute("stroke","#3c6454");svg.append(bg);
+  const head=document.createElementNS("http://www.w3.org/2000/svg","ellipse");
+  head.setAttribute("cx","75");head.setAttribute("cy","23");head.setAttribute("rx","18");head.setAttribute("ry","22");
+  head.setAttribute("fill","#2a493e");head.setAttribute("stroke","#7fa994");svg.append(head);
+  for(const [label,d] of musclePaths[orientation]){
+   const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+   path.setAttribute("d",d);path.setAttribute("fill",strengthShade(counts[label],max));
+   path.setAttribute("class","muscle-path"+(selectedRegion===label?" selected":""));
+   path.setAttribute("tabindex","0");path.setAttribute("role","button");
+   path.setAttribute("aria-label",label+"：最近28天"+counts[label]+"组");
+   const labelEl=document.createElementNS("http://www.w3.org/2000/svg","title");
+   labelEl.textContent=label+" · 最近28天 "+counts[label]+"组";path.append(labelEl);
+   path.addEventListener("click",()=>{selectedRegion=label;drawMuscleMap()});
+   path.addEventListener("keydown",e=>{
+    if(e.key==="Enter"||e.key===" "){e.preventDefault();selectedRegion=label;drawMuscleMap()}
+   });
+   svg.append(path);
   }
-  const key=selectedRegion,n=counts[key];
-  const exercises=[...new Set(state.rows.filter(r=>categoryForRow(r)===key).map(r=>r.exercise))];
-  $("muscleDetail").textContent=key+" · 最近28天 "+n+" 组。相关动作："+(exercises.join("、")||"暂无记录")+
-    "。颜色仅表示记录量，不反映肌肉厚度或脂肪分布。";
+  group.append(svg,title);root.append(group);
+ }
+ for(const label of muscleLabels){
+  const chip=document.createElement("button");
+  chip.type="button";chip.className="muscle-legend-btn"+(selectedRegion===label?" selected":"");
+  const name=document.createElement("span");name.textContent=label;
+  const qty=document.createElement("strong");qty.textContent=counts[label];
+  chip.append(name,qty);
+  chip.addEventListener("click",()=>{selectedRegion=label;drawMuscleMap()});
+  legend.append(chip);
+ }
+ const key=selectedRegion,n=counts[key]||0;
+ const exercises=[...new Set(state.rows.filter(r=>targetForExercise(r.exercise_id)===key).map(r=>r.exercise))];
+ $("muscleDetail").textContent=key+" · 最近28天 "+n+" 组。主要归类动作："+(exercises.join("、")||"暂无对应记录")+
+  "。一个动作只计入一个主要目标，不表示其他协同肌不参与；未映射的自定义动作不会被猜测分配。";
 }
 function latestMetric(key) {
   const r=state.measurements.filter(m=>m.reported_date && validNum(m[key]))
