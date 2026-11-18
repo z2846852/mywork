@@ -164,6 +164,47 @@ final class GitHubApi {
         }
         throw new IllegalStateException("Concurrent daily file update did not settle");
     }
+    /** User-editable exercise settings; separate from daily training events. */
+    JSONObject readExerciseCatalog(String token) throws Exception {
+        String url = REPO + "/contents/data/exercise_catalog.json?ref=main";
+        String current = request("GET", url, token, null, true);
+        if (current == null) return null;
+        JSONObject meta = new JSONObject(current);
+        if (!"base64".equals(meta.getString("encoding"))) {
+            throw new IllegalStateException("Exercise catalog encoding unsupported");
+        }
+        byte[] bytes = Base64.decode(meta.getString("content"), Base64.DEFAULT);
+        if (bytes.length > 50000) throw new IllegalStateException("Exercise catalog too large");
+        return new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+    }
+
+    void writeExerciseCatalog(String token, JSONObject catalog) throws Exception {
+        final String url = REPO + "/contents/data/exercise_catalog.json";
+        JSONObject publicPart = new JSONObject(catalog.toString());
+        publicPart.remove("_dirty"); // Local upload queue state is never remote JSON.
+        if (publicPart.optInt("schema_version") != 1) {
+            throw new IllegalArgumentException("Unsupported catalog schema");
+        }
+        for (int attempt = 0; attempt < 4; ++attempt) {
+            String existing = request("GET", url + "?ref=main", token, null, true);
+            JSONObject put = new JSONObject();
+            put.put("message", "settings: update BodyTrace exercise catalog");
+            put.put("branch", "main");
+            if (existing != null) put.put("sha", new JSONObject(existing).getString("sha"));
+            put.put("content", Base64.encodeToString(
+                    (publicPart.toString(2) + "\n").getBytes(StandardCharsets.UTF_8),
+                    Base64.NO_WRAP));
+            try {
+                request("PUT", url, token, put.toString());
+                return;
+            } catch (ApiStatusException err) {
+                if ((err.status == 409 || err.status == 422) && attempt < 3) continue;
+                throw err;
+            }
+        }
+        throw new IllegalStateException("Exercise catalog update did not settle");
+    }
+
     /** Write a raw, uninterpreted note to the private inbox; one file per note. */
     void createRawNote(String token, JSONObject note) throws Exception {
         String date = note.getString("date");
