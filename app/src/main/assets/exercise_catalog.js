@@ -61,6 +61,7 @@
  }
  // The first data hydration picks the newest exercise. Later refreshes keep user selection.
 let hydrated=false;
+let blockedDraftExerciseId="";
 function rebuild(rows,keepSelection=true){
  const select=$("recordExercise"),groupSelect=$("recordGroup");
  const previous=select.value;
@@ -82,7 +83,9 @@ function rebuild(rows,keepSelection=true){
  const stillVisible=!!previous&&visible.some(a=>a.id===previous);
  const keep=keepSelection&&stillVisible&&(recordExerciseTouched||trainingFormDirty||hydrated);
  let selected=keep?previous:(visible[0]?.id||"");
- const missingDraft=keepSelection&&trainingFormDirty&&!!previous&&!stillVisible;
+ const missingDraft=!!blockedDraftExerciseId||
+   (keepSelection&&trainingFormDirty&&!!previous&&!stillVisible);
+ if(missingDraft&&!blockedDraftExerciseId)blockedDraftExerciseId=previous;
  if(missingDraft){
   const warning=document.createElement("option");
   warning.value="";
@@ -165,7 +168,8 @@ function commit(){
   }
   rebuild(state.rows,true);
  }
- $("recordGroup").addEventListener("change",()=>{
+ $("recordExercise").addEventListener("change",()=>{blockedDraftExerciseId="";});
+ $("recordGroup").addEventListener("change",()=>{blockedDraftExerciseId="";
  recordExerciseTouched=false;
  clearTrainingEdits();
  rebuild(state.rows,false);
