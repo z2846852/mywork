@@ -59,38 +59,55 @@
    return compareUsage(a,b,recent);
   });
  }
- let groupTouched=false;
+ // The first data hydration picks the newest exercise. Later refreshes keep user selection.
+let hydrated=false;
+let groupChosen=false;
+let blockedDraftExerciseId="";
 function rebuild(rows,keepSelection=true){
  const select=$("recordExercise"),groupSelect=$("recordGroup");
- const previous=select.value,oldGroup=groupSelect.value;
- const sorted=order(allActions().filter(a=>!new Set(config.hidden).has(a.id)),rows||[]);
- if(!groupTouched){
-  const prior=recordExerciseTouched?sorted.find(a=>a.id===previous):null;
-  const preferred=prior||sorted[0];
-  if(preferred)groupSelect.value=preferred.region;
- }
- const group=groupSelect.value,visible=sorted.filter(a=>a.region===group);
+ const previous=select.value;
+ const hidden=new Set(config.hidden);
+ const sorted=order(allActions().filter(a=>!hidden.has(a.id)),rows||[]);
+ const group=groupSelect.value;
+ const visible=group?sorted.filter(a=>a.region===group):sorted;
  select.replaceChildren();
  for(const entry of visible){
   const option=document.createElement("option");
-  option.value=entry.id;option.textContent="【"+entry.region+"】"+entry.label;
+  option.value=entry.id;
+  option.textContent="【"+entry.region+"】"+entry.label;
   select.append(option);
  }
+ // Hidden actions still have their historical labels.
  for(const entry of allActions()){
   exerciseLabels[entry.id]=entry.label;exerciseRegionById[entry.id]=entry.region;
  }
- const same=keepSelection&&recordExerciseTouched&&visible.some(a=>a.id===previous);
- if(same)select.value=previous;else if(visible.length)select.value=visible[0].id;
- if(!visible.length){
-  const option=document.createElement("option");
-  option.value="";option.textContent="该部位暂无动作；请到管理中恢复";
-  select.append(option);
+ const stillVisible=!!previous&&visible.some(a=>a.id===previous);
+ const keep=keepSelection&&stillVisible&&(recordExerciseTouched||groupChosen||trainingFormDirty||hydrated);
+ let selected=keep?previous:(visible[0]?.id||"");
+ const missingDraft=!!blockedDraftExerciseId||
+   (keepSelection&&trainingFormDirty&&!!previous&&!stillVisible);
+ if(missingDraft&&!blockedDraftExerciseId)blockedDraftExerciseId=previous;
+ if(missingDraft){
+  const warning=document.createElement("option");
+  warning.value="";
+  warning.textContent="原动作已隐藏，请重新选择动作";
+  select.append(warning);
+  selected="";
+ }else if(!visible.length){
+  const warning=document.createElement("option");
+  warning.value="";
+  warning.textContent="暂无可选动作，请在管理中恢复";
+  select.append(warning);
  }
+ select.value=selected;
  $("recordSortMode").value=config.sort_mode;
- if(!same||oldGroup!==group){
-  weightEditedByUser=false;repsEditedByUser=false;
+ if(missingDraft){
+  $("suggestedLoad").textContent="原动作已隐藏；输入已保留，请重新选动作后保存。";
+ }else if(!keepSelection||selected!==previous){
+  clearTrainingEdits();
   refreshExerciseRecommendation(true);
  }else refreshExerciseRecommendation(false);
+ if(Array.isArray(rows)&&rows.length)hydrated=true;
  renderManager();
 }
 function commit(){
@@ -150,11 +167,12 @@ function commit(){
    exerciseLabels[item.id]=item.label;
    exerciseRegionById[item.id]=item.region;
   }
-  rebuild(state.rows,false);
+  rebuild(state.rows,true);
  }
- $("recordGroup").addEventListener("change",()=>{
- groupTouched=true;recordExerciseTouched=false;
- weightEditedByUser=false;repsEditedByUser=false;
+ $("recordExercise").addEventListener("change",()=>{blockedDraftExerciseId="";});
+ $("recordGroup").addEventListener("change",()=>{blockedDraftExerciseId="";groupChosen=true;
+ recordExerciseTouched=false;
+ clearTrainingEdits();
  rebuild(state.rows,false);
 });
 $("recordSortMode").addEventListener("change",e=>{
@@ -186,7 +204,7 @@ $("recordSortMode").addEventListener("change",e=>{
   deleteConfirmId="";
   recordExerciseTouched=true;
   // Select the new action within its assigned muscle group.
-  $("recordGroup").value=region;groupTouched=true;
+  $("recordGroup").value=region;
   rebuild(state.rows,false);
   $("recordExercise").value=id;
   refreshExerciseRecommendation(true);
