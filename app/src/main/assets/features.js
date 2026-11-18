@@ -148,7 +148,8 @@ $("saveNutrition").onclick=()=>{
 };
 
 function categoryForRow(row) {
-  return exRegion[row.exercise_id]||null;
+  return row.exercise_region||window.BodyTraceExerciseCatalog?.region(row.exercise_id)||
+    exRegion[row.exercise_id]||null;
 }
 function regionalCounts() {
   const counts=Object.fromEntries(regions.map(r=>[r,0]));
@@ -296,7 +297,8 @@ function renderStrength(){
   root.append(empty);return;
  }
  for(const group of groups){
-  const region=exRegion[group.id]||"其他";
+  const region=group.records.at(-1)?.row.exercise_region||
+    window.BodyTraceExerciseCatalog?.region(group.id)||exRegion[group.id]||"其他";
   const card=document.createElement("article");card.className="strength-exercise-card";
   card.dataset.exerciseId=group.id;
   const heading=document.createElement("div");heading.className="strength-exercise-heading";
