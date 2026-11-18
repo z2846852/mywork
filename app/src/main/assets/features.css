@@ -379,7 +379,7 @@
 
 
 /* 2026-11-17: concise schematic + all-in-one training trend list. */
-#recordExercise,#filter{font-size:12px!important;line-height:1.45;letter-spacing:-.14px}
+#recordExercise,#recordGroup,#filter{font-size:12px!important;line-height:1.45;letter-spacing:-.14px}
 .strength-list{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
 .strength-exercise-card{
  padding:13px 11px 10px;border:1px solid #315347;border-radius:14px;
@@ -435,7 +435,7 @@
 
 
 /* Editable movement catalog: compact group-first and recently-used selectors. */
-.exercise-top-row{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:8px}
+.exercise-top-row{grid-template-columns:minmax(0,.75fr) minmax(0,1.75fr);gap:8px}
 .exercise-top-row .field{min-width:0}
 #recordExercise{font-size:11.5px!important;letter-spacing:-.22px;padding:11px 6px}
 #recordSortMode{font-size:11.5px!important;letter-spacing:-.1px;padding:11px 5px}
