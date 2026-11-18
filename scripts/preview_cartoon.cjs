@@ -58,6 +58,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    };
    navigate("record");
   });
+  const initialGroup=await page.$eval("#recordGroup",e=>e.value);
+  if(initialGroup!=="")throw Error("Default group should be All: "+initialGroup);
   const first=await page.locator("#recordExercise option").first().evaluate(e=>({id:e.value,label:e.textContent}));
   if(first.id!=="adductor"||!first.label.startsWith("【腿】"))
    throw Error("Recent-first labeled dropdown failed: "+JSON.stringify(first));
@@ -87,18 +89,51 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(!stored||stored.sort_mode!=="recent"||stored.custom.length)
     throw Error("Catalog changes not sent to native JSON store");
   await page.click("#closeExerciseManager");
+  await page.selectOption("#recordGroup","");
+  const optionsAll=await page.locator("#recordExercise option").evaluateAll(
+    opts=>opts.map(o=>o.value));
+  if(!optionsAll.includes("adductor")||!optionsAll.includes("lateral_raise"))
+    throw Error("All filter missing actions: "+JSON.stringify(optionsAll));
+  await page.selectOption("#recordGroup","腿");
+  const legOnly=await page.locator("#recordExercise option").evaluateAll(
+    opts=>opts.map(o=>o.value));
+  if(!legOnly.includes("adductor")||legOnly.includes("lateral_raise"))
+    throw Error("Leg filter invalid: "+JSON.stringify(legOnly));
+  await page.selectOption("#recordGroup","");
+  await page.selectOption("#recordExercise","adductor");
   await page.click("#recordKg");
   if(await page.$eval("#wheelOverlay",x=>x.hidden))throw Error("Weight ruler did not open");
   await page.screenshot({path:"bodytrace-wheel-preview.png",fullPage:false});
   await page.fill("#wheelValue","27.5");
   await page.click("#wheelDone");
+  await page.click("#recordReps");
+  await page.fill("#wheelValue","12");
+  await page.click("#wheelDone");
+  await page.evaluate(()=>{
+   window.BodyTraceExerciseCatalog.refresh(state.rows);
+   window.bodyTraceReceive({type:"exercise_catalog",
+    catalog:{schema_version:1,sort_mode:"recent",custom:[],hidden:[]}});
+  });
+  const draft=await page.evaluate(()=>({
+   action:document.getElementById("recordExercise").value,
+   weight:document.getElementById("recordKg").value,
+   reps:document.getElementById("recordReps").value
+  }));
+  if(draft.action!=="adductor"||draft.weight!=="27.5"||draft.reps!=="12")
+   throw Error("Refresh clobbered the unsaved workout: "+JSON.stringify(draft));
   await page.click("#recordSets");
   await page.fill("#wheelValue","3");
   await page.click("#wheelDone");
   await page.click("#saveRecord");
   const workout=await page.evaluate(()=>window.__capturedWorkout);
-  if(!workout||workout.kg!==27.5||workout.sets!==3||workout.exercise_id!=="adductor")
+  if(!workout||workout.kg!==27.5||workout.reps!==12||workout.sets!==3||workout.exercise_id!=="adductor")
    throw Error("Workout ruler/batch JSON mismatch: "+JSON.stringify(workout));
+  await page.evaluate(()=>{
+   state.selected="2026-04-15";state.calendarBrowsing=true;indexData();
+  });
+  const historic=await page.$eval("#selectedDate",e=>e.textContent);
+  if(!historic.startsWith("2026-04-15"))
+   throw Error("Sync jump changed historical date: "+historic);
   await page.evaluate(()=>navigate("body"));
   await page.locator("#bodyEntryGrid .body-entry-metric").first().click();
   await page.fill("#wheelValue","74.5");
