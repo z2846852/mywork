@@ -370,7 +370,7 @@ function updateRecordRegionTheme(){
  panel.style.setProperty("--record-region-color",color);
  panel.dataset.region=region;
  const badge=$("recordRegionBadge");
- badge.textContent=majorRegions.includes(region)?region+" · 当前动作":region||"其他动作";
+ badge.textContent=majorRegions.includes(region)?region+" · 当前动作":"其他 · 当前动作";
 }
 function orderRecordOptionsByRecent(rows){
  if(window.BodyTraceExerciseCatalog)window.BodyTraceExerciseCatalog.refresh(rows);
