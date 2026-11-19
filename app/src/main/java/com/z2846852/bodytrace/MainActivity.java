@@ -675,7 +675,8 @@ public final class MainActivity extends Activity {
         result.put("reps", reps);
         if (reps == 0) result.put("attempt_status", "failed");
         String loadBasis = input.optString("load_basis", "machine");
-        if (!"machine".equals(loadBasis) && !"per_side".equals(loadBasis)) {
+        if (!"machine".equals(loadBasis) && !"per_side".equals(loadBasis) &&
+            !"bodyweight".equals(loadBasis) && !"unspecified".equals(loadBasis)) {
             throw new IllegalArgumentException("重量记录方式不合法");
         }
         result.put("load_basis", loadBasis);
