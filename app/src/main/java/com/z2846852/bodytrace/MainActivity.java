@@ -699,6 +699,28 @@ public final class MainActivity extends Activity {
         if (!date.equals(day.toString()) || day.isAfter(LocalDate.now(BEIJING).plusDays(1))) {
             throw new IllegalArgumentException("饮食日期不合法");
         }
+        if ("daily_checkin".equals(input.optString("entry_kind"))) {
+            String[] flags = new String[]{"intake_creatine", "intake_protein_powder",
+                    "intake_carbs", "intake_sugar_oil"};
+            JSONObject event = new JSONObject();
+            event.put("schema_version", 1);
+            event.put("type", "nutrition");
+            event.put("id", UUID.randomUUID().toString());
+            event.put("date", date);
+            event.put("entry_kind", "daily_checkin");
+            for (String key : flags) {
+                if (!input.has(key) || !(input.get(key) instanceof Boolean)) {
+                    throw new IllegalArgumentException("摄入勾选必须明确填写四个布尔值");
+                }
+                event.put(key, input.getBoolean(key));
+            }
+            event.put("source", "bodytrace-android");
+            event.put("created_at", OffsetDateTime.now(BEIJING).toString());
+            return event;
+        }
+        if (input.has("entry_kind")) {
+            throw new IllegalArgumentException("未知饮食条目类型");
+        }
         String food = input.getString("food").trim();
         if (food.isEmpty() || food.length() > 100) {
             throw new IllegalArgumentException("食物名称需1至100字符");
