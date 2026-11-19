@@ -95,6 +95,7 @@ const heatStart=script.indexOf("function summarizeHeatDays(");
 const heatEnd=script.indexOf("function focusCalendarLatest()",heatStart);
 assert.ok(heatStart>=0&&heatEnd>heatStart);
 const heatFn=vm.runInNewContext(script.slice(heatStart,heatEnd)+"\nsummarizeHeatDays",{
+ isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0",
  exerciseRegionById:{chest_press:"胸",lateral_raise:"肩",row:"背",
   leg_extension:"腿",adductor:"腿",custom_ar:"手臂"},
 });
