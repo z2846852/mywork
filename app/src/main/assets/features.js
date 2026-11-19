@@ -605,12 +605,15 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   point.dataset.normalRadius=failure?"6":"4.5";
   points.push(point);
   const units=v.load_basis==="per_side"?"（每侧）":
-   v.load_basis==="unspecified"?"（重量单位待核实）":"";
-  const hint=v.session_date+" · "+v.load+" kg"+units+" × "+v.reps+" 次"+
+   v.load_basis==="bodyweight"?"（仅外加重量；自重另计）":
+   v.load_basis==="unspecified"?"（重量标注待核实）":"";
+  const dateLabel=v.date_basis==="report_date"?"（对话报告日期，非确认训练日）":"";
+  const hint=v.session_date+dateLabel+" · "+v.load+" kg"+units+" × "+v.reps+" 次"+
     (failure?" · 未完成":isAssist?"（辅助量）":"");
   const milestone=findFailureMilestone(values,v);
   const extra=(milestone?"\n同重量首次完成至少1次："+milestone.date+
-    "（相隔"+milestone.days+"天）":"")+
+    "（相隔"+milestone.days+"天"+(v.date_basis==="report_date"?
+     "；起点为报告日，非实测训练间隔":"")+"）":"")+
    (failure&&!milestone?"\n尚无此重量后续成功记录":"")+
    (v.note?"\n备注："+v.note:"");
   const tooltip=el("title");tooltip.textContent=hint+extra;point.append(tooltip);
