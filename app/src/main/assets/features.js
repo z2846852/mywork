@@ -607,8 +607,7 @@ function renderStrength(){
   root.append(empty);return;
  }
  for(const group of groups){
-  const region=group.records.at(-1)?.row.exercise_region||
-    window.BodyTraceExerciseCatalog?.region(group.id)||exRegion[group.id]||"其他";
+  const region=categoryForRow(group.records.at(-1).row)||"其他";
   const card=document.createElement("article");card.className="strength-exercise-card";
   card.dataset.region=region;
   card.style.setProperty("--region-accent",regionThemeColors[region]||"#8bb6ad");
