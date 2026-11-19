@@ -163,7 +163,7 @@ function regionalCounts() {
 // Four comparable trend cards: charted metric is workout-set count, never total kg.
 const dashboardRegions=["胸","肩","背","腿"];
 const dashboardNames={胸:"CHEST",肩:"SHOULDERS",背:"BACK",腿:"LEGS"};
-const dashboardColors={胸:"#f39a8c",肩:"#b6a1f4",背:"#74d5f6",腿:"#84e6aa"};
+const dashboardColors=regionThemeColors;
 const dashboardClasses={胸:"region-chest",肩:"region-shoulder",背:"region-back",腿:"region-leg"};
 function computeRegionDashboard(rows,anchorDate=today){
  const first=plus(anchorDate,-55),prevEnd=plus(anchorDate,-28),currentStart=plus(anchorDate,-27);
@@ -275,11 +275,11 @@ function renderRegionSummary(){
   const node=$("regionSummary");node.replaceChildren();
   const counts=regionalCounts(),max=Math.max(1,...Object.values(counts));
   for(const key of regions){
-    const row=document.createElement("div");row.className="zone-bar";
+    const row=document.createElement("div");row.className="zone-bar";row.dataset.region=key;
     const label=document.createElement("span");label.textContent=key;
     const track=document.createElement("div");track.className="track";
     const fill=document.createElement("div");fill.className="fill";
-    fill.style.width=(counts[key]/max*100)+"%";track.append(fill);
+    fill.style.width=(counts[key]/max*100)+"%";fill.style.background=regionThemeColors[key]||"#91a9a8";track.append(fill);
     const amount=document.createElement("b");amount.textContent=counts[key]+"组";
     row.append(label,track,amount);node.append(row);
   }
@@ -356,10 +356,15 @@ const musclePaths={
   ["小腿后群","M85 215 L96 208 L99 223 L93 236 L84 230 Z"]
  ]
 };
-function strengthShade(n,max){
- if(!n)return "#28413a";
- const alpha=n/max;
- return alpha>.75?"#54edaa":alpha>.4?"#2dab78":"#206a54";
+function muscleMacroRegion(label){
+ if(label==="胸大肌")return "胸";
+ if(label.startsWith("三角肌"))return "肩";
+ if(label==="背阔肌"||label==="上背肌群")return "背";
+ if(["髋外展肌群","髋内收肌群","臀大肌","股四头肌","腘绳肌群","小腿后群"].includes(label))return "腿";
+ return "";
+}
+function muscleShade(label,n){
+ return n?(regionThemeColors[muscleMacroRegion(label)]||"#718b99"):"#28413a";
 }
 function drawMuscleMap(){
  const root=$("bodyMuscleView"),legend=$("muscleLegend");
@@ -379,7 +384,8 @@ function drawMuscleMap(){
   head.setAttribute("fill","#2a493e");head.setAttribute("stroke","#7fa994");svg.append(head);
   for(const [label,d] of musclePaths[orientation]){
    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
-   path.setAttribute("d",d);path.setAttribute("fill",strengthShade(counts[label],max));
+   path.setAttribute("d",d);path.setAttribute("fill",muscleShade(label,counts[label]));
+   if(counts[label])path.setAttribute("fill-opacity",String(0.62+0.38*counts[label]/max));
    path.setAttribute("class","muscle-path"+(selectedRegion===label?" selected":""));
    path.setAttribute("tabindex","0");path.setAttribute("role","button");
    path.setAttribute("aria-label",label+"：最近28天"+counts[label]+"组");
@@ -396,6 +402,9 @@ function drawMuscleMap(){
  for(const label of muscleLabels){
   const chip=document.createElement("button");
   chip.type="button";chip.className="muscle-legend-btn"+(selectedRegion===label?" selected":"");
+  const macro=muscleMacroRegion(label);
+  chip.dataset.region=macro||"其他";
+  chip.style.setProperty("--muscle-color",regionThemeColors[macro]||"#97b1bd");
   const name=document.createElement("span");name.textContent=label;
   const qty=document.createElement("strong");qty.textContent=counts[label];
   chip.append(name,qty);
@@ -469,6 +478,8 @@ function renderStrength(){
   const region=group.records.at(-1)?.row.exercise_region||
     window.BodyTraceExerciseCatalog?.region(group.id)||exRegion[group.id]||"其他";
   const card=document.createElement("article");card.className="strength-exercise-card";
+  card.dataset.region=region;
+  card.style.setProperty("--region-accent",regionThemeColors[region]||"#8bb6ad");
   card.dataset.exerciseId=group.id;
   const heading=document.createElement("div");heading.className="strength-exercise-heading";
   const header=document.createElement("div");header.className="strength-exercise-info";
@@ -485,10 +496,11 @@ function renderStrength(){
   const disclaimer=document.createElement("p");disclaimer.className="note strength-exercise-note";
   card.append(heading,range,chart,disclaimer);
   root.append(card);
-  renderStrengthPlot(group,chart,range,disclaimer);
+  renderStrengthPlot(group,chart,range,disclaimer,region);
  }
 }
-function renderStrengthPlot(group,chart,range,disclaimer){
+function renderStrengthPlot(group,chart,range,disclaimer,region){
+ const plotColor=regionThemeColors[region]||"#8bb6ad";
  const ex=group.id;
  const list=group.records.map(({row,index})=>({...row,sequence:index}))
    .filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date||"")&&
@@ -536,28 +548,61 @@ function renderStrengthPlot(group,chart,range,disclaimer){
   t.textContent=labels[i].slice(5);svg.append(t);
  }
  const byDate=new Map();
+ const points=[];
+ const detail=document.createElement("div");
+ detail.className="strength-point-detail";
+ detail.setAttribute("role","status");
+ detail.setAttribute("aria-live","polite");
+ detail.textContent="点击图中圆点，查看该组实际重量和次数";
  for(const v of values){
   const numeric=isAssist?v.load:(v.estimated??v.load);
-  const point=el("circle",{cx:xVal(v.session_date),cy:yVal(numeric),r:4.5,
-    fill:"#70edb3",stroke:"#0a2419","stroke-width":1});
+  const cx=xVal(v.session_date),cy=yVal(numeric);
+  const point=el("circle",{cx,cy,r:4.5,
+    fill:plotColor,stroke:"#0a2419","stroke-width":1});
+  point.setAttribute("class","strength-visible-point");
+  points.push(point);
+  const hint=v.session_date+" · "+v.load+" kg × "+v.reps+" 次"+
+    (isAssist?"（辅助量）":"");
   const tooltip=el("title");
-  tooltip.textContent=v.session_date+" "+v.load+"kg × "+v.reps+
-    (isAssist?"次（标称辅助量）":"次（e1RM仅为公式参考）");
-  point.append(tooltip);svg.append(point);
+  tooltip.textContent=hint;point.append(tooltip);
+  // Desktop hover alone is insufficient: use large touch/keyboard hit targets.
+  const hit=el("circle",{cx,cy,r:17,fill:"transparent",
+    "pointer-events":"all",tabindex:0,role:"button",
+    "aria-label":"查看 "+hint});
+  hit.setAttribute("class","strength-point-hit");
+  hit.style.cursor="pointer";
+  const selectPoint=()=>{
+   for(const other of points){
+    other.setAttribute("r","4.5");
+    other.setAttribute("stroke","#0a2419");
+    other.setAttribute("stroke-width","1");
+   }
+   point.setAttribute("r","7");
+   point.setAttribute("stroke","#ffffff");
+   point.setAttribute("stroke-width","2");
+   detail.textContent="已选："+hint;
+  };
+  hit.addEventListener("click",selectPoint);
+  hit.addEventListener("keydown",event=>{
+   if(event.key==="Enter"||event.key===" "){
+    event.preventDefault();selectPoint();
+   }
+  });
+  svg.append(point,hit);
   const old=byDate.get(v.session_date);
   if(old===undefined||(isAssist?numeric<old:numeric>old))byDate.set(v.session_date,numeric);
  }
  if(days.length>1){
   const poly=el("polyline",{
     points:days.map(d=>xVal(d)+","+yVal(byDate.get(d))).join(" "),
-    fill:"none",stroke:"#3cb4db","stroke-width":2,"stroke-linejoin":"round"
+    fill:"none",stroke:plotColor,"stroke-width":2,"stroke-opacity":0.7,"stroke-linejoin":"round"
   });
   svg.insertBefore(poly,svg.firstChild);
  }
- chart.append(svg);
+ chart.append(svg,detail);
  disclaimer.textContent=isAssist
-  ?"绿色点为器械标称辅助量（越低通常越难）；蓝线为当天最低辅助量，不直接代表力量增幅。"
-  :"绿色点为各组负重/简化 Epley e1RM 参考值（仅不超过15次的组计算 e1RM）；蓝线为当天最高参考值，器械重量不等于实际肌肉力。";
+  ?"部位色点为器械标称辅助量（越低通常越难）；同色线为当天最低辅助量，不直接代表力量增幅。"
+  :"部位色点为各组负重/简化 Epley e1RM 参考值（仅不超过15次的组计算 e1RM）；同色线为当天最高参考值，器械重量不等于实际肌肉力。";
 }
 
 // Basic body diagram is a training-zone schematic, never inferred anatomy.

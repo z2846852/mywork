@@ -79,6 +79,72 @@ const manifest=fs.readFileSync(path.join(root,"app/src/main/AndroidManifest.xml"
 assert.ok(!manifest.includes('android.intent.action.SEND'),"No stale image-share registration in schematic-only App");
 assert.ok(native.includes("saveBatch(String batchJson)")&&native.includes("saveMeasurement(String measurementJson)"));
 assert.ok(features.includes("bodyEdited")&&features.includes("saveMeasurement("));
+// Semantic palette must be stable in ALL four views: chest coral, shoulder amber,
+ // back blue, leg violet. APP controls/status keep their original green.
+const colorTokens={胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"};
+for(const [region,color] of Object.entries(colorTokens)){
+ assert.ok(html.includes(region+':"'+color+'"'),"Missing shared region color: "+region);
+ assert.ok(html.includes(color),"HTML theme must expose palette for all views");
+}
+assert.ok(html.includes('const regionThemeColors=Object.freeze('));
+assert.ok(html.includes('id="recordRegionBadge"'));
+assert.ok(html.includes('const byDay=summarizeHeatDays(filtered())'));
+assert.ok(html.includes('className="cell-quadrant"')||html.includes('className="cell-quadrant"+'));
+assert.ok(!html.includes('grid-template-rows:repeat(7,13px)'));
+const heatStart=script.indexOf("function summarizeHeatDays(");
+const heatEnd=script.indexOf("function focusCalendarLatest()",heatStart);
+assert.ok(heatStart>=0&&heatEnd>heatStart);
+const heatFn=vm.runInNewContext(script.slice(heatStart,heatEnd)+"\nsummarizeHeatDays",{
+ exerciseRegionById:{chest_press:"胸",lateral_raise:"肩",row:"背",
+  leg_extension:"腿",adductor:"腿",custom_ar:"手臂"},
+});
+const quad=heatFn([
+ {session_date:"2026-11-19",exercise_id:"chest_press"},
+ {session_date:"2026-11-19",exercise_id:"lateral_raise"},
+ {session_date:"2026-11-19",exercise_id:"row"},
+ {session_date:"2026-11-19",exercise_id:"leg_extension"},
+ {session_date:"2026-11-19",exercise_id:"adductor"},
+ {session_date:"2026-11-19",exercise_id:"custom_ar"},
+ {session_date:"2026-11-20",exercise_id:"custom_ar"},
+ {session_date:"2026-11-18",exercise_id:"leg_extension",exercise_region:"背"},
+ {session_date:"bad-date",exercise_id:"row"}
+]);
+assert.equal(quad.get("2026-11-19").total,6);
+assert.deepEqual(JSON.parse(JSON.stringify(quad.get("2026-11-19").regions)),
+ {胸:1,肩:1,背:1,腿:2});
+assert.equal(quad.get("2026-11-19").other,1);
+assert.equal(quad.get("2026-11-20").other,1);
+assert.equal(quad.get("2026-11-18").regions["背"],1,
+ "Explicit per-record region metadata must be preserved");
+assert.ok(!quad.has("bad-date"));
+const paletteStart=features.indexOf("function muscleMacroRegion(");
+const paletteEnd=features.indexOf("function drawMuscleMap(",paletteStart);
+const musclePalette=vm.runInNewContext(features.slice(paletteStart,paletteEnd)+
+ "\n({muscleMacroRegion,muscleShade})",{regionThemeColors:colorTokens});
+for(const [muscle,region] of [["胸大肌","胸"],["三角肌中束","肩"],
+ ["背阔肌","背"],["髋内收肌群","腿"],["髋外展肌群","腿"],["股四头肌","腿"]]){
+ assert.equal(musclePalette.muscleMacroRegion(muscle),region);
+ assert.equal(musclePalette.muscleShade(muscle,1),colorTokens[region]);
+}
+assert.equal(musclePalette.muscleShade("股四头肌",0),"#28413a");
+assert.ok(features.includes('const dashboardColors=regionThemeColors;'));
+assert.ok(features.includes('fill:plotColor')&&features.includes('stroke:plotColor'));
+assert.ok(features.includes('fill.style.background=regionThemeColors[key]'));
+const cssBefore=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
+for(const [selector,variable] of [["region-chest","--region-chest"],
+ ["region-shoulder","--region-shoulder"],["region-back","--region-back"],["region-leg","--region-leg"]]){
+ assert.ok(cssBefore.includes(".region-overview-card."+selector+"{--accent:var("+variable+")"));
+}
+// Saved workout data can be inspected on touch devices, not only SVG hover.
+assert.ok(features.includes('hit.addEventListener("click",selectPoint)'));
+assert.ok(features.includes('hit.addEventListener("keydown",event=>'));
+assert.ok(features.includes('detail.textContent="已选："+hint;'));
+assert.ok(features.includes('const detail=document.createElement("div")'));
+assert.ok(features.includes('hit=el("circle",{cx,cy,r:17,fill:"transparent"'));
+assert.ok(features.includes('svg.append(point,hit)'));
+assert.ok(features.includes('chart.append(svg,detail)'));
+assert.ok(cssBefore.includes(".strength-point-detail{"));
+assert.ok(cssBefore.includes(".strength-point-hit{touch-action:manipulation;"));
 // Compact chrome, always reachable save, and distinct muscle categories.
 const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),
@@ -95,6 +161,7 @@ const chartEnd=features.indexOf("function renderRegionSummary()",chartStart);
 assert.ok(chartStart>=0&&chartEnd>chartStart);
 const chartFuncs=vm.runInNewContext(features.slice(chartStart,chartEnd)+
  "\ncomputeRegionDashboard",{
+  regionThemeColors:{胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"},
   today:"2026-11-18",
   plus:(s,n)=>new Date(Date.parse(s+"T12:00:00Z")+n*86400000).toISOString().slice(0,10),
   parse:s=>new Date(s+"T12:00:00Z"),
@@ -133,7 +200,7 @@ assert.equal(targetFor("leg_extension"),"股四头肌");
 assert.equal(targetFor("prone_leg_curl"),"腘绳肌群");
 assert.equal(targetFor("custom_unknown"),null,"Never infer muscle target of an unknown action");
 const pathsStart=features.indexOf("const musclePaths=");
-const pathsEnd=features.indexOf("function strengthShade(",pathsStart);
+const pathsEnd=features.indexOf("function muscleMacroRegion(",pathsStart);
 const anatomy=vm.runInNewContext(features.slice(pathsStart,pathsEnd)+"\nmusclePaths");
 assert.ok(anatomy.front.some(([label])=>label==="髋内收肌群"));
 assert.ok(anatomy.back.some(([label])=>label==="髋外展肌群"));

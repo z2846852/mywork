@@ -45,6 +45,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await muscleChoice.click();
   const regionDetail=await page.$eval("#muscleDetail",x=>x.textContent);
   if(!regionDetail.startsWith("髋外展肌群"))throw Error("Muscle legend selection failed");
+  const hipColor=await muscleChoice.evaluate(el=>getComputedStyle(el).getPropertyValue("--muscle-color").trim());
+  if(hipColor!=="#B9A9DD")throw Error("Hip abductor color should use the leg violet: "+hipColor);
   const dates=await page.$eval("#avatarMeasureDate",e=>e.options.length);
   if(dates!==2)throw Error("Body measurement history failed: "+dates);
   if(await page.locator("#avatarPicture").count())throw Error("Old cartoon still visible");
@@ -58,13 +60,59 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(await page.locator("#analyticsExercise").count())throw Error("Trend dropdown still visible");
   const plots=await page.locator("#strengthList .feature-chart svg").count();
   if(plots!==4)throw Error("Expected every recorded exercise to have a chart: "+plots);
+  // Mobile taps on graph dots must show saved kg/reps, not desktop hover alone.
+  await page.evaluate(()=>{
+   state.rows.push({id:"preview-chest-second",exercise_id:"chest_press",
+    exercise:"坐姿胸推器",session_date:"2026-11-15",load_kg:"40",reps:"8"});
+   renderStrength();
+  });
+  const pressCard=page.locator('#strengthList .strength-exercise-card[data-exercise-id="chest_press"]');
+  const pressHits=pressCard.locator(".strength-point-hit");
+  if(await pressHits.count()!==2)throw Error("Expected two selectable points in chest press trend");
+  await pressHits.nth(0).click();
+  const firstDetail=await pressCard.locator(".strength-point-detail").innerText();
+  if(!firstDetail.includes("35 kg × 12 次")||!firstDetail.includes("2026-11-14"))
+   throw Error("First graph point did not reveal kg/reps: "+firstDetail);
+  await pressHits.nth(1).click();
+  const secondDetail=await pressCard.locator(".strength-point-detail").innerText();
+  if(!secondDetail.includes("40 kg × 8 次")||!secondDetail.includes("2026-11-15"))
+   throw Error("Second graph point did not change details: "+secondDetail);
+  if(await pressCard.locator(".strength-visible-point").nth(1).getAttribute("r")!=="7")
+   throw Error("Selected graph point did not get highlighted");
+  await pressHits.nth(0).focus();
+  await page.keyboard.press("Enter");
+  const keyboardDetail=await pressCard.locator(".strength-point-detail").innerText();
+  if(!keyboardDetail.includes("35 kg × 12 次"))
+   throw Error("Keyboard activation of graph point failed: "+keyboardDetail);
   const overview=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
    nodes=>nodes.map(node=>node.dataset.region));
   if(JSON.stringify(overview)!==JSON.stringify(["胸","肩","背","腿"]))
    throw Error("Four-region dashboard is incomplete: "+JSON.stringify(overview));
+  const cardPalette=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
+    nodes=>nodes.map(n=>getComputedStyle(n.querySelector(".region-overview-count")).color));
+  if(new Set(cardPalette).size!==4)throw Error("Four dashboard colors must be distinct: "+cardPalette);
   const sparks=await page.locator("#regionTrendGrid .region-overview-spark rect").count();
   if(sparks!==32)throw Error("Each region must have eight weekly bars: "+sparks);
   await page.screenshot({path:"bodytrace-trends-preview.png",fullPage:true});
+  await page.evaluate(()=>{
+   navigate("home");
+   // Extend synthetic demo only, never the actual private training repository.
+   for(const [id,label] of [["chest_press","胸推"],["row","划船"]]){
+    state.rows.push({id:"quad-demo-"+id,exercise_id:id,exercise:label,
+     session_date:"2026-11-17",created_at:"2026-11-17T20:00:00+08:00"});
+   }
+   renderHeat();
+  });
+  const dayTile=page.locator('#heat .cell[title^="2026-11-17"]');
+  const lit=await dayTile.locator(".cell-quadrant.active").evaluateAll(
+    items=>items.map(el=>({region:el.dataset.region,color:getComputedStyle(el).backgroundColor})));
+  if(lit.length!==4||new Set(lit.map(x=>x.region)).size!==4||
+     new Set(lit.map(x=>x.color)).size!==4)
+   throw Error("The same calendar day must illuminate all four unique region colors: "+JSON.stringify(lit));
+  const emptyDay=page.locator('#heat .cell[title^="2026-11-16"]');
+  if(await emptyDay.locator(".cell-quadrant.active").count())
+   throw Error("Rest day is unexpectedly illuminated");
+  await page.screenshot({path:"bodytrace-four-region-heatmap-preview.png",fullPage:false});
   await page.evaluate(()=>{
    window.BodyTraceNative={
     saveBatch:json=>{window.__capturedWorkout=JSON.parse(json)},
@@ -81,6 +129,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   });
   if(docked.position!=="fixed"||docked.top<0||docked.bottom>docked.navTop+3)
    throw Error("Save button not visible above navigation: "+JSON.stringify(docked));
+  const badgeRegion=await page.$eval("#recordRegionBadge",e=>e.textContent);
+  if(!badgeRegion.includes("腿"))throw Error("Current exercise badge should show purple leg category: "+badgeRegion);
+  const badgeColor=await page.locator("#recordRegionBadge").evaluate(el=>getComputedStyle(el).color);
+  if(badgeColor!=="rgb(185, 169, 221)")throw Error("Record leg accent must be violet: "+badgeColor);
   const initialGroup=await page.$eval("#recordGroup",e=>e.value);
   if(initialGroup!=="")throw Error("Default group should be All: "+initialGroup);
   const first=await page.locator("#recordExercise option").first().evaluate(e=>({id:e.value,label:e.textContent}));
