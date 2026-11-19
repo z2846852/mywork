@@ -45,6 +45,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await muscleChoice.click();
   const regionDetail=await page.$eval("#muscleDetail",x=>x.textContent);
   if(!regionDetail.startsWith("髋外展肌群"))throw Error("Muscle legend selection failed");
+  const hipColor=await muscleChoice.evaluate(el=>getComputedStyle(el).getPropertyValue("--muscle-color").trim());
+  if(hipColor!=="#B79BFA")throw Error("Hip abductor color should use the leg violet: "+hipColor);
   const dates=await page.$eval("#avatarMeasureDate",e=>e.options.length);
   if(dates!==2)throw Error("Body measurement history failed: "+dates);
   if(await page.locator("#avatarPicture").count())throw Error("Old cartoon still visible");
@@ -62,9 +64,31 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    nodes=>nodes.map(node=>node.dataset.region));
   if(JSON.stringify(overview)!==JSON.stringify(["胸","肩","背","腿"]))
    throw Error("Four-region dashboard is incomplete: "+JSON.stringify(overview));
+  const cardPalette=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
+    nodes=>nodes.map(n=>getComputedStyle(n.querySelector(".region-overview-count")).color));
+  if(new Set(cardPalette).size!==4)throw Error("Four dashboard colors must be distinct: "+cardPalette);
   const sparks=await page.locator("#regionTrendGrid .region-overview-spark rect").count();
   if(sparks!==32)throw Error("Each region must have eight weekly bars: "+sparks);
   await page.screenshot({path:"bodytrace-trends-preview.png",fullPage:true});
+  await page.evaluate(()=>{
+   navigate("home");
+   // Extend synthetic demo only, never the actual private training repository.
+   for(const [id,label] of [["chest_press","胸推"],["row","划船"]]){
+    state.rows.push({id:"quad-demo-"+id,exercise_id:id,exercise:label,
+     session_date:"2026-11-17",created_at:"2026-11-17T20:00:00+08:00"});
+   }
+   renderHeat();
+  });
+  const dayTile=page.locator('#heat .cell[title^="2026-11-17"]');
+  const lit=await dayTile.locator(".cell-quadrant.active").evaluateAll(
+    items=>items.map(el=>({region:el.dataset.region,color:getComputedStyle(el).backgroundColor})));
+  if(lit.length!==4||new Set(lit.map(x=>x.region)).size!==4||
+     new Set(lit.map(x=>x.color)).size!==4)
+   throw Error("The same calendar day must illuminate all four unique region colors: "+JSON.stringify(lit));
+  const emptyDay=page.locator('#heat .cell[title^="2026-11-16"]');
+  if(await emptyDay.locator(".cell-quadrant.active").count())
+   throw Error("Rest day is unexpectedly illuminated");
+  await page.screenshot({path:"bodytrace-four-region-heatmap-preview.png",fullPage:false});
   await page.evaluate(()=>{
    window.BodyTraceNative={
     saveBatch:json=>{window.__capturedWorkout=JSON.parse(json)},
@@ -81,6 +105,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   });
   if(docked.position!=="fixed"||docked.top<0||docked.bottom>docked.navTop+3)
    throw Error("Save button not visible above navigation: "+JSON.stringify(docked));
+  const badgeRegion=await page.$eval("#recordRegionBadge",e=>e.textContent);
+  if(!badgeRegion.includes("腿"))throw Error("Current exercise badge should show purple leg category: "+badgeRegion);
+  const badgeColor=await page.locator("#recordRegionBadge").evaluate(el=>getComputedStyle(el).color);
+  if(badgeColor!=="rgb(183, 155, 250)")throw Error("Record leg accent must be violet: "+badgeColor);
   const initialGroup=await page.$eval("#recordGroup",e=>e.value);
   if(initialGroup!=="")throw Error("Default group should be All: "+initialGroup);
   const first=await page.locator("#recordExercise option").first().evaluate(e=>({id:e.value,label:e.textContent}));
