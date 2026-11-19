@@ -597,3 +597,45 @@
 .record-extra summary{cursor:pointer;color:#b3d9c7;font-size:12px}
 .record-extra .field{margin-top:9px}
 .record-extra input,.record-extra select{font-size:12px;padding:10px}
+
+/* Subjective four-color daily nutrition check-ins; independent from calorie totals. */
+.nutrition-checkin-panel{
+ --intake-creatine:#B9A9DD;--intake-protein:#EAF0F5;
+ --intake-carbs:#62D5A2;--intake-sugar-oil:#F28B82;
+}
+.intake-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.intake-choice{display:flex;gap:10px;align-items:center;padding:12px 11px;
+ border:1px solid #38504b;border-left:4px solid var(--intake-color);
+ border-radius:11px;background:#152b29;font-size:13px;font-weight:750;color:var(--intake-color);
+ cursor:pointer;user-select:none}
+.intake-choice:has(input:checked){background:color-mix(in srgb,var(--intake-color) 16%,#152b29);
+ border-color:var(--intake-color)}
+.intake-choice input{margin:0;flex:0 0 18px;width:18px;height:18px;
+ accent-color:var(--intake-color)}
+.intake-choice .intake-label{color:inherit}
+.intake-check-actions{margin-top:13px;justify-content:space-between;align-items:center;gap:9px}
+.intake-check-actions .sub{margin:0;flex:1;min-width:125px}
+.intake-check-actions button{min-height:42px}
+.nutrition-checkin-panel .divider{border-top:1px solid #365449;height:1px;margin-top:14px}
+.intake-calendar-scroll{margin-top:12px;overflow-x:auto;overscroll-behavior-x:contain;
+ scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.intake-months{height:22px;width:1196px;position:relative;color:#98b2a8;font-size:10px}
+.intake-month{position:absolute;white-space:nowrap}
+.intake-calendar-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,18px);
+ grid-auto-columns:18px;gap:5px;width:max-content;padding-bottom:4px}
+.intake-cell{position:relative;display:grid;grid-template-columns:repeat(2,1fr);
+ grid-template-rows:repeat(2,1fr);width:18px;height:18px;gap:1px;padding:1px;
+ background:#21302c;border:1px solid #3d544d;border-radius:3px;cursor:pointer}
+.intake-cell.selected{outline:1.5px solid #b9d2c2;outline-offset:1px}
+.intake-cell.future{opacity:.35}
+.intake-cell[data-saved="true"]{border-color:#648072}
+.intake-quadrant{min-width:0;min-height:0;background:#243732;border-radius:1px}
+.intake-quadrant.active[data-kind="intake_creatine"]{background:var(--intake-creatine)}
+.intake-quadrant.active[data-kind="intake_protein_powder"]{background:var(--intake-protein)}
+.intake-quadrant.active[data-kind="intake_carbs"]{background:var(--intake-carbs)}
+.intake-quadrant.active[data-kind="intake_sugar_oil"]{background:var(--intake-sugar-oil)}
+.intake-legend{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;margin-top:12px;
+ color:#b3c9bc;font-size:10px}
+.intake-legend span{display:inline-flex;align-items:center;gap:5px}
+.intake-legend i{display:block;width:10px;height:10px;border-radius:2px;border:1px solid #627c72}
+@media(max-width:380px){.intake-check-actions button{width:100%}}
