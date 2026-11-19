@@ -131,11 +131,52 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(Number(statSets)!==actualCompleted)
    throw Error("Failed attempts incorrectly inflated total completed sets: "+statSets);
   await page.screenshot({path:"bodytrace-zero-rep-red-dots-preview.png",fullPage:true});
+  // Reproduce field issue: same-day native rows have created_at, ChatGPT
+  // append-only GitHub rows often do not. Trend must show most recent saved set.
+  await page.evaluate(()=>{
+   window.__previewDays.push({
+    schema_version:2,date:"2026-11-19",workouts:[
+     {id:"demo-same-day-native",exercise_id:"face_pull",
+      created_at:"2026-11-19T14:32:00+08:00",load_kg:25,reps:12},
+     {id:"demo-same-day-smith-25",exercise_id:"smith_bench",
+      load_kg:25,reps:10,load_basis:"unspecified"},
+     {id:"demo-same-day-smith-30",exercise_id:"smith_bench",
+      load_kg:30,reps:5,load_basis:"unspecified"}
+    ],nutrition:[],measurements:[]
+   });
+   window.bodyTraceReceive({type:"data",cached:false,days:window.__previewDays});
+  });
+  const newest=await page.locator("#strengthList .strength-exercise-card").first()
+   .getAttribute("data-exercise-id");
+  if(newest!=="smith_bench")
+   throw Error("Newest GitHub same-day manual records were wrongly placed behind native record: "+newest);
+  const smith=page.locator('#strengthList [data-exercise-id="smith_bench"]');
+  const smithMeta=await smith.locator(".strength-exercise-info small").innerText();
+  if(!smithMeta.includes("2026-11-19")||!smithMeta.includes("30 kg × 5 次"))
+   throw Error("Latest saved set not shown on trend: "+smithMeta);
+  const initiallySelected=await smith.locator(".strength-point-detail").innerText();
+  if(!initiallySelected.includes("30 kg × 5 次")||initiallySelected.includes("标注待核实"))
+   throw Error("Trend should auto-select latest 30kg and hide technical metadata: "+initiallySelected);
+  const positions=await smith.locator(".strength-visible-point").evaluateAll(
+   el=>el.map(x=>Number(x.getAttribute("cx"))));
+  if(positions.length!==2||positions[0]===positions[1])
+   throw Error("Two sets on same day overlay completely: "+JSON.stringify(positions));
+  const latestButtons=smith.locator(".strength-recent-set");
+  if(await latestButtons.count()!==2)
+   throw Error("Same-day sets must each have a dedicated selectable button");
+  await latestButtons.nth(1).click();
+  const former=await smith.locator(".strength-point-detail").innerText();
+  if(!former.includes("25 kg × 10 次"))
+   throw Error("Older same-day set cannot be selected independently: "+former);
+  await latestButtons.nth(0).click();
+  if(!(await smith.locator(".strength-point-detail").innerText()).includes("30 kg × 5 次"))
+   throw Error("Latest set chip did not reselect newest entry");
+  await page.screenshot({path:"bodytrace-same-day-github-trends-preview.png",fullPage:true});
   // Restore the baseline fixture after failure-point tests: subsequent
   // recording tests intentionally check the original recent-first leg choice.
   await page.evaluate(()=>{
    window.__previewDays=window.__previewDays.filter(day=>
-    !day.workouts?.some(w=>String(w.id).startsWith("demo-shoulder-")));
+    !day.workouts?.some(w=>String(w.id).startsWith("demo-shoulder-")||String(w.id).startsWith("demo-same-day-")));
    window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
   });
   const overview=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(

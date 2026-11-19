@@ -565,22 +565,30 @@ function orderedExerciseGroups(rows){
   const id=row.exercise_id;
   if(!id)return;
   if(!byId.has(id)){
-   byId.set(id,{id,records:[],latestDate:"",latestCreated:"",lastIndex:-1});
+   byId.set(id,{id,records:[],latestDate:"",lastIndex:-1,latestRow:null});
   }
   const group=byId.get(id);
   group.records.push({row,index});
   const date=/^\d{4}-\d{2}-\d{2}$/.test(row.session_date||"")?row.session_date:"";
-  const created=String(row.created_at||"");
-  if(date>group.latestDate||
-    date===group.latestDate&&(created>group.latestCreated||
-     created===group.latestCreated&&index>group.lastIndex)){
-   group.latestDate=date;group.latestCreated=created;group.lastIndex=index;
+  // Append position wins within a date: ChatGPT/GitHub entries may lack
+  // created_at, and comparing "" to a native timestamp made new rows stale.
+  // A position here is an ordering of saved records, NOT an inferred workout time.
+  if(date>group.latestDate||(date===group.latestDate&&index>group.lastIndex)){
+   group.latestDate=date;group.lastIndex=index;group.latestRow=row;
   }
  });
  return [...byId.values()].sort((a,b)=>
   b.latestDate.localeCompare(a.latestDate)||
-  b.latestCreated.localeCompare(a.latestCreated)||
   b.lastIndex-a.lastIndex||a.id.localeCompare(b.id));
+}
+function compactStrengthSet(row,exerciseId){
+ const assisted=exerciseId==="assisted_pullup"||exerciseId==="assisted_dip";
+ const raw=assisted?row.assistance_kg:row.load_kg;
+ const prefix=assisted?"辅助 ":row.load_basis==="per_side"?"每侧 ":
+  row.load_basis==="bodyweight"?"外加 ":"";
+ const weight=validNum(raw)?prefix+Number(raw)+" kg":"负重未录入";
+ const rep=validNum(row.reps)?Number(row.reps)+" 次":"次数未录入";
+ return weight+" × "+rep+(isFailedAttempt(row)?"（0次失败）":"");
 }
 function renderStrength(){
  const root=$("strengthList");root.replaceChildren();
@@ -603,7 +611,8 @@ function renderStrength(){
   const title=document.createElement("h3");
   title.textContent="【"+region+"】"+(exerciseLabels[group.id]||group.records.at(-1)?.row.exercise||group.id);
   const date=document.createElement("small");
-  date.textContent="最近训练 "+(group.latestDate||"未知日期");
+  date.textContent="最近记录 "+(group.latestDate||"未知日期")+
+   (group.latestRow?" · "+compactStrengthSet(group.latestRow,group.id):"");
   header.append(title,date);
   const count=document.createElement("span");count.className="tag";
   const finished=group.records.filter(x=>!isFailedAttempt(x.row)).length;
@@ -678,6 +687,19 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
    "aria-label":(exerciseLabels[ex]||ex)+"训练重量与失败尝试趋势"});
  const days=[...new Set(values.map(v=>v.session_date))].sort();
  const xVal=day=>days.length===1?200:32+days.indexOf(day)/(days.length-1)*338;
+ const byDayPoints=new Map();
+ for(const v of values){
+  if(!byDayPoints.has(v.session_date))byDayPoints.set(v.session_date,[]);
+  byDayPoints.get(v.session_date).push(v);
+ }
+ // Same-day records must not be identical pixels; small jitter retains the
+ // day coordinate, and the recent-set buttons below allow precise selection.
+ const pointX=v=>{
+  const sameDay=byDayPoints.get(v.session_date);
+  const index=sameDay.indexOf(v);
+  const step=Math.min(9,36/Math.max(1,sameDay.length-1));
+  return xVal(v.session_date)+(index-(sameDay.length-1)/2)*step;
+ };
  const yVal=num=>199-(num-lo)/(hi-lo)*160;
  for(let i=0;i<5;i++){
   const y=28+i*42;
@@ -689,7 +711,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
     fill:"#9eafa7","font-size":10});
   t.textContent=labels[i].slice(5);svg.append(t);
  }
- const byDate=new Map(),points=[];
+ const byDate=new Map(),points=[],pointSelectors=[],recentButtons=[];
  const detail=document.createElement("div");
  detail.className="strength-point-detail";
  detail.setAttribute("role","status");
@@ -713,7 +735,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
  for(const v of values){
   const failure=isFailedAttempt(v);
   const numeric=isAssist?v.load:(v.estimated??v.load);
-  const cx=xVal(v.session_date),cy=yVal(failure?v.load:numeric);
+  const cx=pointX(v),cy=yVal(failure?v.load:numeric);
   const point=el("circle",{cx,cy,r:failure?6:4.5,
     fill:failure?"#F07780":plotColor,
     stroke:failure?"#ffcbcb":"#0a2419","stroke-width":1});
@@ -721,8 +743,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   point.dataset.normalRadius=failure?"6":"4.5";
   points.push(point);
   const units=v.load_basis==="per_side"?"（每侧）":
-   v.load_basis==="bodyweight"?"（仅外加重量；自重另计）":
-   v.load_basis==="unspecified"?"（重量标注待核实）":"";
+   v.load_basis==="bodyweight"?"（仅外加重量；自重另计）":"";
   const dateLabel=v.date_basis==="report_date"?"（对话报告日期，非确认训练日）":"";
   const hint=v.session_date+dateLabel+" · "+v.load+" kg"+units+" × "+v.reps+" 次"+
     (failure?" · 未完成":isAssist?"（辅助量）":"");
@@ -749,6 +770,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
    point.setAttribute("stroke-width","2");
    detail.textContent="已选："+hint+extra;
    detail.classList.toggle("failed",failure);
+   for(const entry of recentButtons)entry.button.classList.toggle("active",entry.value===v);
   };
   hit.addEventListener("click",selectPoint);
   hit.addEventListener("keydown",event=>{
@@ -757,8 +779,25 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
    }
   });
   svg.append(point,hit);
+  pointSelectors.push({value:v,select:selectPoint});
  }
- chart.append(svg,detail);
+ const recent=document.createElement("div");
+ recent.className="strength-recent-sets";
+ recent.setAttribute("aria-label","最近六次记录（可点击查看）");
+ for(const entry of pointSelectors.slice(-6).reverse()){
+  const button=document.createElement("button");
+  button.type="button";button.className="strength-recent-set";
+  button.textContent=entry.value.session_date.slice(5)+" · "+
+   compactStrengthSet(entry.value,ex);
+  button.setAttribute("aria-label","查看 "+entry.value.session_date+" "+
+   compactStrengthSet(entry.value,ex));
+  button.onclick=entry.select;
+  recentButtons.push({button,value:entry.value});
+  recent.append(button);
+ }
+ chart.append(svg,detail,recent);
+ // On each sync, show the newest SAVED set without requiring a dot tap.
+ if(pointSelectors.length)pointSelectors[pointSelectors.length-1].select();
  disclaimer.textContent=isAssist?
   "部位色点显示成功组标称辅助量；红点按实际尝试的辅助量定位，表示0次失败，不参与趋势线。":
   "部位色点按负重/简化Epley e1RM展示（仅1–15次）；红点按尝试重量定位，表示0次失败，不是测得的1RM、不参与连线。";
