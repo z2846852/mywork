@@ -585,3 +585,15 @@
 .settings-sync-strip .sub{margin:0;font-size:11px}
 @media(max-width:365px){.settings-sync-strip{flex-wrap:wrap}
  .settings-sync-strip .settings-sync-button{width:100%}}
+
+/* Failed attempts are recorded as 0 reps, not zero kg. Red dots remain touchable. */
+.strength-visible-point.failed-point{filter:drop-shadow(0 0 2px rgba(240,119,128,.6))}
+.strength-point-detail.failed{border-left-color:#F07780;background:#36272f;color:#ffe2e4}
+#heat .cell[data-failed="true"]::before{content:"";position:absolute;z-index:1;
+ left:-2px;top:-2px;width:4px;height:4px;background:#F07780;border-radius:50%}
+.set.failed-attempt{background:#37232b;border-color:#aa5360}
+.set.failed-attempt b{color:#ff9da8}
+.record-extra{margin-top:10px;border:1px solid #345448;border-radius:10px;padding:8px 12px}
+.record-extra summary{cursor:pointer;color:#b3d9c7;font-size:12px}
+.record-extra .field{margin-top:9px}
+.record-extra input,.record-extra select{font-size:12px;padding:10px}

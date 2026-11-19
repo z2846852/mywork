@@ -90,12 +90,15 @@ final class ViewProjector {
                     item.put("machine_setting", src.has("machine_setting")
                             ? src.get("machine_setting").toString() : "");
                     item.put("approx", src.optBoolean("approx", false));
+                    item.put("attempt_status", src.optString("attempt_status", ""));
+                    item.put("load_basis", src.optString("load_basis", ""));
+                    item.put("note", src.optString("note", ""));
                     item.put("source", src.optString("source", "daily-json"));
                     item.put("created_at", src.optString("created_at", ""));
                     item.put("rir", src.has("rir") && !src.isNull("rir")
                             ? src.get("rir").toString() : "");
                     String rirSource = src.optString("rir_source", "");
-                    if (rirSource.isEmpty() && !src.has("rir") && src.optInt("reps", 99) < 15) {
+                    if (rirSource.isEmpty() && !src.has("rir") && src.optInt("reps", 99) > 0 && src.optInt("reps", 99) < 15) {
                         rirSource = "user_rule_under_15";
                     }
                     item.put("rir_source", rirSource);

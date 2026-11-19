@@ -658,9 +658,9 @@ public final class MainActivity extends Activity {
         }
         int reps = input.getInt("reps");
         double kg = input.getDouble("kg");
-        if (reps < 1 || reps > 200 || !Double.isFinite(kg) || kg < 0 || kg > 500
+        if (reps < 0 || reps > 200 || !Double.isFinite(kg) || kg < 0 || kg > 500
                 || Math.rint(kg * 10) != kg * 10) {
-            throw new IllegalArgumentException("重量须为0–500kg、最多一位小数；次数1–200");
+            throw new IllegalArgumentException("重量须为0–500kg、最多一位小数；次数0–200（0=尝试失败）");
         }
         JSONObject result = new JSONObject();
         result.put("schema_version", 1);
@@ -673,6 +673,17 @@ public final class MainActivity extends Activity {
             result.put("exercise_region", customRegion);
         }
         result.put("reps", reps);
+        if (reps == 0) result.put("attempt_status", "failed");
+        String loadBasis = input.optString("load_basis", "machine");
+        if (!"machine".equals(loadBasis) && !"per_side".equals(loadBasis)) {
+            throw new IllegalArgumentException("重量记录方式不合法");
+        }
+        result.put("load_basis", loadBasis);
+        String note = input.optString("note", "").trim();
+        if (note.length() > 200 || note.matches("(?s).*?[\\p{Cntrl}].*")) {
+            throw new IllegalArgumentException("训练备注过长或包含非法字符");
+        }
+        if (!note.isEmpty()) result.put("note", note);
         result.put(ex.equals("assisted_pullup") || ex.equals("assisted_dip") ?
                 "assistance_kg" : "load_kg", kg);
         result.put("created_at", OffsetDateTime.now(BEIJING).toString());

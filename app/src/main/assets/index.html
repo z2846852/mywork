@@ -113,11 +113,17 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="formgrid">
  <div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label>
  <div class="wheel-entry"><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="点此用滚轮选择" readonly aria-label="选择器械重量"><button type="button" id="wheelKgOpen" class="wheel-open" aria-label="打开重量滚轮">▥</button></div></div>
- <div class="field"><label for="recordReps">每组次数</label>
- <div class="wheel-entry"><input id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" value="10" readonly aria-label="选择次数"><button type="button" id="wheelRepsOpen" class="wheel-open" aria-label="打开次数滚轮">▥</button></div></div>
+ <div class="field"><label for="recordReps">每组次数（0 = 未完成）</label>
+ <div class="wheel-entry"><input id="recordReps" type="number" min="0" max="200" step="1" inputmode="numeric" value="10" readonly aria-label="选择次数"><button type="button" id="wheelRepsOpen" class="wheel-open" aria-label="打开次数滚轮">▥</button></div></div>
 </div>
 <div class="field"><label for="recordSets">连续保存相同重量和次数的组数</label><div class="wheel-entry"><input id="recordSets" type="number" min="1" max="10" step="1" value="1" readonly aria-label="选择组数"><button type="button" class="wheel-open" id="wheelSetsOpen" aria-label="打开组数滚轮">▥</button></div></div>
-<p class="sub">点数字使用横向刻度滚轮；点滚轮中间的大数字可直接键盘输入。组数大于1时，会分别生成多条独立训练 JSON。</p>
+<p class="sub">次数为 0 表示尝试失败，在趋势图底部显示可点击红点；其他训练正常统计。</p>
+<details class="record-extra"><summary>重量单位与训练备注（可选）</summary>
+<div class="field"><label for="recordLoadBasis">重量记录方式</label>
+<select id="recordLoadBasis"><option value="machine">器械标称重量</option><option value="per_side">每侧重量</option></select></div>
+<div class="field"><label for="recordNote">训练备注（最多200字）</label>
+<input id="recordNote" maxlength="200" placeholder="例如：手腕酸痛、未完成原因"></div>
+</details>
 <div class="row wrap" style="gap:8px;margin-top:8px">
  <p class="sub" id="suggestedLoad" role="status" style="flex:1;min-width:160px;margin:0">默认沿用上次保存的重量和次数。</p>
  <button type="button" class="secondary mini" id="resetTrainingDefault">Reset · 旧版10组</button>
@@ -282,6 +288,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 "use strict";
 const $=id=>document.getElementById(id);
 const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[],rawNotes:[],calendarBrowsing:false};
+function isFailedAttempt(row){return row.attempt_status==="failed"||String(row.reps).trim()==="0"}
 const regionThemeColors=Object.freeze({胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"});
 const majorRegions=Object.keys(regionThemeColors);
 // Convert authoritative JSON v2 into a stable UI model. No CSV conversion.
@@ -336,9 +343,10 @@ function oneRow(entry,date){
   set_no:"",load_kg:load,assistance_kg:assist,
   machine_setting:entry.machine_setting===undefined?"":String(entry.machine_setting),
   rir:entry.rir===undefined||entry.rir===null?"":String(entry.rir),
-  rir_source:entry.rir_source||((entry.rir===undefined&&Number(entry.reps)<15)?"user_rule_under_15":""),
+  rir_source:entry.rir_source||((entry.rir===undefined&&Number(entry.reps)>0&&Number(entry.reps)<15)?"user_rule_under_15":""),
   approx:entry.approx===true,origin:entry.origin||"",
   created_at:entry.created_at||"",exercise_region:entry.exercise_region||"",
+  attempt_status:entry.attempt_status||"",load_basis:entry.load_basis||"",note:entry.note||"",
   source:entry.source||"daily-json"};
 }
 function normaliseDays(days){
@@ -396,7 +404,7 @@ function clearTrainingEdits(){
 }
 function loadRecommendation(rows,id){
  const assist=id==="assisted_pullup"||id==="assisted_dip",key=assist?"assistance_kg":"load_kg";
- const items=rows.map((row,index)=>({row,index})).filter(x=>x.row.exercise_id===id&&/^\d{4}-\d{2}-\d{2}$/.test(x.row.session_date||"")&&x.row[key]!==""&&x.row[key]!==undefined&&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
+ const items=rows.map((row,index)=>({row,index})).filter(x=>x.row.exercise_id===id&&/^\d{4}-\d{2}-\d{2}$/.test(x.row.session_date||"")&&x.row[key]!==""&&x.row[key]!==undefined&&!isFailedAttempt(x.row)&&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
  .sort((a,b)=>b.row.session_date.localeCompare(a.row.session_date)||(a.row.created_at&&b.row.created_at?b.row.created_at.localeCompare(a.row.created_at):0)||b.index-a.index);
  if(!items.length)return null;
  const row=items[0].row,reps=Number(row.reps);
@@ -404,7 +412,7 @@ function loadRecommendation(rows,id){
 }
 function historicalRecommendation(rows,id){
  const assist=id==="assisted_pullup"||id==="assisted_dip",key=assist?"assistance_kg":"load_kg";
- const items=rows.map((row,index)=>({row,index})).filter(x=>x.row.exercise_id===id&&x.row[key]!==""&&x.row[key]!==undefined&&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
+ const items=rows.map((row,index)=>({row,index})).filter(x=>x.row.exercise_id===id&&x.row[key]!==""&&x.row[key]!==undefined&&!isFailedAttempt(x.row)&&Number.isFinite(Number(x.row[key]))&&Number(x.row[key])>=0)
  .sort((a,b)=>b.row.session_date.localeCompare(a.row.session_date)||b.index-a.index).slice(0,10);
  if(!items.length)return null;
  const weights=items.map(x=>Number(x.row[key])).sort((a,b)=>a-b);
@@ -432,8 +440,9 @@ $("resetTrainingDefault").onclick=()=>{
 };
 function indexData(){
  const valid=state.rows.filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date)&&r.exercise);
- $("statSets").textContent=valid.length;
- $("statDays").textContent=new Set(valid.map(r=>r.session_date)).size;
+ const completed=valid.filter(r=>!isFailedAttempt(r));
+ $("statSets").textContent=completed.length;
+ $("statDays").textContent=new Set(completed.map(r=>r.session_date)).size;
  $("statMovements").textContent=new Set(valid.map(r=>r.exercise)).size;
  orderRecordOptionsByRecent(valid);
  const old=state.filter;
@@ -464,6 +473,7 @@ function summarizeHeatDays(rows){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(r.session_date||""))continue;
   let day=byDay.get(r.session_date);
   if(!day){day={total:0,other:0,regions:{胸:0,肩:0,背:0,腿:0}};byDay.set(r.session_date,day)}
+  if(isFailedAttempt(r)){day.failures=(day.failures||0)+1;continue}
   day.total++;
   const region=r.exercise_region||exerciseRegionById[r.exercise_id]||"其他";
   if(Object.hasOwn(day.regions,region))day.regions[region]++;else day.other++;
@@ -489,8 +499,10 @@ function renderHeat(focusLatest=false){
    cell.type="button";cell.className="cell"+(state.selected===day?" active":"")+(day>today?" dim":"");
    cell.dataset.level=String(counts.total===0?0:counts.total<=2?1:counts.total<=5?2:counts.total<=8?3:4);
    if(counts.other)cell.dataset.other="true";
+   if(counts.failures)cell.dataset.failed="true";
    const detail=majorRegions.map(region=>region+counts.regions[region]+"组").join(" / ")+
-    (counts.other?" / 其他"+counts.other+"组":"");
+    (counts.other?" / 其他"+counts.other+"组":"")+
+    (counts.failures?" / 失败尝试"+counts.failures+"次":"");
    cell.title=day+" · "+counts.total+"组（"+detail+"）";
    cell.setAttribute("aria-label",cell.title);
    for(const region of majorRegions){
@@ -517,7 +529,10 @@ function weight(r){if(r.assistance_kg)return "辅助 "+r.assistance_kg+"kg";if(r
 function renderDay(){
  $("selectedDate").textContent=state.selected+" · 训练详情";
  const list=filtered().filter(r=>r.session_date===state.selected);
- $("selectedSummary").textContent=list.length+" 组 · "+new Set(list.map(r=>r.exercise)).size+" 个动作";
+ const failedCount=list.filter(isFailedAttempt).length;
+ $("selectedSummary").textContent=(list.length-failedCount)+" 组"+
+  (failedCount?" · 失败尝试 "+failedCount+" 次":"")+
+  " · "+new Set(list.map(r=>r.exercise)).size+" 个动作";
  const view=$("dayDetails");view.replaceChildren();
  if(!list.length){view.className="empty";view.textContent="该日期暂无匹配训练记录。";return}
  view.className="";
@@ -525,13 +540,21 @@ function renderDay(){
  for(const [ex,items] of byEx){
   const section=document.createElement("section");section.className="exercise";
   const header=document.createElement("div");header.className="row";const name=document.createElement("span");name.className="exercise-name";name.textContent=ex;
-  const count=document.createElement("span");count.className="exercise-count";count.textContent=items.length+" 组";header.append(name,count);section.append(header);
+  const count=document.createElement("span");count.className="exercise-count";count.textContent=items.filter(r=>!isFailedAttempt(r)).length+" 组"+
+  (items.some(isFailedAttempt)?" / "+items.filter(isFailedAttempt).length+" 次失败":"");header.append(name,count);section.append(header);
   const sets=document.createElement("div");sets.className="sets";
   items.forEach((r,i)=>{
-   const p=document.createElement("div");p.className="set";const b=document.createElement("b");
+   const p=document.createElement("div");p.className="set"+(isFailedAttempt(r)?" failed-attempt":"");const b=document.createElement("b");
    const approx=r.approx===true;
-   b.textContent=weight(r)+" × "+(approx?"约":"")+r.reps+"次";p.append(b);
-   const meta=document.createElement("small");meta.textContent="第"+(i+1)+"组 · "+(r.rir_source==="user_rule_under_15"?"RIR0 (规则)":(r.rir!==""&&r.rir!==null&&r.rir!==undefined)?"RIR "+r.rir:"RIR未知");p.append(meta);sets.append(p);
+   b.textContent=weight(r)+(r.load_basis==="per_side"?" / 每侧":"")+
+  (isFailedAttempt(r)?" · 未完成（0 次）":" × "+(approx?"约":"")+r.reps+"次");p.append(b);
+   const meta=document.createElement("small");meta.textContent="第"+(i+1)+(isFailedAttempt(r)?"次尝试 · 失败":
+    r.attempt_status==="completed_with_pain"?"组 · 疼痛备注":
+    "组 · "+(r.rir_source==="user_rule_under_15"?"RIR0 (规则)":
+      (r.rir!==""&&r.rir!==null&&r.rir!==undefined)?"RIR "+r.rir:"RIR未知"));
+   p.append(meta);
+   if(r.note){const note=document.createElement("small");note.textContent=r.note;p.append(note)}
+   sets.append(p);
   });section.append(sets);view.append(section);
  }
 }
@@ -634,24 +657,26 @@ function openTrainingWheel(elementId, title, min, max, step, unit){
 $("recordKg").onclick=$("wheelKgOpen").onclick=()=>
  openTrainingWheel("recordKg",$("weightLabel").textContent,0,500,0.5,"kg");
 $("recordReps").onclick=$("wheelRepsOpen").onclick=()=>
- openTrainingWheel("recordReps","每组次数",1,200,1,"次");
+ openTrainingWheel("recordReps","每组次数（0 = 尝试失败）",0,200,1,"次");
 $("recordSets").onclick=$("wheelSetsOpen").onclick=()=>
  openTrainingWheel("recordSets","连续保存组数",1,10,1,"组");
 $("saveRecord").onclick=()=>{
  const date=$("recordDate").value,exercise_id=$("recordExercise").value,
    kg=Number($("recordKg").value),reps=Number($("recordReps").value),
-   sets=Number($("recordSets").value);
+   sets=Number($("recordSets").value),load_basis=$("recordLoadBasis").value,
+   note=$("recordNote").value.trim();
  if(!date||!exercise_id||!$("recordKg").value||!Number.isFinite(kg)||kg<0||kg>500||
     Math.abs(Math.round(kg*10)-kg*10)>0.00001||
-    !Number.isInteger(reps)||reps<1||reps>200||
+    !Number.isInteger(reps)||reps<0||reps>200||
+    !["machine","per_side"].includes(load_basis)||note.length>200||
     !Number.isInteger(sets)||sets<1||sets>10){
-   toast("检查日期、重量、次数和组数；重量最多一位小数。",true);return
+   toast("检查日期、重量、次数（0–200）和组数；重量最多一位小数。",true);return
  }
  if(!window.BodyTraceNative){toast("请在 Android App 内使用此功能。",true);return}
  if(typeof BodyTraceNative.saveBatch!=="function"){
    if(sets!==1){toast("请安装支持批量训练组的最新 App",true);return}
-   BodyTraceNative.save(JSON.stringify({date,exercise_id,kg,reps}));
- }else BodyTraceNative.saveBatch(JSON.stringify({date,exercise_id,kg,reps,sets}));
+   BodyTraceNative.save(JSON.stringify({date,exercise_id,kg,reps,load_basis,note}));
+ }else BodyTraceNative.saveBatch(JSON.stringify({date,exercise_id,kg,reps,sets,load_basis,note}));
  $("saveRecord").disabled=true;setTimeout(()=>$("saveRecord").disabled=false,1200);
 };
 $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("请先粘贴 GitHub token",true);return}

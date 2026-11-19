@@ -12,8 +12,8 @@ new vm.Script(script, {filename: "index.html script"}); // parse all embedded JS
 const helpers = script.slice(script.indexOf("function loadRecommendation("),
   script.indexOf("function refreshExerciseRecommendation("));
 assert.ok(helpers.startsWith("function loadRecommendation"));
-const load = vm.runInNewContext(helpers + "\nloadRecommendation");
-const legacy = vm.runInNewContext(helpers + "\nhistoricalRecommendation");
+const load = vm.runInNewContext(helpers + "\nloadRecommendation",{isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0"});
+const legacy = vm.runInNewContext(helpers + "\nhistoricalRecommendation",{isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0"});
 const demo = JSON.parse(fs.readFileSync(path.join(root, "data/demo/2026-11-17.json"), "utf8"));
 const rows = demo.workouts.map(x => ({
   exercise_id: x.exercise_id,
@@ -43,7 +43,7 @@ const userChanges=rows.concat([
 ]);
 assert.deepEqual(JSON.parse(JSON.stringify(load(userChanges,"lateral_raise"))),
  {amount:32,reps:7,count:1,isAssist:false});
-assert.ok(html.includes('id="recordReps" type="number" min="1" max="200" step="1" inputmode="numeric" value="10" readonly'));
+assert.ok(html.includes('id="recordReps" type="number" min="0" max="200" step="1" inputmode="numeric" value="10" readonly'));
 assert.ok(html.includes('id="recordSets" type="number" min="1" max="10"'));
 assert.ok(html.includes('id="wheelCanvas"')&&html.includes('id="wheelOverlay"'));
 assert.ok(html.includes('id="bodyEntryPanel"')&&html.includes('id="bodySaveMeasurement"'));
@@ -95,6 +95,7 @@ const heatStart=script.indexOf("function summarizeHeatDays(");
 const heatEnd=script.indexOf("function focusCalendarLatest()",heatStart);
 assert.ok(heatStart>=0&&heatEnd>heatStart);
 const heatFn=vm.runInNewContext(script.slice(heatStart,heatEnd)+"\nsummarizeHeatDays",{
+ isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0",
  exerciseRegionById:{chest_press:"胸",lateral_raise:"肩",row:"背",
   leg_extension:"腿",adductor:"腿",custom_ar:"手臂"},
 });
@@ -128,7 +129,7 @@ for(const [muscle,region] of [["胸大肌","胸"],["三角肌中束","肩"],
 }
 assert.equal(musclePalette.muscleShade("股四头肌",0),"#28413a");
 assert.ok(features.includes('const dashboardColors=regionThemeColors;'));
-assert.ok(features.includes('fill:plotColor')&&features.includes('stroke:plotColor'));
+assert.ok(features.includes('fill:failure?"#F07780":plotColor')&&features.includes('stroke:plotColor'));
 assert.ok(features.includes('fill.style.background=regionThemeColors[key]'));
 const cssBefore=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 for(const [selector,variable] of [["region-chest","--region-chest"],
@@ -138,13 +139,63 @@ for(const [selector,variable] of [["region-chest","--region-chest"],
 // Saved workout data can be inspected on touch devices, not only SVG hover.
 assert.ok(features.includes('hit.addEventListener("click",selectPoint)'));
 assert.ok(features.includes('hit.addEventListener("keydown",event=>'));
-assert.ok(features.includes('detail.textContent="已选："+hint;'));
+assert.ok(features.includes('detail.textContent="已选："+hint+extra;'));
 assert.ok(features.includes('const detail=document.createElement("div")'));
 assert.ok(features.includes('hit=el("circle",{cx,cy,r:17,fill:"transparent"'));
 assert.ok(features.includes('svg.append(point,hit)'));
 assert.ok(features.includes('chart.append(svg,detail)'));
 assert.ok(cssBefore.includes(".strength-point-detail{"));
 assert.ok(cssBefore.includes(".strength-point-hit{touch-action:manipulation;"));
+// 0 reps is a failed attempt, not 0 kg, not a training set, never Epley 1RM.
+const failureHelper=vm.runInNewContext(
+ script.slice(script.indexOf("function isFailedAttempt("),
+  script.indexOf("const regionThemeColors="))+"\nisFailedAttempt");
+assert.equal(failureHelper({reps:"0",attempt_status:"failed"}),true);
+assert.equal(failureHelper({reps:"8",attempt_status:"completed_with_pain"}),false);
+assert.equal(failureHelper({reps:""}),false);
+const future=load([{exercise_id:"shoulder_press",session_date:"2026-11-19",
+ load_kg:"10",reps:"0",attempt_status:"failed"},
+ {exercise_id:"shoulder_press",session_date:"2026-11-19",
+ load_kg:"5",reps:"8",note:"手腕疼痛"}],"shoulder_press");
+assert.equal(future.amount,5,"Failed load is not a recommendation");
+assert.equal(future.reps,8);
+assert.ok(html.includes('id="recordLoadBasis"'));
+assert.ok(html.includes('id="recordNote"'));
+assert.ok(html.includes("if(counts.failures)cell.dataset.failed="));
+assert.ok(html.includes('if(isFailedAttempt(r)){day.failures='));
+assert.ok(html.includes('load_basis:entry.load_basis||""'));
+assert.ok(features.includes('cy=failure?194:yVal(numeric)'));
+assert.ok(features.includes('fill:failure?"#F07780":plotColor'));
+assert.ok(features.includes('if(isFailedAttempt(row))continue;'));
+assert.ok(features.includes('if(label&&!isFailedAttempt(row)'));
+const milestoneStart=features.indexOf("function findFailureMilestone(");
+const milestoneEnd=features.indexOf("function renderStrengthPlot(",milestoneStart);
+const findMilestone=vm.runInNewContext(
+ features.slice(milestoneStart,milestoneEnd)+"\nfindFailureMilestone",
+ {isFailedAttempt:failureHelper});
+const failure={session_date:"2026-11-19",load:10,load_basis:"per_side",reps:0,attempt_status:"failed"};
+const sequence=[
+ failure,
+ {session_date:"2026-11-23",load:10,load_basis:"machine",reps:4},
+ {session_date:"2026-11-29",load:10,load_basis:"per_side",reps:1},
+ {session_date:"2026-12-02",load:10,load_basis:"per_side",reps:3}
+];
+const milestone=findMilestone(sequence,failure);
+assert.equal(milestone.date,"2026-11-29");
+assert.equal(milestone.days,10);
+assert.equal(findMilestone([failure],failure),null);
+assert.equal(findMilestone(sequence,sequence[2]),null);
+assert.ok(native.includes('result.put("attempt_status", "failed")'));
+assert.ok(native.includes('result.put("load_basis", loadBasis)'));
+assert.ok(native.includes('result.put("note", note)'));
+const projector=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
+assert.ok(projector.includes('item.put("attempt_status"'));
+assert.ok(projector.includes('item.put("load_basis"'));
+assert.ok(projector.includes('item.put("note"'));
+const gh=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
+assert.ok(gh.includes('"load_basis", "note", "source", "created_at"'));
 // Compact chrome, always reachable save, and distinct muscle categories.
 const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),
@@ -162,6 +213,7 @@ assert.ok(chartStart>=0&&chartEnd>chartStart);
 const chartFuncs=vm.runInNewContext(features.slice(chartStart,chartEnd)+
  "\ncomputeRegionDashboard",{
   regionThemeColors:{胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"},
+  isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0",
   today:"2026-11-18",
   plus:(s,n)=>new Date(Date.parse(s+"T12:00:00Z")+n*86400000).toISOString().slice(0,10),
   parse:s=>new Date(s+"T12:00:00Z"),
@@ -359,6 +411,7 @@ const calendarState={
 const renderFocus=[];
 const calendarIndex=vm.runInNewContext(script.slice(indexStart,indexEnd)+"\nindexData",{
  state:calendarState,
+ isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0",
  $:id=>indexNodes[id],
  document:{createElement:element},
  exerciseRegionById:{row:"背",leg_extension:"腿"},

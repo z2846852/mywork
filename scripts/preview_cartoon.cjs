@@ -82,13 +82,54 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const secondDetail=await pressCard.locator(".strength-point-detail").innerText();
   if(!secondDetail.includes("40 kg × 8 次")||!secondDetail.includes("2026-11-15"))
    throw Error("Second graph point did not change details: "+secondDetail);
-  if(await pressCard.locator(".strength-visible-point").nth(1).getAttribute("r")!=="7")
+  if(await pressCard.locator(".strength-visible-point").nth(1).getAttribute("r")!=="8")
    throw Error("Selected graph point did not get highlighted");
   await pressHits.nth(0).focus();
   await page.keyboard.press("Enter");
   const keyboardDetail=await pressCard.locator(".strength-point-detail").innerText();
   if(!keyboardDetail.includes("35 kg × 12 次"))
    throw Error("Keyboard activation of graph point failed: "+keyboardDetail);
+  // Failed attempt is 0 completed reps at a named load: tap its RED base marker.
+  // A later success with identical load and units must report days-to-first-success.
+  await page.evaluate(()=>{
+   const entries=[
+    ["2026-11-12",{id:"demo-shoulder-fail",exercise_id:"shoulder_press",
+     load_kg:10,load_basis:"per_side",reps:0,attempt_status:"failed",
+     note:"两边各10kg，一个也推不起来"}],
+    ["2026-11-17",{id:"demo-shoulder-pain",exercise_id:"shoulder_press",
+     load_kg:5,load_basis:"unspecified",reps:8,attempt_status:"completed_with_pain",
+     note:"手腕酸痛，单侧还是总计未知"}],
+    ["2026-11-19",{id:"demo-shoulder-success",exercise_id:"shoulder_press",
+     load_kg:10,load_basis:"per_side",reps:1}]
+   ];
+   for(const [date,workout] of entries)
+    window.__previewDays.push({schema_version:2,date,workouts:[workout],
+      nutrition:[],measurements:[]});
+   window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
+  });
+  const shoulderCard=page.locator('#strengthList [data-exercise-id="shoulder_press"]');
+  const failure=shoulderCard.locator(".strength-visible-point.failed-point");
+  if(await failure.count()!==1)throw Error("0-rep attempt not shown as red dot");
+  const redColor=await failure.getAttribute("fill");
+  const bottom=Number(await failure.getAttribute("cy"));
+  if(redColor!=="#F07780"||bottom!==194)
+   throw Error("Failed 10 kg attempt should be red at plot baseline: "+redColor+" "+bottom);
+  await shoulderCard.locator(".strength-point-hit").first().click();
+  const failDetail=await shoulderCard.locator(".strength-point-detail").innerText();
+  if(!failDetail.includes("2026-11-12")||!failDetail.includes("10 kg（每侧） × 0 次")||
+     !failDetail.includes("同重量首次完成至少1次：2026-11-19（相隔7天）"))
+   throw Error("Failed attempt + later success milestone missing: "+failDetail);
+  const warn=await shoulderCard.locator(".strength-point-detail").evaluate(e=>e.classList.contains("failed"));
+  if(!warn)throw Error("Failed point detail missing warning styling");
+  await shoulderCard.locator(".strength-point-hit").nth(1).click();
+  const painDetail=await shoulderCard.locator(".strength-point-detail").innerText();
+  if(!painDetail.includes("5 kg")||!painDetail.includes("8 次")||!painDetail.includes("手腕酸痛"))
+   throw Error("Pain note on completed set missing: "+painDetail);
+  const statSets=await page.locator("#statSets").innerText();
+  const actualCompleted=await page.evaluate(()=>state.rows.filter(x=>!isFailedAttempt(x)).length);
+  if(Number(statSets)!==actualCompleted)
+   throw Error("Failed attempts incorrectly inflated total completed sets: "+statSets);
+  await page.screenshot({path:"bodytrace-zero-rep-red-dots-preview.png",fullPage:true});
   const overview=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
    nodes=>nodes.map(node=>node.dataset.region));
   if(JSON.stringify(overview)!==JSON.stringify(["胸","肩","背","腿"]))

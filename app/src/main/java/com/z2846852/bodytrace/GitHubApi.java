@@ -141,7 +141,8 @@ final class GitHubApi {
                         "upper_arm_cm", "hip_cm", "thigh_cm", "calf_cm",
                         "source", "created_at"} :
                     new String[]{"id", "exercise_id", "exercise_label", "exercise_region",
-                        "reps", "load_kg", "assistance_kg", "source", "created_at"};
+                        "reps", "load_kg", "assistance_kg", "attempt_status",
+                        "load_basis", "note", "source", "created_at"};
             for (String key : allowed) if (event.has(key)) row.put(key, event.get(key));
             records.put(row);
             JSONObject put = new JSONObject();
