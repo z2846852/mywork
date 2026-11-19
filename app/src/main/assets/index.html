@@ -148,6 +148,40 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-nutrition">
+<div class="panel nutrition-checkin-panel">
+<div class="eyebrow">NUTRITION / QUICK CHECK-IN</div><h2>摄入概况 · 每日四分格</h2>
+<p class="sub">按体感勾选是否摄入；不代表克数或营养质量评估。未勾选不等于已确认没吃。</p>
+<div class="field"><label for="intakeDate">记录日期（北京时间）</label>
+<input type="date" id="intakeDate"></div>
+<div class="intake-check-grid" role="group" aria-label="每日摄入勾选">
+<label class="intake-choice" style="--intake-color:var(--intake-creatine)">
+<input type="checkbox" id="intakeCreatine"><span class="intake-label">肌酸</span></label>
+<label class="intake-choice" style="--intake-color:var(--intake-protein)">
+<input type="checkbox" id="intakeProtein"><span class="intake-label">蛋白粉</span></label>
+<label class="intake-choice" style="--intake-color:var(--intake-carbs)">
+<input type="checkbox" id="intakeCarbs"><span class="intake-label">碳水</span></label>
+<label class="intake-choice" style="--intake-color:var(--intake-sugar-oil)">
+<input type="checkbox" id="intakeSugarOil"><span class="intake-label">劣质糖油</span></label>
+</div>
+<div class="row wrap intake-check-actions">
+<span class="sub" id="intakeCheckStatus" role="status">当天尚未填写摄入勾选</span>
+<button type="button" class="primary" id="saveIntakeCheck">保存勾选并同步 GitHub</button>
+</div>
+<div class="divider"></div>
+<div class="row wrap" style="margin-top:12px"><h3 style="margin:0">近52周摄入日历</h3><button type="button" id="intakeToday" class="secondary mini">回到今天</button></div>
+<p class="sub">四象限固定为左上肌酸、右上蛋白粉、左下碳水、右下劣质糖油；点日期可修改勾选。</p>
+<div class="intake-calendar-scroll" id="intakeCalendarScroll">
+<div class="intake-months" id="intakeMonths"></div>
+<div class="intake-calendar-grid" id="intakeCalendar" aria-label="每日摄入四分格"></div>
+</div>
+<div class="intake-legend">
+<span><i style="background:var(--intake-creatine)"></i>肌酸</span>
+<span><i style="background:var(--intake-protein)"></i>蛋白粉</span>
+<span><i style="background:var(--intake-carbs)"></i>碳水</span>
+<span><i style="background:var(--intake-sugar-oil)"></i>劣质糖油</span>
+</div>
+<p class="sub">没有记录的日期为暗色；保存全未选时只表示本次未标记摄入。原有饮食热量记录独立保留。</p>
+</div>
 <div class="panel"><div class="eyebrow">NUTRITION / DAILY INTAKE</div><h2>饮食热量表</h2>
 <p class="sub">按实际吃下的重量计算；热量和营养素来自包装或你的估算，不自动猜测汤里多少肉。</p>
 <div class="row" style="margin-top:14px"><div><h3 style="margin:0" id="foodDateLabel">今日饮食</h3><p class="sub" id="foodDayTotals">尚无记录</p></div>
