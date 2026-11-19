@@ -228,6 +228,10 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-settings">
+<div class="settings-sync-strip" aria-label="GitHub 快速同步">
+ <button type="button" id="syncSettings" class="primary settings-sync-button">⇅ 立即同步 GitHub</button>
+ <span class="sub">同步本机记录与私有仓库最新数据</span>
+</div>
 <div class="panel" id="gitHistoryPanel">
  <div class="row wrap"><div><h2>Git log · 最近10次提交</h2>
  <p class="sub">私有 z2846852/- 仓库 main 分支，直接展示文件差异：绿色新增、红色删除，无需展开。</p></div>
@@ -247,7 +251,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <p class="note">在 GitHub 创建 Fine-grained personal access token，仅授权此仓库 Contents Read and write。令牌存于本机加密存储，不上传 mywork，也不会发送至第三方服务器。</p>
 <div class="field"><label for="token">GitHub Token</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_..."></div>
 <button id="connect" class="primary">验证并设置 GitHub 同步</button>
-<div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">解除授权（保留本地记录）</button><button id="syncSettings" class="secondary">⇅ 同步 GitHub</button></div>
+<div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">解除授权（保留本地记录）</button></div>
 <div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
 </div>
 </section>
