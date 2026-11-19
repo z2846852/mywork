@@ -156,7 +156,7 @@ function regionalCounts() {
   const end=today,start=plus(end,-27);
   for(const r of state.rows) {
     const key=categoryForRow(r);
-    if(key && r.session_date>=start && r.session_date<=end)counts[key]++;
+    if(key && !isFailedAttempt(r) && r.session_date>=start && r.session_date<=end)counts[key]++;
   }
   return counts;
 }
@@ -174,6 +174,7 @@ function computeRegionDashboard(rows,anchorDate=today){
  const activeDays=new Set();
  let currentTotal=0;
  for(const [index,row] of rows.entries()){
+  if(isFailedAttempt(row))continue;
   const date=row.session_date,card=byRegion.get(categoryForRow(row));
   if(!card||!(/^\d{4}-\d{2}-\d{2}$/.test(date||""))||date<first||date>anchorDate)continue;
   // Relative 7-day blocks, oldest to newest; includes the current date.
@@ -313,7 +314,7 @@ function muscleCounts(){
  const start=plus(today,-27),count=Object.fromEntries(muscleLabels.map(label=>[label,0]));
  for(const row of state.rows){
   const label=targetForExercise(row.exercise_id);
-  if(label&&row.session_date>=start&&row.session_date<=today)count[label]++;
+  if(label&&!isFailedAttempt(row)&&row.session_date>=start&&row.session_date<=today)count[label]++;
  }
  return count;
 }
@@ -489,7 +490,9 @@ function renderStrength(){
   date.textContent="最近训练 "+(group.latestDate||"未知日期");
   header.append(title,date);
   const count=document.createElement("span");count.className="tag";
-  count.textContent=group.records.length+"组";
+  const finished=group.records.filter(x=>!isFailedAttempt(x.row)).length;
+  const failed=group.records.length-finished;
+  count.textContent=finished+"组"+(failed?" · "+failed+"次失败":"");
   heading.append(header,count);
   const range=document.createElement("div");range.className="strength-exercise-range";
   const chart=document.createElement("div");chart.className="feature-chart";
@@ -499,15 +502,28 @@ function renderStrength(){
   renderStrengthPlot(group,chart,range,disclaimer,region);
  }
 }
+// Same machine, same recorded units and strictly later date; avoid fabricating
+// intra-day ordering when a workout entry has no actual completion timestamp.
+function findFailureMilestone(values,attempt){
+ if(!isFailedAttempt(attempt))return null;
+ const basis=v=>v.load_basis||"machine";
+ const next=values.filter(v=>!isFailedAttempt(v)&&v.reps>=1&&
+   v.load===attempt.load&&basis(v)===basis(attempt)&&
+   v.session_date>attempt.session_date)
+   .sort((a,b)=>a.session_date.localeCompare(b.session_date))[0];
+ if(!next)return null;
+ return {date:next.session_date,days:Math.round(
+  (Date.parse(next.session_date+"T12:00:00Z")-
+   Date.parse(attempt.session_date+"T12:00:00Z"))/86400000)};
+}
 function renderStrengthPlot(group,chart,range,disclaimer,region){
  const plotColor=regionThemeColors[region]||"#8bb6ad";
- const ex=group.id;
+ const ex=group.id, isAssist=ex==="assisted_pullup"||ex==="assisted_dip";
  const list=group.records.map(({row,index})=>({...row,sequence:index}))
    .filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date||"")&&
-      validNum(r.reps)&&safeNum(r.reps)>0&&
-      validNum(ex==="assisted_pullup"||ex==="assisted_dip"?r.assistance_kg:r.load_kg))
+     validNum(r.reps)&&safeNum(r.reps)>=0&&
+     validNum(isAssist?r.assistance_kg:r.load_kg))
    .sort((a,b)=>a.session_date.localeCompare(b.session_date)||a.sequence-b.sequence);
- const isAssist=ex==="assisted_pullup"||ex==="assisted_dip";
  chart.replaceChildren();
  if(!list.length){
   range.textContent="可比较数据 0 组";
@@ -518,14 +534,21 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
  const values=list.map(r=>{
   const load=Number(isAssist?r.assistance_kg:r.load_kg);
   const reps=Number(r.reps);
-  return {...r,load,estimated:!isAssist&&reps<=15?load*(1+reps/30):null};
+  return {...r,load,reps,
+   estimated:!isFailedAttempt(r)&&!isAssist&&reps>0&&reps<=15?
+      load*(1+reps/30):null};
  });
- const tracked=values.map(v=>isAssist?v.load:(v.estimated??v.load));
- const maximum=Math.max(...tracked),minimum=Math.min(...tracked);
+ const completed=values.filter(v=>!isFailedAttempt(v));
+ const failures=values.filter(isFailedAttempt);
+ const tracked=completed.map(v=>isAssist?v.load:(v.estimated??v.load));
+ const maximum=tracked.length?Math.max(...tracked):1;
+ const minimum=tracked.length?Math.min(...tracked):0;
  const spread=Math.max(1,maximum-minimum,maximum*.05);
  const lo=Math.max(0,minimum-spread*.25),hi=maximum+spread*.25;
- range.textContent=round1(minimum)+"–"+round1(maximum)+
-   (isAssist?" kg 辅助量":" kg 参考值")+" · "+list.length+" 组有效记录";
+ range.textContent=(completed.length?
+  round1(minimum)+"–"+round1(maximum)+(isAssist?" kg 辅助量":" kg 参考值")+
+   " · "+completed.length+"组成功记录":"尚无成功完成组")+
+  (failures.length?" · "+failures.length+"次失败尝试":"");
  const NS="http://www.w3.org/2000/svg";
  const el=(tag,attrs={})=>{
   const item=document.createElementNS(NS,tag);
@@ -533,7 +556,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   return item;
  };
  const svg=el("svg",{viewBox:"0 0 400 225",role:"img",
-   "aria-label":(exerciseLabels[ex]||ex)+"训练重量趋势"});
+   "aria-label":(exerciseLabels[ex]||ex)+"训练重量与失败尝试趋势"});
  const days=[...new Set(values.map(v=>v.session_date))].sort();
  const xVal=day=>days.length===1?200:32+days.indexOf(day)/(days.length-1)*338;
  const yVal=num=>199-(num-lo)/(hi-lo)*160;
@@ -547,25 +570,52 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
     fill:"#9eafa7","font-size":10});
   t.textContent=labels[i].slice(5);svg.append(t);
  }
- const byDate=new Map();
- const points=[];
+ if(failures.length){
+  svg.append(el("line",{x1:31,y1:199,x2:378,y2:199,
+   stroke:"#ef777e","stroke-opacity":0.45,"stroke-width":1,
+   "stroke-dasharray":"4 4"}));
+ }
+ const byDate=new Map(),points=[];
  const detail=document.createElement("div");
  detail.className="strength-point-detail";
  detail.setAttribute("role","status");
  detail.setAttribute("aria-live","polite");
- detail.textContent="点击图中圆点，查看该组实际重量和次数";
- for(const v of values){
+ detail.textContent="点击图中圆点查看日期、重量和次数；底部红点表示0次失败";
+ // The colored trend line must never interpolate through a failed attempt.
+ for(const v of completed){
   const numeric=isAssist?v.load:(v.estimated??v.load);
-  const cx=xVal(v.session_date),cy=yVal(numeric);
-  const point=el("circle",{cx,cy,r:4.5,
-    fill:plotColor,stroke:"#0a2419","stroke-width":1});
-  point.setAttribute("class","strength-visible-point");
+  const old=byDate.get(v.session_date);
+  if(old===undefined||(isAssist?numeric<old:numeric>old))byDate.set(v.session_date,numeric);
+ }
+ if(byDate.size>1){
+  const lineDays=[...byDate.keys()].sort();
+  const poly=el("polyline",{
+    points:lineDays.map(d=>xVal(d)+","+yVal(byDate.get(d))).join(" "),
+    fill:"none",stroke:plotColor,"stroke-width":2,"stroke-opacity":0.7,
+    "stroke-linejoin":"round"
+  });
+  svg.append(poly);
+ }
+ for(const v of values){
+  const failure=isFailedAttempt(v);
+  const numeric=isAssist?v.load:(v.estimated??v.load);
+  const cx=xVal(v.session_date),cy=failure?194:yVal(numeric);
+  const point=el("circle",{cx,cy,r:failure?6:4.5,
+    fill:failure?"#F07780":plotColor,
+    stroke:failure?"#ffcbcb":"#0a2419","stroke-width":1});
+  point.setAttribute("class","strength-visible-point"+(failure?" failed-point":""));
+  point.dataset.normalRadius=failure?"6":"4.5";
   points.push(point);
-  const hint=v.session_date+" · "+v.load+" kg × "+v.reps+" 次"+
-    (isAssist?"（辅助量）":"");
-  const tooltip=el("title");
-  tooltip.textContent=hint;point.append(tooltip);
-  // Desktop hover alone is insufficient: use large touch/keyboard hit targets.
+  const units=v.load_basis==="per_side"?"（每侧）":
+   v.load_basis==="unspecified"?"（重量单位待核实）":"";
+  const hint=v.session_date+" · "+v.load+" kg"+units+" × "+v.reps+" 次"+
+    (failure?" · 未完成":isAssist?"（辅助量）":"");
+  const milestone=findFailureMilestone(values,v);
+  const extra=(milestone?"\n同重量首次完成至少1次："+milestone.date+
+    "（相隔"+milestone.days+"天）":"")+
+   (failure&&!milestone?"\n尚无此重量后续成功记录":"")+
+   (v.note?"\n备注："+v.note:"");
+  const tooltip=el("title");tooltip.textContent=hint+extra;point.append(tooltip);
   const hit=el("circle",{cx,cy,r:17,fill:"transparent",
     "pointer-events":"all",tabindex:0,role:"button",
     "aria-label":"查看 "+hint});
@@ -573,14 +623,15 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   hit.style.cursor="pointer";
   const selectPoint=()=>{
    for(const other of points){
-    other.setAttribute("r","4.5");
-    other.setAttribute("stroke","#0a2419");
+    other.setAttribute("r",other.dataset.normalRadius);
+    other.setAttribute("stroke",other.classList.contains("failed-point")?"#ffcbcb":"#0a2419");
     other.setAttribute("stroke-width","1");
    }
-   point.setAttribute("r","7");
+   point.setAttribute("r","8");
    point.setAttribute("stroke","#ffffff");
    point.setAttribute("stroke-width","2");
-   detail.textContent="已选："+hint;
+   detail.textContent="已选："+hint+extra;
+   detail.classList.toggle("failed",failure);
   };
   hit.addEventListener("click",selectPoint);
   hit.addEventListener("keydown",event=>{
@@ -589,20 +640,11 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
    }
   });
   svg.append(point,hit);
-  const old=byDate.get(v.session_date);
-  if(old===undefined||(isAssist?numeric<old:numeric>old))byDate.set(v.session_date,numeric);
- }
- if(days.length>1){
-  const poly=el("polyline",{
-    points:days.map(d=>xVal(d)+","+yVal(byDate.get(d))).join(" "),
-    fill:"none",stroke:plotColor,"stroke-width":2,"stroke-opacity":0.7,"stroke-linejoin":"round"
-  });
-  svg.insertBefore(poly,svg.firstChild);
  }
  chart.append(svg,detail);
- disclaimer.textContent=isAssist
-  ?"部位色点为器械标称辅助量（越低通常越难）；同色线为当天最低辅助量，不直接代表力量增幅。"
-  :"部位色点为各组负重/简化 Epley e1RM 参考值（仅不超过15次的组计算 e1RM）；同色线为当天最高参考值，器械重量不等于实际肌肉力。";
+ disclaimer.textContent=isAssist?
+  "成功组的部位色点为标称辅助量；底部红点代表失败0次，其重量仅在详情展示，不参与趋势线。":
+  "成功组按负重/简化Epley e1RM展示（仅1–15次）；底部红点为0次失败，不当作0kg或e1RM，也不参与连线。";
 }
 
 // Basic body diagram is a training-zone schematic, never inferred anatomy.
