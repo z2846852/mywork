@@ -136,7 +136,8 @@ final class GitHubApi {
             String[] allowed = isNutrition ?
                     new String[]{"id", "meal", "food", "grams", "kcal_per_100g",
                         "protein_per_100g", "carbs_per_100g", "fat_per_100g",
-                        "source", "created_at"} : isMeasurement ?
+                        "entry_kind", "intake_creatine", "intake_protein_powder",
+                        "intake_carbs", "intake_sugar_oil", "source", "created_at"} : isMeasurement ?
                     new String[]{"id", "weight_kg", "shoulder_cm", "chest_cm", "waist_cm",
                         "upper_arm_cm", "hip_cm", "thigh_cm", "calf_cm",
                         "source", "created_at"} :
