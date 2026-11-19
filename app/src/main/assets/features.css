@@ -639,3 +639,16 @@
 .intake-legend span{display:inline-flex;align-items:center;gap:5px}
 .intake-legend i{display:block;width:10px;height:10px;border-radius:2px;border:1px solid #627c72}
 @media(max-width:380px){.intake-check-actions button{width:100%}}
+
+/* Show saved sets explicitly: same-day points can visually overlap in SVG. */
+.strength-exercise-info small{display:block;margin-top:4px;font-size:11px;
+ line-height:1.5;color:#b7cfc5;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.strength-recent-sets{display:flex;align-items:center;gap:5px;overflow-x:auto;
+ padding:7px 2px 3px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.strength-recent-set{flex:0 0 auto;max-width:210px;min-height:34px;
+ background:#172d2a;border:1px solid #375447;border-radius:8px;
+ padding:7px 9px;color:#bdd7ca;font-size:10.5px;line-height:1.25;
+ font-variant-numeric:tabular-nums;cursor:pointer;white-space:nowrap}
+.strength-recent-set.active{border-color:var(--region-accent,#7bbaa0);
+ background:#204237;color:#e1f8eb}
+.strength-recent-set:focus-visible{outline:2px solid #f3f5ea;outline-offset:1px}
