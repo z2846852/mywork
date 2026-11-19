@@ -57,6 +57,7 @@ function foodDailySummary(date) {
 const intakeKeys=["intake_creatine","intake_protein_powder","intake_carbs","intake_sugar_oil"];
 const intakeLabels=["肌酸","蛋白粉","碳水","劣质糖油"];
 const intakeInputs=["intakeCreatine","intakeProtein","intakeCarbs","intakeSugarOil"];
+let intakeDraftDirty=false,intakeLoadedDate="";
 function isIntakeCheckin(row){
  return row && row.entry_kind==="daily_checkin" &&
   /^\d{4}-\d{2}-\d{2}$/.test(row.date||"");
@@ -108,15 +109,19 @@ function renderIntakeCalendar(byDate){
    }
    button.onclick=()=>{
     $("intakeDate").value=date;
-    renderIntakeCheckin();
+    renderIntakeCheckin(true);
    };
    root.append(button);
   }
  }
 }
-function renderIntakeCheckin(){
+function renderIntakeCheckin(force=false){
  const date=$("intakeDate").value||today;
  const byDate=latestIntakeByDate(state.nutrition);
+ if(intakeDraftDirty&&!force&&intakeLoadedDate===date){
+  renderIntakeCalendar(byDate);return;
+ }
+ intakeDraftDirty=false;intakeLoadedDate=date;
  const saved=byDate.get(date);
  for(let i=0;i<4;i++)$(intakeInputs[i]).checked=saved?.[intakeKeys[i]]===true;
  $("intakeCheckStatus").textContent=saved?
@@ -126,16 +131,27 @@ function renderIntakeCheckin(){
  renderIntakeCalendar(byDate);
 }
 $("intakeDate").value=today;
-$("intakeDate").addEventListener("change",renderIntakeCheckin);
+$("intakeDate").addEventListener("change",()=>renderIntakeCheckin(true));
 $("intakeToday").onclick=()=>{
- $("intakeDate").value=today;renderIntakeCheckin();
+ $("intakeDate").value=today;renderIntakeCheckin(true);
  $("intakeCalendarScroll").scrollLeft=$("intakeCalendarScroll").scrollWidth;
 };
 for(const id of intakeInputs){
  $(id).addEventListener("change",()=>{
+  intakeDraftDirty=true;
   $("intakeCheckStatus").textContent="勾选已变更，点击保存后写入当天 JSON";
  });
 }
+// The calendar spans 52 weeks; show the recent weeks on first tab opening.
+document.querySelector('.tabs button[data-page="nutrition"]')?.addEventListener("click",()=>{
+ requestAnimationFrame(()=>{
+  const scroll=$("intakeCalendarScroll");
+  if(scroll&&!scroll.dataset.opened){
+   scroll.scrollLeft=Math.max(0,scroll.scrollWidth-scroll.clientWidth);
+   scroll.dataset.opened="true";
+  }
+ });
+});
 $("saveIntakeCheck").onclick=()=>{
  const date=$("intakeDate").value;
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date||"")||date>plus(today,1)){
@@ -971,6 +987,7 @@ window.bodyTraceReceive=function(evt){
       $("foodProtein").value="";$("foodCarbs").value="";$("foodFat").value="";
       updateFoodPreview();
     }
+    if(evt.event?.entry_kind==="daily_checkin")intakeDraftDirty=false;
     renderIntakeCheckin();navigate("nutrition");
     toast(evt.event?.entry_kind==="daily_checkin"?
       "每日四色摄入勾选已保存本机；连接后同步 GitHub":
