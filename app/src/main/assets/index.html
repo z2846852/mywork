@@ -2,7 +2,7 @@
 <html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>体迹 BodyTrace</title>
 <style>
-:root{--bg:#0b1114;--surface:#151f23;--panel:#19282a;--line:#2a4140;--green:#63e9ad;--muted:#91a9a8;--white:#effbf3;--red:#ff947a;--region-chest:#F28B82;--region-shoulder:#F2C66D;--region-back:#67B7F7;--region-leg:#B79BFA;font-family:Roboto,"Noto Sans SC",-apple-system,sans-serif}
+:root{--bg:#0b1114;--surface:#151f23;--panel:#19282a;--line:#2a4140;--green:#63e9ad;--muted:#91a9a8;--white:#effbf3;--red:#ff947a;--region-chest:#F28B82;--region-shoulder:#F2C66D;--region-back:#67B7F7;--region-leg:#B9A9DD;font-family:Roboto,"Noto Sans SC",-apple-system,sans-serif}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--white)}
 body{background:radial-gradient(circle at 80% -15%,#174337 0%,#0b1114 50%);overscroll-behavior:contain}
 button,input,select,textarea{font:inherit}button{cursor:pointer}input,select,textarea{background:#0e171b;color:var(--white);border:1px solid #395250;border-radius:11px;padding:12px 14px;width:100%;outline-color:var(--green)}
@@ -278,7 +278,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 "use strict";
 const $=id=>document.getElementById(id);
 const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[],rawNotes:[],calendarBrowsing:false};
-const regionThemeColors=Object.freeze({胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B79BFA"});
+const regionThemeColors=Object.freeze({胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"});
 const majorRegions=Object.keys(regionThemeColors);
 // Convert authoritative JSON v2 into a stable UI model. No CSV conversion.
 const exerciseLabels={
