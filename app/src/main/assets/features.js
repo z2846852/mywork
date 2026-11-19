@@ -548,14 +548,47 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   t.textContent=labels[i].slice(5);svg.append(t);
  }
  const byDate=new Map();
+ const points=[];
+ const detail=document.createElement("div");
+ detail.className="strength-point-detail";
+ detail.setAttribute("role","status");
+ detail.setAttribute("aria-live","polite");
+ detail.textContent="点击图中圆点，查看该组实际重量和次数";
  for(const v of values){
   const numeric=isAssist?v.load:(v.estimated??v.load);
-  const point=el("circle",{cx:xVal(v.session_date),cy:yVal(numeric),r:4.5,
+  const cx=xVal(v.session_date),cy=yVal(numeric);
+  const point=el("circle",{cx,cy,r:4.5,
     fill:plotColor,stroke:"#0a2419","stroke-width":1});
+  point.setAttribute("class","strength-visible-point");
+  points.push(point);
+  const hint=v.session_date+" · "+v.load+" kg × "+v.reps+" 次"+
+    (isAssist?"（辅助量）":"");
   const tooltip=el("title");
-  tooltip.textContent=v.session_date+" "+v.load+"kg × "+v.reps+
-    (isAssist?"次（标称辅助量）":"次（e1RM仅为公式参考）");
-  point.append(tooltip);svg.append(point);
+  tooltip.textContent=hint;point.append(tooltip);
+  // Desktop hover alone is insufficient: use large touch/keyboard hit targets.
+  const hit=el("circle",{cx,cy,r:17,fill:"transparent",
+    "pointer-events":"all",tabindex:0,role:"button",
+    "aria-label":"查看 "+hint});
+  hit.setAttribute("class","strength-point-hit");
+  hit.style.cursor="pointer";
+  const selectPoint=()=>{
+   for(const other of points){
+    other.setAttribute("r","4.5");
+    other.setAttribute("stroke","#0a2419");
+    other.setAttribute("stroke-width","1");
+   }
+   point.setAttribute("r","7");
+   point.setAttribute("stroke","#ffffff");
+   point.setAttribute("stroke-width","2");
+   detail.textContent="已选："+hint;
+  };
+  hit.addEventListener("click",selectPoint);
+  hit.addEventListener("keydown",event=>{
+   if(event.key==="Enter"||event.key===" "){
+    event.preventDefault();selectPoint();
+   }
+  });
+  svg.append(point,hit);
   const old=byDate.get(v.session_date);
   if(old===undefined||(isAssist?numeric<old:numeric>old))byDate.set(v.session_date,numeric);
  }
@@ -566,7 +599,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   });
   svg.insertBefore(poly,svg.firstChild);
  }
- chart.append(svg);
+ chart.append(svg,detail);
  disclaimer.textContent=isAssist
   ?"部位色点为器械标称辅助量（越低通常越难）；同色线为当天最低辅助量，不直接代表力量增幅。"
   :"部位色点为各组负重/简化 Epley e1RM 参考值（仅不超过15次的组计算 e1RM）；同色线为当天最高参考值，器械重量不等于实际肌肉力。";
