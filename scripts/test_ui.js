@@ -573,6 +573,7 @@ const nodes=Object.fromEntries(nodeIds.map(id=>[id,element(
  ["recordGroup","recordExercise","recordSortMode"].includes(id)?"select":"div")]));
 const catalogContext={
  state:{rows:[]},
+ indexData(){},renderAllFeatures(){},
  document:{getElementById:id=>nodes[id],createElement:element},
  exerciseLabels:{chest_press:"Chest Press",lateral_raise:"Lateral Raise",
    row:"Seated Row",leg_extension:"Leg Extension"},
