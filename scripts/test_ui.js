@@ -167,6 +167,11 @@ assert.ok(html.includes('load_basis:entry.load_basis||""'));
 assert.ok(features.includes('cy=yVal(failure?v.load:numeric)'));
 assert.ok(features.includes('fill:failure?"#F07780":plotColor'));
 assert.ok(features.includes('const domain=tracked.concat(attempts)'));
+assert.ok(features.includes('v.date_basis==="report_date"'));
+assert.ok(features.includes('v.load_basis==="bodyweight"'));
+assert.ok(html.includes('id="recordLoadBasis"'));
+assert.ok(html.includes('<option value="bodyweight">'));
+assert.ok(html.includes('<option value="unspecified">'));
 assert.ok(!features.includes('cy=failure?194:yVal(numeric)'));
 assert.ok(features.includes('红点按尝试重量定位'));
 assert.ok(features.includes('if(isFailedAttempt(row))continue;'));
@@ -198,7 +203,7 @@ assert.ok(projector.includes('item.put("load_basis"'));
 assert.ok(projector.includes('item.put("note"'));
 const gh=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
-assert.ok(gh.includes('"load_basis", "note", "source", "created_at"'));
+assert.ok(gh.includes('"load_basis", "date_basis", "note", "source", "created_at"'));
 // Compact chrome, always reachable save, and distinct muscle categories.
 const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),
