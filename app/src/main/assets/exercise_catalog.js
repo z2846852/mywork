@@ -172,7 +172,7 @@ function commit(){
   // A newer shared catalog can resolve previously unknown legacy classes.
   // Refresh home quadrants, trends and anatomy immediately after it arrives.
   indexData();
-  renderAllFeatures();
+  if(typeof window.BodyTraceRenderFeatures==="function")window.BodyTraceRenderFeatures();
  }
  $("recordExercise").addEventListener("change",()=>{blockedDraftExerciseId="";});
  $("recordGroup").addEventListener("change",()=>{blockedDraftExerciseId="";groupChosen=true;
