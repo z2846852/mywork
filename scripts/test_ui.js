@@ -204,6 +204,58 @@ assert.ok(projector.includes('item.put("note"'));
 const gh=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
 assert.ok(gh.includes('"load_basis", "date_basis", "note", "source", "created_at"'));
+// Four daily subjective intake flags are independent from food calories and
+// from muscle-region training activity. The latest save wins for each date.
+for(const id of ["intakeDate","intakeCreatine","intakeProtein","intakeCarbs",
+ "intakeSugarOil","saveIntakeCheck","intakeCalendar","intakeCalendarScroll"]){
+ assert.ok(html.includes('id="'+id+'"'),"Missing nutrition check-in element "+id);
+}
+const nutritionCss=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
+for(const [key,color] of [["--intake-creatine","#B9A9DD"],
+ ["--intake-protein","#EAF0F5"],["--intake-carbs","#62D5A2"],
+ ["--intake-sugar-oil","#F28B82"]]){
+ assert.ok(nutritionCss.includes(key+":"+color),
+  "Nutrition flags must use requested color "+key);
+}
+const intakeStart=features.indexOf("function isIntakeCheckin(");
+const intakeEnd=features.indexOf("function renderIntakeCalendar(",intakeStart);
+assert.ok(intakeStart>=0&&intakeEnd>intakeStart);
+const intakeHelpers=vm.runInNewContext(
+ features.slice(intakeStart,intakeEnd)+"\n({isIntakeCheckin,latestIntakeByDate})");
+const snapshots=[
+ {id:"meal",date:"2026-11-19",food:"米饭",grams:200,kcal_per_100g:120},
+ {id:"v1",entry_kind:"daily_checkin",date:"2026-11-19",
+  created_at:"2026-11-19T12:00:00+08:00",
+  intake_creatine:true,intake_protein_powder:true,intake_carbs:true,intake_sugar_oil:false},
+ {id:"v2",entry_kind:"daily_checkin",date:"2026-11-19",
+  created_at:"2026-11-19T12:05:00+08:00",
+  intake_creatine:false,intake_protein_powder:true,intake_carbs:false,intake_sugar_oil:true},
+ {id:"old",entry_kind:"daily_checkin",date:"2026-11-18",
+  created_at:"2026-11-18T11:00:00+08:00",
+  intake_creatine:true,intake_protein_powder:false,intake_carbs:false,intake_sugar_oil:false}
+];
+const latest=intakeHelpers.latestIntakeByDate(snapshots);
+assert.equal(latest.size,2);
+assert.equal(latest.get("2026-11-19").id,"v2",
+ "Latest snapshot must override earlier checkboxes, including unchecking");
+assert.equal(latest.get("2026-11-19").intake_creatine,false);
+assert.equal(latest.get("2026-11-18").intake_creatine,true);
+assert.equal(intakeHelpers.isIntakeCheckin(snapshots[0]),false);
+assert.ok(features.includes('intakeDraftDirty&&!force&&intakeLoadedDate===date'),
+ "Remote sync must not discard unsubmitted checkbox edits");
+assert.ok(features.includes('entry_kind:"daily_checkin"'));
+assert.ok(features.includes('BodyTraceNative.saveNutrition(JSON.stringify(event))'));
+const nativeNutrition=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/MainActivity.java"),"utf8");
+assert.ok(nativeNutrition.includes('if ("daily_checkin".equals(input.optString("entry_kind")))'));
+assert.ok(nativeNutrition.includes('input.get(key) instanceof Boolean'));
+const apiNutrition=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
+assert.ok(apiNutrition.includes('"entry_kind", "intake_creatine", "intake_protein_powder"'));
+assert.ok(apiNutrition.includes('"intake_carbs", "intake_sugar_oil"'));
+const projectionNutrition=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
+assert.ok(projectionNutrition.includes('if ("daily_checkin".equals(item.optString("entry_kind"))) continue;'));
 // Compact chrome, always reachable save, and distinct muscle categories.
 const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),

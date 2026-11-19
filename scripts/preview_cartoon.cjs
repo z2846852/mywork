@@ -315,6 +315,85 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(!lastSettings.includes("连接 GitHub 私有仓库"))
    throw Error("GitHub authorization must be the last settings panel");
   await page.screenshot({path:"bodytrace-git-diff-preview.png",fullPage:true});
+  // Nutrition check-in: four semantic quadrants, saved snapshots and GitHub
+  // native bridge payload. Synthetic samples only, never personal nutrition.
+  await page.locator('.tabs button[data-page="nutrition"]').click();
+  if(await page.locator("#intakeCalendar .intake-cell").count()!==364)
+   throw Error("Nutrition 52-week calendar should render 364 day cells");
+  const scrollState=await page.locator("#intakeCalendarScroll").evaluate(node=>
+   ({left:node.scrollLeft,span:node.scrollWidth-node.clientWidth}));
+  if(scrollState.span>50&&scrollState.left<scrollState.span*0.7)
+   throw Error("Nutrition calendar did not start near the most recent weeks");
+  await page.fill("#intakeDate","2026-11-17");
+  for(const id of ["intakeCreatine","intakeProtein","intakeCarbs","intakeSugarOil"])
+   await page.locator("#"+id).check();
+  await page.evaluate(()=>{
+   window.BodyTraceNative.saveNutrition=value=>{
+    window.__capturedIntake=JSON.parse(value);
+   };
+  });
+  await page.locator("#saveIntakeCheck").click();
+  const firstIntake=await page.evaluate(()=>window.__capturedIntake);
+  if(firstIntake?.entry_kind!=="daily_checkin"||firstIntake.date!=="2026-11-17"||
+   !["intake_creatine","intake_protein_powder","intake_carbs","intake_sugar_oil"]
+     .every(k=>firstIntake[k]===true))
+   throw Error("Four-flag nutrition save payload invalid: "+JSON.stringify(firstIntake));
+  await page.evaluate(()=>{
+   const day=window.__previewDays.find(x=>x.date==="2026-11-17");
+   day.nutrition.push({id:"intake-all",...window.__capturedIntake,
+    created_at:"2026-11-17T11:00:00+08:00",source:"bodytrace-android"});
+   day.nutrition.push({id:"food-item",meal:"lunch",food:"熟米饭",
+    grams:200,kcal_per_100g:120,source:"bodytrace-android"});
+   window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
+  });
+  const intakeDay=page.locator('#intakeCalendar .intake-cell[title^="2026-11-17"]');
+  const colors=await intakeDay.locator(".intake-quadrant.active").evaluateAll(
+   squares=>squares.map(x=>getComputedStyle(x).backgroundColor));
+  if(colors.length!==4||new Set(colors).size!==4)
+   throw Error("Four distinct colors should light up same nutrition day: "+colors);
+  await page.locator("#intakeCreatine").uncheck();
+  await page.locator("#intakeCarbs").uncheck();
+  const pendingText=await page.locator("#intakeCheckStatus").innerText();
+  if(!pendingText.includes("待保存")&&!pendingText.includes("勾选已变更"))
+   throw Error("Checkbox changes must be marked as unsaved");
+  // Simulate an unrelated remote refresh before saving: preserve user edits.
+  await page.evaluate(()=>window.bodyTraceReceive({
+   type:"data",cached:true,days:window.__previewDays
+  }));
+  if(await page.locator("#intakeCreatine").isChecked()||
+     await page.locator("#intakeCarbs").isChecked())
+   throw Error("Pending nutrition edits were erased by a sync refresh");
+  await page.locator("#saveIntakeCheck").click();
+  const revised=await page.evaluate(()=>window.__capturedIntake);
+  if(revised.intake_creatine!==false||revised.intake_carbs!==false||
+     revised.intake_protein_powder!==true||revised.intake_sugar_oil!==true)
+   throw Error("Unchecking flags did not create a complete new snapshot");
+  await page.evaluate(()=>{
+   const day=window.__previewDays.find(x=>x.date==="2026-11-17");
+   day.nutrition.unshift({id:"intake-newer",...window.__capturedIntake,
+    created_at:"2026-11-17T19:00:00+08:00",source:"bodytrace-android"});
+   window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
+  });
+  const remaining=await intakeDay.locator(".intake-quadrant.active").evaluateAll(
+   nodes=>nodes.map(el=>el.dataset.kind));
+  if(JSON.stringify(remaining)!==JSON.stringify(["intake_protein_powder","intake_sugar_oil"]))
+   throw Error("Latest snapshot did not win over older saved flags: "+remaining);
+  await page.fill("#foodDate","2026-11-17");
+  const foodTotal=await page.locator("#foodDayTotals").innerText();
+  if(!foodTotal.includes("240 kcal"))
+   throw Error("Intake checkbox snapshots must not affect food calories: "+foodTotal);
+  const foodCount=await page.locator("#foodRecordCount").innerText();
+  if(foodCount!=="1条")throw Error("Qualitative check-ins inflated food count: "+foodCount);
+  await page.locator('#intakeCalendar .intake-cell[title^="2026-11-16"]').click();
+  for(const id of ["intakeCreatine","intakeProtein","intakeCarbs","intakeSugarOil"]){
+   if(await page.locator("#"+id).isChecked())
+    throw Error("Unrecorded day inherited prior checkbox selection: "+id);
+  }
+  await intakeDay.click();
+  if(await page.locator("#intakeCreatine").isChecked()||
+     !(await page.locator("#intakeProtein").isChecked()))
+   throw Error("Selecting a previously saved day failed to restore its latest flags");
+  await page.screenshot({path:"bodytrace-nutrition-four-quadrant-preview.png",fullPage:false});
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.join(" | "));
   console.log("PASS: 2 schematic figures, "+plots+" recent-first charts, group labels, ruler, batch/measurement JSON");
  }finally{await browser.close()}

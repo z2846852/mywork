@@ -51,6 +51,122 @@ function foodDailySummary(date) {
   return {rows,total:sum,protein:pc?round1(protein):null,carbs:cc?round1(carbs):null,
     fat:fc?round1(fat):null,partialMacros:pc<rows.length||cc<rows.length||fc<rows.length};
 }
+// Subjective four-flag DAILY CHECK-IN. One immutable snapshot per save,
+// latest created_at wins for that date, including after offline/GitHub merge.
+// Deliberately separate from measured food calories/macros and meal entries.
+const intakeKeys=["intake_creatine","intake_protein_powder","intake_carbs","intake_sugar_oil"];
+const intakeLabels=["肌酸","蛋白粉","碳水","劣质糖油"];
+const intakeInputs=["intakeCreatine","intakeProtein","intakeCarbs","intakeSugarOil"];
+let intakeDraftDirty=false,intakeLoadedDate="";
+function isIntakeCheckin(row){
+ return row && row.entry_kind==="daily_checkin" &&
+  /^\d{4}-\d{2}-\d{2}$/.test(row.date||"");
+}
+function latestIntakeByDate(rows){
+ const found=new Map();
+ for(const [index,row] of rows.entries()){
+  if(!isIntakeCheckin(row))continue;
+  const created=String(row.created_at||"");
+  const previous=found.get(row.date);
+  if(!previous || created>previous.created ||
+    (created===previous.created&&index>previous.index)){
+   found.set(row.date,{row,created,index});
+  }
+ }
+ return new Map([...found.entries()].map(([date,rec])=>[date,rec.row]));
+}
+function renderIntakeCalendar(byDate){
+ const root=$("intakeCalendar"),months=$("intakeMonths");
+ root.replaceChildren();months.replaceChildren();
+ const selected=$("intakeDate").value||today;
+ const dateEnd=selected>today?selected:today;
+ const monday=plus(dateEnd,-((parse(dateEnd).getUTCDay()+6)%7));
+ const start=plus(monday,-51*7);
+ let lastMonth="";
+ for(let week=0;week<52;week++){
+  const first=plus(start,week*7),month=first.slice(0,7);
+  if(month!==lastMonth){
+   const title=document.createElement("span");title.className="intake-month";
+   title.style.left=(week*23)+"px";title.textContent=Number(first.slice(5,7))+"月";
+   months.append(title);lastMonth=month;
+  }
+  for(let dayOffset=0;dayOffset<7;dayOffset++){
+   const date=plus(first,dayOffset),row=byDate.get(date);
+   const button=document.createElement("button");button.type="button";
+   button.className="intake-cell"+(date===selected?" selected":"")+
+    (date>today?" future":"");
+   if(row)button.dataset.saved="true";
+   const checked=intakeKeys.map(k=>row?.[k]===true);
+   button.title=date+" · "+(row?
+    (checked.some(Boolean)?intakeLabels.filter((_,i)=>checked[i]).join("、"):"已保存：未勾选任何项"):
+    "尚未记录");
+   button.setAttribute("aria-label",button.title);
+   for(let k=0;k<4;k++){
+    const square=document.createElement("span");
+    square.className="intake-quadrant"+(checked[k]?" active":"");
+    square.dataset.kind=intakeKeys[k];square.setAttribute("aria-hidden","true");
+    button.append(square);
+   }
+   button.onclick=()=>{
+    $("intakeDate").value=date;
+    renderIntakeCheckin(true);
+   };
+   root.append(button);
+  }
+ }
+}
+function renderIntakeCheckin(force=false){
+ const date=$("intakeDate").value||today;
+ const byDate=latestIntakeByDate(state.nutrition);
+ if(intakeDraftDirty&&!force&&intakeLoadedDate===date){
+  renderIntakeCalendar(byDate);return;
+ }
+ intakeDraftDirty=false;intakeLoadedDate=date;
+ const saved=byDate.get(date);
+ for(let i=0;i<4;i++)$(intakeInputs[i]).checked=saved?.[intakeKeys[i]]===true;
+ $("intakeCheckStatus").textContent=saved?
+  "已保存："+(intakeKeys.map((k,i)=>saved[k]===true?intakeLabels[i]:null)
+   .filter(Boolean).join("、")||"未勾选任何项"):
+  "该日期尚无体感摄入记录";
+ renderIntakeCalendar(byDate);
+}
+$("intakeDate").value=today;
+$("intakeDate").addEventListener("change",()=>renderIntakeCheckin(true));
+$("intakeToday").onclick=()=>{
+ $("intakeDate").value=today;renderIntakeCheckin(true);
+ $("intakeCalendarScroll").scrollLeft=$("intakeCalendarScroll").scrollWidth;
+};
+for(const id of intakeInputs){
+ $(id).addEventListener("change",()=>{
+  intakeDraftDirty=true;
+  $("intakeCheckStatus").textContent="勾选已变更，点击保存后写入当天 JSON";
+ });
+}
+// The calendar spans 52 weeks; show the recent weeks on first tab opening.
+document.querySelector('.tabs button[data-page="nutrition"]')?.addEventListener("click",()=>{
+ requestAnimationFrame(()=>{
+  const scroll=$("intakeCalendarScroll");
+  if(scroll&&!scroll.dataset.opened){
+   scroll.scrollLeft=Math.max(0,scroll.scrollWidth-scroll.clientWidth);
+   scroll.dataset.opened="true";
+  }
+ });
+});
+$("saveIntakeCheck").onclick=()=>{
+ const date=$("intakeDate").value;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date||"")||date>plus(today,1)){
+  toast("请选择有效的摄入日期（北京时间）",true);return;
+ }
+ if(!window.BodyTraceNative||typeof BodyTraceNative.saveNutrition!=="function"){
+  toast("请安装支持饮食保存的 App 版本",true);return;
+ }
+ const event={date,entry_kind:"daily_checkin"};
+ for(let i=0;i<4;i++)event[intakeKeys[i]]=$(intakeInputs[i]).checked;
+ BodyTraceNative.saveNutrition(JSON.stringify(event));
+ $("intakeCheckStatus").textContent="正在保存本机 JSON，连接后会同步 GitHub…";
+ $("saveIntakeCheck").disabled=true;
+ setTimeout(()=>$("saveIntakeCheck").disabled=false,1000);
+};
 function nutritionRender() {
   const date=$("foodDate").value||today;
   const daily=foodDailySummary(date);
@@ -837,7 +953,7 @@ $("avatarMeasureDate").addEventListener("change",e=>{
  renderAvatar();
 });
 function renderAllFeatures(){
- nutritionRender();renderRegionDashboard();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();renderBodyEntry();
+ renderIntakeCheckin();nutritionRender();renderRegionDashboard();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();renderBodyEntry();
 }
 const originalReceive = window.bodyTraceReceive;
 window.bodyTraceReceive=function(evt){
@@ -866,10 +982,16 @@ window.bodyTraceReceive=function(evt){
       indexData();renderBody();
     }
     state.pending=evt.count||state.pending;renderStatus();
-    $("foodName").value="";$("foodPreset").value="";$("foodKcal").value="";
-    $("foodProtein").value="";$("foodCarbs").value="";$("foodFat").value="";
-    updateFoodPreview();navigate("nutrition");
-    toast("饮食已经存入本机 JSON；已连接时将尝试上传 GitHub");
+    if(evt.event?.entry_kind!=="daily_checkin"){
+      $("foodName").value="";$("foodPreset").value="";$("foodKcal").value="";
+      $("foodProtein").value="";$("foodCarbs").value="";$("foodFat").value="";
+      updateFoodPreview();
+    }
+    if(evt.event?.entry_kind==="daily_checkin")intakeDraftDirty=false;
+    renderIntakeCheckin();navigate("nutrition");
+    toast(evt.event?.entry_kind==="daily_checkin"?
+      "每日四色摄入勾选已保存本机；连接后同步 GitHub":
+      "饮食已经存入本机 JSON；已连接时将尝试上传 GitHub");
   }
   if(evt.type==="saved"&&evt.category==="nutrition"){
     toast("饮食记录已同步 GitHub");
