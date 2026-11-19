@@ -378,9 +378,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    nodes=>nodes.map(el=>el.dataset.kind));
   if(JSON.stringify(remaining)!==JSON.stringify(["intake_protein_powder","intake_sugar_oil"]))
    throw Error("Latest snapshot did not win over older saved flags: "+remaining);
-  if(!await page.locator("#foodDayTotals").innerText().then(s=>s.includes("kcal")))
-   throw Error("Original food energy summary unexpectedly vanished");
   await page.fill("#foodDate","2026-11-17");
+  const foodTotal=await page.locator("#foodDayTotals").innerText();
+  if(!foodTotal.includes("240 kcal"))
+   throw Error("Intake checkbox snapshots must not affect food calories: "+foodTotal);
   const foodCount=await page.locator("#foodRecordCount").innerText();
   if(foodCount!=="1条")throw Error("Qualitative check-ins inflated food count: "+foodCount);
   await page.locator('#intakeCalendar .intake-cell[title^="2026-11-16"]').click();
