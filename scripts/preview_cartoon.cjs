@@ -111,9 +111,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const failure=shoulderCard.locator(".strength-visible-point.failed-point");
   if(await failure.count()!==1)throw Error("0-rep attempt not shown as red dot");
   const redColor=await failure.getAttribute("fill");
-  const bottom=Number(await failure.getAttribute("cy"));
-  if(redColor!=="#F07780"||bottom!==194)
-   throw Error("Failed 10 kg attempt should be red at plot baseline: "+redColor+" "+bottom);
+  const redY=Number(await failure.getAttribute("cy"));
+  const greenY=Number(await shoulderCard.locator(".strength-visible-point:not(.failed-point)").last().getAttribute("cy"));
+  if(redColor!=="#F07780"||redY>=185||redY<=25||!(redY>greenY))
+   throw Error("Failed 10kg should be at attempted-load y below successful 10kg e1RM, not at baseline: "+redColor+" "+redY+" success="+greenY);
   await shoulderCard.locator(".strength-point-hit").first().click();
   const failDetail=await shoulderCard.locator(".strength-point-detail").innerText();
   if(!failDetail.includes("2026-11-12")||!failDetail.includes("10 kg（每侧） × 0 次")||
@@ -130,6 +131,13 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(Number(statSets)!==actualCompleted)
    throw Error("Failed attempts incorrectly inflated total completed sets: "+statSets);
   await page.screenshot({path:"bodytrace-zero-rep-red-dots-preview.png",fullPage:true});
+  // Restore the baseline fixture after failure-point tests: subsequent
+  // recording tests intentionally check the original recent-first leg choice.
+  await page.evaluate(()=>{
+   window.__previewDays=window.__previewDays.filter(day=>
+    !day.workouts?.some(w=>String(w.id).startsWith("demo-shoulder-")));
+   window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
+  });
   const overview=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
    nodes=>nodes.map(node=>node.dataset.region));
   if(JSON.stringify(overview)!==JSON.stringify(["胸","肩","背","腿"]))

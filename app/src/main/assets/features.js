@@ -540,9 +540,12 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
  });
  const completed=values.filter(v=>!isFailedAttempt(v));
  const failures=values.filter(isFailedAttempt);
+ // A red 0-rep marker is at its actual ATTEMPTED load in the same plot
+ // coordinates, NOT at zero kg and NOT treated as a measured e1RM.
  const tracked=completed.map(v=>isAssist?v.load:(v.estimated??v.load));
- const maximum=tracked.length?Math.max(...tracked):1;
- const minimum=tracked.length?Math.min(...tracked):0;
+ const attempts=failures.map(v=>v.load);
+ const domain=tracked.concat(attempts);
+ const maximum=Math.max(...domain),minimum=Math.min(...domain);
  const spread=Math.max(1,maximum-minimum,maximum*.05);
  const lo=Math.max(0,minimum-spread*.25),hi=maximum+spread*.25;
  range.textContent=(completed.length?
@@ -570,17 +573,12 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
     fill:"#9eafa7","font-size":10});
   t.textContent=labels[i].slice(5);svg.append(t);
  }
- if(failures.length){
-  svg.append(el("line",{x1:31,y1:199,x2:378,y2:199,
-   stroke:"#ef777e","stroke-opacity":0.45,"stroke-width":1,
-   "stroke-dasharray":"4 4"}));
- }
  const byDate=new Map(),points=[];
  const detail=document.createElement("div");
  detail.className="strength-point-detail";
  detail.setAttribute("role","status");
  detail.setAttribute("aria-live","polite");
- detail.textContent="点击图中圆点查看日期、重量和次数；底部红点表示0次失败";
+ detail.textContent="点击图中圆点查看日期、重量和次数；红点表示该重量尝试0次（不代表1RM）";
  // The colored trend line must never interpolate through a failed attempt.
  for(const v of completed){
   const numeric=isAssist?v.load:(v.estimated??v.load);
@@ -599,7 +597,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
  for(const v of values){
   const failure=isFailedAttempt(v);
   const numeric=isAssist?v.load:(v.estimated??v.load);
-  const cx=xVal(v.session_date),cy=failure?194:yVal(numeric);
+  const cx=xVal(v.session_date),cy=yVal(failure?v.load:numeric);
   const point=el("circle",{cx,cy,r:failure?6:4.5,
     fill:failure?"#F07780":plotColor,
     stroke:failure?"#ffcbcb":"#0a2419","stroke-width":1});
@@ -607,12 +605,15 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   point.dataset.normalRadius=failure?"6":"4.5";
   points.push(point);
   const units=v.load_basis==="per_side"?"（每侧）":
-   v.load_basis==="unspecified"?"（重量单位待核实）":"";
-  const hint=v.session_date+" · "+v.load+" kg"+units+" × "+v.reps+" 次"+
+   v.load_basis==="bodyweight"?"（仅外加重量；自重另计）":
+   v.load_basis==="unspecified"?"（重量标注待核实）":"";
+  const dateLabel=v.date_basis==="report_date"?"（对话报告日期，非确认训练日）":"";
+  const hint=v.session_date+dateLabel+" · "+v.load+" kg"+units+" × "+v.reps+" 次"+
     (failure?" · 未完成":isAssist?"（辅助量）":"");
   const milestone=findFailureMilestone(values,v);
   const extra=(milestone?"\n同重量首次完成至少1次："+milestone.date+
-    "（相隔"+milestone.days+"天）":"")+
+    "（相隔"+milestone.days+"天"+(v.date_basis==="report_date"?
+     "；起点为报告日，非实测训练间隔":"")+"）":"")+
    (failure&&!milestone?"\n尚无此重量后续成功记录":"")+
    (v.note?"\n备注："+v.note:"");
   const tooltip=el("title");tooltip.textContent=hint+extra;point.append(tooltip);
@@ -643,8 +644,8 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
  }
  chart.append(svg,detail);
  disclaimer.textContent=isAssist?
-  "成功组的部位色点为标称辅助量；底部红点代表失败0次，其重量仅在详情展示，不参与趋势线。":
-  "成功组按负重/简化Epley e1RM展示（仅1–15次）；底部红点为0次失败，不当作0kg或e1RM，也不参与连线。";
+  "部位色点显示成功组标称辅助量；红点按实际尝试的辅助量定位，表示0次失败，不参与趋势线。":
+  "部位色点按负重/简化Epley e1RM展示（仅1–15次）；红点按尝试重量定位，表示0次失败，不是测得的1RM、不参与连线。";
 }
 
 // Basic body diagram is a training-zone schematic, never inferred anatomy.

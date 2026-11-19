@@ -142,7 +142,7 @@ final class GitHubApi {
                         "source", "created_at"} :
                     new String[]{"id", "exercise_id", "exercise_label", "exercise_region",
                         "reps", "load_kg", "assistance_kg", "attempt_status",
-                        "load_basis", "note", "source", "created_at"};
+                        "load_basis", "date_basis", "note", "source", "created_at"};
             for (String key : allowed) if (event.has(key)) row.put(key, event.get(key));
             records.put(row);
             JSONObject put = new JSONObject();

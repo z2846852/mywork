@@ -92,6 +92,7 @@ final class ViewProjector {
                     item.put("approx", src.optBoolean("approx", false));
                     item.put("attempt_status", src.optString("attempt_status", ""));
                     item.put("load_basis", src.optString("load_basis", ""));
+                    item.put("date_basis", src.optString("date_basis", ""));
                     item.put("note", src.optString("note", ""));
                     item.put("source", src.optString("source", "daily-json"));
                     item.put("created_at", src.optString("created_at", ""));
