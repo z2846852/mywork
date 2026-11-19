@@ -360,8 +360,10 @@ new vm.Script(catalogJS,{filename:"exercise_catalog.js"});
 assert.ok(catalogJS.includes('option.textContent="【"+overviewGroup(entry.region)+"】"+entry.label'));
 assert.ok(catalogJS.includes('compareUsage')&&catalogJS.includes('config.sort_mode==="region"'));
 assert.ok(catalogJS.includes('const overviewGroup=region=>["胸","肩","背","腿"]'));
-assert.ok(catalogJS.includes('indexData();')&&catalogJS.includes('renderAllFeatures();'),
- "Catalog sync must immediately redraw quadrants and body map");
+assert.ok(catalogJS.includes('indexData();')&&
+ catalogJS.includes('window.BodyTraceRenderFeatures()')&&
+ features.includes('window.BodyTraceRenderFeatures=renderAllFeatures;'),
+ "Catalog sync must redraw through the exported feature callback");
 assert.ok(!html.includes('<option value="手臂">')&&!html.includes('<option value="核心">'),
  "Record group selector must present four primary categories plus Other");
 assert.ok(projection.includes('final String[] areas = {"胸","肩","背","腿","其他"};'));

@@ -1000,6 +1000,9 @@ $("avatarMeasureDate").addEventListener("change",e=>{
 function renderAllFeatures(){
  renderIntakeCheckin();nutritionRender();renderRegionDashboard();renderStrength();renderRegionSummary();drawMuscleMap();renderProfile();renderAvatar();renderBodyEntry();
 }
+// Expose a narrow redraw callback after catalog updates; the function itself
+// remains inside this module, and rendering never changes source JSON.
+window.BodyTraceRenderFeatures=renderAllFeatures;
 const originalReceive = window.bodyTraceReceive;
 window.bodyTraceReceive=function(evt){
   if(typeof originalReceive==="function") originalReceive(evt);
