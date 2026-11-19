@@ -567,3 +567,11 @@
 .zone-bar[data-region="腿"] span{color:var(--region-leg)}
 .muscle-legend-btn{border-left:3px solid var(--muscle-color,#97b1bd)}
 .muscle-legend-btn.selected{border-color:var(--muscle-color,#97b1bd)}
+
+/* Touch-friendly exercise trend dots: show persistent exact kg/reps below SVG. */
+.strength-point-hit{touch-action:manipulation;outline:none}
+.strength-point-hit:focus-visible{stroke:#ffffff;stroke-width:2;stroke-dasharray:3 3}
+.strength-point-detail{margin:3px 2px 7px;padding:9px 11px;
+ border-left:3px solid var(--region-accent,#8bb6ad);border-radius:7px;
+ background:#182f2d;color:#d5e9df;font-size:12px;font-weight:650;
+ line-height:1.5;min-height:37px;font-variant-numeric:tabular-nums}
