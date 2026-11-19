@@ -130,6 +130,13 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(Number(statSets)!==actualCompleted)
    throw Error("Failed attempts incorrectly inflated total completed sets: "+statSets);
   await page.screenshot({path:"bodytrace-zero-rep-red-dots-preview.png",fullPage:true});
+  // Restore the baseline fixture after failure-point tests: subsequent
+  // recording tests intentionally check the original recent-first leg choice.
+  await page.evaluate(()=>{
+   window.__previewDays=window.__previewDays.filter(day=>
+    !day.workouts?.some(w=>String(w.id).startsWith("demo-shoulder-")));
+   window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
+  });
   const overview=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
    nodes=>nodes.map(node=>node.dataset.region));
   if(JSON.stringify(overview)!==JSON.stringify(["胸","肩","背","腿"]))
