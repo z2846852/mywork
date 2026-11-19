@@ -164,7 +164,7 @@ assert.ok(html.includes('id="recordNote"'));
 assert.ok(html.includes("if(counts.failures)cell.dataset.failed="));
 assert.ok(html.includes('if(isFailedAttempt(r)){day.failures='));
 assert.ok(html.includes('load_basis:entry.load_basis||""'));
-assert.ok(features.includes('const cy=failure?194:yVal(numeric)'));
+assert.ok(features.includes('cy=failure?194:yVal(numeric)'));
 assert.ok(features.includes('fill:failure?"#F07780":plotColor'));
 assert.ok(features.includes('if(isFailedAttempt(row))continue;'));
 assert.ok(features.includes('if(label&&!isFailedAttempt(row)'));
