@@ -135,6 +135,16 @@ for(const [selector,variable] of [["region-chest","--region-chest"],
  ["region-shoulder","--region-shoulder"],["region-back","--region-back"],["region-leg","--region-leg"]]){
  assert.ok(cssBefore.includes(".region-overview-card."+selector+"{--accent:var("+variable+")"));
 }
+// Saved workout data can be inspected on touch devices, not only SVG hover.
+assert.ok(features.includes('hit.addEventListener("click",selectPoint)'));
+assert.ok(features.includes('hit.addEventListener("keydown",event=>'));
+assert.ok(features.includes('detail.textContent="已选："+hint;'));
+assert.ok(features.includes('const detail=document.createElement("div")'));
+assert.ok(features.includes('hit=el("circle",{cx,cy,r:17,fill:"transparent"'));
+assert.ok(features.includes('svg.append(point,hit)'));
+assert.ok(features.includes('chart.append(svg,detail)'));
+assert.ok(cssBefore.includes(".strength-point-detail{"));
+assert.ok(cssBefore.includes(".strength-point-hit{touch-action:manipulation;"));
 // Compact chrome, always reachable save, and distinct muscle categories.
 const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),
