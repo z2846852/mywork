@@ -60,7 +60,7 @@ final class ViewProjector {
         TreeMap<String, JSONObject> nutritionTotals = new TreeMap<>();
         TreeMap<String, Integer> regionCounts = new TreeMap<>();
         JSONArray strengthPoints = new JSONArray();
-        final String[] areas = {"胸","肩","背","腿","手臂","核心"};
+        final String[] areas = {"胸","肩","背","腿","其他"};
         for (String area : areas) regionCounts.put(area, 0);
         String[] metrics = { "weight_kg", "height_cm", "waist_cm", "chest_cm",
                 "abdomen_cm", "hip_cm", "body_fat_pct", "muscle_mass_kg",
@@ -124,7 +124,10 @@ final class ViewProjector {
                             region = "腿"; break;
                         default: region = "";
                     }
-                    if (regionCounts.containsKey(region)) regionCounts.put(region, regionCounts.get(region) + 1);
+                    // Keep only four named macro-regions; all residual categories
+                    // (including legacy arms/core) are counted under Other.
+                    if (!regionCounts.containsKey(region)) region = "其他";
+                    regionCounts.put(region, regionCounts.get(region) + 1);
                     if (src.has("load_kg") && src.has("reps") &&
                             !src.isNull("load_kg") && !src.isNull("reps")) {
                         double load = src.optDouble("load_kg", Double.NaN);

@@ -12,7 +12,7 @@ const foodPresets = {
   chicken:{name:"熟鸡胸肉",kcal:165,protein:31,carbs:0,fat:3.6},
   soup:{name:"肉骨茶/排骨汤",kcal:null}
 };
-const regions = ["胸","肩","背","腿","手臂","核心"];
+const regions = ["胸","肩","背","腿","其他"];
 const regionCodes = {胸:"chest",肩:"shoulders",背:"back",腿:"legs",手臂:"arms",核心:"core"};
 const exRegion = {
   chest_press:"胸",smith_bench:"胸",pec_deck:"胸",incline_chest_press:"胸",
@@ -264,15 +264,19 @@ $("saveNutrition").onclick=()=>{
 };
 
 function categoryForRow(row) {
-  return row.exercise_region||window.BodyTraceExerciseCatalog?.region(row.exercise_id)||
-    exRegion[row.exercise_id]||null;
+  const category=primaryRegionForRow(row);
+  return category==="其他"?
+    (window.BodyTraceExerciseCatalog?.region(row.exercise_id)||exRegion[row.exercise_id]||"其他"):
+    category;
 }
 function regionalCounts() {
   const counts=Object.fromEntries(regions.map(r=>[r,0]));
   const end=today,start=plus(end,-27);
   for(const r of state.rows) {
     const key=categoryForRow(r);
-    if(key && !isFailedAttempt(r) && r.session_date>=start && r.session_date<=end)counts[key]++;
+    if(!isFailedAttempt(r) && r.session_date>=start && r.session_date<=end){
+      counts[Object.hasOwn(counts,key)?key:"其他"]++;
+    }
   }
   return counts;
 }
@@ -413,7 +417,10 @@ const muscleTargets={
  shoulder_press:"三角肌前束",dumbbell_shoulder_press:"三角肌前束",
  overhead_press:"三角肌前束",face_pull:"三角肌后束",
  row:"上背肌群",assisted_pullup:"背阔肌",vertical_traction:"背阔肌",
+ custom_shoulderpullpending:"背阔肌",custom_bodyweightpullup:"背阔肌",
+ custom_hacksquat:"股四头肌",custom_bothwaysquat:"股四头肌",
  chest_press:"胸大肌",smith_bench:"胸大肌",pec_deck:"胸大肌",
+ custom_pectoralmachine:"胸大肌",
  incline_chest_press:"胸大肌",horizontal_bench:"胸大肌",assisted_dip:"胸大肌",
  barbell_bench:"胸大肌",dumbbell_bench:"胸大肌",
  incline_dumbbell_bench:"胸大肌",decline_bench:"胸大肌"
@@ -600,8 +607,7 @@ function renderStrength(){
   root.append(empty);return;
  }
  for(const group of groups){
-  const region=group.records.at(-1)?.row.exercise_region||
-    window.BodyTraceExerciseCatalog?.region(group.id)||exRegion[group.id]||"其他";
+  const region=categoryForRow(group.records.at(-1).row)||"其他";
   const card=document.createElement("article");card.className="strength-exercise-card";
   card.dataset.region=region;
   card.style.setProperty("--region-accent",regionThemeColors[region]||"#8bb6ad");

@@ -435,6 +435,51 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
      !(await page.locator("#intakeProtein").isChecked()))
    throw Error("Selecting a previously saved day failed to restore its latest flags");
   await page.screenshot({path:"bodytrace-nutrition-four-quadrant-preview.png",fullPage:false});
+  // Regression: corrected shared catalog must reclassify legacy Other rows.
+  await page.evaluate(()=>{
+   window.__previewDays.push({schema_version:2,date:"2026-11-18",
+    workouts:[
+     {id:"demo-lat-pulldown-legacy",exercise_id:"custom_shoulderpullpending",
+      exercise_label:"肩拉（器械待确认）",exercise_region:"其他",load_kg:35,reps:10},
+     {id:"demo-both-way-legacy",exercise_id:"custom_bothwaysquat",
+      exercise_label:"Both Way Squat（双向深蹲机）",exercise_region:"其他",load_kg:30,reps:10}
+    ],nutrition:[],measurements:[]});
+   window.bodyTraceReceive({type:"data",cached:false,days:window.__previewDays});
+   window.bodyTraceReceive({type:"exercise_catalog",catalog:{
+    schema_version:1,sort_mode:"recent",hidden:[],custom:[
+     {id:"custom_shoulderpullpending",label:"高位下拉（Lat Pulldown，龙门架）",region:"背"},
+     {id:"custom_bothwaysquat",label:"Both Way Squat（双向深蹲机）",region:"腿"},
+     {id:"custom_demoarm",label:"Demo arm workout",region:"手臂"}
+    ]
+   }});
+  });
+  const pulldown=page.locator('#strengthList [data-exercise-id="custom_shoulderpullpending"]');
+  const bothSquat=page.locator('#strengthList [data-exercise-id="custom_bothwaysquat"]');
+  if(await pulldown.getAttribute("data-region")!=="背"||
+     await bothSquat.getAttribute("data-region")!=="腿")
+   throw Error("Catalog correction was not applied to stale Other trend card groups");
+  const pullTitle=await pulldown.locator("h3").innerText();
+  if(!pullTitle.includes("高位下拉")||pullTitle.includes("肩拉"))
+   throw Error("Corrected catalog label not shown on old lat pulldown: "+pullTitle);
+  const heat=await page.locator('#heat .cell[title^="2026-11-18"]').getAttribute("title");
+  if(!heat.includes("背1组")||!heat.includes("腿1组")||heat.includes("其他2组"))
+   throw Error("Custom rows did not light correct back/leg quadrants: "+heat);
+  const zones=await page.locator('#muscleLegend .muscle-legend-btn').evaluateAll(
+   nodes=>nodes.filter(n=>n.textContent.includes("背阔肌")||n.textContent.includes("股四头肌"))
+    .map(n=>({name:n.textContent,group:n.dataset.region})));
+  if(zones.length!==2||zones.some(z=>!z.group||z.name.trim().endsWith("0")))
+   throw Error("Custom workouts absent in muscle map: "+JSON.stringify(zones));
+  await page.evaluate(()=>navigate("record"));
+  const groupOptions=await page.locator("#recordGroup option").evaluateAll(
+   nodes=>nodes.map(n=>n.value));
+  if(JSON.stringify(groupOptions)!==JSON.stringify(["","胸","肩","背","腿","其他"]))
+   throw Error("Top-level region grouping mismatch: "+groupOptions);
+  await page.selectOption("#recordGroup","其他");
+  const residual=await page.locator("#recordExercise option").evaluateAll(
+   nodes=>nodes.map(n=>n.value));
+  if(!residual.includes("custom_demoarm"))
+   throw Error("Legacy arm workouts should remain accessible through Other");
+  await page.screenshot({path:"bodytrace-four-major-regions-preview.png",fullPage:false});
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.join(" | "));
   console.log("PASS: 2 schematic figures, "+plots+" recent-first charts, group labels, ruler, batch/measurement JSON");
  }finally{await browser.close()}

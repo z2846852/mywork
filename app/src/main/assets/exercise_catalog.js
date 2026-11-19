@@ -6,6 +6,7 @@
  "use strict";
  const $=id=>document.getElementById(id);
  const groups=["胸","肩","背","腿","手臂","核心","其他"];
+ const overviewGroup=region=>["胸","肩","背","腿"].includes(region)?region:"其他";
  const defaults=Object.entries(exerciseLabels).map(([id,label],position)=>({
   id,label,region:exerciseRegionById[id]||"其他",builtin:true,position
  }));
@@ -69,12 +70,12 @@ function rebuild(rows,keepSelection=true){
  const hidden=new Set(config.hidden);
  const sorted=order(allActions().filter(a=>!hidden.has(a.id)),rows||[]);
  const group=groupSelect.value;
- const visible=group?sorted.filter(a=>a.region===group):sorted;
+ const visible=group?sorted.filter(a=>overviewGroup(a.region)===group):sorted;
  select.replaceChildren();
  for(const entry of visible){
   const option=document.createElement("option");
   option.value=entry.id;
-  option.textContent="【"+entry.region+"】"+entry.label;
+  option.textContent="【"+overviewGroup(entry.region)+"】"+entry.label;
   select.append(option);
  }
  // Hidden actions still have their historical labels.
@@ -168,6 +169,10 @@ function commit(){
    exerciseRegionById[item.id]=item.region;
   }
   rebuild(state.rows,true);
+  // A newer shared catalog can resolve previously unknown legacy classes.
+  // Refresh home quadrants, trends and anatomy immediately after it arrives.
+  indexData();
+  renderAllFeatures();
  }
  $("recordExercise").addEventListener("change",()=>{blockedDraftExerciseId="";});
  $("recordGroup").addEventListener("change",()=>{blockedDraftExerciseId="";groupChosen=true;

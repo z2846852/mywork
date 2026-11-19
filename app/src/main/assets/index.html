@@ -82,8 +82,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <select id="recordGroup" aria-label="先选训练部位">
  <option value="">全部动作</option>
  <option value="胸">胸</option><option value="肩">肩</option><option value="背">背</option>
- <option value="腿">腿</option><option value="手臂">手臂</option>
- <option value="核心">核心</option><option value="其他">其他</option></select></div>
+ <option value="腿">腿</option><option value="其他">其他（手臂、核心等）</option></select></div>
  <div class="field"><label for="recordExercise">训练动作</label>
  <select id="recordExercise" aria-label="再选训练动作"></select></div>
  </div>
@@ -92,7 +91,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <option value="recent">最近使用</option><option value="region">按部位</option>
  </select><button type="button" class="secondary mini" id="manageExercises">管理 / 删除动作</button>
  </div>
- <p class="sub">默认“全部”展示所有动作，按最近使用排序；也可先选部位再选动作。</p>
+ <p class="sub">四大训练部位为胸、肩、背、腿；手臂与核心等独立动作归入“其他”，不挤占四分格。</p>
  <div id="exerciseManager" class="exercise-manager panel inner" hidden>
  <div class="row"><h3>动作管理</h3><button type="button" id="closeExerciseManager" class="mini">完成</button></div>
  <p class="sub">内置动作可以隐藏或恢复；自定义动作可以永久移出目录，但历史训练仍然保留。</p>
@@ -101,8 +100,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   <div class="field"><label for="customActionRegion">训练部位</label>
    <select id="customActionRegion">
     <option value="胸">胸</option><option value="肩">肩</option><option value="背">背</option>
-    <option value="腿">腿</option><option value="手臂">手臂</option><option value="核心">核心</option>
-    <option value="其他">其他</option>
+    <option value="腿">腿</option><option value="其他">其他（手臂、核心等）</option>
    </select>
   </div>
  </div>
@@ -325,6 +323,14 @@ const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connecte
 function isFailedAttempt(row){return row.attempt_status==="failed"||String(row.reps).trim()==="0"}
 const regionThemeColors=Object.freeze({胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"});
 const majorRegions=Object.keys(regionThemeColors);
+function primaryRegionForRow(row){
+ const stored=row.exercise_region||"";
+ const catalog=exerciseRegionById[row.exercise_id]||"";
+ // A legacy "其他" entry should not override a catalog correction to a
+ // known primary region. Keep explicit non-other per-record classifications.
+ return (stored===""||stored==="其他")&&majorRegions.includes(catalog)?
+  catalog:stored||catalog||"其他";
+}
 // Convert authoritative JSON v2 into a stable UI model. No CSV conversion.
 const exerciseLabels={
  adductor:"坐姿髋内收机（Adductor）",abductor:"坐姿髋外展机（Abductor）",
@@ -364,7 +370,7 @@ function updateRecordRegionTheme(){
  panel.style.setProperty("--record-region-color",color);
  panel.dataset.region=region;
  const badge=$("recordRegionBadge");
- badge.textContent=majorRegions.includes(region)?region+" · 当前动作":region||"其他动作";
+ badge.textContent=majorRegions.includes(region)?region+" · 当前动作":"其他 · 当前动作";
 }
 function orderRecordOptionsByRecent(rows){
  if(window.BodyTraceExerciseCatalog)window.BodyTraceExerciseCatalog.refresh(rows);
@@ -513,7 +519,7 @@ function summarizeHeatDays(rows){
   if(!day){day={total:0,other:0,regions:{胸:0,肩:0,背:0,腿:0}};byDay.set(r.session_date,day)}
   if(isFailedAttempt(r)){day.failures=(day.failures||0)+1;continue}
   day.total++;
-  const region=r.exercise_region||exerciseRegionById[r.exercise_id]||"其他";
+  const region=primaryRegionForRow(r);
   if(Object.hasOwn(day.regions,region))day.regions[region]++;else day.other++;
  }
  return byDay;

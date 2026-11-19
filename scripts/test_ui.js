@@ -96,8 +96,9 @@ const heatEnd=script.indexOf("function focusCalendarLatest()",heatStart);
 assert.ok(heatStart>=0&&heatEnd>heatStart);
 const heatFn=vm.runInNewContext(script.slice(heatStart,heatEnd)+"\nsummarizeHeatDays",{
  isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0",
- exerciseRegionById:{chest_press:"胸",lateral_raise:"肩",row:"背",
-  leg_extension:"腿",adductor:"腿",custom_ar:"手臂"},
+ primaryRegionForRow:r=>r.exercise_region||
+  ({chest_press:"胸",lateral_raise:"肩",row:"背",
+   leg_extension:"腿",adductor:"腿",custom_ar:"手臂"})[r.exercise_id]||"其他",
 });
 const quad=heatFn([
  {session_date:"2026-11-19",exercise_id:"chest_press"},
@@ -118,6 +119,36 @@ assert.equal(quad.get("2026-11-20").other,1);
 assert.equal(quad.get("2026-11-18").regions["背"],1,
  "Explicit per-record region metadata must be preserved");
 assert.ok(!quad.has("bad-date"));
+const regionStart=script.indexOf("function primaryRegionForRow(");
+const regionEnd=script.indexOf("const exerciseLabels=",regionStart);
+const primaryRegion=vm.runInNewContext(
+ script.slice(regionStart,regionEnd)+"\nprimaryRegionForRow",{
+  majorRegions:["胸","肩","背","腿"],
+  exerciseRegionById:{
+   custom_shoulderpullpending:"背",custom_bothwaysquat:"腿",
+   leg_extension:"腿",custom_arm:"手臂"
+  }
+});
+assert.equal(primaryRegion({exercise_id:"custom_shoulderpullpending",exercise_region:"其他"}),"背",
+ "Catalog correction must override stale Other in old lat pulldown record");
+assert.equal(primaryRegion({exercise_id:"custom_bothwaysquat",exercise_region:"其他"}),"腿",
+ "Both Way Squat must be leg even when legacy row says Other");
+assert.equal(primaryRegion({exercise_id:"leg_extension",exercise_region:"背"}),"背",
+ "Real explicit classifications must retain priority");
+assert.equal(primaryRegion({exercise_id:"custom_arm"}),"手臂");
+assert.ok(features.includes('const region=categoryForRow(group.records.at(-1).row)||"其他"'));
+const targetStart=features.indexOf("const muscleTargets={");
+const targetEnd=features.indexOf("const muscleLabels=",targetStart);
+const targets=vm.runInNewContext(features.slice(targetStart,targetEnd)+"\nmuscleTargets");
+for(const [ex,zone] of [
+ ["custom_shoulderpullpending","背阔肌"],["custom_bodyweightpullup","背阔肌"],
+ ["custom_hacksquat","股四头肌"],["custom_bothwaysquat","股四头肌"],
+ ["custom_pectoralmachine","胸大肌"]]){
+ assert.equal(targets[ex],zone,"Known custom exercise missing from anatomy classification: "+ex);
+}
+assert.ok(features.includes('const regions = ["胸","肩","背","腿","其他"];'),
+ "Macroscopic summary should expose only the four main categories plus Other");
+
 const paletteStart=features.indexOf("function muscleMacroRegion(");
 const paletteEnd=features.indexOf("function drawMuscleMap(",paletteStart);
 const musclePalette=vm.runInNewContext(features.slice(paletteStart,paletteEnd)+
@@ -326,12 +357,19 @@ assert.ok(projection.includes('item.put("created_at"'));
 assert.ok(html.includes('exerciseRegionById')&&html.includes('orderRecordOptionsByRecent(valid)'));
 const catalogJS=fs.readFileSync(path.join(root,"app/src/main/assets/exercise_catalog.js"),"utf8");
 new vm.Script(catalogJS,{filename:"exercise_catalog.js"});
-assert.ok(catalogJS.includes('option.textContent="【"+entry.region+"】"+entry.label'));
+assert.ok(catalogJS.includes('option.textContent="【"+overviewGroup(entry.region)+"】"+entry.label'));
 assert.ok(catalogJS.includes('compareUsage')&&catalogJS.includes('config.sort_mode==="region"'));
+assert.ok(catalogJS.includes('const overviewGroup=region=>["胸","肩","背","腿"]'));
+assert.ok(catalogJS.includes('indexData();')&&catalogJS.includes('renderAllFeatures();'),
+ "Catalog sync must immediately redraw quadrants and body map");
+assert.ok(!html.includes('<option value="手臂">')&&!html.includes('<option value="核心">'),
+ "Record group selector must present four primary categories plus Other");
+assert.ok(projection.includes('final String[] areas = {"胸","肩","背","腿","其他"};'));
+
 assert.ok(catalogJS.includes('saveCatalog(JSON.stringify(config))'));
 assert.ok(html.includes('id="recordSortMode"')&&html.includes('id="exerciseManager"'));
 assert.ok(html.includes('id="recordGroup"')&&html.includes('id="resetTrainingDefault"'));
-assert.ok(catalogJS.includes('sorted.filter(a=>a.region===group)'));
+assert.ok(catalogJS.includes('sorted.filter(a=>overviewGroup(a.region)===group)'));
 assert.ok(html.includes('id="gitLogList"')&&html.includes('id="refreshGitLog"'));
 const gitLogJS=fs.readFileSync(path.join(root,"app/src/main/assets/git_log.js"),"utf8");
 new vm.Script(gitLogJS,{filename:"git_log.js"});
@@ -535,6 +573,7 @@ const nodes=Object.fromEntries(nodeIds.map(id=>[id,element(
  ["recordGroup","recordExercise","recordSortMode"].includes(id)?"select":"div")]));
 const catalogContext={
  state:{rows:[]},
+ indexData(){},renderAllFeatures(){},
  document:{getElementById:id=>nodes[id],createElement:element},
  exerciseLabels:{chest_press:"Chest Press",lateral_raise:"Lateral Raise",
    row:"Seated Row",leg_extension:"Leg Extension"},
