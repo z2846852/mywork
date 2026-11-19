@@ -19,7 +19,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const headerHeight=await page.locator(".quick-head").evaluate(x=>x.getBoundingClientRect().height);
   if(headerHeight>60)throw Error("Header is not compact: "+headerHeight);
   await page.evaluate(()=>{
-   window.bodyTraceReceive({type:"data",cached:true,days:[
+   const previewDays=[
     {schema_version:2,date:"2026-04-15",
      workouts:[{id:"demo-row",exercise_id:"row",reps:8,load_kg:27.5}],
      nutrition:[],
@@ -33,7 +33,9 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
      ],nutrition:[],
      measurements:[{id:"demo-measurement-november",weight_kg:74,shoulder_cm:112.1,chest_cm:89,
       waist_cm:89,hip_cm:95,upper_arm_cm:28.5,thigh_cm:54.5,calf_cm:39.5}]}
-   ]});
+   ];
+   window.__previewDays=previewDays;
+   window.bodyTraceReceive({type:"data",cached:true,days:previewDays});
    navigate("body");
   });
   const bodies=await page.locator("#bodyMuscleView .muscle-person svg").count();
@@ -62,9 +64,12 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(plots!==4)throw Error("Expected every recorded exercise to have a chart: "+plots);
   // Mobile taps on graph dots must show saved kg/reps, not desktop hover alone.
   await page.evaluate(()=>{
-   state.rows.push({id:"preview-chest-second",exercise_id:"chest_press",
-    exercise:"坐姿胸推器",session_date:"2026-11-15",load_kg:"40",reps:"8"});
-   renderStrength();
+   // Exercise charts are private module functions; refresh through the same
+   // public data event that the native Android bridge uses.
+   window.__previewDays.push({schema_version:2,date:"2026-11-15",
+    workouts:[{id:"preview-chest-second",exercise_id:"chest_press",
+     load_kg:40,reps:8}],nutrition:[],measurements:[]});
+   window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
   });
   const pressCard=page.locator('#strengthList .strength-exercise-card[data-exercise-id="chest_press"]');
   const pressHits=pressCard.locator(".strength-point-hit");
