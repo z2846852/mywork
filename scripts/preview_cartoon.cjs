@@ -60,6 +60,30 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(await page.locator("#analyticsExercise").count())throw Error("Trend dropdown still visible");
   const plots=await page.locator("#strengthList .feature-chart svg").count();
   if(plots!==4)throw Error("Expected every recorded exercise to have a chart: "+plots);
+  // Mobile taps on graph dots must show saved kg/reps, not desktop hover alone.
+  await page.evaluate(()=>{
+   state.rows.push({id:"preview-chest-second",exercise_id:"chest_press",
+    exercise:"坐姿胸推器",session_date:"2026-11-15",load_kg:"40",reps:"8"});
+   renderStrength();
+  });
+  const pressCard=page.locator('#strengthList .strength-exercise-card[data-exercise-id="chest_press"]');
+  const pressHits=pressCard.locator(".strength-point-hit");
+  if(await pressHits.count()!==2)throw Error("Expected two selectable points in chest press trend");
+  await pressHits.nth(0).click();
+  const firstDetail=await pressCard.locator(".strength-point-detail").innerText();
+  if(!firstDetail.includes("35 kg × 12 次")||!firstDetail.includes("2026-11-14"))
+   throw Error("First graph point did not reveal kg/reps: "+firstDetail);
+  await pressHits.nth(1).click();
+  const secondDetail=await pressCard.locator(".strength-point-detail").innerText();
+  if(!secondDetail.includes("40 kg × 8 次")||!secondDetail.includes("2026-11-15"))
+   throw Error("Second graph point did not change details: "+secondDetail);
+  if(await pressCard.locator(".strength-visible-point").nth(1).getAttribute("r")!=="7")
+   throw Error("Selected graph point did not get highlighted");
+  await pressHits.nth(0).focus();
+  await page.keyboard.press("Enter");
+  const keyboardDetail=await pressCard.locator(".strength-point-detail").innerText();
+  if(!keyboardDetail.includes("35 kg × 12 次"))
+   throw Error("Keyboard activation of graph point failed: "+keyboardDetail);
   const overview=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
    nodes=>nodes.map(node=>node.dataset.region));
   if(JSON.stringify(overview)!==JSON.stringify(["胸","肩","背","腿"]))
