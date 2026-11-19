@@ -120,7 +120,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <p class="sub">次数为 0 表示尝试失败，在趋势图底部显示可点击红点；其他训练正常统计。</p>
 <details class="record-extra"><summary>重量单位与训练备注（可选）</summary>
 <div class="field"><label for="recordLoadBasis">重量记录方式</label>
-<select id="recordLoadBasis"><option value="machine">器械标称重量</option><option value="per_side">每侧重量</option></select></div>
+<select id="recordLoadBasis"><option value="machine">器械标称重量</option><option value="per_side">每侧重量</option><option value="bodyweight">自重动作（仅记录外加重量）</option><option value="unspecified">重量标注方式待确认</option></select></div>
 <div class="field"><label for="recordNote">训练备注（最多200字）</label>
 <input id="recordNote" maxlength="200" placeholder="例如：手腕酸痛、未完成原因"></div>
 </details>
@@ -346,7 +346,7 @@ function oneRow(entry,date){
   rir_source:entry.rir_source||((entry.rir===undefined&&Number(entry.reps)>0&&Number(entry.reps)<15)?"user_rule_under_15":""),
   approx:entry.approx===true,origin:entry.origin||"",
   created_at:entry.created_at||"",exercise_region:entry.exercise_region||"",
-  attempt_status:entry.attempt_status||"",load_basis:entry.load_basis||"",note:entry.note||"",
+  attempt_status:entry.attempt_status||"",load_basis:entry.load_basis||"",date_basis:entry.date_basis||"",note:entry.note||"",
   source:entry.source||"daily-json"};
 }
 function normaliseDays(days){
@@ -546,13 +546,15 @@ function renderDay(){
   items.forEach((r,i)=>{
    const p=document.createElement("div");p.className="set"+(isFailedAttempt(r)?" failed-attempt":"");const b=document.createElement("b");
    const approx=r.approx===true;
-   b.textContent=weight(r)+(r.load_basis==="per_side"?" / 每侧":"")+
+   b.textContent=weight(r)+(r.load_basis==="per_side"?" / 每侧":r.load_basis==="bodyweight"?" / 外加重量（自重）":r.load_basis==="unspecified"?" / 重量标注待确认":"")+
   (isFailedAttempt(r)?" · 未完成（0 次）":" × "+(approx?"约":"")+r.reps+"次");p.append(b);
    const meta=document.createElement("small");meta.textContent="第"+(i+1)+(isFailedAttempt(r)?"次尝试 · 失败":
     r.attempt_status==="completed_with_pain"?"组 · 疼痛备注":
     "组 · "+(r.rir_source==="user_rule_under_15"?"RIR0 (规则)":
       (r.rir!==""&&r.rir!==null&&r.rir!==undefined)?"RIR "+r.rir:"RIR未知"));
    p.append(meta);
+   if(r.date_basis==="report_date"){const dateBadge=document.createElement("small");
+    dateBadge.textContent="日期为对话报告日，非已确认的尝试日";p.append(dateBadge)}
    if(r.note){const note=document.createElement("small");note.textContent=r.note;p.append(note)}
    sets.append(p);
   });section.append(sets);view.append(section);
@@ -668,7 +670,7 @@ $("saveRecord").onclick=()=>{
  if(!date||!exercise_id||!$("recordKg").value||!Number.isFinite(kg)||kg<0||kg>500||
     Math.abs(Math.round(kg*10)-kg*10)>0.00001||
     !Number.isInteger(reps)||reps<0||reps>200||
-    !["machine","per_side"].includes(load_basis)||note.length>200||
+    !["machine","per_side","bodyweight","unspecified"].includes(load_basis)||note.length>200||
     !Number.isInteger(sets)||sets<1||sets>10){
    toast("检查日期、重量、次数（0–200）和组数；重量最多一位小数。",true);return
  }
