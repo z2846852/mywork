@@ -143,7 +143,7 @@ assert.ok(features.includes('detail.textContent="已选："+hint+extra;'));
 assert.ok(features.includes('const detail=document.createElement("div")'));
 assert.ok(features.includes('hit=el("circle",{cx,cy,r:17,fill:"transparent"'));
 assert.ok(features.includes('svg.append(point,hit)'));
-assert.ok(features.includes('chart.append(svg,detail)'));
+assert.ok(features.includes('chart.append(svg,detail,recent)'));
 assert.ok(cssBefore.includes(".strength-point-detail{"));
 assert.ok(cssBefore.includes(".strength-point-hit{touch-action:manipulation;"));
 // 0 reps is a failed attempt, not 0 kg, not a training set, never Epley 1RM.
