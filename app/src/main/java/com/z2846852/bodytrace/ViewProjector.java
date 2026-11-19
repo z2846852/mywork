@@ -171,6 +171,9 @@ final class ViewProjector {
                         JSONObject normalized = new JSONObject(item.toString());
                         normalized.put("date", date);
                         nutrition.put(normalized);
+                        // Checkboxes are a qualitative daily snapshot, not a food with
+                        // kcal/100g. Keep them in nutrition, exclude them from calorie totals.
+                        if ("daily_checkin".equals(item.optString("entry_kind"))) continue;
                         JSONObject daily = nutritionTotals.get(date);
                         if (daily == null) {
                             daily = new JSONObject().put("date", date)
