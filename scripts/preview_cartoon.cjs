@@ -46,7 +46,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const regionDetail=await page.$eval("#muscleDetail",x=>x.textContent);
   if(!regionDetail.startsWith("髋外展肌群"))throw Error("Muscle legend selection failed");
   const hipColor=await muscleChoice.evaluate(el=>getComputedStyle(el).getPropertyValue("--muscle-color").trim());
-  if(hipColor!=="#B79BFA")throw Error("Hip abductor color should use the leg violet: "+hipColor);
+  if(hipColor!=="#B9A9DD")throw Error("Hip abductor color should use the leg violet: "+hipColor);
   const dates=await page.$eval("#avatarMeasureDate",e=>e.options.length);
   if(dates!==2)throw Error("Body measurement history failed: "+dates);
   if(await page.locator("#avatarPicture").count())throw Error("Old cartoon still visible");
@@ -108,7 +108,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const badgeRegion=await page.$eval("#recordRegionBadge",e=>e.textContent);
   if(!badgeRegion.includes("腿"))throw Error("Current exercise badge should show purple leg category: "+badgeRegion);
   const badgeColor=await page.locator("#recordRegionBadge").evaluate(el=>getComputedStyle(el).color);
-  if(badgeColor!=="rgb(183, 155, 250)")throw Error("Record leg accent must be violet: "+badgeColor);
+  if(badgeColor!=="rgb(185, 169, 221)")throw Error("Record leg accent must be violet: "+badgeColor);
   const initialGroup=await page.$eval("#recordGroup",e=>e.value);
   if(initialGroup!=="")throw Error("Default group should be All: "+initialGroup);
   const first=await page.locator("#recordExercise option").first().evaluate(e=>({id:e.value,label:e.textContent}));
