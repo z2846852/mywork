@@ -520,10 +520,10 @@
 .region-overview-card{--accent:#65dfac;--dark:#17362b;min-width:0;
  border:1px solid #355850;border-radius:16px;padding:12px 10px 11px;
  background:linear-gradient(160deg,var(--dark),#112321 82%);overflow:hidden}
-.region-overview-card.region-chest{--accent:#f39a8c;--dark:#3c282c}
-.region-overview-card.region-shoulder{--accent:#b6a1f4;--dark:#2c2a42}
-.region-overview-card.region-back{--accent:#74d5f6;--dark:#1e3543}
-.region-overview-card.region-leg{--accent:#84e6aa;--dark:#1b3e31}
+.region-overview-card.region-chest{--accent:var(--region-chest);--dark:#3c282c}
+.region-overview-card.region-shoulder{--accent:var(--region-shoulder);--dark:#3b3421}
+.region-overview-card.region-back{--accent:var(--region-back);--dark:#1e3543}
+.region-overview-card.region-leg{--accent:var(--region-leg);--dark:#332b48}
 .region-overview-heading{display:flex;align-items:center;justify-content:space-between;gap:5px;
  font-size:14px;font-weight:800;color:#ecfff3}
 .region-overview-heading small{font-size:9px;color:var(--accent);font-weight:600}
@@ -541,9 +541,29 @@
 .muscle-legend-btn{display:flex;align-items:center;justify-content:space-between;gap:5px;
  min-width:0;padding:8px 9px;border:1px solid #315b49;border-radius:9px;
  background:#152d27;color:#bddbcb;text-align:left;font-size:11px;line-height:1.4}
-.muscle-legend-btn strong{flex-shrink:0;font-variant-numeric:tabular-nums;color:#79ecb0}
-.muscle-legend-btn.selected{background:#25503c;border-color:#8ff5b3;color:#f5fff9;
- box-shadow:inset 0 0 0 1px #72d9a0}
+.muscle-legend-btn strong{flex-shrink:0;font-variant-numeric:tabular-nums;color:var(--muscle-color,#97b1bd)}
+.muscle-legend-btn.selected{background:#263037;border-color:var(--muscle-color,#97b1bd);color:#f5fff9;
+ box-shadow:inset 0 0 0 1px var(--muscle-color,#97b1bd)}
 .muscle-path{stroke:#557966;stroke-width:1.35;stroke-linejoin:round}
 .muscle-path.selected{stroke:#fff;stroke-width:2.5;filter:drop-shadow(0 0 3px rgba(255,255,255,.65))}
 @media(min-width:580px){.muscle-legend{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* Shared semantic muscle-region colors. The APP brand green is not a training-region hue. */
+.record-panel{--record-region-color:#91a9a8;border-top:3px solid var(--record-region-color)}
+.record-panel #recordGroup,.record-panel #recordExercise{
+ border-color:var(--record-region-color);transition:border-color .2s ease}
+.record-region-badge{display:inline-flex;align-items:center;margin:5px 0 0;padding:3px 8px;
+ border:1px solid var(--record-region-color);border-radius:30px;
+ color:var(--record-region-color);font-size:10px;font-weight:800;
+ background:color-mix(in srgb,var(--record-region-color) 13%,transparent)}
+.strength-exercise-card{border-top:3px solid var(--region-accent,#8bb6ad)}
+.strength-exercise-info h3{color:var(--region-accent,#e4f4ea)}
+.strength-exercise-heading .tag{border-color:var(--region-accent,#35644c);color:var(--region-accent,#97dfb6)}
+.region-overview-card{border-color:color-mix(in srgb,var(--accent) 65%,#355850)}
+.region-overview-spark rect{transition:opacity .15s ease}
+.zone-bar[data-region="胸"] span{color:var(--region-chest)}
+.zone-bar[data-region="肩"] span{color:var(--region-shoulder)}
+.zone-bar[data-region="背"] span{color:var(--region-back)}
+.zone-bar[data-region="腿"] span{color:var(--region-leg)}
+.muscle-legend-btn{border-left:3px solid var(--muscle-color,#97b1bd)}
+.muscle-legend-btn.selected{border-color:var(--muscle-color,#97b1bd)}
