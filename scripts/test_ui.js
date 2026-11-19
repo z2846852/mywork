@@ -455,6 +455,33 @@ assert.deepEqual(Array.from(sorting(sample),g=>g.id),[
  "adductor","row","chest_press","lateral_raise"
 ]);
 assert.deepEqual(Array.from(sorting([]),g=>g.id),[]);
+const mixedSources=[
+ {id:"native-1",exercise_id:"chest_press",session_date:"2026-11-19",
+  created_at:"2026-11-19T14:36:00+08:00",load_kg:"40",reps:"8"},
+ {id:"manual-smith-1",exercise_id:"smith_bench",session_date:"2026-11-19",
+  load_kg:"25",reps:"10"},
+ {id:"manual-smith-2",exercise_id:"smith_bench",session_date:"2026-11-19",
+  load_kg:"30",reps:"5",load_basis:"unspecified"},
+ {id:"old-native",exercise_id:"row",session_date:"2026-11-18",
+  created_at:"2026-11-18T22:00:00+08:00",load_kg:"45",reps:"10"}
+];
+const updated=sorting(mixedSources);
+assert.deepEqual(Array.from(updated,g=>g.id),["smith_bench","chest_press","row"],
+ "Rows appended on the same date must outrank older native timestamps");
+assert.equal(updated[0].latestRow.id,"manual-smith-2",
+ "Newest saved same-day set must be identified without created_at");
+const compact=vm.runInNewContext(
+ features.slice(features.indexOf("function compactStrengthSet("),
+  features.indexOf("function renderStrength(){"))+"\ncompactStrengthSet",
+ {validNum:x=>x!==""&&x!=null&&Number.isFinite(Number(x)),
+  isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0"});
+assert.equal(compact(updated[0].latestRow,"smith_bench"),"30 kg × 5 次");
+assert.ok(features.includes('const byDayPoints=new Map()'));
+assert.ok(features.includes('const cx=pointX(v)'));
+assert.ok(features.includes('pointSelectors[pointSelectors.length-1].select()'));
+assert.ok(features.includes('strength-recent-sets'));
+assert.ok(!features.includes('（重量标注待核实）'),
+ "Unspecified recording basis must not overwhelm user-facing chart labels");
 
 // Calendar browsing should not be reset to the latest date by an unrelated sync.
 const indexStart=script.indexOf("function indexData(){");
