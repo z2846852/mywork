@@ -2,7 +2,7 @@
 <html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>体迹 BodyTrace</title>
 <style>
-:root{--bg:#0b1114;--surface:#151f23;--panel:#19282a;--line:#2a4140;--green:#63e9ad;--muted:#91a9a8;--white:#effbf3;--red:#ff947a;font-family:Roboto,"Noto Sans SC",-apple-system,sans-serif}
+:root{--bg:#0b1114;--surface:#151f23;--panel:#19282a;--line:#2a4140;--green:#63e9ad;--muted:#91a9a8;--white:#effbf3;--red:#ff947a;--region-chest:#F28B82;--region-shoulder:#F2C66D;--region-back:#67B7F7;--region-leg:#B79BFA;font-family:Roboto,"Noto Sans SC",-apple-system,sans-serif}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--white)}
 body{background:radial-gradient(circle at 80% -15%,#174337 0%,#0b1114 50%);overscroll-behavior:contain}
 button,input,select,textarea{font:inherit}button{cursor:pointer}input,select,textarea{background:#0e171b;color:var(--white);border:1px solid #395250;border-radius:11px;padding:12px 14px;width:100%;outline-color:var(--green)}
@@ -25,14 +25,19 @@ h2{margin:0;font-size:17px}h3{margin:0 0 12px;font-size:15px}
 .select{max-width:185px;font-size:12px;padding:9px 10px}
 .scroll{overflow-x:auto;overscroll-behavior-x:contain;margin-top:19px;padding-bottom:4px}
 .weekheads{display:flex;align-items:center;gap:13px;margin:3px 0 7px;font-size:10px;color:var(--muted)}
-.months{position:relative;height:19px;width:1015px;font-size:10px;color:#9db9ae}.month{position:absolute}
-#heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,13px);grid-auto-columns:13px;gap:5px;width:max-content}
-.cell{display:block;width:13px;height:13px;border:1px solid #354342;background:#252d30;padding:0;border-radius:3px}
-.cell[data-level="1"]{background:#19503d;border-color:#19503d}.cell[data-level="2"]{background:#207a56;border-color:#207a56}
-.cell[data-level="3"]{background:#2eae75;border-color:#2eae75}.cell[data-level="4"]{background:#59e9ab;border-color:#59e9ab}
+.months{position:relative;height:19px;width:1196px;font-size:10px;color:#9db9ae}.month{position:absolute}
+#heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,18px);grid-auto-columns:18px;gap:5px;width:max-content}
+.cell{position:relative;display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:1px;width:18px;height:18px;border:1px solid #354342;background:#253034;padding:1px;border-radius:3px}
+.cell-quadrant{min-width:0;min-height:0;background:#253034;border-radius:1px}
+.cell-quadrant.active[data-region="胸"]{background:var(--region-chest)}
+.cell-quadrant.active[data-region="肩"]{background:var(--region-shoulder)}
+.cell-quadrant.active[data-region="背"]{background:var(--region-back)}
+.cell-quadrant.active[data-region="腿"]{background:var(--region-leg)}
+.cell[data-other="true"]::after{content:"";position:absolute;right:-2px;bottom:-2px;width:3px;height:3px;border-radius:50%;background:#bac6ca}
 .cell.active{outline:2px solid #fff;outline-offset:2px}.cell.dim{opacity:.35}
-.legend{display:flex;align-items:center;justify-content:end;gap:5px;margin-top:13px;font-size:10px;color:var(--muted)}
-.legend i{width:11px;height:11px;border-radius:2px;display:block;background:#252d30}.legend i.l1{background:#19503d}.legend i.l2{background:#207a56}.legend i.l3{background:#2eae75}.legend i.l4{background:#59e9ab}
+.legend{display:flex;align-items:center;justify-content:end;flex-wrap:wrap;gap:9px;margin-top:13px;font-size:10px;color:var(--muted)}
+.legend .region-key{display:inline-flex;align-items:center;gap:4px}
+.legend .region-key i{width:9px;height:9px;display:inline-block;border-radius:2px;background:var(--key-color)}
 .mini{border:none;border-radius:9px;padding:9px 12px;background:#254636;color:#b9ffdc;font-size:12px;font-weight:700}
 .exercise{border-top:1px solid #2e4240;padding:14px 0 0;margin-top:15px}.exercise-name{font-size:14px;font-weight:700}.exercise-count{font-size:12px;color:var(--muted)}
 .sets{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.set{background:#173629;border:1px solid #305a45;border-radius:12px;padding:9px 11px;min-width:98px}
@@ -62,15 +67,15 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 
 <section class="page active" id="page-home">
 <div class="stats"><div class="stat"><strong id="statDays">—</strong><span>训练天数</span></div><div class="stat"><strong id="statSets">—</strong><span>总训练组</span></div><div class="stat"><strong id="statMovements">—</strong><span>训练动作</span></div></div>
-<div class="panel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，色块越亮表示当天记录组数越多</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
+<div class="panel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，每天四分格：胸、肩、背、腿；亮起代表当天练过该部位</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
-<div class="legend"><span>少</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>多</span></div></div>
+<div class="legend" aria-label="四分日历图例"><span class="region-key" style="--key-color:var(--region-chest)"><i></i>胸</span><span class="region-key" style="--key-color:var(--region-shoulder)"><i></i>肩</span><span class="region-key" style="--key-color:var(--region-back)"><i></i>背</span><span class="region-key" style="--key-color:var(--region-leg)"><i></i>腿</span><span>灰点：其他</span></div></div>
 <div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div><div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
 <div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
 </section>
 
 <section class="page" id="page-record">
-<div class="panel record-panel"><h2>记录训练</h2><p class="sub record-hint">本机即时保存；连接 GitHub 后自动上传。</p>
+<div class="panel record-panel"><h2>记录训练</h2><p class="sub record-hint">本机即时保存；连接 GitHub 后自动上传。 <span id="recordRegionBadge" class="record-region-badge">全部动作</span></p>
 <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
 <div class="formgrid exercise-top-row">
  <div class="field"><label for="recordGroup">训练部位</label>
@@ -273,6 +278,8 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 "use strict";
 const $=id=>document.getElementById(id);
 const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[],rawNotes:[],calendarBrowsing:false};
+const regionThemeColors=Object.freeze({胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B79BFA"});
+const majorRegions=Object.keys(regionThemeColors);
 // Convert authoritative JSON v2 into a stable UI model. No CSV conversion.
 const exerciseLabels={
  adductor:"坐姿髋内收机（Adductor）",abductor:"坐姿髋外展机（Abductor）",
@@ -304,6 +311,16 @@ const exerciseRegionById={
  single_leg_press:"腿",seated_leg_curl:"腿"
 };
 let recordExerciseTouched=false;
+function updateRecordRegionTheme(){
+ const selected=$("recordExercise").value;
+ const region=exerciseRegionById[selected]||$("recordGroup").value||"";
+ const color=regionThemeColors[region]||"#91a9a8";
+ const panel=document.querySelector("#page-record .record-panel");
+ panel.style.setProperty("--record-region-color",color);
+ panel.dataset.region=region;
+ const badge=$("recordRegionBadge");
+ badge.textContent=majorRegions.includes(region)?region+" · 当前动作":region||"其他动作";
+}
 function orderRecordOptionsByRecent(rows){
  if(window.BodyTraceExerciseCatalog)window.BodyTraceExerciseCatalog.refresh(rows);
 }
@@ -390,6 +407,7 @@ function historicalRecommendation(rows,id){
  return {amount:weights[Math.floor((weights.length-1)/2)],count:weights.length,isAssist:assist};
 }
 function refreshExerciseRecommendation(force=false){
+ updateRecordRegionTheme();
  if(trainingFormDirty&&!force)return;
  const id=$("recordExercise").value;
  $("weightLabel").textContent=id==="assisted_pullup"||id==="assisted_dip"?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
@@ -436,21 +454,50 @@ function indexData(){
  if(dates.length&&!state.calendarBrowsing)state.selected=dates[dates.length-1];
  refreshExerciseRecommendation(false);renderHeat(!state.calendarBrowsing);renderDay();
 }
+function summarizeHeatDays(rows){
+ const byDay=new Map();
+ for(const r of rows){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(r.session_date||""))continue;
+  let day=byDay.get(r.session_date);
+  if(!day){day={total:0,other:0,regions:{胸:0,肩:0,背:0,腿:0}};byDay.set(r.session_date,day)}
+  day.total++;
+  const region=r.exercise_region||exerciseRegionById[r.exercise_id]||"其他";
+  if(Object.hasOwn(day.regions,region))day.regions[region]++;else day.other++;
+ }
+ return byDay;
+}
 function renderHeat(focusLatest=false){
- const entries=filtered(),counts=new Map();
- for(const r of entries){counts.set(r.session_date,(counts.get(r.session_date)||0)+1)}
+ const byDay=summarizeHeatDays(filtered());
  const dateEnd=today>state.selected?today:state.selected;
  const monday=plus(dateEnd,-((parse(dateEnd).getUTCDay()+6)%7));
- const start=plus(monday,-51*7),heat=$("heat"),months=$("months");heat.replaceChildren();months.replaceChildren();let lastMonth="";
+ const start=plus(monday,-51*7),heat=$("heat"),months=$("months");
+ heat.replaceChildren();months.replaceChildren();let lastMonth="";
  for(let w=0;w<52;w++){
   const first=plus(start,w*7),month=first.slice(0,7);
-  if(month!==lastMonth){const label=document.createElement("span");label.className="month";label.textContent=Number(first.slice(5,7))+"月";label.style.left=(w*18)+"px";months.append(label);lastMonth=month}
+  if(month!==lastMonth){
+   const label=document.createElement("span");
+   label.className="month";label.textContent=Number(first.slice(5,7))+"月";
+   label.style.left=(w*23)+"px";months.append(label);lastMonth=month;
+  }
   for(let d=0;d<7;d++){
-   const day=plus(first,d),count=counts.get(day)||0,cell=document.createElement("button");
+   const day=plus(first,d),counts=byDay.get(day)||{total:0,other:0,regions:{胸:0,肩:0,背:0,腿:0}};
+   const cell=document.createElement("button");
    cell.type="button";cell.className="cell"+(state.selected===day?" active":"")+(day>today?" dim":"");
-   cell.dataset.level=String(count===0?0:count<=2?1:count<=5?2:count<=8?3:4);
-   cell.title=day+" · "+count+"组";cell.setAttribute("aria-label",cell.title);
-   cell.onclick=()=>{state.calendarBrowsing=true;state.selected=day;renderHeat();renderDay()};heat.append(cell);
+   cell.dataset.level=String(counts.total===0?0:counts.total<=2?1:counts.total<=5?2:counts.total<=8?3:4);
+   if(counts.other)cell.dataset.other="true";
+   const detail=majorRegions.map(region=>region+counts.regions[region]+"组").join(" / ")+
+    (counts.other?" / 其他"+counts.other+"组":"");
+   cell.title=day+" · "+counts.total+"组（"+detail+"）";
+   cell.setAttribute("aria-label",cell.title);
+   for(const region of majorRegions){
+    const quadrant=document.createElement("span");
+    quadrant.className="cell-quadrant"+(counts.regions[region]?" active":"");
+    quadrant.dataset.region=region;
+    quadrant.setAttribute("aria-hidden","true");
+    cell.append(quadrant);
+   }
+   cell.onclick=()=>{state.calendarBrowsing=true;state.selected=day;renderHeat();renderDay()};
+   heat.append(cell);
   }
  }
  if(focusLatest)focusCalendarLatest();
