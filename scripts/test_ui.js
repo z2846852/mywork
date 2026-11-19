@@ -81,7 +81,7 @@ assert.ok(native.includes("saveBatch(String batchJson)")&&native.includes("saveM
 assert.ok(features.includes("bodyEdited")&&features.includes("saveMeasurement("));
 // Semantic palette must be stable in ALL four views: chest coral, shoulder amber,
  // back blue, leg violet. APP controls/status keep their original green.
-const colorTokens={胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B79BFA"};
+const colorTokens={胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"};
 for(const [region,color] of Object.entries(colorTokens)){
  assert.ok(html.includes(region+':"'+color+'"'),"Missing shared region color: "+region);
  assert.ok(html.includes(color),"HTML theme must expose palette for all views");
@@ -151,7 +151,7 @@ const chartEnd=features.indexOf("function renderRegionSummary()",chartStart);
 assert.ok(chartStart>=0&&chartEnd>chartStart);
 const chartFuncs=vm.runInNewContext(features.slice(chartStart,chartEnd)+
  "\ncomputeRegionDashboard",{
-  regionThemeColors:{胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B79BFA"},
+  regionThemeColors:{胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"},
   today:"2026-11-18",
   plus:(s,n)=>new Date(Date.parse(s+"T12:00:00Z")+n*86400000).toISOString().slice(0,10),
   parse:s=>new Date(s+"T12:00:00Z"),
