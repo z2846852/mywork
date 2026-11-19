@@ -396,7 +396,11 @@ function normaliseDays(days){
    for(const key in row)if(typeof row[key]==="number")metric[key]=String(row[key]);
    measurements.push(metric);
   }}
-  if(Array.isArray(day.nutrition))nutrition.push(...day.nutrition);
+  if(Array.isArray(day.nutrition)){
+   for(const entry of day.nutrition){
+    if(entry&&typeof entry==="object")nutrition.push({...entry,date:day.date});
+   }
+  }
  }
  return {rows,measurements,nutrition};
 }
