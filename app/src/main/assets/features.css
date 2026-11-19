@@ -575,3 +575,13 @@
  border-left:3px solid var(--region-accent,#8bb6ad);border-radius:7px;
  background:#182f2d;color:#d5e9df;font-size:12px;font-weight:650;
  line-height:1.5;min-height:37px;font-variant-numeric:tabular-nums}
+
+/* Immediate GitHub sync is the first control on Settings/Log; credentials remain at bottom. */
+.settings-sync-strip{display:flex;align-items:center;gap:10px;margin-top:12px;
+ padding:10px 11px;border-radius:13px;border:1px solid #345c4a;
+ background:linear-gradient(120deg,#16362c,#142622)}
+.settings-sync-strip .settings-sync-button{width:auto;min-width:155px;flex:0 0 auto;
+ margin:0;padding:11px 12px;min-height:42px;font-size:13px}
+.settings-sync-strip .sub{margin:0;font-size:11px}
+@media(max-width:365px){.settings-sync-strip{flex-wrap:wrap}
+ .settings-sync-strip .settings-sync-button{width:100%}}

@@ -238,6 +238,15 @@ assert.ok(settingsHTML.indexOf('id="gitHistoryPanel"')<
 assert.ok(settingsHTML.indexOf('可视化 JSON')<
  settingsHTML.indexOf('SECURE CONNECTION'),
  "GitHub authorization belongs at the bottom of the page");
+assert.ok(settingsHTML.indexOf('class="settings-sync-strip"')>=0 &&
+ settingsHTML.indexOf('id="syncSettings"')<settingsHTML.indexOf('id="gitHistoryPanel"'),
+ "The one-tap sync action must be ABOVE Git log as the first control on Settings");
+assert.equal((html.match(/id="syncSettings"/g)||[]).length,1,
+ "Settings must expose exactly one GitHub sync button");
+assert.ok(settingsHTML.indexOf('id="disconnect"')>settingsHTML.indexOf('SECURE CONNECTION'),
+ "Disconnect stays in the credential section at the bottom");
+const syncStyle=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
+assert.ok(syncStyle.includes('.settings-sync-strip{display:flex;'));
 assert.ok(html.includes('<span class="ico">≡</span>日志</button>'));
 function logElement(tag){
  return {tagName:tag,children:[],className:"",textContent:"",style:{},

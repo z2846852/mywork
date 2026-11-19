@@ -235,6 +235,25 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     }]
    }]});
   });
+  const quickSyncPosition=await page.evaluate(()=>{
+   const page=document.getElementById("page-settings");
+   const first=page.firstElementChild;
+   const button=document.getElementById("syncSettings");
+   return {firstIsSync:first?.classList.contains("settings-sync-strip"),
+    buttonInside:first?.contains(button),
+    beforeHistory:button.getBoundingClientRect().top <
+     document.getElementById("gitHistoryPanel").getBoundingClientRect().top};
+  });
+  if(!quickSyncPosition.firstIsSync||!quickSyncPosition.buttonInside||
+      !quickSyncPosition.beforeHistory)
+   throw Error("Settings quick-sync must be first and above Git history: "+JSON.stringify(quickSyncPosition));
+  await page.evaluate(()=>{
+   window.__syncClicks=0;
+   window.BodyTraceNative.sync=()=>{window.__syncClicks++};
+  });
+  await page.locator("#syncSettings").click();
+  if(await page.evaluate(()=>window.__syncClicks)!==1)
+   throw Error("Quick GitHub sync did not invoke native sync exactly once");
   if(await page.locator("#gitLogList details").count())
    throw Error("Git diffs must be visible without an expand action");
   if(await page.locator("#gitLogList .git-diff-added").count()!==2||
