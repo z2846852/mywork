@@ -255,7 +255,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <input id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="1">
    </div>
   </div>
-  <p class="sub">按秒计算 RMS 和峰值包络。最短时长累计真正超过阈值的秒数；中间允许短暂停顿。首次解码约 8 小时音频可能较慢，后续筛选会复用本地分析缓存。所有音频与分析只留在手机。</p>
+  <p class="sub">按秒计算 RMS 和峰值包络。最短时长累计真正超过阈值的秒数；中间允许短暂停顿。首次处理 8 小时音频需要逐样本解码；后台分析会在通知栏显示进度，锁屏后继续处理（部分手机需允许后台活动）。完成后波形和筛选数据缓存在本机，后续调整阈值无需重新解码。所有音频与分析仅留在手机。</p>
   <div class="sleep-selected" id="sleepSelected">请从下方选择一个已完成的录音</div>
   <div class="sleep-visualization" id="sleepVisualization" hidden>
    <div class="sleep-visual-head">
