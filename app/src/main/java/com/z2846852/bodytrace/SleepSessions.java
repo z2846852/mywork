@@ -1,6 +1,9 @@
 package com.z2846852.bodytrace;
 
 import android.content.Context;
+import android.net.Uri;
+import android.media.MediaExtractor;
+import android.media.MediaPlayer;
 import android.util.AtomicFile;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -13,7 +16,8 @@ import java.util.Comparator;
 
 /**
  * Private, local-only sleep recordings. The GitHub training sync never touches these files.
- * Session JSON is written atomically. Source audio remains in filesDir/sleep_audio.
+ * Session JSON is written atomically. App recordings live in filesDir/sleep_audio;
+ * external SAF documents stay in place and are referenced by persisted read grants.
  */
 final class SleepSessions {
     private SleepSessions() {}
@@ -47,6 +51,54 @@ final class SleepSessions {
             }
         }catch(Exception ignored){} // New recordings do not have metadata yet.
         return new File(audioDir(context), id + "." + extension);
+    }
+
+    /** Distinguish reference-only imports from app-owned recordings and old copied imports. */
+    static boolean isExternal(JSONObject session){
+        return "saf-document".equals(session.optString("source")) &&
+            session.optString("source_uri","").startsWith("content://");
+    }
+
+    static Uri externalUri(JSONObject session){
+        if(!isExternal(session))throw new IllegalArgumentException("录音不是外部文件引用");
+        return Uri.parse(session.optString("source_uri"));
+    }
+
+    static void configureExtractor(Context context,JSONObject session,MediaExtractor extractor)
+            throws Exception {
+        if(isExternal(session)){
+            extractor.setDataSource(context,externalUri(session),null);
+        }else{
+            File source=audio(context,session.getString("id"));
+            if(!source.isFile()||source.length()<1024)
+                throw new IllegalStateException("本机音频文件不存在");
+            extractor.setDataSource(source.getAbsolutePath());
+        }
+    }
+
+    static void configurePlayer(Context context,JSONObject session,MediaPlayer player)
+            throws Exception {
+        if(isExternal(session)){
+            player.setDataSource(context,externalUri(session));
+        }else{
+            File source=audio(context,session.getString("id"));
+            if(!source.isFile())throw new IllegalStateException("本机音频文件不存在");
+            player.setDataSource(source.getAbsolutePath());
+        }
+    }
+
+    static String findExternalByUri(Context context,Uri uri) throws Exception {
+        File[] files=sessionDir(context).listFiles((dir,name)->
+            name.matches("[0-9a-zA-Z_-]{6,80}\\.json"));
+        if(files==null)return "";
+        for(File file:files){
+            try{
+                JSONObject session=load(context,file.getName().replace(".json",""));
+                if(isExternal(session)&&uri.toString().equals(session.optString("source_uri")))
+                    return session.getString("id");
+            }catch(Exception ignored){}
+        }
+        return "";
     }
 
     static File importedAudio(Context context,String id,String extension) {
@@ -106,8 +158,11 @@ final class SleepSessions {
                             "source","date_basis","original_name","duration_ms"}) {
                         if (s.has(key)) summary.put(key, s.get(key));
                     }
-                    File audio = audio(context,s.getString("id"));
-                    summary.put("bytes", audio.isFile()?audio.length():0);
+                    boolean external=isExternal(s);
+                    summary.put("external_file",external);
+                    File audio = external?null:audio(context,s.getString("id"));
+                    summary.put("bytes",external?s.optLong("original_bytes",0):
+                        audio.isFile()?audio.length():0);
                     if ("recording".equals(summary.optString("status")) &&
                             !SleepRecorderService.isCurrentSession(s.optString("id"))) {
                         summary.put("status","interrupted");
