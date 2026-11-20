@@ -409,6 +409,18 @@ assert.ok(!html.includes('data-page="raw"'),"Remove Raw from bottom tabs");
 assert.ok(html.includes('id="rawSettingsAccordion"'));
 assert.ok(html.indexOf('id="page-settings"')<html.indexOf('id="page-raw"'));
 assert.ok(html.indexOf('id="page-raw"')<html.indexOf('</section>',html.indexOf('id="page-settings"')));
+// Global default-on history visibility is persisted to Android SharedPreferences
+// (not only in JS memory) and applies to ALL selected days/movements.
+assert.ok(html.includes('id="toggleHistory"'));
+assert.ok(html.includes('let showWorkoutHistory=true;'));
+assert.ok(html.includes('if(showWorkoutHistory&&recentDates.length)'));
+assert.ok(html.includes('case "ui_preferences":'));
+assert.ok(html.includes('window.BodyTraceNative.setWorkoutHistoryVisible(showWorkoutHistory)'));
+assert.ok(native.includes('getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)'));
+assert.ok(native.includes('.getBoolean("show_workout_history",true)'));
+assert.ok(native.includes('.edit().putBoolean("show_workout_history",visible).commit()'));
+assert.ok(native.includes('sendUiPreferences();'));
+assert.ok(native.includes('@JavascriptInterface public void setWorkoutHistoryVisible(boolean visible)'));
 // Compact chrome, always reachable save, and distinct muscle categories.
 const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),
@@ -479,6 +491,15 @@ assert.ok(projection.includes('item.put("created_at"'));
 assert.ok(html.includes('exerciseRegionById')&&html.includes('orderRecordOptionsByRecent(valid)'));
 const catalogJS=fs.readFileSync(path.join(root,"app/src/main/assets/exercise_catalog.js"),"utf8");
 new vm.Script(catalogJS,{filename:"exercise_catalog.js"});
+// Action creation/removal were previously buried in the manager: ensure both
+// now have explicit adjacent buttons directly under the exercise selector.
+assert.ok(html.includes('id="quickAddExercise"'));
+assert.ok(html.includes('id="manageExercises">－ 删除 / 恢复动作'));
+assert.ok(catalogJS.includes('$("quickAddExercise").onclick=()=>openManager(true)'));
+assert.ok(catalogJS.includes('$("manageExercises").onclick=()=>openManager(false)'));
+assert.ok(catalogJS.includes('if(typeof window.BodyTraceRenderFeatures==="function")window.BodyTraceRenderFeatures();'));
+assert.ok(catalogJS.includes('indexData();'));
+
 assert.ok(catalogJS.includes('option.textContent="【"+overviewGroup(entry.region)+"】"+entry.label'));
 assert.ok(catalogJS.includes('compareUsage')&&catalogJS.includes('config.sort_mode==="region"'));
 assert.ok(catalogJS.includes('const overviewGroup=region=>["胸","肩","背","腿"]'));
@@ -686,11 +707,12 @@ function element(tag="div"){
   classList:{add(){},remove(){}},
   append(...items){this.children.push(...items)},
   replaceChildren(){this.children=[];this.value=""},
-  addEventListener(kind,fn){this.listeners[kind]=fn}
+  addEventListener(kind,fn){this.listeners[kind]=fn},
+  focus(){this.focused=true},scrollIntoView(){this.scrolled=true}
  };
 }
 const nodeIds=["recordGroup","recordExercise","recordSortMode","exerciseManageList",
- "suggestedLoad","manageExercises","closeExerciseManager","exerciseManager",
+ "suggestedLoad","manageExercises","quickAddExercise","closeExerciseManager","exerciseManager",
  "addCustomExercise","customActionName","customActionRegion","recordKg","recordReps",
  "recordSets","recordDate","weightLabel"];
 const nodes=Object.fromEntries(nodeIds.map(id=>[id,element(
@@ -715,6 +737,7 @@ catalogContext.clearTrainingEdits=()=>{
  catalogContext.weightEditedByUser=false;
  catalogContext.repsEditedByUser=false;
 };
+catalogContext.BodyTraceNative=catalogContext.window.BodyTraceNative;
 vm.runInNewContext(catalogJS,catalogContext);
 const selectIds=()=>Array.from(nodes.recordExercise.children,item=>item.value);
 assert.equal(nodes.recordGroup.value,"","Default muscle filter must be All");
@@ -756,4 +779,29 @@ assert.equal(nodes.recordKg.value,"35");
 catalogContext.window.BodyTraceExerciseCatalog.refresh(catalogContext.state.rows);
 assert.equal(nodes.recordExercise.value,"");
 assert.equal(nodes.recordReps.value,"12");
+// Functional test for new easy-to-find per-exercise add button.
+catalogContext.trainingFormDirty=false;
+catalogContext.recordExerciseTouched=false;
+nodes.recordGroup.value="背";
+nodes.quickAddExercise.onclick();
+assert.equal(nodes.exerciseManager.hidden,false);
+assert.equal(nodes.customActionRegion.value,"背");
+assert.equal(nodes.customActionName.focused,true);
+nodes.customActionName.value="坐姿划船 · 用户自建";
+nodes.addCustomExercise.onclick();
+const newId=nodes.recordExercise.value;
+assert.ok(newId.startsWith("custom_"));
+assert.equal(catalogContext.window.BodyTraceExerciseCatalog.region(newId),"背");
+assert.ok(selectIds().includes(newId));
+assert.equal(catalogContext.window.BodyTraceExerciseCatalog.getConfig().custom.length,1);
+// Removing the self-created movement is a catalog operation, not a workout deletion.
+nodes.manageExercises.onclick();
+const selectedManagerRow=nodes.exerciseManageList.children.find(x=>x.dataset.exerciseId===newId);
+assert.ok(selectedManagerRow&&selectedManagerRow.scrolled);
+const removeFrom=row=>row.children.at(-1).children.find(b=>b.textContent==="删除"||b.textContent==="确认删除");
+removeFrom(selectedManagerRow).onclick();
+const confirmationRow=nodes.exerciseManageList.children.find(x=>x.dataset.exerciseId===newId);
+removeFrom(confirmationRow).onclick();
+assert.equal(catalogContext.window.BodyTraceExerciseCatalog.getConfig().custom.length,0);
+assert.ok(!selectIds().includes(newId));
 console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/restore/delete actions, leg extension, body schematic, wheel and fixed Release signing.");

@@ -771,3 +771,28 @@ body.workout-edit-open{overflow:hidden}
 .sleep-event-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
 .sleep-event-actions button{font-size:10px;min-height:29px}
 @media(max-width:365px){.sleep-event-actions{min-width:75px}}
+
+/* One global remembered visibility choice for selected-day action histories. */
+.history-global-controls{justify-content:space-between;align-items:center;
+ gap:8px;margin:7px 0 12px;padding:9px 10px;
+ border:1px solid #36554a;border-radius:10px;background:#1a302a}
+.history-global-controls .sub{margin:0;flex:1 1 125px;
+ color:#b2d6c6;font-size:11px;line-height:1.45}
+#toggleHistory{flex:0 0 auto;border-color:#75a995;min-height:35px}
+#toggleHistory[aria-pressed="false"]{color:#ccd3dd;border-color:#60777b}
+/* Quick creation/removal is immediately below the action selector. */
+.exercise-actions-row{align-items:center;justify-content:space-between;gap:6px}
+.exercise-actions-row .exercise-quick-add,
+.exercise-actions-row .exercise-quick-remove{min-height:36px;flex:1 1 112px;
+ padding:8px 7px;font-size:11px;font-weight:650;white-space:nowrap}
+.exercise-actions-row .exercise-quick-add{background:#25463a;border-color:#5d997c;color:#c1f5d7}
+.exercise-actions-row .exercise-quick-remove{background:#382c2c;border-color:#84534e;color:#f0cbc5}
+.exercise-actions-row #recordSortMode{flex:0 0 98px;max-width:100px!important}
+.exercise-manage-highlight{outline:2px solid #8bdcb3;outline-offset:-2px;
+ border-radius:9px;background:#23463b}
+@media(max-width:385px){
+ .exercise-actions-row{gap:5px}
+ .exercise-actions-row .exercise-quick-add,
+ .exercise-actions-row .exercise-quick-remove{font-size:10px;min-width:105px}
+ .exercise-actions-row #recordSortMode{flex-basis:100%;max-width:100%!important}
+}

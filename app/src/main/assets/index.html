@@ -70,7 +70,12 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="panel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，每天四分格：胸、肩、背、腿；亮起代表当天练过该部位</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
 <div class="legend" aria-label="四分日历图例"><span class="region-key" style="--key-color:var(--region-chest)"><i></i>胸</span><span class="region-key" style="--key-color:var(--region-shoulder)"><i></i>肩</span><span class="region-key" style="--key-color:var(--region-back)"><i></i>背</span><span class="region-key" style="--key-color:var(--region-leg)"><i></i>腿</span><span>灰点：其他</span></div></div>
-<div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p><p class="sub">当天每个动作下方附最近 10 个历史训练日，方便对照重量和组数。</p></div><button id="goLatest" class="mini">最近一次</button></div><div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
+<div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div>
+<div class="row wrap history-global-controls">
+  <span class="sub" id="historyVisibilityStatus">历史默认展开：每个动作最近 10 个训练日</span>
+  <button type="button" class="secondary mini" id="toggleHistory" aria-pressed="true">收起全部历史</button>
+</div>
+<div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
 <div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
 </section>
 
@@ -86,15 +91,17 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <div class="field"><label for="recordExercise">训练动作</label>
  <select id="recordExercise" aria-label="再选训练动作"></select></div>
  </div>
- <div class="row wrap exercise-actions-row">
- <select id="recordSortMode" class="select" aria-label="动作排序" style="width:auto;max-width:120px">
- <option value="recent">最近使用</option><option value="region">按部位</option>
- </select><button type="button" class="secondary mini" id="manageExercises">管理 / 删除动作</button>
+ <div class="row wrap exercise-actions-row" aria-label="动作列表增删操作">
+   <button type="button" class="secondary mini exercise-quick-add" id="quickAddExercise">＋ 新增动作</button>
+   <button type="button" class="secondary mini exercise-quick-remove" id="manageExercises">－ 删除 / 恢复动作</button>
+   <select id="recordSortMode" class="select" aria-label="动作排序" style="width:auto;max-width:120px">
+    <option value="recent">最近使用</option><option value="region">按部位</option>
+   </select>
  </div>
  <p class="sub">四大训练部位为胸、肩、背、腿；手臂与核心等独立动作归入“其他”，不挤占四分格。</p>
  <div id="exerciseManager" class="exercise-manager panel inner" hidden>
  <div class="row"><h3>动作管理</h3><button type="button" id="closeExerciseManager" class="mini">完成</button></div>
- <p class="sub">内置动作可以隐藏或恢复；自定义动作可以永久移出目录，但历史训练仍然保留。</p>
+ <p class="sub">内置动作可隐藏/恢复；自定义动作可移出目录（需要二次确认）。这只影响可选动作，不会删除训练历史。</p>
  <div class="formgrid">
   <div class="field"><label for="customActionName">新增动作名称</label><input id="customActionName" maxlength="60" placeholder="例如：单臂哑铃划船"></div>
   <div class="field"><label for="customActionRegion">训练部位</label>
@@ -683,6 +690,30 @@ function focusCalendarLatest(){
  });
 }
 function weight(r){if(r.assistance_kg)return "辅助 "+r.assistance_kg+"kg";if(r.load_kg!=="")return r.load_kg+"kg";return r.machine_setting?"刻度 "+r.machine_setting:"未记录负重"}
+// One persistent, global preference for every selected day and exercise.
+let showWorkoutHistory=true;
+function applyWorkoutHistoryVisibility(shown,render=true){
+ showWorkoutHistory=shown!==false;
+ $("toggleHistory").textContent=showWorkoutHistory?"收起全部历史":"展开全部历史";
+ $("toggleHistory").setAttribute("aria-pressed",String(showWorkoutHistory));
+ $("historyVisibilityStatus").textContent=showWorkoutHistory?
+  "已展开：每个动作最近 10 个训练日":"已收起：仅查看当天训练";
+ if(render)renderDay();
+}
+$("toggleHistory").onclick=()=>{
+ applyWorkoutHistoryVisibility(!showWorkoutHistory);
+ if(typeof window.BodyTraceNative?.setWorkoutHistoryVisible==="function"){
+  window.BodyTraceNative.setWorkoutHistoryVisible(showWorkoutHistory);
+ }else{
+  // Browser preview fallback only; Android stores the authoritative preference.
+  try{localStorage.setItem("bodytrace.showWorkoutHistory",String(showWorkoutHistory));}
+  catch(_){}
+ }
+};
+try{
+ const fallback=localStorage.getItem("bodytrace.showWorkoutHistory");
+ if(fallback==="false")applyWorkoutHistoryVisibility(false,false);
+}catch(_){}
 function renderDay(){
  $("selectedDate").textContent=state.selected+" · 训练详情";
  const list=filtered().filter(r=>r.session_date===state.selected);
@@ -727,7 +758,7 @@ function renderDay(){
    byDate.get(row.session_date).push(row);
   }
   const recentDates=[...byDate.keys()].sort((a,b)=>b.localeCompare(a)).slice(0,10);
-  if(recentDates.length){
+  if(showWorkoutHistory&&recentDates.length){
    const history=document.createElement("div");history.className="exercise-history";
    const heading=document.createElement("div");heading.className="exercise-history-heading";
    heading.textContent="历史训练 · 最近 "+recentDates.length+" 天";history.append(heading);
@@ -900,6 +931,9 @@ window.bodyTraceReceive=function(evt){
    for(const e of evt.events)addPreview(e);
   }
   renderStatus();break;
+ case "ui_preferences":
+  applyWorkoutHistoryVisibility(evt.show_workout_history!==false);
+  break;
  case "raw_history":
   state.rawNotes=Array.isArray(evt.notes)?evt.notes:[];
   renderRawHistory();break;
