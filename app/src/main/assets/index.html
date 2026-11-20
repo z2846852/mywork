@@ -131,20 +131,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
 </div></section>
 
-<section class="page" id="page-raw">
-<div class="panel"><div class="eyebrow">RAW / INBOX</div><h2>Raw 原文收件箱</h2>
-<p class="sub">不分类、不推测、不自动生成训练或饮食 JSON。原文按 JSON 保存在 App 私有目录；已连接时立即尝试上传到私有 GitHub，交给未来的 ChatGPT 再解析。</p>
-<div class="field"><label for="rawText">原始想法、需求或训练口述</label>
-<textarea id="rawText" maxlength="10000" placeholder="例如：以后希望记录喝水量；把饮食分成早中晚三餐。也可以暂存尚不确定的训练器械描述……"></textarea></div>
-<div class="row" style="margin-top:8px"><p class="sub" id="rawCount">0 / 10000 字符</p><span class="tag">未解析</span></div>
-<button class="primary" id="saveRaw">保存 Raw · 原样上传</button>
-<p class="note">保存目录：<span class="code">data/raw_inbox/YYYY-MM-DD/&lt;UUID&gt;.json</span><br>
-原始内容保存在 <span class="code">text</span> 字段，状态为 <span class="code">unprocessed</span>。不会触发 Actions 或自动运行任何指令。</p>
-</div>
-<div class="panel"><div class="row"><h2>手机上的 Raw 历史</h2><span class="tag" id="rawHistoryCount">0条</span></div>
-<div id="rawHistory" class="empty">暂无原始记录。</div></div>
-</section>
-
 <section class="page" id="page-nutrition">
 <div class="panel nutrition-checkin-panel">
 <div class="eyebrow">NUTRITION / QUICK CHECK-IN</div><h2>摄入概况 · 每日四分格</h2>
@@ -236,6 +222,13 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
    <button type="button" class="primary" id="sleepStart">开始睡眠录音</button>
    <button type="button" class="secondary" id="sleepStop" disabled>停止并保存</button>
   </div>
+  <div class="sleep-import-actions">
+   <button type="button" class="secondary" id="sleepImport">导入本机录音（MP3 / M4A / WAV 等）</button>
+   <label class="sub" for="sleepImportStarted">原始录音开始时间（可选）</label>
+   <input type="datetime-local" id="sleepImportStarted">
+   <p class="sub">选择系统文件后复制到 APP 私有空间，可分析过去录下的8小时音频。未填写原始录音开始时间，则事件按相对录音时长显示，不伪造绝对时钟时间；导入不会访问其他文件。</p>
+   <p id="sleepImportStatus" class="sub" role="status"></p>
+  </div>
   <p class="sub">请先打开 APP 点击开始，再锁屏。必须授权麦克风；Android 13+ 可授权通知便于从锁屏通知停止。部分手机需要允许后台活动、关闭该 APP 的省电限制；系统异常终止仍可能中断录音。</p>
  </div>
  <div class="panel">
@@ -255,8 +248,40 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <input id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="1">
    </div>
   </div>
-  <p class="sub">每秒计算一次 RMS 音量。最短时长只累计真正超过阈值的秒数，间断部分不计数。停止录音后首次分析需要解码，后续调整参数可复用本地音量数据。</p>
+  <p class="sub">按秒计算 RMS 和峰值包络。最短时长累计真正超过阈值的秒数；中间允许短暂停顿。首次解码约 8 小时音频可能较慢，后续筛选会复用本地分析缓存。所有音频与分析只留在手机。</p>
   <div class="sleep-selected" id="sleepSelected">请从下方选择一个已完成的录音</div>
+  <div class="sleep-visualization" id="sleepVisualization" hidden>
+   <div class="sleep-visual-head">
+    <h3>全夜声波概况</h3>
+    <span class="sub">1 秒 RMS / 峰值包络，非原始振荡波形</span>
+   </div>
+   <div id="sleepSoundStats" class="sleep-sound-stats"></div>
+   <div class="sleep-wave-controls" role="group" aria-label="声波缩放">
+    <button type="button" class="mini secondary" data-sleep-zoom="all">整晚</button>
+    <button type="button" class="mini secondary" data-sleep-zoom="3600">1 小时</button>
+    <button type="button" class="mini secondary" data-sleep-zoom="600">10 分钟</button>
+    <button type="button" class="mini secondary" data-sleep-zoom="60">1 分钟</button>
+    <button type="button" class="mini secondary" id="sleepPreviousWindow">◀</button>
+    <button type="button" class="mini secondary" id="sleepNextWindow">▶</button>
+   </div>
+   <div class="sleep-wave-frame">
+    <canvas id="sleepWaveCanvas" height="220" role="img" aria-label="整晚音频RMS与峰值音量、事件时间线；点击选择音频片段"></canvas>
+   </div>
+   <p id="sleepWaveSelection" class="sub">点击波形可定位时间并回听附近片段。</p>
+   <div class="sleep-wave-legend">
+    <span class="sleep-wave-key peak">峰值包络</span>
+    <span class="sleep-wave-key rms">RMS 音量</span>
+    <span class="sleep-wave-key event">超过阈值的声音</span>
+    <span class="sleep-wave-key threshold">筛选阈值</span>
+   </div>
+   <div class="row wrap">
+    <button type="button" class="secondary mini" id="sleepPlaySelection" disabled>播放选中位置附近15秒</button>
+    <button type="button" class="secondary mini" id="sleepFocusSelection" disabled>放大选中位置</button>
+   </div>
+   <h3>逐小时声音分布</h3>
+   <div id="sleepHourlyActivity" class="sleep-hourly-activity"></div>
+   <p id="sleepVisualCaveat" class="sub">仅分析响度，不能识别打鼾、呼吸暂停或睡眠分期；风扇和讲话也可能触发。</p>
+  </div>
   <button type="button" class="primary" id="sleepAnalyze" disabled>分析所选录音</button>
   <div id="sleepAnalysis" class="sleep-analysis" aria-live="polite"></div>
   <div class="row wrap" style="margin-top:12px">
@@ -337,6 +362,23 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="row" style="margin-top:13px"><button id="disconnect" class="secondary">解除授权（保留本地记录）</button></div>
 <div class="alert" style="margin-top:17px">注意：这是个人测试版。Fine-grained PAT 属于敏感凭证，切勿截图、上传、复制到公开代码；如泄露应立即撤销。</div>
 </div>
+<details class="settings-raw-accordion" id="rawSettingsAccordion">
+ <summary>Raw 原文收件箱（低频使用）</summary>
+ <div id="page-raw" class="raw-in-logs">
+<div class="panel"><div class="eyebrow">RAW / INBOX</div><h2>Raw 原文收件箱</h2>
+<p class="sub">不分类、不推测、不自动生成训练或饮食 JSON。原文按 JSON 保存在 App 私有目录；已连接时立即尝试上传到私有 GitHub，交给未来的 ChatGPT 再解析。</p>
+<div class="field"><label for="rawText">原始想法、需求或训练口述</label>
+<textarea id="rawText" maxlength="10000" placeholder="例如：以后希望记录喝水量；把饮食分成早中晚三餐。也可以暂存尚不确定的训练器械描述……"></textarea></div>
+<div class="row" style="margin-top:8px"><p class="sub" id="rawCount">0 / 10000 字符</p><span class="tag">未解析</span></div>
+<button class="primary" id="saveRaw">保存 Raw · 原样上传</button>
+<p class="note">保存目录：<span class="code">data/raw_inbox/YYYY-MM-DD/&lt;UUID&gt;.json</span><br>
+原始内容保存在 <span class="code">text</span> 字段，状态为 <span class="code">unprocessed</span>。不会触发 Actions 或自动运行任何指令。</p>
+</div>
+<div class="panel"><div class="row"><h2>手机上的 Raw 历史</h2><span class="tag" id="rawHistoryCount">0条</span></div>
+<div id="rawHistory" class="empty">暂无原始记录。</div></div>
+</div>
+</details>
+
 </section>
 </main>
 <div id="workoutEditOverlay" class="workout-edit-overlay" hidden role="dialog"
@@ -380,7 +422,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <nav class="tabs" aria-label="主导航">
 <button data-page="home" class="active"><span class="ico">▦</span>概览</button>
 <button data-page="record"><span class="ico">＋</span>记录</button>
-<button data-page="raw"><span class="ico">✎</span>Raw</button>
+
 <button data-page="nutrition"><span class="ico">▤</span>饮食</button>
 <button data-page="analytics"><span class="ico">▥</span>趋势</button>
 <button data-page="sleep"><span class="ico">☾</span>睡眠</button>
