@@ -617,6 +617,18 @@ public final class MainActivity extends Activity {
         return result;
     }
 
+    /** Device-global display preference, not stored in the workout catalog
+     * or private GitHub repo. Persists between relaunches and APK upgrades. */
+    private void sendUiPreferences(){
+        try{
+            boolean show=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
+                .getBoolean("show_workout_history",true);
+            JSONObject event=message("ui_preferences");
+            event.put("show_workout_history",show);
+            reply(event);
+        }catch(Exception ex){error("读取训练显示设置失败："+safeMessage(ex));}
+    }
+
     private void restore() {
         try {
             ensureMigrated();
@@ -1069,6 +1081,7 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void ready() {
             worker.execute(() -> {
                 restore();
+                sendUiPreferences();
                 uiReady = true;
                 consumePendingSharedAvatar();
                 sendSleepStatus();
@@ -1150,6 +1163,19 @@ public final class MainActivity extends Activity {
                     reply(out);
                 } catch (Exception e) {
                     error("读取派生 JSON 失败：" + safeMessage(e));
+                }
+            });
+        }
+
+        @JavascriptInterface public void setWorkoutHistoryVisible(boolean visible){
+            worker.execute(()->{
+                try{
+                    boolean written=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
+                        .edit().putBoolean("show_workout_history",visible).commit();
+                    if(!written)throw new IllegalStateException("偏好设置写入失败");
+                    sendUiPreferences();
+                }catch(Exception ex){
+                    error("无法持久保存训练历史开关："+safeMessage(ex));
                 }
             });
         }
