@@ -1160,6 +1160,24 @@ public final class MainActivity extends Activity {
             runOnUiThread(MainActivity.this::stopSleepPlayback);
         }
 
+        @JavascriptInterface public void sleepDelete(String sessionId){
+            runOnUiThread(MainActivity.this::stopSleepPlayback);
+            worker.execute(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    if(SleepRecorderService.isCurrentSession(sessionId))
+                        throw new IllegalStateException("不能删除正在录制的文件");
+                    SleepSessions.load(MainActivity.this,sessionId);
+                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
+                    File metadata=SleepSessions.json(MainActivity.this,sessionId);
+                    if(audio.exists()&&!audio.delete())
+                        throw new IllegalStateException("无法删除本机音频");
+                    if(!metadata.delete())throw new IllegalStateException("无法删除睡眠记录");
+                    sendSleepStatus();
+                }catch(Exception e){error("删除睡眠录音失败："+safeMessage(e));}
+            });
+        }
+
         @JavascriptInterface public void saveNutrition(String nutritionJson) {
             worker.execute(() -> {
                 try {
