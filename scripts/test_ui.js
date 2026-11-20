@@ -1002,7 +1002,7 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   canvas.setPointerCapture=()=>{};
   canvas.addEventListener=(name,fn)=>{eventsByName[name]=fn};
   get("sleepSkipQuiet").checked=true;
-  const fakeWindow={devicePixelRatio:1,bodyTraceReceive(){},
+  const fakeWindow={devicePixelRatio:1,bodyTraceReceive(){},addEventListener(){},
     BodyTraceNative:{sleepPlaySequence(...args){calls.push(args)}}};
   vm.runInNewContext(sleepVisualization,{
     window:fakeWindow,document:{
