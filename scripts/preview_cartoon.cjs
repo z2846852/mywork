@@ -552,7 +552,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator("#sleepStopPlayback").click();
   if((await page.evaluate(()=>window.__sleepBridge.paused))!==1)
    throw Error("Stop playback button failed");
-  await page.locator("#sleepThreshold").fill("-35");
+  await page.locator("#sleepThreshold").evaluate(input=>{
+   input.value="-35";input.dispatchEvent(new Event("input",{bubbles:true}));
+   input.dispatchEvent(new Event("change",{bubbles:true}));
+  });
   const changed=await page.evaluate(()=>window.__sleepBridge.analysis.at(-1));
   if(changed.threshold!==-35||changed.seconds!==5)
    throw Error("Adjusting threshold did not re-run analysis");
