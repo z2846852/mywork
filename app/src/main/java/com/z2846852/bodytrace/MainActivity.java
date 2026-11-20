@@ -1,6 +1,12 @@
 package com.z2846852.bodytrace;
 
 import android.annotation.SuppressLint;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.media.MediaPlayer;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
@@ -31,6 +37,10 @@ import java.util.concurrent.Executors;
 /** Native networking, local encrypted state and offline-first training event queue. */
 public final class MainActivity extends Activity {
     private WebView web;
+    private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
+    private final Handler sleepHandler=new Handler(Looper.getMainLooper());
+    private MediaPlayer sleepPlayer;
+    private Runnable stopPlayback;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private SecureStore vault;
     private JsonStore plain;
@@ -73,7 +83,7 @@ public final class MainActivity extends Activity {
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
             String js = readAsset("wheel.js") + "\n" + readAsset("features.js") +
-                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js");
+                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js") + "\n" + readAsset("sleep.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             // The friendly cartoon avatar is a local SVG; no heavy GLB or
             // third-party scripts are loaded in the 2D release.
@@ -273,6 +283,46 @@ public final class MainActivity extends Activity {
             j.put("message", message);
             reply(j);
         } catch (Exception ignored) { }
+    }
+
+    private void sendSleepStatus() {
+        try {
+            JSONObject result=message("sleep_status");
+            result.put("recording",SleepRecorderService.isRecording());
+            result.put("active_id",SleepRecorderService.currentSessionId());
+            result.put("sessions",SleepSessions.list(this));
+            reply(result);
+        }catch(Exception e){error("读取睡眠记录失败："+safeMessage(e));}
+    }
+    private void startSleepCapture() {
+        if(SleepRecorderService.isRecording()){worker.execute(this::sendSleepStatus);return;}
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            error("没有麦克风权限，无法开始睡眠录音");return;
+        }
+        try{
+            Intent service=new Intent(this,SleepRecorderService.class).setAction(SleepRecorderService.ACTION_START);
+            startForegroundService(service);
+            sleepHandler.postDelayed(()->worker.execute(this::sendSleepStatus),1300);
+        }catch(Exception e){error("启动前台录音失败："+safeMessage(e));}
+    }
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grants){
+        super.onRequestPermissionsResult(requestCode,permissions,grants);
+        if(requestCode!=SLEEP_AUDIO_PERMISSION_REQUEST)return;
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)
+            startSleepCapture();
+        else error("麦克风授权被拒绝，未启动录音");
+    }
+    @Override protected void onResume(){
+        super.onResume();
+        if(uiReady)worker.execute(this::sendSleepStatus);
+    }
+    private void stopSleepPlayback(){
+        if(stopPlayback!=null){sleepHandler.removeCallbacks(stopPlayback);stopPlayback=null;}
+        if(sleepPlayer!=null){
+            try{sleepPlayer.stop();}catch(Exception ignored){}
+            try{sleepPlayer.release();}catch(Exception ignored){}
+            sleepPlayer=null;
+        }
     }
 
     private JSONArray localDays() throws Exception {
@@ -835,6 +885,7 @@ public final class MainActivity extends Activity {
                 restore();
                 uiReady = true;
                 consumePendingSharedAvatar();
+                sendSleepStatus();
             });
         }
         @JavascriptInterface public void connect(String rawToken) {
@@ -1086,6 +1137,8 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        stopSleepPlayback();
+        sleepHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
         worker.shutdown();
         if (web != null) {
