@@ -379,7 +379,7 @@ assert.ok(native.includes('getContentResolver().openInputStream(uri)'));
 assert.ok(native.includes('byte[] block=new byte[65536]'));
 assert.ok(native.includes('length>SLEEP_IMPORT_MAX_BYTES'));
 assert.ok(native.includes('reportedStart.trim()'));
-assert.ok(native.includes('session.put("audio_extension",ext)'));
+assert.ok(native.includes('.put("audio_extension",ext)'));
 assert.ok(native.includes('MediaExtractor extractor=new MediaExtractor()'));
 assert.ok(native.includes('"sleep_imported"'));
 assert.ok(native.includes('"sleep_import_progress"'));
