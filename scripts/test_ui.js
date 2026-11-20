@@ -137,6 +137,11 @@ assert.ok(sleepStore.includes('sleep_audio')&&sleepStore.includes('sleep_session
 assert.ok(!sleepStore.includes('mcp__GitHub__')&&!sleepJS.includes('GitHub'),
  "Personal audio must not be uploaded to workout GitHub sync");
 assert.ok(sleepJS.includes('detectCandidates('));
+assert.ok(sleepJS.includes('estimateNoiseFloor('));
+assert.ok(sleepJS.includes('DEFAULT_ABOVE_BACKGROUND=2.0'));
+assert.ok(sleepJS.includes('setThreshold('));
+assert.ok(sleepJS.includes('thresholdBySession'));
+assert.ok(sleepJS.includes('sleepSessionSelect'));
 assert.ok(sleepJS.includes('applyLiveFilters('));
 assert.ok(!sleepJS.includes('$(field).addEventListener("change",()=>{if(analysis&&selectedId)analyze()'),
  "Filter changes must be instantaneous and MUST NOT schedule native decoding");
@@ -456,11 +461,26 @@ assert.ok(sleepVisualization.includes('touch-action:none')||
   fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8")
     .includes('#sleepWaveCanvas{width:100%;height:260px;display:block;touch-action:none'));
 assert.ok(sleepVisualization.includes('COLORS.threshold')&&sleepVisualization.includes('"#ff536d"'));
+assert.ok(sleepVisualization.includes('axisById=new Map()'));
+assert.ok(sleepVisualization.includes('gesture.mode==="vertical-pan"'));
+assert.ok(sleepVisualization.includes('gesture.mode==="vertical-zoom"'));
+assert.ok(sleepVisualization.includes('backgroundDb'));
 assert.ok(sleepVisualization.includes('sleepPlaySequence('));
 assert.ok(native.includes('sleepPlaySequence(String sessionId,'));
 assert.ok(native.includes('playNextRange(')&&native.includes('setOnSeekCompleteListener'));
 for(const id of ['sleepSkipQuiet','sleepPlaybackStatus','sleepPreviousEvent','sleepNextEvent',
- 'sleepNoiseWarning'])assert.ok(html.includes('id="'+id+'"'),id);
+ 'sleepNoiseWarning','sleepNoiseHint','sleepSessionSelect','sleepThresholdDown',
+ 'sleepThresholdUp','sleepThresholdReset','sleepThresholdRelative','sleepBaselineLabel',
+ 'sleepQuickSummary','sleepLibraryCount','sleepEventCount'])assert.ok(html.includes('id="'+id+'"'),id);
+assert.ok(html.includes('step="0.1"'));
+assert.ok(html.indexOf('id="sleepWaveCanvas"')<html.indexOf('id="sleepThreshold"'),
+ "Threshold must sit immediately BELOW the always-visible waveform");
+assert.ok(html.indexOf('id="sleepThreshold"')<html.indexOf('id="sleepPlaySelection"'));
+assert.ok(html.includes('<details class="sleep-collection"'));
+assert.ok(html.includes('<details class="sleep-events-details"'));
+assert.ok(html.includes('<details class="sleep-extras"'));
+assert.ok(fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8")
+ .includes('#page-sleep #sleepWaveCanvas{height:208px}'));
 
 assert.ok(!html.includes('data-page="raw"'),"Remove Raw from bottom tabs");
 assert.ok(html.includes('id="rawSettingsAccordion"'));
@@ -935,6 +955,19 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
     total_seconds:2,threshold_dbfs:-40,minimum_seconds:5,
     events:[],levels_dbfs:[-50,-20],peak_levels_dbfs:[-43,-10]};
   sleepWindow.bodyTraceReceive(results);
+  assert.equal(el("sleepThreshold").value,"-48.0",
+   "P20(-50 dBFS)+2 dB should be the adaptive default");
+  assert.equal(sleepWindow.BodyTraceAudioFilter.estimateNoiseFloor([-45,-45,-45,-20,-5]),-45);
+  assert.match(el("sleepBaselineLabel").textContent,/本晚背景估计 -50.0 dBFS/);
+  el("sleepThresholdUp").onclick();
+  assert.equal(el("sleepThreshold").value,"-47.9");
+  el("sleepThresholdDown").onclick();
+  assert.equal(el("sleepThreshold").value,"-48.0");
+  el("sleepThreshold").value="-15.5";
+  el("sleepThreshold").handlers.input();
+  assert.equal(el("sleepThreshold").value,"-15.5");
+  el("sleepThresholdReset").onclick();
+  assert.equal(el("sleepThreshold").value,"-48.0");
   assert.equal(el("sleepAnalysisProgress").hidden,true);
   assert.match(el("sleepAnalyze").textContent,/已生成波形/);
   el("sleepAnalyze").onclick();
@@ -1023,17 +1056,32 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.ok(redLines.length>0,"Red reference must be drawn on the actual canvas");
   assert.equal(fakeWindow.BodyTraceSleepVisual.state().span,600);
   // Tap positions cursor, whereas a pointer drag pans without triggering a tap.
-  function pointer(kind,id,x){eventsByName[kind]({pointerId:id,clientX:x,clientY:100})}
+  function pointer(kind,id,x,y=100){
+    eventsByName[kind]({pointerId:id,clientX:x,clientY:y});
+  }
   pointer("pointerdown",1,120);pointer("pointerup",1,120);
   assert.ok(fakeWindow.BodyTraceSleepVisual.state().cursor>=0);
+  const beforeHorizontal=fakeWindow.BodyTraceSleepVisual.state();
   pointer("pointerdown",2,115);pointer("pointerdown",3,215);
   pointer("pointermove",3,280);
   assert.ok(fakeWindow.BodyTraceSleepVisual.state().span<600,
     "Pinch spreading must zoom in the timeline");
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().axisMin,beforeHorizontal.axisMin,
+    "Horizontal gestures MUST NOT rescale the vertical dB axis");
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().axisMax,beforeHorizontal.axisMax);
   pointer("pointerup",2,115);pointer("pointerup",3,280);
   pointer("pointerdown",4,160);pointer("pointermove",4,90);pointer("pointerup",4,90);
   assert.ok(fakeWindow.BodyTraceSleepVisual.state().start>0,
     "One-finger drag must pan a zoomed waveform");
+  const beforeVertical=fakeWindow.BodyTraceSleepVisual.state();
+  pointer("pointerdown",5,110,105);pointer("pointerdown",6,240,105);
+  pointer("pointermove",5,110,65);
+  pointer("pointermove",6,240,65);
+  assert.notEqual(fakeWindow.BodyTraceSleepVisual.state().axisMin,beforeVertical.axisMin,
+    "Intentional two-finger vertical swipe changes the locked dB axis");
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().span,beforeVertical.span,
+    "Vertical swipe must not change horizontal time zoom");
+  pointer("pointerup",5,110,65);pointer("pointerup",6,240,65);
   fakeWindow.BodyTraceSleepVisual.setCursor(0);
   fakeWindow.BodyTraceSleepVisual.playFromCursor();
   assert.equal(calls.length,1);
