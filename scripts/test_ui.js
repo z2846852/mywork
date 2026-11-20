@@ -976,7 +976,7 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
 
   const nodes=new Map(),eventsByName={},calls=[],redLines=[];
   const fakeCtx={
-    setTransform(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},
+    setTransform(){},save(){},restore(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},
     arc(){},fill(){},fillText(){},setLineDash(){},
     measureText(v){return {width:v.length*6}},
     stroke(){if(this.strokeStyle==="#ff536d")redLines.push(true)}
