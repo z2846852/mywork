@@ -228,6 +228,10 @@ $("recordSortMode").addEventListener("change",e=>{
   $("customActionName").value="";
   config.hidden=config.hidden.filter(x=>x!==id);
   deleteConfirmId="";
+  // Creating a new action is an explicit selection change. Clear stale
+  // hidden-action draft protection so it cannot shadow the new selection.
+  blockedDraftExerciseId="";
+  clearTrainingEdits();
   recordExerciseTouched=true;
   // Select the new action within its assigned muscle group.
   $("recordGroup").value=overviewGroup(region);
