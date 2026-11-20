@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,"..");
 const read=name=>fs.readFileSync(path.join(root,"app/src/main/assets",name),"utf8");
 let html=read("index.html");
 html=html.replace("</head>","<style>"+read("features.css")+"</style></head>");
-html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"\n"+read("git_log.js")+"\n"+read("sleep.js")+"</script></body>");
+html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"\n"+read("git_log.js")+"\n"+read("sleep.js")+"\n"+read("sleep_visualization.js")+"</script></body>");
 (async()=>{
  const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
  try{
@@ -567,6 +567,80 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await del.click();await del.click();
   if((await page.evaluate(()=>window.__sleepBridge.deleted[0]))!==sleepId)
    throw Error("Two-click local deletion guard did not invoke native bridge");
+
+  // Nightly analysis includes the full 8h RMS/peak envelope, but the
+  // Canvas renderer must not create a DOM node for every 1-second sample.
+  const seconds=8*60*60;
+  await page.evaluate(({id,seconds})=>{
+   const rms=Array.from({length:seconds},(_,i)=>
+     i>=4200&&i<4250?-24:(i%3500<120?-32:-62));
+   const peak=rms.map(v=>v+9);
+   window.bodyTraceReceive({type:"sleep_analysis",id,started_ms:1795000000000,
+     date_basis:"user_supplied",total_seconds:seconds,threshold_dbfs:-40,
+     minimum_seconds:5,gap_seconds:1,levels_dbfs:rms,peak_levels_dbfs:peak,
+     events:[{start_sec:4200,end_sec:4250,active_sec:50,peak_dbfs:-24},
+             {start_sec:7200,end_sec:7210,active_sec:10,peak_dbfs:-32}]
+   });
+  },{id:sleepId,seconds});
+  if(await page.locator("#sleepVisualization").isHidden())
+   throw Error("Waveform panel must display after valid analyzed envelope");
+  if(await page.locator("#sleepSoundStats .sleep-sound-stat").count()!==6)
+   throw Error("Expected six distinct noise/threshold statistics");
+  if(await page.locator("#sleepHourlyActivity .sleep-hour-block").count()!==8)
+   throw Error("Expected 8 hourly activity bars for imported 8 hour audio");
+  const canvasDims=await page.locator("#sleepWaveCanvas").evaluate(x=>({width:x.width,height:x.height}));
+  if(canvasDims.width<200||canvasDims.height<200)
+   throw Error("Full-night waveform Canvas not rendered: "+JSON.stringify(canvasDims));
+  const overDraw=await page.locator(".sleep-visualization").locator("*").count();
+  if(overDraw>250)throw Error("8h waveform rendered too many DOM nodes: "+overDraw);
+  await page.locator('#sleepVisualization [data-sleep-zoom="3600"]').click();
+  const state1=await page.evaluate(()=>window.BodyTraceSleepVisual.state());
+  if(state1.span!==3600)throw Error("One-hour zoom failed: "+JSON.stringify(state1));
+  await page.locator("#sleepNextWindow").click();
+  const state2=await page.evaluate(()=>window.BodyTraceSleepVisual.state());
+  if(!(state2.start>state1.start))throw Error("Waveform navigation to next window failed");
+  await page.locator("#sleepWaveCanvas").click({position:{x:190,y:100}});
+  if(await page.locator("#sleepPlaySelection").isDisabled())
+   throw Error("Waveform tap should activate localized audio playback");
+  await page.locator("#sleepPlaySelection").click();
+  const played=await page.evaluate(()=>window.__sleepBridge.played.at(-1));
+  if(played.duration!==15||played.id!==sleepId)
+   throw Error("Waveform selection did not play 15s clip");
+  await page.locator('.sleep-event-focus').first().click();
+  const focusState=await page.evaluate(()=>window.BodyTraceSleepVisual.state());
+  if(focusState.cursor<4200||focusState.cursor>4250||focusState.span!==600)
+   throw Error("Event focus must center waveform on chosen sound region: "+JSON.stringify(focusState));
+  await page.evaluate(id=>{
+    window.bodyTraceReceive({type:"sleep_analysis",id,started_ms:1795000000000,
+      date_basis:"imported_at",total_seconds:600,threshold_dbfs:-40,
+      minimum_seconds:5,gap_seconds:1,
+      levels_dbfs:Array(600).fill(-50),peak_levels_dbfs:Array(600).fill(-40),
+      events:[{start_sec:100,end_sec:106,active_sec:6,peak_dbfs:-40}]});
+  },sleepId);
+  if(!(await page.locator("#sleepVisualCaveat").innerText()).includes("相对时间"))
+   throw Error("Unknown imported recording time should not fabricate clock dates");
+  if(!(await page.locator(".sleep-event strong").first().innerText()).includes("+"))
+   throw Error("Unknown recording start must show elapsed event offset");
+  const rawTabs=await page.locator('.tabs button[data-page="raw"]').count();
+  if(rawTabs!==0)throw Error("Raw should not occupy a bottom tab");
+  await page.locator('.tabs button[data-page="settings"]').click();
+  const rawDetails=page.locator("#rawSettingsAccordion");
+  if(await rawDetails.count()!==1)
+   throw Error("Raw inbox was not moved to bottom of Log");
+  await rawDetails.locator("summary").click();
+  if(!(await page.locator("#rawText").isVisible()))
+   throw Error("Raw textarea should be usable from the Log accordion");
+  // SAF import bridge call is UI-only in browser; native picker uses Android.
+  await page.locator('.tabs button[data-page="sleep"]').click();
+  await page.evaluate(()=>window.BodyTraceNative.sleepImport=value=>{
+   window.__importStarted=value;
+  });
+  await page.fill("#sleepImportStarted","2026-11-18T23:00");
+  await page.locator("#sleepImport").click();
+  if((await page.evaluate(()=>window.__importStarted))!=="2026-11-18T23:00")
+   throw Error("Import must preserve user-supplied original recording start time");
+  await page.screenshot({path:"bodytrace-sleep-waveform-import-preview.png",fullPage:true});
+
   await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
   // Historical daily drill-down: all sets per date and max 10 past dates
   // for each of today's four actions, without mixing other exercise IDs.
