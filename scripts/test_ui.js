@@ -397,14 +397,34 @@ assert.ok(native.includes('readAsset("sleep_visualization.js")'));
 assert.ok(native.includes("Intent.ACTION_OPEN_DOCUMENT"));
 assert.ok(native.includes('choose.setType("audio/*")'));
 assert.ok(native.includes('PICK_SLEEP_AUDIO_REQUEST=7204'));
-assert.ok(native.includes('getContentResolver().openInputStream(uri)'));
-assert.ok(native.includes('byte[] block=new byte[65536]'));
-assert.ok(native.includes('length>SLEEP_IMPORT_MAX_BYTES'));
+assert.ok(native.includes('takePersistableUriPermission('),
+ "Import needs permanent read-only document grants");
+assert.ok(native.includes('extractor.setDataSource(this,uri,null)'),
+ "Import should inspect source metadata without copying");
+assert.ok(!native.includes('new FileOutputStream(dest)'),
+ "Imported M4A must never be copied into app private files");
+assert.ok(native.includes('getContentResolver().query(uri'));
+assert.ok(native.includes('knownSize>SLEEP_IMPORT_MAX_BYTES'));
 assert.ok(native.includes('reportedStart.trim()'));
 assert.ok(native.includes('.put("audio_extension",ext)'));
 assert.ok(native.includes('MediaExtractor extractor=new MediaExtractor()'));
 assert.ok(native.includes('"sleep_imported"'));
-assert.ok(native.includes('"sleep_import_progress"'));
+assert.ok(native.includes('msg.put("copied",false)'));
+assert.ok(native.includes('"sleep_removed"'));
+assert.ok(native.includes('SleepSessions.configurePlayer('));
+assert.ok(sleepStore.includes('configureExtractor('));
+assert.ok(sleepStore.includes('configurePlayer('));
+assert.ok(sleepStore.includes('source_uri'));
+assert.ok(sleepStore.includes('external_file'));
+assert.ok(sleepAnalysisService.includes('SleepAudioAnalyzer.decodeEnvelope('));
+assert.ok(sleepAnalyzer.includes('decodeEnvelope(Context context,JSONObject session,IntConsumer progress)'));
+assert.ok(sleepJS.includes('pendingAutoAnalyzeId'));
+assert.ok(sleepJS.includes('pendingRemoveId'));
+assert.ok(sleepJS.includes('if(!analysisStarting&&!loadingCachedId)') ||
+  sleepJS.includes('!analysisStarting&&!loadingCachedId'),
+ "Do not unlock Analyze button while loading cached envelope");
+assert.ok(sleepJS.includes('移出列表（保留原文件）'));
+assert.ok(html.includes('不复制 400 MB 原音频'));
 assert.ok(sleepStore.includes('static File importedAudio('));
 assert.ok(sleepStore.includes('"audio_extension"'));
 assert.ok(sleepStore.includes('"original_name","duration_ms"'));
