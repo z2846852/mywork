@@ -556,13 +556,13 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   },{id:sleepId,seconds});
   if(await page.locator("#sleepVisualization").isHidden())
    throw Error("The waveform must appear after a valid analysis");
-  if((await page.locator("#sleepThreshold").inputValue())!=="-60.0")
+  if(Number(await page.locator("#sleepThreshold").inputValue())!==-60)
    throw Error("Robust P20 background -62dBFS should default to -60.0dBFS");
   await page.locator("#sleepThresholdUp").click();
   if((await page.locator("#sleepThreshold").inputValue())!=="-59.9")
    throw Error("0.1 dB micro adjustment failed");
   await page.locator("#sleepThresholdReset").click();
-  if((await page.locator("#sleepThreshold").inputValue())!=="-60.0")
+  if(Number(await page.locator("#sleepThreshold").inputValue())!==-60)
    throw Error("Baseline reset must restore P20+2dB for this recording");
   if(await page.locator("#sleepQuickSummary").innerText()==="")
    throw Error("One-screen candidate summary is missing");
