@@ -70,7 +70,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div class="panel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，每天四分格：胸、肩、背、腿；亮起代表当天练过该部位</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
 <div class="legend" aria-label="四分日历图例"><span class="region-key" style="--key-color:var(--region-chest)"><i></i>胸</span><span class="region-key" style="--key-color:var(--region-shoulder)"><i></i>肩</span><span class="region-key" style="--key-color:var(--region-back)"><i></i>背</span><span class="region-key" style="--key-color:var(--region-leg)"><i></i>腿</span><span>灰点：其他</span></div></div>
-<div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div><div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
+<div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p><p class="sub">当天每个动作下方附最近 10 个历史训练日，方便对照重量和组数。</p></div><button id="goLatest" class="mini">最近一次</button></div><div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
 <div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
 </section>
 
@@ -647,7 +647,46 @@ function renderDay(){
     dateBadge.textContent="日期为对话报告日，非已确认的尝试日";p.append(dateBadge)}
    if(r.note){const note=document.createElement("small");note.textContent=r.note;p.append(note)}
    sets.append(p);
-  });section.append(sets);view.append(section);
+  });section.append(sets);
+  // Selected day first, followed by up to ten earlier TRAINING DATES of
+  // this same exercise (including all sets from each of those dates).
+  // This stays local, derived from effective/synced rows, no network call.
+  const exerciseId=items[0].exercise_id;
+  const historyRows=state.rows.filter(r=>r.exercise_id===exerciseId &&
+   r.session_date<state.selected && /^\\d{4}-\\d{2}-\\d{2}$/.test(r.session_date));
+  const byDate=new Map();
+  for(const row of historyRows){
+   if(!byDate.has(row.session_date))byDate.set(row.session_date,[]);
+   byDate.get(row.session_date).push(row);
+  }
+  const recentDates=[...byDate.keys()].sort((a,b)=>b.localeCompare(a)).slice(0,10);
+  if(recentDates.length){
+   const history=document.createElement("div");history.className="exercise-history";
+   const heading=document.createElement("div");heading.className="exercise-history-heading";
+   heading.textContent="历史训练 · 最近 "+recentDates.length+" 天";history.append(heading);
+   for(const date of recentDates){
+    const entries=byDate.get(date);
+    const log=document.createElement("div");log.className="exercise-history-date";
+    const dayTitle=document.createElement("strong");dayTitle.textContent=date;
+    const completed=entries.filter(r=>!isFailedAttempt(r)).length;
+    const stats=document.createElement("small");
+    stats.textContent=completed+" 组"+(entries.length>completed?
+      " · 失败 "+(entries.length-completed)+" 次":"");
+    const dateHead=document.createElement("div");dateHead.className="exercise-history-date-head";
+    dateHead.append(dayTitle,stats);log.append(dateHead);
+    const mini=document.createElement("div");mini.className="exercise-history-sets";
+    for(const r of entries){
+     const item=document.createElement("span");item.className="exercise-history-set"+
+       (isFailedAttempt(r)?" failed":"");
+     item.textContent=weight(r)+(r.load_basis==="per_side"?"（每侧）":"")+
+      " × "+r.reps+" 次";
+     mini.append(item);
+    }
+    log.append(mini);history.append(log);
+   }
+   section.append(history);
+  }
+  view.append(section);
  }
 }
 function renderBody(){
