@@ -1512,8 +1512,19 @@ public final class MainActivity extends Activity {
                         if(audio.exists()&&!audio.delete())
                             throw new IllegalStateException("无法删除 App 内音频副本");
                     }
+                    File cache=SleepSessions.envelopeFile(MainActivity.this,sessionId);
+                    if(cache.exists()&&!cache.delete())
+                        throw new IllegalStateException("无法删除 App 的图表缓存");
                     File metadata=SleepSessions.json(MainActivity.this,sessionId);
                     if(!metadata.delete())throw new IllegalStateException("无法移除睡眠记录");
+                    if(SleepSessions.isExternal(session)){
+                        try{
+                            getContentResolver().releasePersistableUriPermission(
+                                SleepSessions.externalUri(session),Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        }catch(SecurityException ignored){
+                            // Permission may already be revoked by the document provider.
+                        }
+                    }
                     JSONObject notice=message("sleep_removed");
                     notice.put("id",sessionId);
                     notice.put("original_preserved",SleepSessions.isExternal(session));
