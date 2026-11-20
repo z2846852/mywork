@@ -647,14 +647,14 @@ function renderDay(){
  const failedCount=list.filter(isFailedAttempt).length;
  $("selectedSummary").textContent=(list.length-failedCount)+" 组"+
   (failedCount?" · 失败尝试 "+failedCount+" 次":"")+
-  " · "+new Set(list.map(r=>r.exercise)).size+" 个动作";
+  " · "+new Set(list.map(r=>r.exercise_id||r.exercise)).size+" 个动作";
  const view=$("dayDetails");view.replaceChildren();
  if(!list.length){view.className="empty";view.textContent="该日期暂无匹配训练记录。";return}
  view.className="";
- const byEx=new Map();for(const r of list){if(!byEx.has(r.exercise))byEx.set(r.exercise,[]);byEx.get(r.exercise).push(r)}
+ const byEx=new Map();for(const r of list){const key=r.exercise_id||r.exercise;if(!byEx.has(key))byEx.set(key,[]);byEx.get(key).push(r)}
  for(const [ex,items] of byEx){
   const section=document.createElement("section");section.className="exercise";
-  const header=document.createElement("div");header.className="row";const name=document.createElement("span");name.className="exercise-name";name.textContent=ex;
+  const header=document.createElement("div");header.className="row";const name=document.createElement("span");name.className="exercise-name";name.textContent=exerciseLabels[ex]||items[0].exercise||ex;
   const count=document.createElement("span");count.className="exercise-count";count.textContent=items.filter(r=>!isFailedAttempt(r)).length+" 组"+
   (items.some(isFailedAttempt)?" / "+items.filter(isFailedAttempt).length+" 次失败":"");header.append(name,count);section.append(header);
   const sets=document.createElement("div");sets.className="sets";
