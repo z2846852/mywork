@@ -421,6 +421,7 @@
    }
    const known=thresholdBySession.get(selectedId);
    setThreshold(known??((noiseFloor()??-42)+DEFAULT_ABOVE_BACKGROUND),false);
+   analysis.background_dbfs=noiseFloor()??-40;
    applyLiveFilters(false);
    render();
   }else if(evt.type==="sleep_imported"){
