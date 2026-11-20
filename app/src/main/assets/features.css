@@ -767,3 +767,7 @@ body.workout-edit-open{overflow:hidden}
 .settings-raw-accordion .panel{margin-bottom:9px}
 @media(max-width:370px){.sleep-sound-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sleep-wave-controls .mini{font-size:10px}}
+
+.sleep-event-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.sleep-event-actions button{font-size:10px;min-height:29px}
+@media(max-width:365px){.sleep-event-actions{min-width:75px}}
