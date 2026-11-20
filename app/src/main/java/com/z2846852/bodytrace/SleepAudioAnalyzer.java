@@ -4,11 +4,14 @@ import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.os.SystemClock;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.ShortBuffer;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.function.IntConsumer;
 
@@ -49,13 +52,16 @@ final class SleepAudioAnalyzer {
             int channels=format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
             int encoding=AudioFormat.ENCODING_PCM_16BIT;
             long windowSamples=Math.max(1L,(long)sampleRate*channels);
-            long count=0;double squares=0;int peak=0;
+            long count=0;long squares=0;int peak=0;
+            short[] pcmBlock=new short[8192];
+            float[] floatBlock=new float[4096];
             boolean inputEnd=false,outputEnd=false;
             long durationUs=format.containsKey(MediaFormat.KEY_DURATION)?
                 format.getLong(MediaFormat.KEY_DURATION):0;
             int reported=-1;
             MediaCodec.BufferInfo info=new MediaCodec.BufferInfo();
-            long lastProgress=System.currentTimeMillis();
+            long lastProgress=SystemClock.elapsedRealtime();
+            long lastReport=lastProgress;
             while(!outputEnd){
                 if(!inputEnd){
                     int slot=decoder.dequeueInputBuffer(10000);
@@ -71,14 +77,21 @@ final class SleepAudioAnalyzer {
                             long pts=extractor.getSampleTime();
                             decoder.queueInputBuffer(slot,0,size,pts,0);
                             extractor.advance();
-                            if(progress!=null&&durationUs>0){
-                                int percent=(int)Math.min(95,Math.max(0,pts*95/durationUs));
-                                if(percent/5>reported/5){
-                                    reported=percent;progress.accept(percent);
+                            if(progress!=null){
+                                // Exact 1% steps, with a ~1.5 s heartbeat when
+                                // decoding stalls within the same percent.
+                                int percent=durationUs>0?
+                                    (int)Math.min(99,Math.max(0,pts*99/durationUs)):0;
+                                long now=SystemClock.elapsedRealtime();
+                                if((percent!=reported&&now-lastReport>=200)||
+                                        now-lastReport>=1500){
+                                    reported=percent;
+                                    lastReport=now;
+                                    progress.accept(percent);
                                 }
                             }
                         }
-                        lastProgress=System.currentTimeMillis();
+                        lastProgress=SystemClock.elapsedRealtime();
                     }
                 }
                 int out=decoder.dequeueOutputBuffer(info,10000);
@@ -92,7 +105,7 @@ final class SleepAudioAnalyzer {
                             encoding!=AudioFormat.ENCODING_PCM_FLOAT)
                         throw new IllegalStateException("设备解码器不支持的PCM采样格式");
                     windowSamples=Math.max(1L,(long)sampleRate*channels);
-                    lastProgress=System.currentTimeMillis();
+                    lastProgress=SystemClock.elapsedRealtime();
                 }else if(out>=0){
                     if(info.size>0){
                         ByteBuffer data=decoder.getOutputBuffer(out);
@@ -100,31 +113,59 @@ final class SleepAudioAnalyzer {
                         data.order(ByteOrder.LITTLE_ENDIAN);
                         data.position(info.offset);
                         data.limit(info.offset+info.size);
-                        int bytes=encoding==AudioFormat.ENCODING_PCM_FLOAT?4:2;
-                        while(data.remaining()>=bytes){
-                            int value;
-                            if(encoding==AudioFormat.ENCODING_PCM_FLOAT){
-                                float sample=data.getFloat();
-                                value=Float.isFinite(sample)?(int)Math.round(
-                                    Math.min(1.0,Math.max(-1.0,sample))*32767):0;
-                            }else value=data.getShort();
-                            squares+=(double)value*value;
-                            peak=Math.max(peak,Math.abs(value));
-                            count++;
-                            if(count>=windowSamples){
-                                levels.add(dbfs(squares,count));
-                                peaks.add(peakDbfs(peak));
-                                if(levels.size()>86400)
-                                    throw new IllegalArgumentException("超过24小时录音分析限制");
-                                count=0;squares=0;peak=0;
+                        // Bulk-read PCM into reusable primitive arrays. The old
+                        // ByteBuffer.getShort() + double math inner loop executed
+                        // ~460 million times for an 8-hour 16 kHz recording.
+                        // Exact every-sample RMS and peak are preserved.
+                        if(encoding==AudioFormat.ENCODING_PCM_FLOAT){
+                            FloatBuffer samples=data.slice().order(ByteOrder.LITTLE_ENDIAN)
+                                .asFloatBuffer();
+                            while(samples.hasRemaining()){
+                                int n=Math.min(samples.remaining(),floatBlock.length);
+                                samples.get(floatBlock,0,n);
+                                for(int k=0;k<n;k++){
+                                    float sample=floatBlock[k];
+                                    int value=Float.isFinite(sample)?(int)Math.round(
+                                        Math.min(1.0,Math.max(-1.0,sample))*32767):0;
+                                    squares+=(long)value*value;
+                                    int abs=Math.abs(value);
+                                    if(abs>peak)peak=abs;
+                                    if(++count>=windowSamples){
+                                        levels.add(dbfs(squares,count));
+                                        peaks.add(peakDbfs(peak));
+                                        if(levels.size()>86400)
+                                            throw new IllegalArgumentException("超过24小时录音分析限制");
+                                        count=0;squares=0;peak=0;
+                                    }
+                                }
+                            }
+                        }else{
+                            ShortBuffer samples=data.slice().order(ByteOrder.LITTLE_ENDIAN)
+                                .asShortBuffer();
+                            while(samples.hasRemaining()){
+                                int n=Math.min(samples.remaining(),pcmBlock.length);
+                                samples.get(pcmBlock,0,n);
+                                for(int k=0;k<n;k++){
+                                    int value=pcmBlock[k];
+                                    squares+=(long)value*value;
+                                    int abs=Math.abs(value);
+                                    if(abs>peak)peak=abs;
+                                    if(++count>=windowSamples){
+                                        levels.add(dbfs(squares,count));
+                                        peaks.add(peakDbfs(peak));
+                                        if(levels.size()>86400)
+                                            throw new IllegalArgumentException("超过24小时录音分析限制");
+                                        count=0;squares=0;peak=0;
+                                    }
+                                }
                             }
                         }
                     }
                     outputEnd=(info.flags&MediaCodec.BUFFER_FLAG_END_OF_STREAM)!=0;
                     decoder.releaseOutputBuffer(out,false);
-                    lastProgress=System.currentTimeMillis();
+                    lastProgress=SystemClock.elapsedRealtime();
                 }
-                if(System.currentTimeMillis()-lastProgress>30000)
+                if(SystemClock.elapsedRealtime()-lastProgress>30000)
                     throw new IllegalStateException("音频解码超过30秒无进展");
             }
             if(count>0){
@@ -142,8 +183,8 @@ final class SleepAudioAnalyzer {
         }
     }
 
-    private static double dbfs(double squareSum,long count){
-        double amplitude=Math.sqrt(squareSum/count)/32768.0;
+    private static double dbfs(long squareSum,long count){
+        double amplitude=Math.sqrt((double)squareSum/count)/32768.0;
         return Math.round(Math.max(-96.0,20.0*Math.log10(Math.max(0.00001585,amplitude)))*10.0)/10.0;
     }
     private static double peakDbfs(int peak) {
