@@ -70,7 +70,8 @@ final class ViewProjector {
             JSONObject day = days.getJSONObject(d);
             String date = day.optString("date");
             if (!date.matches("\\d{4}-\\d{2}-\\d{2}")) continue;
-            JSONArray training = day.optJSONArray("workouts");
+            JSONArray training = WorkoutEdits.apply(day.optJSONArray("workouts"),
+                    day.optJSONArray("workout_edits"));
             if (training != null) {
                 for (int i = 0; i < training.length(); i++) {
                     JSONObject src = training.optJSONObject(i);
