@@ -106,7 +106,7 @@ final class SleepSessions {
         if(files==null)return "";
         for(File file:files){
             try{
-                JSONObject session=load(context,file.getName().replace(".json",""));
+                JSONObject session=loadMetadata(context,file.getName().replace(".json",""));
                 if(isExternal(session)&&uri.toString().equals(session.optString("source_uri")))
                     return session.getString("id");
             }catch(Exception ignored){}
