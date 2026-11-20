@@ -405,7 +405,8 @@ public final class MainActivity extends Activity {
         }
         String type = event.optString("type");
         String category = "nutrition".equals(type) ? "nutrition" :
-                "measurement".equals(type) ? "measurements" : "workouts";
+                "measurement".equals(type) ? "measurements" :
+                "workout_edit".equals(type) ? "workout_edits" : "workouts";
         JSONArray entries = current.optJSONArray(category);
         if (entries == null) {
             entries = new JSONArray();
@@ -443,11 +444,11 @@ public final class MainActivity extends Activity {
                 while (keys.hasNext()) {
                     String key = keys.next();
                     if (!key.equals("workouts") && !key.equals("measurements")
-                            && !key.equals("nutrition")) {
+                            && !key.equals("nutrition") && !key.equals("workout_edits")) {
                         existing.put(key, incoming.get(key));
                     }
                 }
-                for (String category : new String[]{"workouts", "measurements", "nutrition"}) {
+                for (String category : new String[]{"workouts", "measurements", "nutrition", "workout_edits"}) {
                     java.util.LinkedHashMap<String, JSONObject> byId = new java.util.LinkedHashMap<>();
                     JSONArray oldItems = existing.optJSONArray(category);
                     JSONArray newItems = incoming.optJSONArray(category);
@@ -575,7 +576,8 @@ public final class MainActivity extends Activity {
                 saved.put("event", event);
                 saved.put("category", "nutrition".equals(event.optString("type")) ?
                         "nutrition" : "measurement".equals(event.optString("type")) ?
-                        "measurements" : "workouts");
+                        "measurements" : "workout_edit".equals(event.optString("type")) ?
+                        "workout_edits" : "workouts");
                 reply(saved);
             }
             sendPending();
@@ -740,6 +742,52 @@ public final class MainActivity extends Activity {
         result.put("created_at", OffsetDateTime.now(BEIJING).toString());
         result.put("source", "bodytrace-android");
         return result;
+    }
+
+
+    /** A recorded set is never overwritten. Corrections have their own UUID and
+     * are appended to the source day, so GitHub pull cannot resurrect deletions. */
+    private static JSONObject validatedWorkoutEdit(String request) throws Exception {
+        JSONObject input = new JSONObject(request);
+        String date = input.getString("date");
+        LocalDate day = LocalDate.parse(date);
+        if(!date.equals(day.toString()) || day.isAfter(LocalDate.now(BEIJING).plusDays(1)))
+            throw new IllegalArgumentException("修正日期不合法");
+        String target=input.getString("target_id");
+        if(!target.matches("[0-9a-fA-F-]{36}"))
+            throw new IllegalArgumentException("目标训练记录没有可编辑 UUID");
+        String action=input.getString("action");
+        if(!"replace".equals(action) && !"delete".equals(action))
+            throw new IllegalArgumentException("不支持该修正操作");
+        JSONObject event=new JSONObject();
+        event.put("schema_version",1);
+        event.put("type","workout_edit");
+        event.put("id",UUID.randomUUID().toString());
+        event.put("date",date);
+        event.put("target_id",target);
+        event.put("action",action);
+        if("replace".equals(action)){
+            String loadKey=input.getString("load_key");
+            if(!"load_kg".equals(loadKey) && !"assistance_kg".equals(loadKey))
+                throw new IllegalArgumentException("无效的负重字段");
+            double load=input.getDouble("load_kg");
+            int reps=input.getInt("reps");
+            int copies=input.getInt("copies");
+            if(!Double.isFinite(load) || load<0 || load>500 ||
+               Math.abs(load*10-Math.rint(load*10))>0.00001 ||
+               reps<0 || reps>200 || copies<1 || copies>10)
+                throw new IllegalArgumentException("负重0–500kg、次数0–200、组数1–10；重量精度0.1kg");
+            event.put("load_key",loadKey);
+            event.put("load_kg",Math.round(load*10)/10.0);
+            event.put("reps",reps);
+            event.put("copies",copies);
+            String note=input.optString("note","").trim();
+            if(note.length()>200)throw new IllegalArgumentException("备注最多200字");
+            event.put("note",note);
+        }
+        event.put("created_at",OffsetDateTime.now(BEIJING).toString());
+        event.put("source","bodytrace-android");
+        return event;
     }
 
     private static JSONObject validatedNutrition(String request) throws Exception {
@@ -1038,6 +1086,55 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+        @JavascriptInterface public void editWorkout(String json) {
+            worker.execute(()->{
+                try{
+                    ensureMigrated();
+                    JSONObject event=validatedWorkoutEdit(json);
+                    JSONArray days=localDays();
+                    String target=event.getString("target_id");
+                    JSONObject day=null;
+                    for(int i=0;i<days.length();i++){
+                        JSONObject item=days.getJSONObject(i);
+                        if(event.getString("date").equals(item.optString("date"))){day=item;break;}
+                    }
+                    if(day==null)throw new IllegalArgumentException("该日期没有原始训练记录");
+                    // Materialize existing edits first. Also permit future edits of
+                    // duplicated sets with deterministic, stable UUIDs.
+                    JSONArray effective=WorkoutEdits.apply(day.optJSONArray("workouts"),
+                        day.optJSONArray("workout_edits"));
+                    boolean present=false;
+                    for(int i=0;i<effective.length();i++){
+                        if(target.equals(effective.getJSONObject(i).optString("id"))){
+                            present=true;break;
+                        }
+                    }
+                    if(!present)throw new IllegalArgumentException("此训练组已经删除或不存在，请刷新后再操作");
+                    JSONArray pending=plain.getPending();
+                    pending.put(event);
+                    days=appendLocal(days,event);
+                    // Offline-first: queue is durable before any GitHub calls.
+                    plain.putPending(pending);
+                    plain.putDays(days);
+                    JSONObject view=ViewProjector.project(days);
+                    plain.putView(view);
+                    JSONObject msg=message("workout_edit_local_saved");
+                    msg.put("event",event);
+                    msg.put("count",pending.length());
+                    msg.put("view_model",view);
+                    reply(msg);
+                    String token=vault.read("token");
+                    if(token!=null&&!token.isEmpty()){
+                        try{drainPending(token);}
+                        catch(Exception upload){
+                            error("训练修正已保留本机，尚未同步 GitHub："+safeMessage(upload));
+                            sendPending();
+                        }
+                    }
+                }catch(Exception e){error("训练修正失败："+safeMessage(e));}
+            });
+        }
+
         @JavascriptInterface public void saveMeasurement(String measurementJson) {
             worker.execute(() -> {
                 try {
