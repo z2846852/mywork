@@ -363,9 +363,11 @@
   const pts=[...pointers.values()];
   if(pts.length===1)gesture={kind:"pan",x:pts[0].x,start:windowStart,moved:false};
   else if(pts.length>=2){
-   const dist=Math.max(1,Math.abs(pts[0].x-pts[1].x));
-   const mid=(pts[0].x+pts[1].x)/2;
-   gesture={kind:"pinch",dist,span:windowSpan,anchor:secAt(mid),moved:true};
+   const distanceX=Math.max(1,Math.abs(pts[0].x-pts[1].x));
+   const distanceY=Math.max(1,Math.abs(pts[0].y-pts[1].y));
+   const midX=(pts[0].x+pts[1].x)/2,midY=(pts[0].y+pts[1].y)/2;
+   gesture={kind:"dual",mode:null,distanceX,distanceY,midX,midY,
+    span:windowSpan,anchor:secAt(midX),low:axisMin,high:axisMax,moved:true};
   }else gesture=null;
  }
  canvas.addEventListener("pointerdown",evt=>{
@@ -380,15 +382,38 @@
   const p=pointers.get(evt.pointerId);
   p.x=localX(evt);p.y=evt.clientY;
   if(!gesture)return;
-  if(pointers.size>=2&&gesture.kind==="pinch"){
+  if(pointers.size>=2&&gesture.kind==="dual"){
    const pts=[...pointers.values()];
-   const mid=(pts[0].x+pts[1].x)/2;
-   const dist=Math.max(1,Math.abs(pts[0].x-pts[1].x));
-   const {left,plotWidth}=plotSize();
-   windowSpan=clamp(gesture.span*gesture.dist/dist,5,total());
-   windowStart=clamp(gesture.anchor-(mid-left)/plotWidth*windowSpan,
-    0,Math.max(0,total()-windowSpan));
-   schedule();
+   const midX=(pts[0].x+pts[1].x)/2,midY=(pts[0].y+pts[1].y)/2;
+   const distanceX=Math.max(1,Math.abs(pts[0].x-pts[1].x));
+   const distanceY=Math.max(1,Math.abs(pts[0].y-pts[1].y));
+   const moveY=Math.abs(midY-gesture.midY),moveX=Math.abs(midX-gesture.midX);
+   const diffX=Math.abs(distanceX-gesture.distanceX);
+   const diffY=Math.abs(distanceY-gesture.distanceY);
+   if(!gesture.mode){
+    if(diffY>12&&diffY>diffX*1.35)gesture.mode="vertical-zoom";
+    else if(moveY>9&&moveY>Math.max(moveX,diffX)*1.25)
+     gesture.mode="vertical-pan";
+    else if(diffX>8||moveX>10)gesture.mode="horizontal";
+   }
+   if(gesture.mode==="vertical-pan"){
+    // Only an explicit two-finger vertical drag changes the dB axis.
+    const dy=(midY-gesture.midY)/(plotSize().bottom-plotSize().top);
+    const delta=dy*(gesture.high-gesture.low);
+    adjustAxis(gesture.low+delta,gesture.high+delta);
+   }else if(gesture.mode==="vertical-zoom"){
+    // Vertical two-finger pinch changes the dB range, not time.
+    const range=clamp((gesture.high-gesture.low)*
+      gesture.distanceY/distanceY,4,125);
+    const center=(gesture.high+gesture.low)/2;
+    adjustAxis(center-range/2,center+range/2);
+   }else if(gesture.mode==="horizontal"){
+    const {left,plotWidth}=plotSize();
+    windowSpan=clamp(gesture.span*gesture.distanceX/distanceX,5,total());
+    windowStart=clamp(gesture.anchor-
+      (midX-left)/plotWidth*windowSpan,0,Math.max(0,total()-windowSpan));
+    schedule();
+   }
   }else if(pointers.size===1&&gesture.kind==="pan"){
    const dx=p.x-gesture.x;
    if(Math.abs(dx)>=6)gesture.moved=true;
