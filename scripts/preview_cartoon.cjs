@@ -237,6 +237,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const regionFirst=await page.$eval("#recordExercise",x=>x.options[0]?.value);
   if(regionFirst!=="chest_press")throw Error("Region ordering should start from chest: "+regionFirst);
   await page.selectOption("#recordSortMode","recent");
+  await page.click("#quickAddExercise");
+  if(await page.$eval("#exerciseManager",x=>x.hidden))throw Error("Quick add action failed to open editor");
+  if(!(await page.locator("#customActionName").evaluate(el=>el===document.activeElement)))
+   throw Error("Quick add must focus action-name field");
   await page.click("#manageExercises");
   if(await page.$eval("#exerciseManager",x=>x.hidden))throw Error("Manager did not open");
   await page.locator('[data-exercise-id="leg_extension"] button').first().click();
@@ -687,6 +691,39 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    throw Error("Other current-day action should get its own independent history");
   if(await page.locator('#dayDetails .exercise[data-exercise-id="row"] .exercise-history-date').count()!==1)
    throw Error("Row has one old history date from the earlier test fixture");
+  // One button hides all historical groups, for EVERY selected day.
+  // It is persisted through the native bridge and restored on app startup.
+  await page.evaluate(()=>{
+   window.__historyPrefWrites=[];
+   window.BodyTraceNative.setWorkoutHistoryVisible=shown=>
+    window.__historyPrefWrites.push(shown);
+   window.bodyTraceReceive({type:"ui_preferences",show_workout_history:true});
+  });
+  if(await page.locator("#toggleHistory").innerText()!=="收起全部历史")
+   throw Error("History default must be open");
+  await page.locator("#toggleHistory").click();
+  if(await page.locator("#dayDetails .exercise-history").count())
+   throw Error("Global hide must remove all historical sessions, not today's workouts");
+  if(await page.locator("#dayDetails > .exercise").count()!==4)
+   throw Error("Hiding history must preserve four current-day movements");
+  if((await page.evaluate(()=>window.__historyPrefWrites.at(-1)))!==false)
+   throw Error("History hidden choice not saved into the native preference bridge");
+  await page.evaluate(()=>{
+   state.selected="2026-11-11";renderDay();
+   window.bodyTraceReceive({type:"ui_preferences",show_workout_history:false});
+  });
+  if(await page.locator("#dayDetails .exercise-history").count())
+   throw Error("Pref restored off must apply to other dates");
+  if(await page.locator("#toggleHistory").innerText()!=="展开全部历史")
+   throw Error("Persisted off preference must update toggle label");
+  await page.locator("#toggleHistory").click();
+  if((await page.evaluate(()=>window.__historyPrefWrites.at(-1)))!==true)
+   throw Error("History on choice not written to native preference bridge");
+  if(await page.locator("#dayDetails .exercise-history").count()===0)
+   throw Error("Enabling global histories must restore historical sessions");
+  await page.evaluate(()=>{state.selected="2026-11-20";renderDay();});
+  if(await page.locator('#dayDetails .exercise[data-exercise-id="hip_thrust"] .exercise-history-date').count()!==10)
+   throw Error("Restored history must still include the last ten hip-thrust dates");
   // Selecting a hip thrust dot then editing it must generate an immutable
   // correction payload with old UUID, not rewrite/remove source HTML rows.
   await page.evaluate(()=>{
