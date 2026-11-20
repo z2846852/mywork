@@ -54,6 +54,10 @@ public final class MainActivity extends Activity {
     private final Handler sleepHandler=new Handler(Looper.getMainLooper());
     private MediaPlayer sleepPlayer;
     private Runnable stopPlayback;
+    private final java.util.ArrayList<int[]> playbackRanges=new java.util.ArrayList<>();
+    private int playbackIndex=0;
+    private String playbackSessionId="";
+    private boolean playbackSkipping=false;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private SecureStore vault;
     private JsonStore plain;
@@ -504,6 +508,20 @@ public final class MainActivity extends Activity {
         super.onResume();
         if(uiReady)worker.execute(this::sendSleepStatus);
     }
+    private void playbackEvent(boolean playing,int startSec){
+        if(playbackSessionId.isEmpty())return;
+        try{
+            JSONObject msg=message("sleep_playback");
+            msg.put("id",playbackSessionId);
+            msg.put("playing",playing);
+            msg.put("start_sec",startSec);
+            msg.put("segment_index",playbackIndex+1);
+            msg.put("total_segments",playbackRanges.size());
+            msg.put("skip",playbackSkipping);
+            reply(msg);
+        }catch(Exception ignored){}
+    }
+
     private void stopSleepPlayback(){
         if(stopPlayback!=null){sleepHandler.removeCallbacks(stopPlayback);stopPlayback=null;}
         if(sleepPlayer!=null){
@@ -511,6 +529,59 @@ public final class MainActivity extends Activity {
             try{sleepPlayer.release();}catch(Exception ignored){}
             sleepPlayer=null;
         }
+        playbackEvent(false,-1);
+        playbackRanges.clear();
+        playbackSessionId="";
+        playbackIndex=0;
+        playbackSkipping=false;
+    }
+
+    /** Seek through validated ranges inside one MediaPlayer. No PCM copies and
+     * no JS timers; backgrounded WebView cannot interrupt event advancement. */
+    private void playNextRange(MediaPlayer player){
+        if(sleepPlayer!=player)return;
+        if(stopPlayback!=null){sleepHandler.removeCallbacks(stopPlayback);stopPlayback=null;}
+        if(playbackIndex>=playbackRanges.size()){stopSleepPlayback();return;}
+        int[] range=playbackRanges.get(playbackIndex);
+        player.seekTo(range[0]*1000);
+    }
+
+    private void beginRangePlayback(String sessionId,java.util.ArrayList<int[]> ranges,
+            boolean skip) throws Exception {
+        stopSleepPlayback();
+        JSONObject session=SleepSessions.loadMetadata(this,sessionId);
+        playbackSessionId=sessionId;
+        playbackRanges.addAll(ranges);
+        playbackIndex=0;
+        playbackSkipping=skip;
+        MediaPlayer player=new MediaPlayer();
+        sleepPlayer=player;
+        SleepSessions.configurePlayer(this,session,player);
+        player.setOnErrorListener((m,what,extra)->{
+            stopSleepPlayback();
+            error("录音播放器无法继续：媒体解码或定位失败");
+            return true;
+        });
+        player.setOnCompletionListener(m->{
+            if(sleepPlayer!=m)return;
+            playbackIndex++;
+            playNextRange(m);
+        });
+        player.setOnPreparedListener(this::playNextRange);
+        player.setOnSeekCompleteListener(m->{
+            if(sleepPlayer!=m||playbackIndex>=playbackRanges.size())return;
+            int[] segment=playbackRanges.get(playbackIndex);
+            m.start();
+            playbackEvent(true,segment[0]);
+            stopPlayback=()->{
+                if(sleepPlayer!=m)return;
+                if(m.isPlaying())m.pause();
+                playbackIndex++;
+                playNextRange(m);
+            };
+            sleepHandler.postDelayed(stopPlayback,(long)(segment[1]-segment[0])*1000L);
+        });
+        player.prepareAsync();
     }
 
     private JSONArray localDays() throws Exception {
@@ -1468,26 +1539,44 @@ public final class MainActivity extends Activity {
                     SleepSessions.verifyId(sessionId);
                     if(SleepRecorderService.isRecording())
                         throw new IllegalStateException("录音进行中不可播放");
-                    if(offset<0||duration<1||duration>180)
+                    if(offset<0||duration<1||duration>180||
+                            (long)offset+duration>86400)
                         throw new IllegalArgumentException("无效回放时段");
-                    JSONObject session=SleepSessions.load(MainActivity.this,sessionId);
-                    stopSleepPlayback();
-                    MediaPlayer player=new MediaPlayer();
-                    sleepPlayer=player;
-                    SleepSessions.configurePlayer(MainActivity.this,session,player);
-                    player.setOnErrorListener((m,what,extra)->{
-                        stopSleepPlayback();
-                        error("音频片段播放失败");return true;
-                    });
-                    player.setOnPreparedListener(m->m.seekTo(offset*1000));
-                    player.setOnSeekCompleteListener(m->{
-                        if(sleepPlayer!=m)return;
-                        m.start();
-                        stopPlayback=MainActivity.this::stopSleepPlayback;
-                        sleepHandler.postDelayed(stopPlayback,duration*1000L);
-                    });
-                    player.prepareAsync();
+                    java.util.ArrayList<int[]> ranges=new java.util.ArrayList<>();
+                    ranges.add(new int[]{offset,offset+duration});
+                    beginRangePlayback(sessionId,ranges,false);
                 }catch(Exception e){stopSleepPlayback();error("无法播放片段："+safeMessage(e));}
+            });
+        }
+
+        /** Consecutive playback with precise native seeks between qualifying
+         * sound events. The user can alternatively supply one long range from
+         * their cursor to the end of the original recording. */
+        @JavascriptInterface public void sleepPlaySequence(String sessionId,
+                String rangesJson,boolean skip){
+            runOnUiThread(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    if(SleepRecorderService.isRecording())
+                        throw new IllegalStateException("录音进行中不可播放");
+                    if(rangesJson==null||rangesJson.length()>200000)
+                        throw new IllegalArgumentException("播放时间段参数过长");
+                    JSONArray request=new JSONArray(rangesJson);
+                    if(request.length()<1||request.length()>5000)
+                        throw new IllegalArgumentException("播放片段数量不合法");
+                    java.util.ArrayList<int[]> ranges=new java.util.ArrayList<>();
+                    int prevEnd=0;
+                    for(int i=0;i<request.length();i++){
+                        JSONArray pair=request.getJSONArray(i);
+                        if(pair.length()!=2)throw new IllegalArgumentException("无效播放区间");
+                        int first=pair.getInt(0),last=pair.getInt(1);
+                        if(first<prevEnd||last<=first||last>86400)
+                            throw new IllegalArgumentException("播放区间必须有序且在24小时内");
+                        ranges.add(new int[]{first,last});
+                        prevEnd=last;
+                    }
+                    beginRangePlayback(sessionId,ranges,skip);
+                }catch(Exception e){stopSleepPlayback();error("无法连播声音片段："+safeMessage(e));}
             });
         }
         @JavascriptInterface public void sleepStopPlayback(){

@@ -743,16 +743,21 @@ body.workout-edit-open{overflow:hidden}
  gap:8px;flex-wrap:wrap}
 .sleep-visual-head h3{font-size:13px;margin:0}
 .sleep-visual-head .sub{font-size:10px;margin:0}
-.sleep-sound-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:10px 0}
-.sleep-sound-stat{display:flex;flex-direction:column;gap:5px;
- border:1px solid #36505d;border-radius:9px;background:#1c3035;padding:9px 7px}
-.sleep-sound-stat small{font-size:9px;color:#b0c7c9;line-height:1.4}
-.sleep-sound-stat strong{color:#c1f2e1;font-size:13px;font-variant-numeric:tabular-nums}
+.sleep-sound-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:0;margin:12px 0 5px;border-top:1px solid #334e51;border-bottom:1px solid #334e51}
+.sleep-sound-stat{display:flex;flex-direction:column;gap:3px;min-width:0;
+ border:0;border-bottom:1px solid #284248;padding:10px 9px;background:transparent}
+.sleep-sound-stat:nth-child(odd){border-right:1px solid #284248}
+.sleep-sound-stat small{font-size:10px;color:#aec9c8;line-height:1.35}
+.sleep-sound-stat strong{color:#c4eee0;font-size:17px;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.sleep-noise-warning{color:#ffd1bc;border-left:3px solid #eb816b;background:#39272a;
+ padding:9px 11px;font-size:11px;border-radius:6px;margin:8px 0}
 .sleep-wave-controls{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}
 .sleep-wave-controls .mini{flex:1;min-width:46px;padding:6px 7px}
 .sleep-wave-controls .active{background:#396d68;border-color:#83b6b6;color:#fff}
 .sleep-wave-frame{width:100%;overflow:hidden;border:1px solid #43616a;border-radius:10px;background:#102127}
-#sleepWaveCanvas{width:100%;height:220px;display:block;touch-action:manipulation;cursor:crosshair}
+#sleepWaveCanvas{width:100%;height:260px;display:block;touch-action:none;
+ cursor:crosshair;user-select:none;-webkit-user-select:none}
 #sleepWaveSelection{font-variant-numeric:tabular-nums;min-height:20px;font-size:10.5px}
 .sleep-wave-legend{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 12px;
  font-size:9.5px;color:#c5d8d9}
@@ -761,8 +766,25 @@ body.workout-edit-open{overflow:hidden}
 .sleep-wave-key.peak::before{background:#718ca7}
 .sleep-wave-key.rms::before{background:#64d4ab}
 .sleep-wave-key.event::before{background:#ff8f82}
-.sleep-wave-key.threshold::before{background:#dfad6e}
+.sleep-wave-key.threshold::before{background:#ff536d}
 .sleep-visualization h3{margin:14px 0 7px;font-size:12px}
+.sleep-transport{margin-top:11px;border:1px solid #3b5959;border-radius:12px;
+ background:linear-gradient(130deg,#1b3334,#162e31);padding:11px}
+.sleep-skip-option{display:flex;align-items:center;gap:9px;color:#e0f1ea;
+ font-weight:700;font-size:13px;min-height:36px;cursor:pointer}
+.sleep-skip-option input{width:19px;height:19px;accent-color:#70cfa9;flex-shrink:0}
+.sleep-transport>.sub{font-size:10px;margin:2px 0 10px}
+.sleep-playbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px}
+.sleep-playbar button{width:auto;margin:0;min-height:45px;font-size:11px;padding:7px 8px}
+.sleep-playbar #sleepPlaySelection{font-size:13px;font-weight:750}
+.sleep-playbar button:disabled{opacity:.43}
+#sleepPlaybackStatus{margin:9px 0 5px;color:#b7d0d5;font-variant-numeric:tabular-nums;font-size:11px}
+#sleepFocusSelection{width:100%;margin-top:5px;min-height:35px}
+.sleep-wave-frame{box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.sleep-wave-controls{position:relative}
+.sleep-wave-controls .mini{min-height:36px}
+.sleep-event{border-left:3px solid #bc6a73}
+.sleep-event strong{line-height:1.5}
 .sleep-hourly-activity{display:flex;gap:5px;overflow-x:auto;margin:8px 0 12px;padding:6px 1px;
  scrollbar-width:thin}
 .sleep-hour-block{flex:1 0 34px;max-width:53px;min-width:34px;display:flex;
@@ -780,8 +802,8 @@ body.workout-edit-open{overflow:hidden}
  padding:6px 4px}
 .settings-raw-accordion .raw-in-logs{padding-top:10px}
 .settings-raw-accordion .panel{margin-bottom:9px}
-@media(max-width:370px){.sleep-sound-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-.sleep-wave-controls .mini{font-size:10px}}
+@media(max-width:370px){.sleep-wave-controls .mini{font-size:10px}
+.sleep-playbar button{padding:6px 5px;font-size:10px}}
 
 .sleep-event-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
 .sleep-event-actions button{font-size:10px;min-height:29px}

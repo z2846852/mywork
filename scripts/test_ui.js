@@ -136,7 +136,10 @@ assert.ok(sleepStore.includes('AtomicFile'),"Sessions must save atomically");
 assert.ok(sleepStore.includes('sleep_audio')&&sleepStore.includes('sleep_sessions'));
 assert.ok(!sleepStore.includes('mcp__GitHub__')&&!sleepJS.includes('GitHub'),
  "Personal audio must not be uploaded to workout GitHub sync");
-assert.ok(sleepJS.includes('sleepPlay(analysis.id'));
+assert.ok(sleepJS.includes('detectCandidates('));
+assert.ok(sleepJS.includes('applyLiveFilters('));
+assert.ok(!sleepJS.includes('$(field).addEventListener("change",()=>{if(analysis&&selectedId)analyze()'),
+ "Filter changes must be instantaneous and MUST NOT schedule native decoding");
 assert.ok(sleepJS.includes('window.bodyTraceReceive=function(evt)'));
 
 assert.ok(!manifest.includes('android.intent.action.SEND'),"No stale image-share registration in schematic-only App");
@@ -448,6 +451,17 @@ assert.ok(sleepVisualization.includes('requestAnimationFrame('));
 assert.ok(sleepVisualization.includes('for(let px=0;px<plotWidth;px++)'));
 assert.ok(sleepVisualization.includes('Math.max(240,Math.round(bounds.width||320))'));
 assert.ok(sleepVisualization.includes('window.BodyTraceSleepVisual={'));
+assert.ok(sleepVisualization.includes('pointerdown')&&sleepVisualization.includes('pointermove'));
+assert.ok(sleepVisualization.includes('touch-action:none')||
+  fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8")
+    .includes('#sleepWaveCanvas{width:100%;height:260px;display:block;touch-action:none'));
+assert.ok(sleepVisualization.includes('COLORS.threshold')&&sleepVisualization.includes('"#ff536d"'));
+assert.ok(sleepVisualization.includes('sleepPlaySequence('));
+assert.ok(native.includes('sleepPlaySequence(String sessionId,'));
+assert.ok(native.includes('playNextRange(')&&native.includes('setOnSeekCompleteListener'));
+for(const id of ['sleepSkipQuiet','sleepPlaybackStatus','sleepPreviousEvent','sleepNextEvent',
+ 'sleepNoiseWarning'])assert.ok(html.includes('id="'+id+'"'),id);
+
 assert.ok(!html.includes('data-page="raw"'),"Remove Raw from bottom tabs");
 assert.ok(html.includes('id="rawSettingsAccordion"'));
 assert.ok(html.indexOf('id="page-settings"')<html.indexOf('id="page-raw"'));
@@ -939,4 +953,97 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   deleteControl().onclick();
   assert.deepEqual(calls.delete,["imported_doc"]);
   console.log("Sleep UX tests passed: zero-copy auto analysis, status race, cache recovery and safe removal.");
+}
+
+
+// Exact per-second filter and waveform gesture/skip-play regression.
+{
+  const begin=sleepJS.indexOf(" function detectCandidates(");
+  const finish=sleepJS.indexOf(" function applyLiveFilters(",begin);
+  assert.ok(begin>0&&finish>begin);
+  const detect=vm.runInNewContext(sleepJS.slice(begin,finish)+"\ndetectCandidates");
+  const values=[-60,-32,-34,-61,-33,-35,-70,-65,-30,-30,-30];
+  const peaks=values.map(x=>x+5);
+  const merged=detect(values,peaks,-40,4,1);
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].start_sec,1);
+  assert.equal(merged[0].end_sec,6);
+  assert.equal(merged[0].active_sec,4,
+    "Allowed gaps join a span but cannot be counted toward minimum");
+  assert.equal(detect(values,peaks,-40,4,0).length,0);
+  assert.equal(detect(values,peaks,-40,2,0).length,3);
+  assert.equal(detect(values,peaks,-20,1,5).length,0);
+
+  const nodes=new Map(),eventsByName={},calls=[],redLines=[];
+  const fakeCtx={
+    setTransform(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},
+    arc(){},fill(){},fillText(){},setLineDash(){},
+    measureText(v){return {width:v.length*6}},
+    stroke(){if(this.strokeStyle==="#ff536d")redLines.push(true)}
+  };
+  function node(tag="div"){
+    return {tagName:tag,hidden:false,disabled:false,checked:false,value:"",
+      textContent:"",children:[],style:{},dataset:{},
+      classList:{toggle(){},add(){},remove(){}},
+      append(...children){this.children.push(...children)},
+      replaceChildren(){this.children=[]},
+      setAttribute(){},scrollIntoView(){},
+      addEventListener(name,fn){this.handlers??={};this.handlers[name]=fn}
+    };
+  }
+  function get(id){
+    if(!nodes.has(id))nodes.set(id,node());
+    return nodes.get(id);
+  }
+  const canvas=get("sleepWaveCanvas");
+  canvas.width=360;canvas.height=260;
+  canvas.getContext=()=>fakeCtx;
+  canvas.getBoundingClientRect=()=>({width:360,left:0});
+  canvas.setPointerCapture=()=>{};
+  canvas.addEventListener=(name,fn)=>{eventsByName[name]=fn};
+  get("sleepSkipQuiet").checked=true;
+  const fakeWindow={devicePixelRatio:1,bodyTraceReceive(){},addEventListener(){},
+    BodyTraceNative:{sleepPlaySequence(...args){calls.push(args)}}};
+  vm.runInNewContext(sleepVisualization,{
+    window:fakeWindow,document:{
+      getElementById:get,querySelectorAll(){return []},
+      createElement:node
+    },
+    requestAnimationFrame(fn){fn()},
+    ResizeObserver:undefined,Date,Math,Number
+  });
+  const levels=Array.from({length:600},()=>-70);
+  const levelPeaks=levels.map(x=>x+7);
+  for(let i=20;i<30;i++){levels[i]=-24;levelPeaks[i]=-16;}
+  for(let i=200;i<220;i++){levels[i]=-22;levelPeaks[i]=-12;}
+  const segments=detect(levels,levelPeaks,-40,5,1);
+  fakeWindow.bodyTraceReceive({type:"sleep_analysis",id:"night1",date_basis:"imported_at",
+    levels_dbfs:levels,peak_levels_dbfs:levelPeaks,threshold_dbfs:-40,
+    minimum_seconds:5,gap_seconds:1,events:segments});
+  assert.ok(redLines.length>0,"Red reference must be drawn on the actual canvas");
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().span,600);
+  // Tap positions cursor, whereas a pointer drag pans without triggering a tap.
+  function pointer(kind,id,x){eventsByName[kind]({pointerId:id,clientX:x,clientY:100})}
+  pointer("pointerdown",1,120);pointer("pointerup",1,120);
+  assert.ok(fakeWindow.BodyTraceSleepVisual.state().cursor>=0);
+  pointer("pointerdown",2,115);pointer("pointerdown",3,215);
+  pointer("pointermove",3,280);
+  assert.ok(fakeWindow.BodyTraceSleepVisual.state().span<600,
+    "Pinch spreading must zoom in the timeline");
+  pointer("pointerup",2,115);pointer("pointerup",3,280);
+  pointer("pointerdown",4,160);pointer("pointermove",4,90);pointer("pointerup",4,90);
+  assert.ok(fakeWindow.BodyTraceSleepVisual.state().start>0,
+    "One-finger drag must pan a zoomed waveform");
+  fakeWindow.BodyTraceSleepVisual.setCursor(0);
+  fakeWindow.BodyTraceSleepVisual.playFromCursor();
+  assert.equal(calls.length,1);
+  assert.equal(calls[0][0],"night1");
+  assert.equal(calls[0][2],true);
+  assert.deepEqual(JSON.parse(calls[0][1]),[[20,30],[200,220]],
+    "Skip mode must play only candidates passing threshold+duration+gap");
+  get("sleepSkipQuiet").checked=false;
+  fakeWindow.BodyTraceSleepVisual.playFromCursor();
+  assert.deepEqual(JSON.parse(calls[1][1]),[[0,600]],
+    "Ordinary mode must play continuously from cursor, without arbitrary 15s cap");
+  console.log("Sleep gesture/filter/skip regression passed.");
 }

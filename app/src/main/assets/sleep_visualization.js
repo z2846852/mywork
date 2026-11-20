@@ -1,57 +1,41 @@
-/* Local full-night sound explorer. Inspired by the UX of wavesurfer.js and
- * Audacity, with no third-party code or network playback dependencies.
- * Dense ~8h data is reduced to screen pixels on Canvas; never render 28K DOM nodes.
- * The curves are 1-second RMS/peak ENVELOPES, not sample-rate waveforms.
+/* Interactive, cached one-second RMS/peak audio explorer.
+ * Never load source PCM into WebView. Android keeps the original M4A and caches
+ * one-second envelopes locally. Filtering and chart gestures are JS only.
  */
 (function(){
  "use strict";
  const $=id=>document.getElementById(id);
  const canvas=$("sleepWaveCanvas"),panel=$("sleepVisualization");
  const context=canvas.getContext("2d");
- let result=null,windowStart=0,windowSpan=0,cursor=-1,paintPending=false;
- const COLORS={background:"#102127",peak:"#718ca7",rms:"#64d4ab",
-  grid:"#33505a",event:"#ff8f82",text:"#9bb7b8",threshold:"#dfad6e"};
+ const COLORS={background:"#102127",peak:"#8297a9",rms:"#65d6b2",
+  grid:"#334952",event:"#e87e8c",text:"#b1c9ce",threshold:"#ff536d"};
+ const clamp=(v,low,high)=>Math.max(low,Math.min(high,v));
  const pad=n=>String(Math.floor(n)).padStart(2,"0");
- const relative=t=>{
-  const n=Math.max(0,Math.floor(t));
-  return pad(Math.floor(n/3600))+":"+pad(Math.floor(n%3600/60))+":"+pad(n%60);
+ const relative=sec=>{
+  const t=Math.max(0,Math.floor(sec));
+  return pad(Math.floor(t/3600))+":"+pad(Math.floor(t%3600/60))+":"+pad(t%60);
  };
- const stamp=sec=>{
-  if(!result)return relative(sec);
-  if(result.date_basis==="imported_at")return "+"+relative(sec);
-  return new Date(Number(result.started_ms)+sec*1000)
-   .toLocaleTimeString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false,
-    hour:"2-digit",minute:"2-digit",second:"2-digit"});
- };
+ let result=null,windowStart=0,windowSpan=0,cursor=-1,paintPending=false;
+ let lastTap={at:0,x:0},gesture=null,gestureHadMultiple=false;
+ const pointers=new Map();
  const total=()=>Array.isArray(result?.levels_dbfs)?result.levels_dbfs.length:0;
  const rms=()=>result?.levels_dbfs||[];
  const peaks=()=>result?.peak_levels_dbfs||[];
  const events=()=>Array.isArray(result?.events)?result.events:[];
- const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
- function metrics(){
-  const levels=rms();
-  if(!levels.length)return;
-  const sorted=levels.filter(Number.isFinite).sort((a,b)=>a-b);
-  if(!sorted.length)return;
-  const percentile=p=>sorted[Math.min(sorted.length-1,Math.floor((sorted.length-1)*p))];
-  const active=levels.filter(v=>v>=result.threshold_dbfs).length;
-  const greatest=events().reduce((n,e)=>Math.max(n,Number(e.active_sec)||0),0);
-  const cells=[
-   ["候选声音",events().length+" 段","满足持续时间的事件"],
-   ["超阈值",relative(active),"含短暂干扰声"],
-   ["安静背景 P10",percentile(.1).toFixed(1)+" dBFS","仅相对音量"],
-   ["典型响度 P50",percentile(.5).toFixed(1)+" dBFS","整晚中位数"],
-   ["偏高响度 P95",percentile(.95).toFixed(1)+" dBFS","整晚95百分位"],
-   ["最长候选",relative(greatest),"阈值以上累计秒数"]
-  ];
-  const root=$("sleepSoundStats");root.replaceChildren();
-  for(const [name,value,subtitle] of cells){
-   const item=document.createElement("div");item.className="sleep-sound-stat";
-   const label=document.createElement("small");label.textContent=name;
-   const strong=document.createElement("strong");strong.textContent=value;
-   const sub=document.createElement("small");sub.textContent=subtitle;
-   item.append(label,strong,sub);root.append(item);
-  }
+ function stamp(sec){
+  if(!result||result.date_basis==="imported_at")return "+"+relative(sec);
+  return new Date(Number(result.started_ms)+sec*1000).toLocaleTimeString(
+   "zh-CN",{timeZone:"Asia/Shanghai",hour12:false,
+    hour:"2-digit",minute:"2-digit",second:"2-digit"});
+ }
+ function plotSize(){
+  const width=Math.max(240,Math.round(canvas.getBoundingClientRect().width||320));
+  return {width,left:42,right:width-12,top:18,bottom:218,
+   plotWidth:width-54};
+ }
+ function secAt(x){
+  const {left,plotWidth}=plotSize();
+  return clamp(windowStart+(x-left)/plotWidth*windowSpan,0,total());
  }
  function schedule(){
   if(paintPending)return;
@@ -62,88 +46,107 @@
   if(!result||!total())return;
   const bounds=canvas.getBoundingClientRect();
   const width=Math.max(240,Math.round(bounds.width||320));
-  const height=220,dpr=Math.min(3,window.devicePixelRatio||1);
-  canvas.width=Math.round(width*dpr);
-  canvas.height=Math.round(height*dpr);
-  context.setTransform(dpr,0,0,dpr,0,0);
-  const ctx=context;
-  ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,width,height);
-  const left=36,right=width-10,top=16,bottom=height-30;
-  const plotWidth=right-left;
-  const plotHeight=bottom-top;
-  const yMid=(top+bottom)/2;
-  const amplitude=db=>clamp((Number(db)+90)/90,0,1)*plotHeight*.46;
-  const xAt=sec=>left+(sec-windowStart)/windowSpan*plotWidth;
-  // 1-second peak and RMS envelopes are aggregated per drawn pixel.
-  // Work is O(seconds shown), independent of the original sample rate.
-  const n=total();
-  for(let px=0;px<plotWidth;px++){
-   const a=Math.max(0,Math.floor(windowStart+px/plotWidth*windowSpan));
-   const b=Math.min(n,Math.max(a+1,Math.ceil(windowStart+(px+1)/plotWidth*windowSpan)));
-   let maxRms=-96,maxPeak=-96;
-   for(let i=a;i<b;i++){
-    const mean=Number(rms()[i]),peak=Number(peaks()[i]);
-    if(Number.isFinite(mean))maxRms=Math.max(maxRms,mean);
-    if(Number.isFinite(peak))maxPeak=Math.max(maxPeak,peak);
-   }
-   const peakH=amplitude(maxPeak),rmsH=amplitude(maxRms);
-   ctx.fillStyle=COLORS.peak;ctx.globalAlpha=.65;
-   ctx.fillRect(left+px,yMid-peakH,1,Math.max(1,peakH*2));
-   ctx.globalAlpha=1;ctx.fillStyle=COLORS.rms;
-   ctx.fillRect(left+px,yMid-rmsH,1,Math.max(1,rmsH*2));
+  const height=260,dpr=Math.min(3,window.devicePixelRatio||1);
+  const deviceW=Math.round(width*dpr),deviceH=Math.round(height*dpr);
+  if(canvas.width!==deviceW||canvas.height!==deviceH){
+   canvas.width=deviceW;canvas.height=deviceH;
   }
-  // Event regions are drawn AFTER amplitude so candidates stay visible.
-  ctx.fillStyle=COLORS.event;ctx.globalAlpha=.18;
+  context.setTransform(dpr,0,0,dpr,0,0);
+  const ctx=context,{left,right,top,bottom,plotWidth}=plotSize();
+  const plotHeight=bottom-top,levels=rms(),pks=peaks();
+  ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,width,height);
+  const yAt=db=>top+(0-clamp(Number(db),-90,0))/90*plotHeight;
+  const xAt=sec=>left+(sec-windowStart)/windowSpan*plotWidth;
+  ctx.font="10px system-ui,sans-serif";
+  ctx.textAlign="left";ctx.textBaseline="middle";
+  for(const db of [0,-20,-40,-60,-80]){
+   const y=yAt(db);
+   ctx.strokeStyle=COLORS.grid;ctx.lineWidth=.75;
+   ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();
+   ctx.fillStyle=COLORS.text;
+   ctx.fillText(db===0?"0":String(db),4,y);
+  }
+  // Highlight valid duration+gap candidates FIRST; no semantic assumption
+  // that these events are confirmed snoring.
+  ctx.fillStyle=COLORS.event;ctx.globalAlpha=.14;
   for(const event of events()){
-   const first=Math.max(windowStart,Number(event.start_sec));
-   const last=Math.min(windowStart+windowSpan,Number(event.end_sec));
-   if(last<=first)continue;
-   const startX=xAt(first),endX=xAt(last);
-   ctx.fillRect(startX,top,Math.max(2,endX-startX),plotHeight);
+   const a=Math.max(windowStart,Number(event.start_sec));
+   const b=Math.min(windowStart+windowSpan,Number(event.end_sec));
+   if(b>a)ctx.fillRect(xAt(a),top,Math.max(1,xAt(b)-xAt(a)),plotHeight);
   }
   ctx.globalAlpha=1;
-  const th=amplitude(result.threshold_dbfs);
-  ctx.strokeStyle=COLORS.threshold;ctx.setLineDash([5,4]);ctx.lineWidth=1;
-  for(const y of [yMid-th,yMid+th]){
-   ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();
+  const threshold=Number(result.threshold_dbfs);
+  for(let px=0;px<plotWidth;px++){
+   const a=Math.max(0,Math.floor(windowStart+px/plotWidth*windowSpan));
+   const b=Math.min(total(),Math.max(a+1,
+    Math.ceil(windowStart+(px+1)/plotWidth*windowSpan)));
+   let maxRms=-96,maxPeak=-96;
+   for(let i=a;i<b;i++){
+    const v=Number(levels[i]),pk=Number(pks[i]);
+    if(Number.isFinite(v))maxRms=Math.max(maxRms,v);
+    if(Number.isFinite(pk))maxPeak=Math.max(maxPeak,pk);
+   }
+   const x=left+px,ry=yAt(maxRms),py=yAt(maxPeak);
+   ctx.fillStyle=COLORS.rms;ctx.globalAlpha=.22;
+   ctx.fillRect(x,ry,1,bottom-ry);
+   ctx.globalAlpha=1;
+   ctx.fillStyle=COLORS.peak;
+   ctx.fillRect(x,py,1,Math.max(1,ry-py));
+   ctx.fillStyle=maxRms>=threshold?COLORS.threshold:COLORS.rms;
+   ctx.fillRect(x,ry,1,maxRms>=threshold?3:2);
   }
+  // A high-contrast horizontal RED reference, moving synchronously with slider.
+  const thresholdY=yAt(threshold);
+  ctx.save();
+  ctx.strokeStyle=COLORS.threshold;ctx.lineWidth=2;
+  ctx.setLineDash([7,4]);ctx.beginPath();
+  ctx.moveTo(left,thresholdY);ctx.lineTo(right,thresholdY);ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle=COLORS.text;ctx.font="10px system-ui,sans-serif";
-  ctx.textBaseline="middle";
-  ctx.fillText("0 dBFS",2,top+4);
-  ctx.fillText("-90",8,bottom-3);
-  ctx.fillText("0",17,yMid);
-  ctx.textBaseline="alphabetic";
-  const labels=4;
-  for(let i=0;i<=labels;i++){
-   const sec=windowStart+windowSpan*i/labels,x=xAt(sec);
+  const label="阈值 "+threshold+" dBFS";
+  ctx.font="bold 11px system-ui,sans-serif";
+  const labelWidth=ctx.measureText(label).width+10;
+  const labelX=Math.max(left,Math.min(right-labelWidth,left+6));
+  const labelY=clamp(thresholdY-22,top+2,bottom-19);
+  ctx.fillStyle="#572b39";ctx.fillRect(labelX,labelY,labelWidth,17);
+  ctx.fillStyle="#ffbdc7";ctx.textBaseline="middle";
+  ctx.fillText(label,labelX+5,labelY+8);
+  ctx.restore();
+  // Vertical grid / axes. Reduce labels on narrow phones to avoid collisions.
+  const ticks=width<400?2:3;
+  ctx.textBaseline="alphabetic";ctx.font="10px system-ui,sans-serif";
+  for(let i=0;i<=ticks;i++){
+   const time=windowStart+windowSpan*i/ticks,x=xAt(time);
    ctx.strokeStyle=COLORS.grid;ctx.lineWidth=.7;
    ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
    ctx.fillStyle=COLORS.text;
-   ctx.textAlign=i===0?"left":i===labels?"right":"center";
-   ctx.fillText(stamp(sec),x,210);
+   ctx.textAlign=i===0?"left":i===ticks?"right":"center";
+   // Whole-night view does not need seconds in every tick label.
+   const label=stamp(time);
+   ctx.fillText(windowSpan>=1800?label.slice(0,-3):label,x,241);
   }
   ctx.textAlign="left";
   if(cursor>=windowStart&&cursor<=windowStart+windowSpan){
    const x=xAt(cursor);
-   ctx.strokeStyle="#f3eee0";ctx.lineWidth=1.5;
+   ctx.strokeStyle="#ffe7b2";ctx.lineWidth=1.5;
    ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
-   ctx.fillStyle="#f3eee0";ctx.beginPath();ctx.arc(x,top+4,3.5,0,Math.PI*2);ctx.fill();
+   ctx.fillStyle="#ffe7b2";ctx.beginPath();ctx.arc(x,top+4,3.5,0,Math.PI*2);ctx.fill();
   }
   updateZoomButtons();
  }
  function updateZoomButtons(){
   for(const button of document.querySelectorAll("[data-sleep-zoom]")){
-   const v=button.dataset.sleepZoom;
-   const selected=v==="all"?windowSpan===total():windowSpan===Number(v);
-   button.classList.toggle("active",selected);
+   const size=button.dataset.sleepZoom;
+   const active=size==="all"?Math.abs(windowSpan-total())<.5:
+    Math.abs(windowSpan-Number(size))<.5;
+   button.classList.toggle("active",active);
   }
  }
  function setSpan(seconds,focus){
   if(!total())return;
-  windowSpan=clamp(seconds,1,total());
-  const mid=Number.isFinite(focus)?focus:windowStart+windowSpan/2;
-  windowStart=clamp(mid-windowSpan/2,0,Math.max(0,total()-windowSpan));
+  const oldSpan=windowSpan;
+  const anchor=Number.isFinite(focus)?focus:windowStart+oldSpan/2;
+  windowSpan=clamp(Number(seconds),5,total());
+  windowStart=clamp(anchor-windowSpan/2,0,Math.max(0,total()-windowSpan));
   schedule();
  }
  function moveSpan(direction){
@@ -151,44 +154,83 @@
    Math.max(0,total()-windowSpan));
   schedule();
  }
- function setCursor(sec){
-  cursor=clamp(Math.round(sec),0,Math.max(0,total()-1));
-  const level=rms()[cursor],pk=peaks()[cursor];
-  $("sleepWaveSelection").textContent=stamp(cursor)+" · RMS "+
-   (Number.isFinite(level)?Number(level).toFixed(1):"未知")+" dBFS"+
-   " · 峰值 "+(Number.isFinite(pk)?Number(pk).toFixed(1):"未知")+" dBFS";
+ function showCursor(sec){
+  if(!result)return;
+  cursor=clamp(Math.floor(sec),0,total()-1);
+  if(cursor<windowStart||cursor>windowStart+windowSpan){
+   windowStart=clamp(cursor-windowSpan*.5,0,Math.max(0,total()-windowSpan));
+  }
+  const value=Number(rms()[cursor]),peak=Number(peaks()[cursor]);
+  const eligible=events().some(e=>cursor>=e.start_sec&&cursor<e.end_sec);
+  $("sleepWaveSelection").textContent=stamp(cursor)+
+   " · RMS "+(Number.isFinite(value)?value.toFixed(1):"未知")+
+   " dBFS · 峰值 "+(Number.isFinite(peak)?peak.toFixed(1):"未知")+
+   " dBFS · "+(eligible?"合格片段":"不在合格片段内");
   $("sleepPlaySelection").disabled=false;
   $("sleepFocusSelection").disabled=false;
   schedule();
  }
+ function metrics(){
+  const levels=rms();
+  if(!levels.length)return;
+  const sorted=levels.filter(Number.isFinite).sort((a,b)=>a-b);
+  if(!sorted.length)return;
+  const pct=p=>sorted[Math.floor((sorted.length-1)*p)];
+  const active=levels.filter(v=>v>=result.threshold_dbfs).length;
+  const max=events().reduce((n,e)=>Math.max(n,Number(e.end_sec)-Number(e.start_sec)),0);
+  const cells=[
+   ["合格片段",events().length+" 段"],
+   ["超阈值比例",(100*active/levels.length).toFixed(1)+"%"],
+   ["最长片段",relative(max)],
+   ["背景 P10",pct(.1).toFixed(1)+" dBFS"]
+  ];
+  const root=$("sleepSoundStats");root.replaceChildren();
+  for(const [name,value] of cells){
+   const item=document.createElement("div");item.className="sleep-sound-stat";
+   const label=document.createElement("small");label.textContent=name;
+   const strong=document.createElement("strong");strong.textContent=value;
+   item.append(label,strong);root.append(item);
+  }
+  const warning=$("sleepNoiseWarning");
+  warning.hidden=active/levels.length<.90;
+  if(!warning.hidden)warning.textContent=
+   "提示：当前阈值低于至少 90% 时间的 RMS 音量，几乎整晚都会被标记。"+
+   "建议将红线提高到背景声以上，否则无法有效区分声音事件。";
+ }
  function plotHourBars(){
   const root=$("sleepHourlyActivity");root.replaceChildren();
   if(!result||!total())return;
-  const seconds=total(),hourCount=Math.ceil(seconds/3600);
-  let high=[];
-  for(let h=0;h<hourCount;h++){
+  const high=[],seconds=total(),hours=Math.ceil(seconds/3600);
+  for(let h=0;h<hours;h++){
    let count=0;
-   for(let i=h*3600;i<Math.min(seconds,(h+1)*3600);i++){
-    if(rms()[i]>=result.threshold_dbfs)count++;
+   for(let t=h*3600;t<Math.min(seconds,(h+1)*3600);t++){
+    if(rms()[t]>=result.threshold_dbfs)count++;
    }
    high.push(count);
   }
-  const maximum=Math.max(1,...high);
-  for(let i=0;i<hourCount;i++){
-   const button=document.createElement("button");
-   button.type="button";button.className="sleep-hour-block";
-   button.setAttribute("aria-label","查看第"+(i+1)+"小时，超阈值"+high[i]+"秒");
-   const label=document.createElement("small");
-   label.textContent=stamp(i*3600).slice(0,5);
+  const max=Math.max(1,...high);
+  for(let i=0;i<hours;i++){
+   const btn=document.createElement("button");
+   btn.type="button";btn.className="sleep-hour-block";
+   btn.setAttribute("aria-label","查看第"+(i+1)+"小时，超阈值"+high[i]+"秒");
+   const title=document.createElement("small");title.textContent=stamp(i*3600).slice(0,5);
    const bar=document.createElement("div");bar.className="sleep-hour-bar";
-   const fill=document.createElement("span");fill.style.height=(high[i]/maximum*100)+"%";
-   bar.append(fill);
-   const count=document.createElement("strong");
-   count.textContent=high[i]+"s";
-   button.append(label,bar,count);
-   button.onclick=()=>{setSpan(Math.min(3600,seconds),Math.min(seconds-1,i*3600+1800));setCursor(Math.min(seconds-1,i*3600));};
-   root.append(button);
+   const fill=document.createElement("span");fill.style.height=(high[i]/max*100)+"%";bar.append(fill);
+   const count=document.createElement("strong");count.textContent=high[i]+"s";
+   btn.append(title,bar,count);
+   btn.onclick=()=>{
+    setSpan(Math.min(3600,total()),Math.min(total()-1,i*3600+1800));
+    showCursor(Math.min(total()-1,i*3600));
+   };
+   root.append(btn);
   }
+ }
+ function refreshFilters(){
+  if(!result)return;
+  metrics();plotHourBars();schedule();
+  if(cursor>=0)showCursor(cursor);
+  $("sleepPreviousEvent").disabled=!events().length;
+  $("sleepNextEvent").disabled=!events().length;
  }
  function update(evt){
   if(!evt||!Array.isArray(evt.levels_dbfs)||!evt.levels_dbfs.length){
@@ -197,16 +239,63 @@
   const same=result&&result.id===evt.id;
   result=evt;panel.hidden=false;
   if(!same){cursor=-1;windowStart=0;windowSpan=total();}
-  else {
-   windowSpan=Math.min(windowSpan,total());
+  else{
+   windowSpan=clamp(windowSpan,5,total());
    windowStart=clamp(windowStart,0,Math.max(0,total()-windowSpan));
   }
-  if(evt.date_basis==="imported_at"){
-   $("sleepVisualCaveat").textContent="该导入文件未填写录音开始日期，时间轴以 +HH:MM:SS 表示相对时间；不能据此推算真实夜间时刻。音量筛选不能确认打鼾。";
-  }else{
-   $("sleepVisualCaveat").textContent="时间轴以中国标准时间显示。音量筛选只定位候选声音，不能确认打鼾、呼吸暂停或睡眠分期。";
+  $("sleepVisualCaveat").textContent=evt.date_basis==="imported_at"?
+   "原文件未注明录制起始日期。+HH:MM:SS 表示相对时间；声音筛选不等于鼾声诊断。":
+   "使用北京时间显示。声压未校准，候选片段不代表确认为鼾声或呼吸暂停。";
+  refreshFilters();
+ }
+ function playFromCursor(){
+  if(!result)return;
+  const now=cursor>=0?cursor:0;
+  const skip=$("sleepSkipQuiet").checked;
+  let ranges;
+  if(skip){
+   ranges=events().filter(e=>Number(e.end_sec)>now)
+    .map(e=>[Math.floor(e.start_sec),Math.ceil(e.end_sec)]);
+   if(!ranges.length){
+    $("sleepPlaybackStatus").textContent="当前游标之后没有满足筛选条件的片段";
+    return;
+   }
+   if(ranges.length>3000)ranges=ranges.slice(0,3000);
+  }else ranges=[[now,total()]];
+  if(!window.BodyTraceNative?.sleepPlaySequence){
+   $("sleepPlaybackStatus").textContent="请安装支持连续播放的新版 APK";
+   return;
   }
-  metrics();plotHourBars();schedule();
+  $("sleepPlaybackStatus").textContent=skip?"正在准备有效片段连续播放…":
+   "正在从 "+stamp(now)+" 播放…";
+  window.BodyTraceNative.sleepPlaySequence(result.id,JSON.stringify(ranges),skip);
+ }
+ function playEvent(index){
+  const event=events()[index];
+  if(!result||!event)return;
+  showCursor(event.start_sec);
+  setSpan(Math.min(windowSpan,600),event.start_sec);
+  if(window.BodyTraceNative?.sleepPlaySequence){
+   window.BodyTraceNative.sleepPlaySequence(result.id,
+    JSON.stringify([[Math.floor(event.start_sec),Math.ceil(event.end_sec)]]),true);
+  }else if(window.BodyTraceNative?.sleepPlay){
+   window.BodyTraceNative.sleepPlay(result.id,Math.floor(event.start_sec),
+    Math.min(180,Math.max(1,Math.ceil(event.end_sec-event.start_sec))));
+  }
+ }
+ function moveEvent(direction){
+  const list=events();
+  if(!list.length)return;
+  const origin=cursor>=0?cursor:(direction>0?-1:total());
+  let index;
+  if(direction>0){
+   index=list.findIndex(e=>Number(e.start_sec)>origin);
+   if(index<0)index=list.length-1;
+  }else{
+   index=list.length-1;
+   while(index>0&&Number(list[index].start_sec)>=origin)index--;
+  }
+  playEvent(index);
  }
  for(const zoom of document.querySelectorAll("[data-sleep-zoom]")){
   zoom.onclick=()=>{if(!result)return;
@@ -216,27 +305,98 @@
  }
  $("sleepPreviousWindow").onclick=()=>moveSpan(-1);
  $("sleepNextWindow").onclick=()=>moveSpan(1);
- canvas.addEventListener("click",evt=>{
-  if(!result)return;
-  const rect=canvas.getBoundingClientRect(),left=36,right=Math.max(37,rect.width-10);
-  const x=clamp(evt.clientX-rect.left,left,right);
-  const sec=windowStart+(x-left)/(right-left)*windowSpan;
-  setCursor(sec);
- });
- $("sleepPlaySelection").onclick=()=>{
-  if(!result||cursor<0)return;
-  if(!window.BodyTraceNative?.sleepPlay)return;
-  window.BodyTraceNative.sleepPlay(result.id,Math.max(0,cursor-3),15);
- };
+ $("sleepPlaySelection").onclick=playFromCursor;
  $("sleepFocusSelection").onclick=()=>{if(cursor>=0)setSpan(Math.min(600,total()),cursor);};
+ $("sleepPreviousEvent").onclick=()=>moveEvent(-1);
+ $("sleepNextEvent").onclick=()=>moveEvent(1);
+ $("sleepSkipQuiet").addEventListener("change",()=>{
+  $("sleepPlaybackStatus").textContent=$("sleepSkipQuiet").checked?
+   "已启用跳过安静段：只连播满足阈值、持续时间、空隙规则的片段":
+   "普通播放：从游标位置连续播放原录音";
+ });
+ // Pointer Events work in Android WebView and on desktop; avoid the native
+ // scroll handler competing with pinch/drag (CSS touch-action:none).
+ function localX(evt){return evt.clientX-canvas.getBoundingClientRect().left;}
+ function resetGesture(){
+  const pts=[...pointers.values()];
+  if(pts.length===1)gesture={kind:"pan",x:pts[0].x,start:windowStart,moved:false};
+  else if(pts.length>=2){
+   const dist=Math.max(1,Math.abs(pts[0].x-pts[1].x));
+   const mid=(pts[0].x+pts[1].x)/2;
+   gesture={kind:"pinch",dist,span:windowSpan,anchor:secAt(mid),moved:true};
+  }else gesture=null;
+ }
+ canvas.addEventListener("pointerdown",evt=>{
+  if(!result)return;
+  canvas.setPointerCapture?.(evt.pointerId);
+  pointers.set(evt.pointerId,{x:localX(evt),y:evt.clientY});
+  if(pointers.size>=2)gestureHadMultiple=true;
+  resetGesture();
+ });
+ canvas.addEventListener("pointermove",evt=>{
+  if(!pointers.has(evt.pointerId)||!result)return;
+  const p=pointers.get(evt.pointerId);
+  p.x=localX(evt);p.y=evt.clientY;
+  if(!gesture)return;
+  if(pointers.size>=2&&gesture.kind==="pinch"){
+   const pts=[...pointers.values()];
+   const mid=(pts[0].x+pts[1].x)/2;
+   const dist=Math.max(1,Math.abs(pts[0].x-pts[1].x));
+   const {left,plotWidth}=plotSize();
+   windowSpan=clamp(gesture.span*gesture.dist/dist,5,total());
+   windowStart=clamp(gesture.anchor-(mid-left)/plotWidth*windowSpan,
+    0,Math.max(0,total()-windowSpan));
+   schedule();
+  }else if(pointers.size===1&&gesture.kind==="pan"){
+   const dx=p.x-gesture.x;
+   if(Math.abs(dx)>=6)gesture.moved=true;
+   if(gesture.moved){
+    windowStart=clamp(gesture.start-dx/plotSize().plotWidth*windowSpan,
+     0,Math.max(0,total()-windowSpan));
+    schedule();
+   }
+  }
+ });
+ function pointerFinish(evt,cancelled){
+  const p=pointers.get(evt.pointerId);
+  if(!p)return;
+  const tapped=!cancelled&&!gestureHadMultiple&&pointers.size===1&&
+   gesture?.kind==="pan"&&!gesture.moved;
+  pointers.delete(evt.pointerId);
+  if(tapped){
+   const sec=secAt(localX(evt)),now=Date.now(),x=localX(evt);
+   if(now-lastTap.at<320&&Math.abs(x-lastTap.x)<32){
+    setSpan(Math.max(30,windowSpan/2),sec);
+    lastTap.at=0;
+   }else{showCursor(sec);lastTap={at:now,x};}
+  }
+  resetGesture();
+  if(!pointers.size)gestureHadMultiple=false;
+ }
+ canvas.addEventListener("pointerup",evt=>pointerFinish(evt,false));
+ canvas.addEventListener("pointercancel",evt=>pointerFinish(evt,true));
+ canvas.addEventListener("lostpointercapture",evt=>{
+  if(pointers.has(evt.pointerId))pointerFinish(evt,true);
+ });
+ canvas.addEventListener("wheel",evt=>{
+  if(!result)return;
+  evt.preventDefault();
+  const sec=secAt(localX(evt)),{left,plotWidth}=plotSize();
+  const span=clamp(windowSpan*(evt.deltaY>0?1.2:1/1.2),5,total());
+  windowStart=clamp(sec-(localX(evt)-left)/plotWidth*span,
+   0,Math.max(0,total()-span));
+  windowSpan=span;schedule();
+ },{passive:false});
  window.BodyTraceSleepVisual={
   focus(start,end){
    if(!result)return;
    const mid=(Number(start)+Number(end))/2;
-   setCursor(mid);
-   setSpan(Math.min(600,total()),mid);
-   panel.scrollIntoView({behavior:"smooth",block:"nearest"});
+   showCursor(mid);setSpan(Math.min(600,total()),mid);
+   panel.scrollIntoView?.({behavior:"smooth",block:"nearest"});
   },
+  refreshFilters,
+  setCursor:showCursor,
+  playFromCursor,playEvent,
   state:()=>({id:result?.id||"",seconds:total(),start:windowStart,
    span:windowSpan,cursor,events:events().length})
  };
@@ -244,7 +404,11 @@
  window.bodyTraceReceive=function(evt){
   if(typeof priorReceive==="function")priorReceive(evt);
   if(evt?.type==="sleep_analysis")update(evt);
-  else if(evt?.type==="sleep_status"&&!Array.isArray(evt?.sessions))update(null);
+  else if(evt?.type==="sleep_playback"){
+   if(evt.playing&&evt.id===result?.id&&Number.isFinite(Number(evt.start_sec))){
+    showCursor(Number(evt.start_sec));
+   }
+  }else if(evt?.type==="sleep_status"&&!Array.isArray(evt?.sessions))update(null);
  };
  if(typeof ResizeObserver==="function")new ResizeObserver(schedule).observe(canvas);
  else window.addEventListener("resize",schedule);
