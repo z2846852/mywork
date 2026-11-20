@@ -230,10 +230,10 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
    <button type="button" class="secondary" id="sleepStop" disabled>停止并保存</button>
   </div>
   <div class="sleep-import-actions">
-   <button type="button" class="secondary" id="sleepImport">导入本机录音（MP3 / M4A / WAV 等）</button>
+   <button type="button" class="secondary" id="sleepImport">选择本机音频（不复制原文件）</button>
    <label class="sub" for="sleepImportStarted">原始录音开始时间（可选）</label>
    <input type="datetime-local" id="sleepImportStarted">
-   <p class="sub">选择系统文件后复制到 APP 私有空间，可分析过去录下的8小时音频。未填写原始录音开始时间，则事件按相对录音时长显示，不伪造绝对时钟时间；导入不会访问其他文件。</p>
+   <p class="sub">选择系统文件后，只保存该文件的只读授权和引用，不会复制 400 MB 原音频。首次导入自动解析生成本地波形缓存，之后打开图表、调阈值无需重新解码；点击波形或声音事件将跳到原始 M4A 对应时间播放。未填写录制开始时间则显示相对时间。原文件移动、删除或访问权限失效后，缓存图表仍可查看，但无法回听。</p>
    <p id="sleepImportStatus" class="sub" role="status"></p>
   </div>
   <p class="sub">请先打开 APP 点击开始，再锁屏。必须授权麦克风；Android 13+ 可授权通知便于从锁屏通知停止。部分手机需要允许后台活动、关闭该 APP 的省电限制；系统异常终止仍可能中断录音。</p>
@@ -255,7 +255,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <input id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="1">
    </div>
   </div>
-  <p class="sub">按秒计算 RMS 和峰值包络。最短时长累计真正超过阈值的秒数；中间允许短暂停顿。首次处理 8 小时音频需要逐样本解码；后台分析会在通知栏显示进度，锁屏后继续处理（部分手机需允许后台活动）。完成后波形和筛选数据缓存在本机，后续调整阈值无需重新解码。所有音频与分析仅留在手机。</p>
+  <p class="sub">按秒计算 RMS 和峰值包络。最短时长累计真正超过阈值的秒数；中间允许短暂停顿。首次分析会在通知栏显示进度，锁屏后继续处理（部分手机需允许后台活动）。波形缓存长期保存在手机 App 内；以后打开、重新筛选无需重复读取完整音频。导入的原 M4A 始终留在原位置，移出列表只清除 App 的引用和图表。</p>
   <div class="sleep-selected" id="sleepSelected">请从下方选择一个已完成的录音</div>
   <div class="sleep-visualization" id="sleepVisualization" hidden>
    <div class="sleep-visual-head">
@@ -305,8 +305,8 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   </div>
  </div>
  <div class="panel">
-  <h2>本机录音历史</h2>
-  <p class="sub">选择某晚后，可以查看超过阈值的时间段并回听片段。请留意存储空间：24 kbps AAC 的 8 小时录音约 86 MB，具体以实际文件为准。</p>
+  <h2>音频与波形库</h2>
+  <p class="sub">引用的外部录音不复制、不修改源文件；“移出列表”仅清理 App 中的关联与缓存。App 自己录制的文件或旧版复制的导入副本可直接从此处清除，请注意这是不可恢复的 App 内文件删除。</p>
   <div id="sleepHistory" class="sleep-history"></div>
  </div>
 </section>

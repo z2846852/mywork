@@ -397,14 +397,34 @@ assert.ok(native.includes('readAsset("sleep_visualization.js")'));
 assert.ok(native.includes("Intent.ACTION_OPEN_DOCUMENT"));
 assert.ok(native.includes('choose.setType("audio/*")'));
 assert.ok(native.includes('PICK_SLEEP_AUDIO_REQUEST=7204'));
-assert.ok(native.includes('getContentResolver().openInputStream(uri)'));
-assert.ok(native.includes('byte[] block=new byte[65536]'));
-assert.ok(native.includes('length>SLEEP_IMPORT_MAX_BYTES'));
+assert.ok(native.includes('takePersistableUriPermission('),
+ "Import needs permanent read-only document grants");
+assert.ok(native.includes('extractor.setDataSource(this,uri,null)'),
+ "Import should inspect source metadata without copying");
+assert.ok(!native.includes('new FileOutputStream(dest)'),
+ "Imported M4A must never be copied into app private files");
+assert.ok(native.includes('getContentResolver().query(uri'));
+assert.ok(native.includes('knownSize>SLEEP_IMPORT_MAX_BYTES'));
 assert.ok(native.includes('reportedStart.trim()'));
 assert.ok(native.includes('.put("audio_extension",ext)'));
 assert.ok(native.includes('MediaExtractor extractor=new MediaExtractor()'));
 assert.ok(native.includes('"sleep_imported"'));
-assert.ok(native.includes('"sleep_import_progress"'));
+assert.ok(native.includes('msg.put("copied",false)'));
+assert.ok(native.includes('"sleep_removed"'));
+assert.ok(native.includes('SleepSessions.configurePlayer('));
+assert.ok(sleepStore.includes('configureExtractor('));
+assert.ok(sleepStore.includes('configurePlayer('));
+assert.ok(sleepStore.includes('source_uri'));
+assert.ok(sleepStore.includes('external_file'));
+assert.ok(sleepAnalysisService.includes('SleepAudioAnalyzer.decodeEnvelope('));
+assert.ok(sleepAnalyzer.includes('decodeEnvelope(Context context,JSONObject session,IntConsumer progress)'));
+assert.ok(sleepJS.includes('pendingAutoAnalyzeId'));
+assert.ok(sleepJS.includes('pendingRemoveId'));
+assert.ok(sleepJS.includes('if(!analysisStarting&&!loadingCachedId)') ||
+  sleepJS.includes('!analysisStarting&&!loadingCachedId'),
+ "Do not unlock Analyze button while loading cached envelope");
+assert.ok(sleepJS.includes('移出列表（保留原文件）'));
+assert.ok(html.includes('不复制 400 MB 原音频'));
 assert.ok(sleepStore.includes('static File importedAudio('));
 assert.ok(sleepStore.includes('"audio_extension"'));
 assert.ok(sleepStore.includes('"original_name","duration_ms"'));
@@ -828,3 +848,95 @@ removeFrom(confirmationRow).onclick();
 assert.equal(catalogContext.window.BodyTraceExerciseCatalog.getConfig().custom.length,0);
 assert.ok(!selectIds().includes(newId));
 console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/restore/delete actions, leg extension, body schematic, wheel and fixed Release signing.");
+
+
+// Sleep UX regression: an imported document is analyzed once, stale status
+// refreshes cannot reenable buttons, and cached waveforms require no second decode.
+{
+  const sleepNodes=new Map(), calls={decode:[],cached:[],delete:[]};
+  function node(tag="div"){
+    return {
+      tagName:tag, value:"",textContent:"",children:[],hidden:false,disabled:false,
+      classList:{add(){},remove(){},toggle(){}},
+      append(...items){this.children.push(...items)},
+      replaceChildren(){this.children=[]},
+      addEventListener(){},
+      focus(){}
+    };
+  }
+  const el=id=>{
+    if(!sleepNodes.has(id))sleepNodes.set(id,node());
+    return sleepNodes.get(id);
+  };
+  el("sleepThreshold").value="-40";
+  el("sleepMinSeconds").value="5";
+  el("sleepGapSeconds").value="1";
+  const sleepWindow={
+    bodyTraceReceive(){},
+    BodyTraceNative:{
+      sleepAnalyze(...args){calls.decode.push(args)},
+      sleepReadCached(...args){calls.cached.push(args)},
+      sleepDelete(id){calls.delete.push(id)},
+      sleepStatus(){}
+    }
+  };
+  const sleepContext={
+    window:sleepWindow,
+    document:{getElementById:el,createElement:node,querySelector:()=>node()},
+    toast(){}
+  };
+  vm.runInNewContext(sleepJS,sleepContext);
+  const input={id:"imported_doc",status:"completed",external_file:true,
+    source:"saf-document",duration_ms:28800000,bytes:419430400,
+    original_name:"8h.m4a",levels_cached:false,started_ms:1795090000000};
+  sleepWindow.bodyTraceReceive({type:"sleep_imported",id:input.id,bytes:input.bytes});
+  sleepWindow.bodyTraceReceive({type:"sleep_status",recording:false,
+    analysis_running:false,sessions:[input]});
+  assert.equal(calls.decode.length,1,"Import should start first analysis automatically");
+  assert.equal(el("sleepAnalyze").disabled,true);
+  sleepWindow.bodyTraceReceive({type:"sleep_status",recording:false,
+    analysis_running:false,sessions:[input]});
+  assert.equal(calls.decode.length,1,"Queued status must not restart analysis");
+  assert.equal(el("sleepAnalyze").disabled,true,"Stale status must not unlock button");
+  sleepWindow.bodyTraceReceive({type:"sleep_analysis_progress",
+    id:input.id,percent:7,updated_ms:1795090000000});
+  assert.equal(el("sleepAnalysisTrack").value,7);
+  assert.equal(el("sleepAnalysisProgress").hidden,false);
+  sleepWindow.bodyTraceReceive({type:"sleep_status",recording:false,
+    analysis_running:true,analysis_id:input.id,analysis_percent:9,sessions:[input]});
+  assert.equal(el("sleepAnalyze").disabled,true);
+  // The service finished while the UI missed its tiny completion broadcast;
+  // status + saved envelope must recover the chart without re-decoding M4A.
+  const cached={...input,levels_cached:true};
+  sleepWindow.bodyTraceReceive({type:"sleep_status",recording:false,
+    analysis_running:false,sessions:[cached]});
+  assert.equal(calls.cached.length,1,"Completed envelope should load from local cache");
+  assert.equal(calls.decode.length,1,"Do not re-decode after completed work");
+  assert.equal(el("sleepAnalyze").disabled,true,"Cache read should lock the button");
+  sleepWindow.bodyTraceReceive({type:"sleep_status",recording:false,
+    analysis_running:false,sessions:[cached]});
+  assert.equal(calls.cached.length,1,"Concurrent status must not duplicate cache fetch");
+  assert.equal(el("sleepAnalyze").disabled,true);
+  const results={type:"sleep_analysis",id:input.id,started_ms:1795090000000,
+    total_seconds:2,threshold_dbfs:-40,minimum_seconds:5,
+    events:[],levels_dbfs:[-50,-20],peak_levels_dbfs:[-43,-10]};
+  sleepWindow.bodyTraceReceive(results);
+  assert.equal(el("sleepAnalysisProgress").hidden,true);
+  assert.match(el("sleepAnalyze").textContent,/已生成波形/);
+  el("sleepAnalyze").onclick();
+  assert.equal(calls.cached.length,2,"Refilter must reuse the local envelope");
+  assert.equal(calls.decode.length,1);
+  assert.equal(el("sleepAnalyze").disabled,true);
+  sleepWindow.bodyTraceReceive(results);
+  // External removal is a two-tap confirmation and never a content-URI delete.
+  function deleteControl(){
+    const card=el("sleepHistory").children[0];
+    return card.children.at(-1).children[1];
+  }
+  assert.match(deleteControl().textContent,/保留原文件/);
+  deleteControl().onclick();
+  assert.match(deleteControl().textContent,/确认移出/);
+  deleteControl().onclick();
+  assert.deepEqual(calls.delete,["imported_doc"]);
+  console.log("Sleep UX tests passed: zero-copy auto analysis, status race, cache recovery and safe removal.");
+}
