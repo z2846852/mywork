@@ -10,6 +10,9 @@
  let analysisStarting=false;
  let loadingCachedId="";
  let completedAnalysisId="";
+ let importing=false;
+ let pendingAutoAnalyzeId="";
+ let pendingRemoveId="";
  function updateAnalysisProgress(percent,updatedMs){
   const raw=Number(percent);
   const pct=Number.isFinite(raw)?Math.max(0,Math.min(100,Math.floor(raw))):0;
@@ -49,13 +52,13 @@
  }
  function readCachedIfAvailable(id){
   const target=sessions.find(s=>s.id===id);
-  if(busy||loadingCachedId||!target?.levels_cached||!bridge()?.sleepReadCached)return;
+  if(busy||loadingCachedId||analysis?.id===id||!target?.levels_cached||!bridge()?.sleepReadCached)return;
   loadingCachedId=id;
   bridge().sleepReadCached(id,Number($("sleepThreshold").value),
    Number($("sleepMinSeconds").value),Number($("sleepGapSeconds").value));
  }
  function selectSession(id){
-  if(busy&&id!==selectedId){
+  if((busy||loadingCachedId)&&id!==selectedId){
    toast("已有整晚录音正在后台分析，完成后可切换",true);return;
   }
   if(selectedId!==id)analysis=null;
@@ -71,9 +74,13 @@
   $("sleepStatus").classList.toggle("sleep-live",recording);
   $("sleepStart").disabled=recording||busy;
   $("sleepStop").disabled=!recording;
+  $("sleepImport").disabled=importing||busy;
+  $("sleepImport").textContent=importing?"正在读取文件信息…":"选择本机音频（不复制原文件）";
   const chosen=current();
-  $("sleepAnalyze").disabled=!chosen||recording||busy||
+  $("sleepAnalyze").disabled=!chosen||recording||busy||!!loadingCachedId||
    !(chosen.status==="completed"||chosen.status==="interrupted");
+  $("sleepAnalyze").textContent=busy?(loadingCachedId?"正在加载波形缓存…":"正在后台分析，请查看进度"):
+   chosen?.levels_cached?"✓ 已生成波形 · 重新筛选":"首次分析并生成波形";
   $("sleepSelected").textContent=chosen?
    "已选："+(chosen.date_basis==="imported_at"?"导入录音（未知录制起始日期）":
     time(chosen.started_ms))+" · "+statusText(chosen.status):
@@ -94,11 +101,13 @@
    const extra=document.createElement("div");extra.className="sub";
    const millis=Number(item.duration_ms)>0?Number(item.duration_ms):
     (item.ended_ms||Date.now())-item.started_ms;
-   extra.textContent=(item.source==="imported-audio"?"本机导入 · ":"")+
+   const sourceLabel=item.external_file?"引用原文件 · 不占用音频副本空间":
+    item.source==="imported-audio"?"旧版导入副本":"APP 内录制";
+   extra.textContent=sourceLabel+" · "+
     (item.original_name?item.original_name+" · ":"")+
     "时长 "+duration(millis/1000)+" · "+
-     ((Number(item.bytes)||0)/1048576).toFixed(1)+" MB"+
-     (item.levels_cached?" · 已有音量分析":"");
+     ((Number(item.bytes)||0)/1048576).toFixed(1)+" MB（音频大小）"+
+     (item.levels_cached?" · ✓ 波形已缓存":" · 未解析");
    card.append(title,extra);
    if(item.error){
     const err=document.createElement("p");err.className="sleep-error";
@@ -113,11 +122,21 @@
    if(!recording&&item.status!=="recording"){
     const del=document.createElement("button");
     del.type="button";del.className="mini danger-soft";
-    del.textContent=pendingDelete===item.id?"再次点击确认删除":"删除本机录音";
+    const external=!!item.external_file;
+    const ownedCopy=item.source==="imported-audio";
+    del.textContent=pendingRemoveId===item.id?"正在移除…":
+     pendingDelete===item.id?
+       (external?"确认移出（不删原件）":"确认清除 APP 内文件"):
+       external?"移出列表（保留原文件）":
+       ownedCopy?"清除导入副本":"删除 APP 录音";
+    del.disabled=pendingRemoveId===item.id||!!runningAnalysisId&&
+     runningAnalysisId===item.id&&busy;
     del.onclick=()=>{
-     if(pendingDelete!==item.id){pendingDelete=item.id;render();return;}
-     pendingDelete="";
-     if(!bridge()?.sleepDelete){toast("请安装支持删除录音的版本",true);return;}
+     if(pendingDelete!==item.id){
+      pendingDelete=item.id;render();return;
+     }
+     if(!bridge()?.sleepDelete){toast("请安装支持移除录音的版本",true);return;}
+     pendingRemoveId=item.id;render();
      bridge().sleepDelete(item.id);
     };
     actions.append(del);
@@ -210,9 +229,11 @@
  for(const field of ["sleepThreshold","sleepMinSeconds","sleepGapSeconds"])
   $(field).addEventListener("change",()=>{if(analysis&&selectedId)analyze();});
  $("sleepImport").onclick=()=>{
-  if(recording||busy){toast("请先完成当前录音或分析",true);return;}
+  if(recording||busy||importing){toast("请先完成当前录音或分析",true);return;}
   if(!bridge()?.sleepImport){toast("请安装支持导入录音的新版 APK",true);return;}
-  $("sleepImportStatus").textContent="请选择已有录音文件；会复制到 APP 私有空间，不删除原文件。";
+  importing=true;
+  $("sleepImportStatus").textContent="请选择原始 M4A；仅授权读取，不会复制、移动或删除原文件。";
+  render();
   bridge().sleepImport($("sleepImportStarted").value||"");
  };
  $("sleepStart").onclick=()=>{
@@ -240,35 +261,59 @@
   if(evt.type==="sleep_status"){
    recording=!!evt.recording;
    sessions=Array.isArray(evt.sessions)?evt.sessions:[];
-   if(evt.analysis_running&&evt.analysis_id&&evt.analysis_id!==completedAnalysisId){
+   // Status responses may have been queued BEFORE the user pressed Analyze.
+   // Never unlock the button while startup, cache-read, or background decode is pending.
+   const running=!!evt.analysis_running&&!!evt.analysis_id;
+   if(running&&!(evt.analysis_id===completedAnalysisId&&analysis?.id===evt.analysis_id)){
     if(selectedId!==evt.analysis_id)analysis=null;
     selectedId=evt.analysis_id;
     runningAnalysisId=evt.analysis_id;
     analysisStarting=false;
     busy=true;
     updateAnalysisProgress(evt.analysis_percent,Date.now());
-   }else if(!analysisStarting){
+   }else if(!analysisStarting&&!loadingCachedId){
     busy=false;
     clearAnalysisProgress();
    }
-   if(!sessions.some(s=>s.id===selectedId)){
-    selectedId=sessions.find(s=>s.status==="completed"||s.status==="interrupted")?.id||"";
+   if(pendingAutoAnalyzeId&&sessions.some(x=>x.id===pendingAutoAnalyzeId)){
+    selectedId=pendingAutoAnalyzeId;
     analysis=null;
    }
-   pendingDelete="";render();
-   if(!busy&&!analysis&&selectedId)readCachedIfAvailable(selectedId);
+   if(!sessions.some(x=>x.id===selectedId)){
+    selectedId=sessions.find(x=>x.status==="completed"||x.status==="interrupted")?.id||"";
+    analysis=null;
+   }
+   render();
+   if(pendingAutoAnalyzeId&&selectedId===pendingAutoAnalyzeId&&!busy){
+    pendingAutoAnalyzeId="";
+    if(current()?.levels_cached)readCachedIfAvailable(selectedId);
+    else analyze();
+   }else if(!busy&&!analysis&&selectedId)readCachedIfAvailable(selectedId);
   }else if(evt.type==="sleep_analysis"){
    busy=false;analysisStarting=false;loadingCachedId="";
    completedAnalysisId=evt.id||selectedId;
    clearAnalysisProgress();
    selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
    render();
-  }else if(evt.type==="sleep_import_progress"){
-   $("sleepImportStatus").textContent="正在复制到本机："+evt.percent+"%";
   }else if(evt.type==="sleep_imported"){
-   $("sleepImportStatus").textContent="已导入 "+(Number(evt.bytes)/1048576).toFixed(1)+" MB，可选择记录后分析。";
+   importing=false;
+   pendingAutoAnalyzeId=evt.id||"";
+   $("sleepImportStatus").textContent=evt.already_exists?
+    "这个音频已经关联过，正在打开已有波形，不会创建重复记录。":
+    "已授权引用原文件（不复制音频）。自动生成波形；以后可直接查看和回听。";
+   render();
   }else if(evt.type==="sleep_import_cancelled"){
-   $("sleepImportStatus").textContent="已取消导入，未修改本机数据。";
+   importing=false;
+   $("sleepImportStatus").textContent="已取消选择；没有复制、删除或修改音频。";
+   render();
+  }else if(evt.type==="sleep_removed"){
+   pendingRemoveId="";pendingDelete="";
+   if(evt.id===selectedId){analysis=null;loadingCachedId="";}
+   toast(evt.original_preserved?"已移出列表，手机原文件未改变":"已移除 APP 内文件和分析数据");
+   render();
+  }else if(evt.type==="sleep_import_progress"){
+   // Backward compatibility with a pending old-version import.
+   $("sleepImportStatus").textContent="正在处理旧版音频："+evt.percent+"%";
   }else if(evt.type==="sleep_analysis_progress"){
    if(evt.id&&runningAnalysisId&&evt.id!==runningAnalysisId)return;
    analysisStarting=false;
@@ -279,6 +324,7 @@
    $("sleepAnalyze").disabled=true;
   }else if(evt.type==="error"&&/睡眠|录音|片段/.test(evt.message||"")){
    busy=false;analysisStarting=false;loadingCachedId="";
+   importing=false;pendingRemoveId="";
    clearAnalysisProgress();render();
   }
  };
