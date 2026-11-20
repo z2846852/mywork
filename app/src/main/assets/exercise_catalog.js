@@ -113,6 +113,10 @@ function rebuild(rows,keepSelection=true){
 }
 function commit(){
   rebuild(state.rows);
+  // Recompute dashboard labels, quadrants and trends immediately, even
+  // offline. Native saveCatalog persists to local JSON and GitHub on sync.
+  indexData();
+  if(typeof window.BodyTraceRenderFeatures==="function")window.BodyTraceRenderFeatures();
   if(window.BodyTraceNative?.saveCatalog){
    BodyTraceNative.saveCatalog(JSON.stringify(config));
   }else{
@@ -185,10 +189,27 @@ $("recordSortMode").addEventListener("change",e=>{
   // Changing sort must not unexpectedly change the selected action.
   recordExerciseTouched=true;commit();
  });
- $("manageExercises").onclick=()=>{
+ function openManager(focusAdd){
   $("exerciseManager").hidden=false;
+  deleteConfirmId="";
   renderManager();
- };
+  if(focusAdd){
+   const chosen=$("recordGroup").value;
+   if(["胸","肩","背","腿","其他"].includes(chosen))$("customActionRegion").value=chosen;
+   $("customActionName").focus();
+  }else{
+   // Jump to the currently selected movement, avoiding a full catalog scan
+   // on a small phone when hiding or deleting one exercise.
+   const target=$("recordExercise").value;
+   const row=[...$("exerciseManageList").children].find(x=>x.dataset.exerciseId===target);
+   if(row){
+    row.classList.add("exercise-manage-highlight");
+    row.scrollIntoView({block:"nearest"});
+   }
+  }
+ }
+ $("quickAddExercise").onclick=()=>openManager(true);
+ $("manageExercises").onclick=()=>openManager(false);
  $("closeExerciseManager").onclick=()=>{
   $("exerciseManager").hidden=true;deleteConfirmId="";
  };
@@ -209,12 +230,12 @@ $("recordSortMode").addEventListener("change",e=>{
   deleteConfirmId="";
   recordExerciseTouched=true;
   // Select the new action within its assigned muscle group.
-  $("recordGroup").value=region;
+  $("recordGroup").value=overviewGroup(region);
   rebuild(state.rows,false);
   $("recordExercise").value=id;
   refreshExerciseRecommendation(true);
   commit();
-  toast("动作已新增，历史数据不受影响");
+  toast("动作已新增并选中；可以直接填写重量、次数。图表在保存训练后更新");
  };
  window.BodyTraceExerciseCatalog={
   refresh(rows){rebuild(rows,true)},
