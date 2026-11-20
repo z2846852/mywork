@@ -1347,16 +1347,31 @@ public final class MainActivity extends Activity {
                     if(!audio.isFile()||audio.length()<1024)
                         throw new IllegalStateException("录音文件不可用");
                     JSONArray levels=session.optJSONArray("levels_dbfs");
-                    if(levels==null){
-                        levels=SleepAudioAnalyzer.decodeLevels(audio);
+                    JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
+                    if(levels==null || peaks==null || peaks.length()!=levels.length()){
+                        JSONObject envelope=SleepAudioAnalyzer.decodeEnvelope(audio,percent->{
+                            try{
+                                JSONObject update=message("sleep_analysis_progress");
+                                update.put("id",sessionId).put("percent",percent);
+                                reply(update);
+                            }catch(Exception ignored){}
+                        });
+                        levels=envelope.getJSONArray("rms_dbfs");
+                        peaks=envelope.getJSONArray("peak_dbfs");
                         session.put("levels_dbfs",levels);
+                        session.put("peak_levels_dbfs",peaks);
+                        session.put("duration_ms",(long)levels.length()*1000L);
                         SleepSessions.write(MainActivity.this,session);
                     }
                     JSONArray events=SleepAudioAnalyzer.detect(levels,threshold,seconds,gap);
                     JSONObject answer=message("sleep_analysis");
                     answer.put("id",sessionId);
                     answer.put("started_ms",session.optLong("started_ms"));
+                    answer.put("date_basis",session.optString("date_basis","recorded_at"));
+                    answer.put("original_name",session.optString("original_name",""));
                     answer.put("total_seconds",levels.length());
+                    answer.put("levels_dbfs",levels);
+                    answer.put("peak_levels_dbfs",peaks);
                     answer.put("threshold_dbfs",threshold);
                     answer.put("minimum_seconds",seconds);
                     answer.put("gap_seconds",gap);
