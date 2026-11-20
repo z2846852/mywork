@@ -169,13 +169,13 @@ public final class SleepAnalysisService extends Service {
             decodeWakeLock.acquire(3L*60*60*1000);
             publishProgress(id,0);
             JSONObject session=SleepSessions.load(this,id);
-            File audio=SleepSessions.audio(this,id);
-            if(!audio.isFile()||audio.length()<1024)
-                throw new IllegalStateException("录音文件不可用");
+            // Cache is valid without the original file. Only a cache miss
+            // requires reading the persisted external document or local audio.
             JSONArray levels=session.optJSONArray("levels_dbfs");
             JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
             if(levels==null||peaks==null||peaks.length()!=levels.length()){
-                JSONObject envelope=SleepAudioAnalyzer.decodeEnvelope(audio,pct->publishProgress(id,pct));
+                JSONObject envelope=SleepAudioAnalyzer.decodeEnvelope(
+                    this,session,pct->publishProgress(id,pct));
                 levels=envelope.getJSONArray("rms_dbfs");
                 peaks=envelope.getJSONArray("peak_dbfs");
                 session.put("levels_dbfs",levels);
