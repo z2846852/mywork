@@ -50,8 +50,12 @@ final class SleepSessions {
         if (!file.isFile() || file.length() > 3_000_000)
             throw new IllegalArgumentException("睡眠记录不存在或损坏");
         byte[] bytes;
-        try (FileInputStream in = new FileInputStream(file)) {
-            bytes = in.readAllBytes();
+        try (FileInputStream in = new FileInputStream(file);
+             java.io.ByteArrayOutputStream output=new java.io.ByteArrayOutputStream()) {
+            byte[] buffer=new byte[4096];
+            int n;
+            while((n=in.read(buffer))!=-1) output.write(buffer,0,n);
+            bytes=output.toByteArray();
         }
         JSONObject session = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
         if (!id.equals(session.optString("id"))) throw new IllegalStateException("睡眠 ID 不一致");
