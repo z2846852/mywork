@@ -226,6 +226,51 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <div id="regionSummary"></div></div>
 </section>
 
+<section class="page" id="page-sleep">
+ <div class="panel sleep-recording-panel">
+  <div class="eyebrow">SLEEP / LOCAL AUDIO</div>
+  <h2>睡眠声音记录</h2>
+  <p class="sub">点击开始后，锁屏继续录制 AAC 音频；通知栏可停止。录音仅保存在此手机，不上传 GitHub，也不自动判断睡眠阶段或诊断打鼾。</p>
+  <div class="sleep-status" id="sleepStatus" role="status">正在读取本地录音状态…</div>
+  <div class="row wrap sleep-actions">
+   <button type="button" class="primary" id="sleepStart">开始睡眠录音</button>
+   <button type="button" class="secondary" id="sleepStop" disabled>停止并保存</button>
+  </div>
+  <p class="sub">请先打开 APP 点击开始，再锁屏。必须授权麦克风；Android 13+ 可授权通知便于从锁屏通知停止。部分手机需要允许后台活动、关闭该 APP 的省电限制；系统异常终止仍可能中断录音。</p>
+ </div>
+ <div class="panel">
+  <h2>筛选声音片段</h2>
+  <p class="sub">阈值采用 <b>dBFS 数字音量</b>，不是经声学校准的环境 dB SPL。默认 -40 dBFS 不代表真实声压 40 dB；可根据录音调节。</p>
+  <div class="field">
+   <label for="sleepThreshold">RMS 音量阈值：<strong id="sleepThresholdText">-40 dBFS</strong></label>
+   <input id="sleepThreshold" type="range" min="-90" max="-5" step="5" value="-40">
+  </div>
+  <div class="formgrid">
+   <div class="field">
+    <label for="sleepMinSeconds">至少超过阈值（秒）</label>
+    <input id="sleepMinSeconds" type="number" inputmode="numeric" min="1" max="120" step="1" value="5">
+   </div>
+   <div class="field">
+    <label for="sleepGapSeconds">允许短暂间断（秒）</label>
+    <input id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="1">
+   </div>
+  </div>
+  <p class="sub">每秒计算一次 RMS 音量。最短时长只累计真正超过阈值的秒数，间断部分不计数。停止录音后首次分析需要解码，后续调整参数可复用本地音量数据。</p>
+  <div class="sleep-selected" id="sleepSelected">请从下方选择一个已完成的录音</div>
+  <button type="button" class="primary" id="sleepAnalyze" disabled>分析所选录音</button>
+  <div id="sleepAnalysis" class="sleep-analysis" aria-live="polite"></div>
+  <div class="row wrap" style="margin-top:12px">
+   <button type="button" id="sleepStopPlayback" class="secondary mini">停止播放片段</button>
+   <button type="button" id="sleepRefresh" class="secondary mini">刷新录音记录</button>
+  </div>
+ </div>
+ <div class="panel">
+  <h2>本机录音历史</h2>
+  <p class="sub">选择某晚后，可以查看超过阈值的时间段并回听片段。请留意存储空间：24 kbps AAC 的 8 小时录音约 86 MB，具体以实际文件为准。</p>
+  <div id="sleepHistory" class="sleep-history"></div>
+ </div>
+</section>
+
 <section class="page" id="page-body">
 <div class="panel panel-avatar">
  <div class="eyebrow">BODY / MUSCLE TARGETS</div>
@@ -313,6 +358,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <button data-page="raw"><span class="ico">✎</span>Raw</button>
 <button data-page="nutrition"><span class="ico">▤</span>饮食</button>
 <button data-page="analytics"><span class="ico">▥</span>趋势</button>
+<button data-page="sleep"><span class="ico">☾</span>睡眠</button>
 <button data-page="body"><span class="ico">◉</span>身体</button>
 <button data-page="settings"><span class="ico">≡</span>日志</button>
 </nav><div id="toast" role="status"></div>
