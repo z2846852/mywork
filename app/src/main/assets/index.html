@@ -290,6 +290,14 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
    <p id="sleepVisualCaveat" class="sub">仅分析响度，不能识别打鼾、呼吸暂停或睡眠分期；风扇和讲话也可能触发。</p>
   </div>
   <button type="button" class="primary" id="sleepAnalyze" disabled>分析所选录音</button>
+  <div id="sleepAnalysisProgress" class="sleep-analysis-progress" hidden role="status" aria-live="off">
+   <div class="sleep-progress-header">
+    <span><i class="sleep-progress-pulse" aria-hidden="true"></i> 正在后台解析音频</span>
+    <strong id="sleepAnalysisPercent">0%</strong>
+   </div>
+   <progress id="sleepAnalysisTrack" max="100" value="0" aria-label="整晚录音分析进度"></progress>
+   <p class="sub" id="sleepAnalysisStage">可以锁屏或切换 APP；通知栏持续显示进度。</p>
+  </div>
   <div id="sleepAnalysis" class="sleep-analysis" aria-live="polite"></div>
   <div class="row wrap" style="margin-top:12px">
    <button type="button" id="sleepStopPlayback" class="secondary mini">停止播放片段</button>
