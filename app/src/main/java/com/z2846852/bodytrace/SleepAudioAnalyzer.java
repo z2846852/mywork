@@ -1,6 +1,7 @@
 package com.z2846852.bodytrace;
 
 import android.media.AudioFormat;
+import android.content.Context;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
@@ -29,14 +30,28 @@ final class SleepAudioAnalyzer {
     }
 
     static JSONObject decodeEnvelope(File input,IntConsumer progress) throws Exception {
-        if(!input.isFile()||input.length()<1024)
+        return decodeEnvelopeInternal(null,null,input,progress);
+    }
+
+    static JSONObject decodeEnvelope(Context context,JSONObject session,IntConsumer progress)
+            throws Exception {
+        return decodeEnvelopeInternal(context,session,null,progress);
+    }
+
+    private static JSONObject decodeEnvelopeInternal(Context context,JSONObject session,
+            File input,IntConsumer progress) throws Exception {
+        if(input!=null&&(!input.isFile()||input.length()<1024))
             throw new IllegalArgumentException("录音文件不存在或为空");
         MediaExtractor extractor=new MediaExtractor();
         MediaCodec decoder=null;
         ArrayList<Double> levels=new ArrayList<>();
         ArrayList<Double> peaks=new ArrayList<>();
         try {
-            extractor.setDataSource(input.getAbsolutePath());
+            if(session!=null){
+                SleepSessions.configureExtractor(context,session,extractor);
+            }else{
+                extractor.setDataSource(input.getAbsolutePath());
+            }
             int track=-1;MediaFormat format=null;
             for(int i=0;i<extractor.getTrackCount();i++){
                 MediaFormat candidate=extractor.getTrackFormat(i);
