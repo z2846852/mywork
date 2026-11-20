@@ -76,6 +76,47 @@ assert.ok(features.includes("for(const group of groups)"));
 assert.ok(features.includes("musclePaths")&&features.includes("drawMuscleMap()"));
 assert.ok(native.includes('readAsset("wheel.js")')&&!native.includes('readAsset("avatar_morph.js")'));
 const manifest=fs.readFileSync(path.join(root,"app/src/main/AndroidManifest.xml"),"utf8");
+
+const sleepJS=fs.readFileSync(path.join(root,"app/src/main/assets/sleep.js"),"utf8");
+new vm.Script(sleepJS,{filename:"sleep.js"});
+const sleepRecorder=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/SleepRecorderService.java"),"utf8");
+const sleepAnalyzer=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/SleepAudioAnalyzer.java"),"utf8");
+const sleepStore=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/SleepSessions.java"),"utf8");
+for(const field of ["page-sleep","sleepStart","sleepStop","sleepStatus",
+ "sleepHistory","sleepAnalyze","sleepThreshold","sleepMinSeconds",
+ "sleepGapSeconds","sleepAnalysis","sleepStopPlayback"]){
+ assert.ok(html.includes('id="'+field+'"'),"Missing sleep field "+field);
+}
+assert.ok(html.includes('data-page="sleep"'),"Sleep tab should be selectable");
+for(const perm of ["RECORD_AUDIO","FOREGROUND_SERVICE_MICROPHONE",
+ "FOREGROUND_SERVICE","WAKE_LOCK","POST_NOTIFICATIONS"]){
+ assert.ok(manifest.includes('android.permission.'+perm),"Missing permission "+perm);
+}
+assert.ok(manifest.includes('android:foregroundServiceType="microphone"'));
+assert.ok(manifest.includes('android:exported="false"'));
+assert.ok(native.includes('readAsset("sleep.js")'));
+for(const name of ["sleepStart()","sleepStop()","sleepStatus()","sleepAnalyze(",
+ "sleepPlay(","sleepStopPlayback()","sleepDelete("]){
+ assert.ok(native.includes(name),"Missing sleep native bridge "+name);
+}
+assert.ok(sleepRecorder.includes('startForeground(NOTIFICATION_ID,n,ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)'));
+assert.ok(sleepRecorder.includes('MediaRecorder.AudioEncoder.AAC'));
+assert.ok(sleepRecorder.includes('PowerManager.PARTIAL_WAKE_LOCK'));
+assert.ok(sleepRecorder.includes('START_NOT_STICKY'),"Microphone must be user initiated, not auto-restored");
+assert.ok(sleepAnalyzer.includes('MediaExtractor')&&sleepAnalyzer.includes('MediaCodec'));
+assert.ok(sleepAnalyzer.includes('Math.sqrt(squareSum/count)/32768.0'));
+assert.ok(sleepAnalyzer.includes('if(highCount>=minimum)'));
+assert.ok(sleepAnalyzer.includes('int maxGap'));
+assert.ok(sleepStore.includes('AtomicFile'),"Sessions must save atomically");
+assert.ok(sleepStore.includes('sleep_audio')&&sleepStore.includes('sleep_sessions'));
+assert.ok(!sleepStore.includes('mcp__GitHub__')&&!sleepJS.includes('GitHub'),
+ "Personal audio must not be uploaded to workout GitHub sync");
+assert.ok(sleepJS.includes('sleepPlay(analysis.id'));
+assert.ok(sleepJS.includes('window.bodyTraceReceive=function(evt)'));
+
 assert.ok(!manifest.includes('android.intent.action.SEND'),"No stale image-share registration in schematic-only App");
 assert.ok(native.includes("saveBatch(String batchJson)")&&native.includes("saveMeasurement(String measurementJson)"));
 assert.ok(features.includes("bodyEdited")&&features.includes("saveMeasurement("));
