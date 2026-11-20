@@ -8,6 +8,8 @@
  let eventLimit=80;
  let runningAnalysisId="";
  let analysisStarting=false;
+ let loadingCachedId="";
+ let completedAnalysisId="";
  function updateAnalysisProgress(percent,updatedMs){
   const raw=Number(percent);
   const pct=Number.isFinite(raw)?Math.max(0,Math.min(100,Math.floor(raw))):0;
@@ -45,6 +47,13 @@
  function current(){
   return sessions.find(s=>s.id===selectedId)||null;
  }
+ function readCachedIfAvailable(id){
+  const target=sessions.find(s=>s.id===id);
+  if(busy||loadingCachedId||!target?.levels_cached||!bridge()?.sleepReadCached)return;
+  loadingCachedId=id;
+  bridge().sleepReadCached(id,Number($("sleepThreshold").value),
+   Number($("sleepMinSeconds").value),Number($("sleepGapSeconds").value));
+ }
  function selectSession(id){
   if(busy&&id!==selectedId){
    toast("已有整晚录音正在后台分析，完成后可切换",true);return;
@@ -53,6 +62,7 @@
   selectedId=id;
   eventLimit=80;
   render();
+  readCachedIfAvailable(id);
  }
  function render(){
   $("sleepStatus").textContent=recording?
@@ -179,9 +189,18 @@
     !Number.isInteger(gap)||gap<0||gap>5){
    toast("最短持续时间限制1–120秒，间断时间限制0–5秒",true);return;
   }
+  if(current()?.levels_cached&&bridge()?.sleepReadCached){
+   // Changing thresholds requires only a quick rescan of cached 1s levels.
+   busy=true;loadingCachedId=selectedId;
+   $("sleepAnalyze").disabled=true;
+   $("sleepSelected").textContent="正在使用缓存重新筛选声音片段…";
+   bridge().sleepReadCached(selectedId,threshold,seconds,gap);
+   return;
+  }
   if(!bridge()?.sleepAnalyze){toast("当前 APK 不支持睡眠分析",true);return;}
   busy=true;
   analysisStarting=true;
+  completedAnalysisId="";
   runningAnalysisId=selectedId;
   $("sleepAnalyze").disabled=true;
   updateAnalysisProgress(0,Date.now());
@@ -221,7 +240,7 @@
   if(evt.type==="sleep_status"){
    recording=!!evt.recording;
    sessions=Array.isArray(evt.sessions)?evt.sessions:[];
-   if(evt.analysis_running&&evt.analysis_id){
+   if(evt.analysis_running&&evt.analysis_id&&evt.analysis_id!==completedAnalysisId){
     if(selectedId!==evt.analysis_id)analysis=null;
     selectedId=evt.analysis_id;
     runningAnalysisId=evt.analysis_id;
@@ -237,8 +256,11 @@
     analysis=null;
    }
    pendingDelete="";render();
+   if(!busy&&!analysis&&selectedId)readCachedIfAvailable(selectedId);
   }else if(evt.type==="sleep_analysis"){
-   busy=false;analysisStarting=false;clearAnalysisProgress();
+   busy=false;analysisStarting=false;loadingCachedId="";
+   completedAnalysisId=evt.id||selectedId;
+   clearAnalysisProgress();
    selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
    render();
   }else if(evt.type==="sleep_import_progress"){
@@ -250,12 +272,14 @@
   }else if(evt.type==="sleep_analysis_progress"){
    if(evt.id&&runningAnalysisId&&evt.id!==runningAnalysisId)return;
    analysisStarting=false;
+   completedAnalysisId="";
    busy=true;
    runningAnalysisId=evt.id||selectedId;
    updateAnalysisProgress(evt.percent,evt.updated_ms);
    $("sleepAnalyze").disabled=true;
   }else if(evt.type==="error"&&/睡眠|录音|片段/.test(evt.message||"")){
-   busy=false;analysisStarting=false;clearAnalysisProgress();render();
+   busy=false;analysisStarting=false;loadingCachedId="";
+   clearAnalysisProgress();render();
   }
  };
  updateThreshold();
