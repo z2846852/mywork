@@ -16,7 +16,7 @@
   return pad(Math.floor(t/3600))+":"+pad(Math.floor(t%3600/60))+":"+pad(t%60);
  };
  let result=null,windowStart=0,windowSpan=0,cursor=-1,paintPending=false;
- let lastTap={at:0,x:0},gesture=null;
+ let lastTap={at:0,x:0},gesture=null,gestureHadMultiple=false;
  const pointers=new Map();
  const total=()=>Array.isArray(result?.levels_dbfs)?result.levels_dbfs.length:0;
  const rms=()=>result?.levels_dbfs||[];
@@ -330,6 +330,7 @@
   if(!result)return;
   canvas.setPointerCapture?.(evt.pointerId);
   pointers.set(evt.pointerId,{x:localX(evt),y:evt.clientY});
+  if(pointers.size>=2)gestureHadMultiple=true;
   resetGesture();
  });
  canvas.addEventListener("pointermove",evt=>{
@@ -359,7 +360,8 @@
  function pointerFinish(evt,cancelled){
   const p=pointers.get(evt.pointerId);
   if(!p)return;
-  const tapped=!cancelled&&pointers.size===1&&gesture?.kind==="pan"&&!gesture.moved;
+  const tapped=!cancelled&&!gestureHadMultiple&&pointers.size===1&&
+   gesture?.kind==="pan"&&!gesture.moved;
   pointers.delete(evt.pointerId);
   if(tapped){
    const sec=secAt(localX(evt)),now=Date.now(),x=localX(evt);
@@ -369,6 +371,7 @@
    }else{showCursor(sec);lastTap={at:now,x};}
   }
   resetGesture();
+  if(!pointers.size)gestureHadMultiple=false;
  }
  canvas.addEventListener("pointerup",evt=>pointerFinish(evt,false));
  canvas.addEventListener("pointercancel",evt=>pointerFinish(evt,true));
