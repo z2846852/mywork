@@ -70,10 +70,17 @@ public final class MainActivity extends Activity {
             if(raw==null)return;
             try{
                 JSONObject event=new JSONObject(raw);
-                reply(event);
-                if("sleep_analysis".equals(event.optString("type"))||
-                        "error".equals(event.optString("type")))
-                    worker.execute(MainActivity.this::sendSleepStatus);
+                if("sleep_analysis_ready".equals(event.optString("type"))){
+                    String id=event.getString("id");
+                    int threshold=event.getInt("threshold");
+                    int minimum=event.getInt("minimum");
+                    int gap=event.getInt("gap");
+                    worker.execute(()->deliverSleepAnalysis(id,threshold,minimum,gap));
+                }else{
+                    reply(event);
+                    if("error".equals(event.optString("type")))
+                        worker.execute(MainActivity.this::sendSleepStatus);
+                }
             }catch(Exception ignored){}
         }
     };
@@ -441,6 +448,34 @@ public final class MainActivity extends Activity {
             j.put("message", message);
             reply(j);
         } catch (Exception ignored) { }
+    }
+
+    /** Load cached envelope on the regular worker only AFTER decoding is done.
+     * Large (8h+) arrays must never cross Android's Broadcast/Intent Binder limit. */
+    private void deliverSleepAnalysis(String sessionId,int threshold,int minimum,int gap){
+        try{
+            SleepSessions.verifyId(sessionId);
+            JSONObject session=SleepSessions.load(this,sessionId);
+            JSONArray levels=session.optJSONArray("levels_dbfs");
+            JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
+            if(levels==null||peaks==null||levels.length()!=peaks.length())
+                throw new IllegalStateException("音频分析缓存不存在，请重新分析");
+            JSONArray events=SleepAudioAnalyzer.detect(levels,threshold,minimum,gap);
+            JSONObject answer=message("sleep_analysis");
+            answer.put("id",sessionId);
+            answer.put("started_ms",session.optLong("started_ms"));
+            answer.put("date_basis",session.optString("date_basis","recorded_at"));
+            answer.put("original_name",session.optString("original_name",""));
+            answer.put("total_seconds",levels.length());
+            answer.put("levels_dbfs",levels);
+            answer.put("peak_levels_dbfs",peaks);
+            answer.put("threshold_dbfs",threshold);
+            answer.put("minimum_seconds",minimum);
+            answer.put("gap_seconds",gap);
+            answer.put("events",events);
+            reply(answer);
+            sendSleepStatus();
+        }catch(Exception e){error("睡眠录音分析结果读取失败："+safeMessage(e));}
     }
 
     private void sendSleepStatus() {
