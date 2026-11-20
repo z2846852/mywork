@@ -16,6 +16,36 @@
   return pad(Math.floor(t/3600))+":"+pad(Math.floor(t%3600/60))+":"+pad(t%60);
  };
  let result=null,windowStart=0,windowSpan=0,cursor=-1,paintPending=false;
+ const axisById=new Map();
+ let axisMin=-10,axisMax=25,backgroundDb=-40;
+ function quantile(values,p){
+  const list=values.map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
+  return list.length?list[Math.floor((list.length-1)*p)]:null;
+ }
+ function initializeAxis(evt){
+  const saved=axisById.get(evt.id);
+  backgroundDb=Number.isFinite(Number(evt.background_dbfs))?
+   Number(evt.background_dbfs):-40;
+  if(saved){axisMin=saved.low;axisMax=saved.high;return;}
+  // Global quantile range is computed ONCE for each recording.
+  // Horizontal pinch/drag NEVER changes the Y axis.
+  const p05=quantile(evt.levels_dbfs,.05);
+  const p995=quantile(evt.peak_levels_dbfs||evt.levels_dbfs,.995);
+  const lower=Math.min(-4,(p05??backgroundDb-5)-backgroundDb);
+  const upper=Math.max(8,(p995??backgroundDb+12)-backgroundDb);
+  axisMin=Math.floor((lower-2)/5)*5;
+  axisMax=Math.ceil((upper+2)/5)*5;
+  if(axisMax-axisMin<12)axisMax=axisMin+12;
+  axisById.set(evt.id,{low:axisMin,high:axisMax});
+ }
+ function adjustAxis(low,high){
+  if(!result||!Number.isFinite(low)||!Number.isFinite(high))return;
+  const span=high-low;
+  if(span<4||span>125)return;
+  axisMin=low;axisMax=high;
+  axisById.set(result.id,{low,high});
+  schedule();
+ }
  let lastTap={at:0,x:0},gesture=null,gestureHadMultiple=false;
  const pointers=new Map();
  const total=()=>Array.isArray(result?.levels_dbfs)?result.levels_dbfs.length:0;
@@ -30,7 +60,7 @@
  }
  function plotSize(){
   const width=Math.max(240,Math.round(canvas.getBoundingClientRect().width||320));
-  return {width,left:42,right:width-12,top:18,bottom:218,
+  return {width,left:42,right:width-12,top:15,bottom:174,
    plotWidth:width-54};
  }
  function secAt(x){
@@ -46,7 +76,7 @@
   if(!result||!total())return;
   const bounds=canvas.getBoundingClientRect();
   const width=Math.max(240,Math.round(bounds.width||320));
-  const height=260,dpr=Math.min(3,window.devicePixelRatio||1);
+  const height=208,dpr=Math.min(3,window.devicePixelRatio||1);
   const deviceW=Math.round(width*dpr),deviceH=Math.round(height*dpr);
   if(canvas.width!==deviceW||canvas.height!==deviceH){
    canvas.width=deviceW;canvas.height=deviceH;
@@ -55,16 +85,19 @@
   const ctx=context,{left,right,top,bottom,plotWidth}=plotSize();
   const plotHeight=bottom-top,levels=rms(),pks=peaks();
   ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,width,height);
-  const yAt=db=>top+(0-clamp(Number(db),-90,0))/90*plotHeight;
+  const yAt=db=>clamp(top+
+   (axisMax-(Number(db)-backgroundDb))/(axisMax-axisMin)*plotHeight,top,bottom);
   const xAt=sec=>left+(sec-windowStart)/windowSpan*plotWidth;
   ctx.font="10px system-ui,sans-serif";
   ctx.textAlign="left";ctx.textBaseline="middle";
-  for(const db of [0,-20,-40,-60,-80]){
-   const y=yAt(db);
+  const axisRange=axisMax-axisMin;
+  const step=axisRange>70?20:axisRange>32?10:axisRange>16?5:2;
+  for(let delta=Math.ceil(axisMin/step)*step;delta<=axisMax;delta+=step){
+   const y=yAt(backgroundDb+delta);
    ctx.strokeStyle=COLORS.grid;ctx.lineWidth=.75;
    ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();
    ctx.fillStyle=COLORS.text;
-   ctx.fillText(db===0?"0":String(db),4,y);
+   ctx.fillText((delta>0?"+":"")+delta,4,y);
   }
   // Highlight valid duration+gap candidates FIRST; no semantic assumption
   // that these events are confirmed snoring.
@@ -102,7 +135,8 @@
   ctx.setLineDash([7,4]);ctx.beginPath();
   ctx.moveTo(left,thresholdY);ctx.lineTo(right,thresholdY);ctx.stroke();
   ctx.setLineDash([]);
-  const label="阈值 "+threshold+" dBFS";
+  const offset=threshold-backgroundDb;
+  const label="阈值 "+(offset>=0?"+":"")+offset.toFixed(1)+" dB";
   ctx.font="bold 11px system-ui,sans-serif";
   const labelWidth=ctx.measureText(label).width+10;
   const labelX=Math.max(left,Math.min(right-labelWidth,left+6));
@@ -122,7 +156,7 @@
    ctx.textAlign=i===0?"left":i===ticks?"right":"center";
    // Whole-night view does not need seconds in every tick label.
    const label=stamp(time);
-   ctx.fillText(windowSpan>=1800?label.slice(0,-3):label,x,241);
+   ctx.fillText(windowSpan>=1800?label.slice(0,-3):label,x,196);
   }
   ctx.textAlign="left";
   if(cursor>=windowStart&&cursor<=windowStart+windowSpan){
@@ -162,10 +196,11 @@
   }
   const value=Number(rms()[cursor]),peak=Number(peaks()[cursor]);
   const eligible=events().some(e=>cursor>=e.start_sec&&cursor<e.end_sec);
+  const delta=value-backgroundDb;
   $("sleepWaveSelection").textContent=stamp(cursor)+
-   " · RMS "+(Number.isFinite(value)?value.toFixed(1):"未知")+
-   " dBFS · 峰值 "+(Number.isFinite(peak)?peak.toFixed(1):"未知")+
-   " dBFS · "+(eligible?"合格片段":"不在合格片段内");
+   " · 背景"+(delta>=0?"+":"")+delta.toFixed(1)+" dB"+
+   " · "+(Number.isFinite(value)?value.toFixed(1):"未知")+
+   " dBFS · "+(eligible?"符合筛选":"未达筛选");
   $("sleepPlaySelection").disabled=false;
   $("sleepFocusSelection").disabled=false;
   schedule();
@@ -173,16 +208,15 @@
  function metrics(){
   const levels=rms();
   if(!levels.length)return;
-  const sorted=levels.filter(Number.isFinite).sort((a,b)=>a-b);
-  if(!sorted.length)return;
-  const pct=p=>sorted[Math.floor((sorted.length-1)*p)];
+  // The P20 reference was computed once on file load by sleep.js.
+  // Slider changes must not sort tens of thousands of samples again.
   const active=levels.filter(v=>v>=result.threshold_dbfs).length;
   const max=events().reduce((n,e)=>Math.max(n,Number(e.end_sec)-Number(e.start_sec)),0);
   const cells=[
    ["合格片段",events().length+" 段"],
    ["超阈值比例",(100*active/levels.length).toFixed(1)+"%"],
    ["最长片段",relative(max)],
-   ["背景 P10",pct(.1).toFixed(1)+" dBFS"]
+   ["本晚背景 P20",backgroundDb.toFixed(1)+" dBFS"]
   ];
   const root=$("sleepSoundStats");root.replaceChildren();
   for(const [name,value] of cells){
@@ -194,8 +228,12 @@
   const warning=$("sleepNoiseWarning");
   warning.hidden=active/levels.length<.90;
   if(!warning.hidden)warning.textContent=
-   "提示：当前阈值低于至少 90% 时间的 RMS 音量，几乎整晚都会被标记。"+
-   "建议将红线提高到背景声以上，否则无法有效区分声音事件。";
+   "阈值过低：整晚至少90%的RMS都超过红线；建议调高阈值。";
+  const compact=$("sleepNoiseHint");
+  compact.hidden=warning.hidden;
+  if(!compact.hidden)compact.textContent="阈值过低，几乎整晚都超标，请调高红线";
+  $("sleepQuickSummary").textContent=
+   events().length+" 段 · "+(active/levels.length*100).toFixed(1)+"% 超阈值";
  }
  function plotHourBars(){
   const root=$("sleepHourlyActivity");root.replaceChildren();
@@ -238,14 +276,17 @@
   }
   const same=result&&result.id===evt.id;
   result=evt;panel.hidden=false;
-  if(!same){cursor=-1;windowStart=0;windowSpan=total();}
+  if(!same){
+   initializeAxis(evt);
+   cursor=-1;windowStart=0;windowSpan=total();
+  }
   else{
    windowSpan=clamp(windowSpan,5,total());
    windowStart=clamp(windowStart,0,Math.max(0,total()-windowSpan));
   }
   $("sleepVisualCaveat").textContent=evt.date_basis==="imported_at"?
-   "原文件未注明录制起始日期。+HH:MM:SS 表示相对时间；声音筛选不等于鼾声诊断。":
-   "使用北京时间显示。声压未校准，候选片段不代表确认为鼾声或呼吸暂停。";
+   "纵轴是相对于本晚背景估计的dB，不是声压dB SPL。+HH:MM:SS是相对时间，不能诊断鼾声。":
+   "纵轴dB相对本晚背景，非校准声压dB SPL；只能筛选候选声音，不能确诊鼾声。";
   refreshFilters();
  }
  function playFromCursor(){
@@ -321,9 +362,12 @@
   const pts=[...pointers.values()];
   if(pts.length===1)gesture={kind:"pan",x:pts[0].x,start:windowStart,moved:false};
   else if(pts.length>=2){
-   const dist=Math.max(1,Math.abs(pts[0].x-pts[1].x));
-   const mid=(pts[0].x+pts[1].x)/2;
-   gesture={kind:"pinch",dist,span:windowSpan,anchor:secAt(mid),moved:true};
+   const distanceX=Math.max(1,Math.abs(pts[0].x-pts[1].x));
+   const distanceY=Math.max(1,Math.abs(pts[0].y-pts[1].y));
+   const midX=(pts[0].x+pts[1].x)/2,midY=(pts[0].y+pts[1].y)/2;
+   gesture={kind:"dual",mode:null,distanceX,distanceY,midX,midY,
+    startYs:pts.map(p=>p.y),span:windowSpan,
+    anchor:secAt(midX),low:axisMin,high:axisMax,moved:true};
   }else gesture=null;
  }
  canvas.addEventListener("pointerdown",evt=>{
@@ -338,15 +382,44 @@
   const p=pointers.get(evt.pointerId);
   p.x=localX(evt);p.y=evt.clientY;
   if(!gesture)return;
-  if(pointers.size>=2&&gesture.kind==="pinch"){
+  if(pointers.size>=2&&gesture.kind==="dual"){
    const pts=[...pointers.values()];
-   const mid=(pts[0].x+pts[1].x)/2;
-   const dist=Math.max(1,Math.abs(pts[0].x-pts[1].x));
-   const {left,plotWidth}=plotSize();
-   windowSpan=clamp(gesture.span*gesture.dist/dist,5,total());
-   windowStart=clamp(gesture.anchor-(mid-left)/plotWidth*windowSpan,
-    0,Math.max(0,total()-windowSpan));
-   schedule();
+   const midX=(pts[0].x+pts[1].x)/2,midY=(pts[0].y+pts[1].y)/2;
+   const distanceX=Math.max(1,Math.abs(pts[0].x-pts[1].x));
+   const distanceY=Math.max(1,Math.abs(pts[0].y-pts[1].y));
+   const moveY=Math.abs(midY-gesture.midY),moveX=Math.abs(midX-gesture.midX);
+   const diffX=Math.abs(distanceX-gesture.distanceX);
+   const diffY=Math.abs(distanceY-gesture.distanceY);
+   if(!gesture.mode){
+    // Do not treat the FIRST finger's vertical move as a pinch. Wait for
+    // BOTH fingers to move, then classify same-direction vs opposite-direction.
+    const dyA=pts[0].y-gesture.startYs[0];
+    const dyB=pts[1].y-gesture.startYs[1];
+    const twoMoved=Math.abs(dyA)>6&&Math.abs(dyB)>6;
+    if(twoMoved&&dyA*dyB>0&&moveY>8&&moveY>moveX)
+     gesture.mode="vertical-pan";
+    else if(twoMoved&&dyA*dyB<0&&diffY>12)
+     gesture.mode="vertical-zoom";
+    else if(diffX>8||moveX>10)gesture.mode="horizontal";
+   }
+   if(gesture.mode==="vertical-pan"){
+    // Only an explicit two-finger vertical drag changes the dB axis.
+    const dy=(midY-gesture.midY)/(plotSize().bottom-plotSize().top);
+    const delta=dy*(gesture.high-gesture.low);
+    adjustAxis(gesture.low+delta,gesture.high+delta);
+   }else if(gesture.mode==="vertical-zoom"){
+    // Vertical two-finger pinch changes the dB range, not time.
+    const range=clamp((gesture.high-gesture.low)*
+      gesture.distanceY/distanceY,4,125);
+    const center=(gesture.high+gesture.low)/2;
+    adjustAxis(center-range/2,center+range/2);
+   }else if(gesture.mode==="horizontal"){
+    const {left,plotWidth}=plotSize();
+    windowSpan=clamp(gesture.span*gesture.distanceX/distanceX,5,total());
+    windowStart=clamp(gesture.anchor-
+      (midX-left)/plotWidth*windowSpan,0,Math.max(0,total()-windowSpan));
+    schedule();
+   }
   }else if(pointers.size===1&&gesture.kind==="pan"){
    const dx=p.x-gesture.x;
    if(Math.abs(dx)>=6)gesture.moved=true;
@@ -398,7 +471,8 @@
   setCursor:showCursor,
   playFromCursor,playEvent,
   state:()=>({id:result?.id||"",seconds:total(),start:windowStart,
-   span:windowSpan,cursor,events:events().length})
+   span:windowSpan,cursor,events:events().length,
+   axisMin,axisMax,backgroundDb})
  };
  const priorReceive=window.bodyTraceReceive;
  window.bodyTraceReceive=function(evt){

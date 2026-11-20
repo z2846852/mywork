@@ -14,6 +14,42 @@
  let pendingAutoAnalyzeId="";
  let pendingRemoveId="";
  let playbackActive=false;
+ const noiseBySession=new Map();
+ const thresholdBySession=new Map();
+ const DEFAULT_ABOVE_BACKGROUND=2.0;
+ const clampDb=value=>Math.max(-90,Math.min(-5,Math.round(value*10)/10));
+ function estimateNoiseFloor(levels){
+  if(!Array.isArray(levels))return null;
+  const sorted=levels.map(Number).filter(v=>Number.isFinite(v)&&v<=0&&v>=-96)
+   .sort((a,b)=>a-b);
+  if(!sorted.length)return null;
+  // A robust quiet-background estimate: P20 of measured RMS values.
+  // A simple mean is distorted by alarms and other loud transients.
+  return Math.round(sorted[Math.floor((sorted.length-1)*.20)]*10)/10;
+ }
+ function noiseFloor(){
+  return noiseBySession.get(selectedId)??null;
+ }
+ function setThreshold(value,update=true){
+  const corrected=clampDb(value);
+  $("sleepThreshold").value=corrected.toFixed(1);
+  if(selectedId)thresholdBySession.set(selectedId,corrected);
+  updateThreshold();
+  if(update)onFilterChanged();
+ }
+ function restoreBaseline(){
+  const floor=noiseFloor();
+  setThreshold(floor===null?-40:floor+DEFAULT_ABOVE_BACKGROUND);
+ }
+ function onFilterChanged(){
+  if(playbackActive&&$("sleepSkipQuiet").checked){
+   bridge()?.sleepStopPlayback?.();
+   playbackActive=false;
+   $("sleepPlaybackStatus").textContent=
+    "已修改筛选规则，跳段播放停止，请重新播放";
+  }
+  applyLiveFilters();
+ }
  // Match native filter: only above-threshold seconds count toward minimum;
  // allowed gaps join valid spans but do not count as sound.
  function detectCandidates(levels,peaks,threshold,minimum,maxGap){
@@ -57,7 +93,7 @@
   }
   return true;
  }
- window.BodyTraceAudioFilter={detect:detectCandidates};
+ window.BodyTraceAudioFilter={detect:detectCandidates,estimateNoiseFloor};
  function updateAnalysisProgress(percent,updatedMs){
   const raw=Number(percent);
   const pct=Number.isFinite(raw)?Math.max(0,Math.min(100,Math.floor(raw))):0;
@@ -90,7 +126,14 @@
   recording:"录音中",completed:"可分析",interrupted:"可能被系统中断",failed:"录音失败"
  })[code]||code||"未知";
  function updateThreshold(){
-  $("sleepThresholdText").textContent=$("sleepThreshold").value+" dBFS";
+  const raw=Number($("sleepThreshold").value);
+  const floor=noiseFloor();
+  $("sleepThresholdText").textContent=raw.toFixed(1)+" dBFS";
+  $("sleepThresholdRelative").textContent=floor===null?
+   "等待背景估算":((raw-floor)>=0?"+":"")+(raw-floor).toFixed(1)+" dB / 背景";
+  $("sleepBaselineLabel").textContent=floor===null?
+   "首次分析后估算背景，默认高于背景 2.0 dB":
+   "本晚背景估计 "+floor.toFixed(1)+" dBFS（P20）；按「基线」恢复背景 +2.0 dB。不是环境 dB SPL。";
  }
  function current(){
   return sessions.find(s=>s.id===selectedId)||null;
@@ -128,6 +171,21 @@
    !(chosen.status==="completed"||chosen.status==="interrupted");
   $("sleepAnalyze").textContent=loadingCachedId?"正在加载波形缓存…":busy?"正在后台分析，请查看进度":
    chosen?.levels_cached?"✓ 已生成波形 · 重新筛选":"首次分析并生成波形";
+  $("sleepAnalyze").hidden=!!chosen?.levels_cached&&!busy&&!loadingCachedId;
+  const select=$("sleepSessionSelect");
+  select.replaceChildren();
+  const empty=document.createElement("option");empty.value="";empty.textContent="选择录音";
+  select.append(empty);
+  for(const session of sessions){
+   const opt=document.createElement("option");opt.value=session.id;
+   const prefix=session.original_name||(
+    session.date_basis==="imported_at"?"导入音频":time(session.started_ms));
+   opt.textContent=(session.levels_cached?"✓ ":"")+prefix+
+    " · "+duration(Number(session.duration_ms||0)/1000);
+   select.append(opt);
+  }
+  select.value=chosen?.id||"";
+  $("sleepLibraryCount").textContent=sessions.length+" 条记录";
   $("sleepSelected").textContent=chosen?
    "已选："+(chosen.date_basis==="imported_at"?"导入录音（未知录制起始日期）":
     time(chosen.started_ms))+" · "+statusText(chosen.status):
@@ -202,6 +260,7 @@
    duration(total)+" · 最短 "+analysis.minimum_seconds+" 秒，允许空隙 "+
    analysis.gap_seconds+" 秒（不等于确诊鼾声）";
   root.append(head);
+  $("sleepEventCount").textContent=events.length+" 段";
   if(!events.length){
    const p=document.createElement("p");p.className="sub";
    p.textContent="没有符合阈值和持续时间的候选片段；可调整筛选参数重新分析。";
@@ -267,20 +326,19 @@
   render();
   bridge().sleepAnalyze(selectedId,threshold,seconds,gap);
  }
- // Reactive filtering uses the cached one-second envelope. Neither slider
- // nor duration/gap edits trigger another native full-night decode.
- for(const field of ["sleepThreshold","sleepMinSeconds","sleepGapSeconds"]){
-  $(field).addEventListener("input",()=>{
-   updateThreshold();
-   if(playbackActive&&$("sleepSkipQuiet").checked){
-    bridge()?.sleepStopPlayback?.();
-    playbackActive=false;
-    $("sleepPlaybackStatus").textContent=
-     "筛选规则已改变，旧的跳段播放已停止，请重新播放";
-   }
-   applyLiveFilters();
-  });
+ // Filtering is immediate: no second native decode or long-running task.
+ $("sleepThreshold").addEventListener("input",()=>{
+  setThreshold(Number($("sleepThreshold").value));
+ });
+ for(const field of ["sleepMinSeconds","sleepGapSeconds"]){
+  $(field).addEventListener("input",onFilterChanged);
  }
+ $("sleepThresholdDown").onclick=()=>setThreshold(Number($("sleepThreshold").value)-.1);
+ $("sleepThresholdUp").onclick=()=>setThreshold(Number($("sleepThreshold").value)+.1);
+ $("sleepThresholdReset").onclick=restoreBaseline;
+ $("sleepSessionSelect").addEventListener("change",()=>{
+  if($("sleepSessionSelect").value)selectSession($("sleepSessionSelect").value);
+ });
  $("sleepImport").onclick=()=>{
   if(recording||busy||importing){toast("请先完成当前录音或分析",true);return;}
   if(!bridge()?.sleepImport){toast("请安装支持导入录音的新版 APK",true);return;}
@@ -357,6 +415,13 @@
    completedAnalysisId=evt.id||selectedId;
    clearAnalysisProgress();
    selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
+   if(!noiseBySession.has(selectedId)){
+    const floor=estimateNoiseFloor(evt.levels_dbfs);
+    if(floor!==null)noiseBySession.set(selectedId,floor);
+   }
+   const known=thresholdBySession.get(selectedId);
+   setThreshold(known??((noiseFloor()??-42)+DEFAULT_ABOVE_BACKGROUND),false);
+   analysis.background_dbfs=noiseFloor()??-40;
    applyLiveFilters(false);
    render();
   }else if(evt.type==="sleep_imported"){
