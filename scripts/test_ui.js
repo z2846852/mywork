@@ -894,7 +894,7 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
       classList:{add(){},remove(){},toggle(){}},
       append(...items){this.children.push(...items)},
       replaceChildren(){this.children=[]},
-      addEventListener(){},
+      addEventListener(name,fn){this.handlers??={};this.handlers[name]=fn},
       focus(){}
     };
   }
