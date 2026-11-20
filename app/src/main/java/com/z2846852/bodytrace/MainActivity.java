@@ -1068,6 +1068,98 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+        @JavascriptInterface public void sleepStatus(){
+            worker.execute(MainActivity.this::sendSleepStatus);
+        }
+        @JavascriptInterface public void sleepStart(){
+            runOnUiThread(()->{
+                if(SleepRecorderService.isRecording()){
+                    worker.execute(MainActivity.this::sendSleepStatus);return;
+                }
+                if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+                    if(Build.VERSION.SDK_INT>=33)
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO,
+                            Manifest.permission.POST_NOTIFICATIONS},SLEEP_AUDIO_PERMISSION_REQUEST);
+                    else requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
+                        SLEEP_AUDIO_PERMISSION_REQUEST);
+                }else startSleepCapture();
+            });
+        }
+        @JavascriptInterface public void sleepStop(){
+            runOnUiThread(()->{
+                if(!SleepRecorderService.isRecording()){
+                    worker.execute(MainActivity.this::sendSleepStatus);return;
+                }
+                Intent service=new Intent(MainActivity.this,SleepRecorderService.class)
+                    .setAction(SleepRecorderService.ACTION_STOP);
+                startService(service);
+                sleepHandler.postDelayed(()->worker.execute(MainActivity.this::sendSleepStatus),1200);
+            });
+        }
+        @JavascriptInterface public void sleepAnalyze(String sessionId,int threshold,int seconds,int gap){
+            worker.execute(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    if(SleepRecorderService.isCurrentSession(sessionId))
+                        throw new IllegalStateException("请先停止录音再分析");
+                    if(threshold<-90||threshold>-5||seconds<1||seconds>120||gap<0||gap>5)
+                        throw new IllegalArgumentException("阈值或持续时间超出范围");
+                    JSONObject session=SleepSessions.load(MainActivity.this,sessionId);
+                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
+                    if(!audio.isFile()||audio.length()<1024)
+                        throw new IllegalStateException("录音文件不可用");
+                    JSONArray levels=session.optJSONArray("levels_dbfs");
+                    if(levels==null){
+                        levels=SleepAudioAnalyzer.decodeLevels(audio);
+                        session.put("levels_dbfs",levels);
+                        SleepSessions.write(MainActivity.this,session);
+                    }
+                    JSONArray events=SleepAudioAnalyzer.detect(levels,threshold,seconds,gap);
+                    JSONObject answer=message("sleep_analysis");
+                    answer.put("id",sessionId);
+                    answer.put("started_ms",session.optLong("started_ms"));
+                    answer.put("total_seconds",levels.length());
+                    answer.put("threshold_dbfs",threshold);
+                    answer.put("minimum_seconds",seconds);
+                    answer.put("gap_seconds",gap);
+                    answer.put("events",events);
+                    reply(answer);
+                }catch(Exception e){error("睡眠录音分析失败："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void sleepPlay(String sessionId,int offset,int duration){
+            runOnUiThread(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    if(SleepRecorderService.isRecording())
+                        throw new IllegalStateException("录音进行中不可播放");
+                    if(offset<0||duration<1||duration>180)
+                        throw new IllegalArgumentException("无效回放时段");
+                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
+                    if(!audio.isFile())throw new IllegalArgumentException("录音文件丢失");
+                    stopSleepPlayback();
+                    MediaPlayer player=new MediaPlayer();
+                    sleepPlayer=player;
+                    player.setDataSource(audio.getAbsolutePath());
+                    player.setOnErrorListener((m,what,extra)->{
+                        stopSleepPlayback();
+                        error("音频片段播放失败");return true;
+                    });
+                    player.setOnPreparedListener(m->m.seekTo(offset*1000));
+                    player.setOnSeekCompleteListener(m->{
+                        if(sleepPlayer!=m)return;
+                        m.start();
+                        stopPlayback=MainActivity.this::stopSleepPlayback;
+                        sleepHandler.postDelayed(stopPlayback,duration*1000L);
+                    });
+                    player.prepareAsync();
+                }catch(Exception e){stopSleepPlayback();error("无法播放片段："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void sleepStopPlayback(){
+            runOnUiThread(MainActivity.this::stopSleepPlayback);
+        }
+
         @JavascriptInterface public void saveNutrition(String nutritionJson) {
             worker.execute(() -> {
                 try {
