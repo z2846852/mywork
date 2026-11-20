@@ -281,10 +281,20 @@ public final class MainActivity extends Activity {
         if(requestCode==PICK_SLEEP_AUDIO_REQUEST){
             String reportedStart=pendingSleepStart;
             pendingSleepStart="";
-            worker.execute(()->{
-                try{importSleepAudio(uri,reportedStart);}
-                catch(Exception failure){error("睡眠录音导入失败："+safeMessage(failure));}
-            });
+            try{
+                if(uri==null || !"content".equals(uri.getScheme()))
+                    throw new IllegalArgumentException("请选择有效音频文档");
+                // ACTION_OPEN_DOCUMENT: persist read-only access over reboot;
+                // never request write/delete access to the original file.
+                getContentResolver().takePersistableUriPermission(
+                    uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                worker.execute(()->{
+                    try{importSleepAudio(uri,reportedStart);}
+                    catch(Exception failure){error("睡眠录音导入失败："+safeMessage(failure));}
+                });
+            }catch(Exception e){
+                error("无法永久读取所选录音，请从系统文件管理器重新选择："+safeMessage(e));
+            }
             return;
         }
         if(requestCode!=PICK_AVATAR_REQUEST)return;
@@ -296,13 +306,23 @@ public final class MainActivity extends Activity {
 
 
     /**
-     * ACTION_OPEN_DOCUMENT grants only this selected URI. Stream-copy an
-     * existing 8-hour recording; never allocate its entire bytes in memory.
-     * The original URI is not retained. No media/storage-wide permission.
+     * ACTION_OPEN_DOCUMENT grants a persistable read-only content URI.
+     * Do NOT copy an 8-hour 400 MB file to private storage. The original audio
+     * is never written, moved or deleted by this import flow.
      */
     private void importSleepAudio(Uri uri,String reportedStart) throws Exception {
         if(uri==null || !"content".equals(uri.getScheme()))
             throw new IllegalArgumentException("请选择有效的本机音频文件");
+        String duplicate=SleepSessions.findExternalByUri(this,uri);
+        if(!duplicate.isEmpty()){
+            JSONObject existing=SleepSessions.load(this,duplicate);
+            JSONObject msg=message("sleep_imported");
+            msg.put("id",duplicate).put("bytes",existing.optLong("original_bytes",0));
+            msg.put("already_exists",true);
+            reply(msg);
+            sendSleepStatus();
+            return;
+        }
         String filename="录音";
         long knownSize=-1;
         try(Cursor cursor=getContentResolver().query(uri,
@@ -328,85 +348,54 @@ public final class MainActivity extends Activity {
             else throw new IllegalArgumentException("不支持的音频格式。请选择 MP3/M4A/WAV/FLAC/OGG 等文件");
         }
         if(knownSize>SLEEP_IMPORT_MAX_BYTES)
-            throw new IllegalArgumentException("录音超过2GB导入上限，请先压缩为M4A或MP3");
-        File folder=SleepSessions.audioDir(this);
-        if(knownSize>0 && folder.getUsableSpace()<knownSize+32L*1024*1024)
-            throw new IllegalStateException("手机空间不足，导入需先复制音频文件");
+            throw new IllegalArgumentException("录音超过2 GB读取上限");
         long importedAt=System.currentTimeMillis();
         String id=importedAt+"-"+UUID.randomUUID().toString().substring(0,8);
-        File dest=SleepSessions.importedAudio(this,id,ext);
-        long length=0;
-        int lastProgress=-1;
+        long duration=0;
+        // Read audio track metadata directly through the document provider.
+        // This does not copy the source file into app-private storage.
+        MediaExtractor extractor=new MediaExtractor();
         try{
-            try(InputStream input=getContentResolver().openInputStream(uri);
-                FileOutputStream output=new FileOutputStream(dest)){
-                if(input==null)throw new IllegalArgumentException("无法读取所选音频");
-                byte[] block=new byte[65536];
-                int read;
-                while((read=input.read(block))!=-1){
-                    length+=read;
-                    if(length>SLEEP_IMPORT_MAX_BYTES)
-                        throw new IllegalArgumentException("文件超过2GB导入上限");
-                    output.write(block,0,read);
-                    if(knownSize>0){
-                        int pct=(int)Math.min(99,length*100/knownSize);
-                        if(pct/5>lastProgress/5){
-                            lastProgress=pct;
-                            JSONObject p=message("sleep_import_progress");
-                            p.put("percent",pct);reply(p);
-                        }
-                    }
+            extractor.setDataSource(this,uri,null);
+            boolean audioTrack=false;
+            for(int i=0;i<extractor.getTrackCount();i++){
+                MediaFormat format=extractor.getTrackFormat(i);
+                String mime=format.getString(MediaFormat.KEY_MIME);
+                if(mime!=null&&mime.startsWith("audio/")){
+                    audioTrack=true;
+                    if(format.containsKey(MediaFormat.KEY_DURATION))
+                        duration=Math.max(0,format.getLong(MediaFormat.KEY_DURATION)/1000L);
+                    break;
                 }
-                output.getFD().sync();
             }
-            if(length<1024)throw new IllegalArgumentException("音频内容为空或损坏");
-            // Validate the copied file has an Android-supported audio track.
-            MediaExtractor extractor=new MediaExtractor();
-            try{
-                extractor.setDataSource(dest.getAbsolutePath());
-                boolean audioTrack=false;
-                for(int i=0;i<extractor.getTrackCount();i++){
-                    MediaFormat f=extractor.getTrackFormat(i);
-                    String mime=f.getString(MediaFormat.KEY_MIME);
-                    if(mime!=null&&mime.startsWith("audio/")){audioTrack=true;break;}
-                }
-                if(!audioTrack)throw new IllegalArgumentException("文件没有可解码的音轨");
-            }finally{extractor.release();}
-            long duration=0;
-            MediaMetadataRetriever retriever=new MediaMetadataRetriever();
-            try{
-                retriever.setDataSource(dest.getAbsolutePath());
-                String time=retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-                if(time!=null)duration=Long.parseLong(time);
-            }catch(Exception ignored){/* analyzer will determine actual duration */}
-            finally{retriever.release();}
-            long start=importedAt;
-            String dateBasis="imported_at";
-            if(reportedStart!=null&&!reportedStart.trim().isEmpty()){
-                LocalDateTime local=LocalDateTime.parse(reportedStart.trim(),
-                    DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-                start=local.toInstant(BEIJING).toEpochMilli();
-                dateBasis="user_supplied";
-            }
-            JSONObject session=new JSONObject();
-            session.put("id",id).put("started_ms",start)
-                .put("ended_ms",start+duration)
-                .put("duration_ms",duration)
-                .put("imported_ms",importedAt)
-                .put("date_basis",dateBasis)
-                .put("source","imported-audio")
-                .put("original_name",filename)
-                .put("audio_extension",ext)
-                .put("status","completed");
-            SleepSessions.write(this,session);
-            JSONObject msg=message("sleep_imported");
-            msg.put("id",id).put("bytes",length);
-            reply(msg);
-            sendSleepStatus();
-        }catch(Exception problem){
-            if(dest.exists())dest.delete();
-            throw problem;
+            if(!audioTrack)throw new IllegalArgumentException("文件没有可解码的音轨");
+        }finally{extractor.release();}
+        long startTime=importedAt;
+        String dateBasis="imported_at";
+        if(reportedStart!=null&&!reportedStart.trim().isEmpty()){
+            LocalDateTime local=LocalDateTime.parse(reportedStart.trim(),
+                DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            startTime=local.toInstant(BEIJING).toEpochMilli();
+            dateBasis="user_supplied";
         }
+        JSONObject session=new JSONObject();
+        session.put("id",id).put("started_ms",startTime)
+            .put("ended_ms",startTime+duration)
+            .put("duration_ms",duration)
+            .put("imported_ms",importedAt)
+            .put("date_basis",dateBasis)
+            .put("source","saf-document")
+            .put("source_uri",uri.toString())
+            .put("original_name",filename)
+            .put("original_bytes",Math.max(0,knownSize))
+            .put("audio_extension",ext)
+            .put("status","completed");
+        SleepSessions.write(this,session);
+        JSONObject msg=message("sleep_imported");
+        msg.put("id",id).put("bytes",Math.max(0,knownSize));
+        msg.put("copied",false);
+        reply(msg);
+        sendSleepStatus();
     }
 
     private byte[] readAssetBytes(String name) throws Exception {
@@ -1481,12 +1470,11 @@ public final class MainActivity extends Activity {
                         throw new IllegalStateException("录音进行中不可播放");
                     if(offset<0||duration<1||duration>180)
                         throw new IllegalArgumentException("无效回放时段");
-                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
-                    if(!audio.isFile())throw new IllegalArgumentException("录音文件丢失");
+                    JSONObject session=SleepSessions.load(MainActivity.this,sessionId);
                     stopSleepPlayback();
                     MediaPlayer player=new MediaPlayer();
                     sleepPlayer=player;
-                    player.setDataSource(audio.getAbsolutePath());
+                    SleepSessions.configurePlayer(MainActivity.this,session,player);
                     player.setOnErrorListener((m,what,extra)->{
                         stopSleepPlayback();
                         error("音频片段播放失败");return true;
@@ -1513,12 +1501,23 @@ public final class MainActivity extends Activity {
                     SleepSessions.verifyId(sessionId);
                     if(SleepRecorderService.isCurrentSession(sessionId))
                         throw new IllegalStateException("不能删除正在录制的文件");
-                    SleepSessions.load(MainActivity.this,sessionId);
-                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
+                    if(SleepAnalysisService.isRunning()&&
+                        SleepAnalysisService.currentId().equals(sessionId))
+                        throw new IllegalStateException("该录音仍在后台分析，完成后再移除");
+                    JSONObject session=SleepSessions.load(MainActivity.this,sessionId);
+                    // External SAF files are NEVER deleted or modified here.
+                    // Old imported copies / our own recorder files are app-owned.
+                    if(!SleepSessions.isExternal(session)){
+                        File audio=SleepSessions.audio(MainActivity.this,sessionId);
+                        if(audio.exists()&&!audio.delete())
+                            throw new IllegalStateException("无法删除 App 内音频副本");
+                    }
                     File metadata=SleepSessions.json(MainActivity.this,sessionId);
-                    if(audio.exists()&&!audio.delete())
-                        throw new IllegalStateException("无法删除本机音频");
-                    if(!metadata.delete())throw new IllegalStateException("无法删除睡眠记录");
+                    if(!metadata.delete())throw new IllegalStateException("无法移除睡眠记录");
+                    JSONObject notice=message("sleep_removed");
+                    notice.put("id",sessionId);
+                    notice.put("original_preserved",SleepSessions.isExternal(session));
+                    reply(notice);
                     sendSleepStatus();
                 }catch(Exception e){error("删除睡眠录音失败："+safeMessage(e));}
             });
