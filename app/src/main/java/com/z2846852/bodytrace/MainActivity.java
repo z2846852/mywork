@@ -15,7 +15,10 @@ import android.provider.OpenableColumns;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -61,10 +64,27 @@ public final class MainActivity extends Activity {
     private static final int AVATAR_MAX_BYTES = 12 * 1024 * 1024;
     private volatile Uri pendingSharedAvatar = null;
     private volatile boolean uiReady = false;
+    private final BroadcastReceiver sleepAnalysisReceiver=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){
+            String raw=intent.getStringExtra(SleepAnalysisService.EXTRA_JSON);
+            if(raw==null)return;
+            try{
+                JSONObject event=new JSONObject(raw);
+                reply(event);
+                if("sleep_analysis".equals(event.optString("type"))||
+                        "error".equals(event.optString("type")))
+                    worker.execute(MainActivity.this::sendSleepStatus);
+            }catch(Exception ignored){}
+        }
+    };
 
     @Override @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        IntentFilter analysisFilter=new IntentFilter(SleepAnalysisService.ACTION_EVENT);
+        if(Build.VERSION.SDK_INT>=33)
+            registerReceiver(sleepAnalysisReceiver,analysisFilter,Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(sleepAnalysisReceiver,analysisFilter);
         pendingSharedAvatar = sharedImageUri(getIntent());
         getWindow().setStatusBarColor(Color.rgb(13, 17, 23));
         getWindow().setNavigationBarColor(Color.rgb(13, 17, 23));
@@ -428,6 +448,9 @@ public final class MainActivity extends Activity {
             JSONObject result=message("sleep_status");
             result.put("recording",SleepRecorderService.isRecording());
             result.put("active_id",SleepRecorderService.currentSessionId());
+            result.put("analysis_running",SleepAnalysisService.isRunning());
+            result.put("analysis_id",SleepAnalysisService.currentId());
+            result.put("analysis_percent",SleepAnalysisService.currentProgress());
             result.put("sessions",SleepSessions.list(this));
             reply(result);
         }catch(Exception e){error("读取睡眠记录失败："+safeMessage(e));}
@@ -1376,49 +1399,30 @@ public final class MainActivity extends Activity {
             });
         }
         @JavascriptInterface public void sleepAnalyze(String sessionId,int threshold,int seconds,int gap){
-            worker.execute(()->{
+            // Foreground service is launched from a user action on the UI thread.
+            // Never block the one worker shared by GitHub sync and local JSON.
+            runOnUiThread(()->{
                 try{
                     SleepSessions.verifyId(sessionId);
-                    if(SleepRecorderService.isCurrentSession(sessionId))
+                    if(SleepRecorderService.isRecording())
                         throw new IllegalStateException("请先停止录音再分析");
                     if(threshold<-90||threshold>-5||seconds<1||seconds>120||gap<0||gap>5)
                         throw new IllegalArgumentException("阈值或持续时间超出范围");
-                    JSONObject session=SleepSessions.load(MainActivity.this,sessionId);
-                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
-                    if(!audio.isFile()||audio.length()<1024)
-                        throw new IllegalStateException("录音文件不可用");
-                    JSONArray levels=session.optJSONArray("levels_dbfs");
-                    JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
-                    if(levels==null || peaks==null || peaks.length()!=levels.length()){
-                        JSONObject envelope=SleepAudioAnalyzer.decodeEnvelope(audio,percent->{
-                            try{
-                                JSONObject update=message("sleep_analysis_progress");
-                                update.put("id",sessionId).put("percent",percent);
-                                reply(update);
-                            }catch(Exception ignored){}
-                        });
-                        levels=envelope.getJSONArray("rms_dbfs");
-                        peaks=envelope.getJSONArray("peak_dbfs");
-                        session.put("levels_dbfs",levels);
-                        session.put("peak_levels_dbfs",peaks);
-                        session.put("duration_ms",(long)levels.length()*1000L);
-                        SleepSessions.write(MainActivity.this,session);
+                    if(SleepAnalysisService.isRunning()){
+                        if(sessionId.equals(SleepAnalysisService.currentId())){
+                            worker.execute(MainActivity.this::sendSleepStatus);
+                            return;
+                        }
+                        throw new IllegalStateException("已有另一段录音正在后台分析");
                     }
-                    JSONArray events=SleepAudioAnalyzer.detect(levels,threshold,seconds,gap);
-                    JSONObject answer=message("sleep_analysis");
-                    answer.put("id",sessionId);
-                    answer.put("started_ms",session.optLong("started_ms"));
-                    answer.put("date_basis",session.optString("date_basis","recorded_at"));
-                    answer.put("original_name",session.optString("original_name",""));
-                    answer.put("total_seconds",levels.length());
-                    answer.put("levels_dbfs",levels);
-                    answer.put("peak_levels_dbfs",peaks);
-                    answer.put("threshold_dbfs",threshold);
-                    answer.put("minimum_seconds",seconds);
-                    answer.put("gap_seconds",gap);
-                    answer.put("events",events);
-                    reply(answer);
-                }catch(Exception e){error("睡眠录音分析失败："+safeMessage(e));}
+                    Intent service=new Intent(MainActivity.this,SleepAnalysisService.class)
+                        .setAction(SleepAnalysisService.ACTION_START)
+                        .putExtra(SleepAnalysisService.EXTRA_ID,sessionId)
+                        .putExtra(SleepAnalysisService.EXTRA_THRESHOLD,threshold)
+                        .putExtra(SleepAnalysisService.EXTRA_MINIMUM,seconds)
+                        .putExtra(SleepAnalysisService.EXTRA_GAP,gap);
+                    startForegroundService(service);
+                }catch(Exception e){error("睡眠录音分析启动失败："+safeMessage(e));}
             });
         }
         @JavascriptInterface public void sleepPlay(String sessionId,int offset,int duration){
@@ -1541,6 +1545,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        unregisterReceiver(sleepAnalysisReceiver);
         stopSleepPlayback();
         sleepHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
