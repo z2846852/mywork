@@ -328,6 +328,44 @@ assert.ok(apiNutrition.includes('"intake_carbs", "intake_sugar_oil"'));
 const projectionNutrition=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
 assert.ok(projectionNutrition.includes('if ("daily_checkin".equals(item.optString("entry_kind"))) continue;'));
+// Workout correction is append-only, offline-safe and applied before charts.
+const editing=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/WorkoutEdits.java"),"utf8");
+const apiEdits=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
+const projectorEdits=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
+for(const word of ["workout_edits","workout_edit","target_id","editWorkout("]){
+ assert.ok(native.includes(word),"Native workout edits missing "+word);
+}
+assert.ok(native.includes('if (!key.equals("workouts") && !key.equals("measurements")'));
+assert.ok(native.includes('new String[]{"workouts", "measurements", "nutrition", "workout_edits"}'));
+assert.ok(native.includes('plain.putPending(pending);')&&native.includes('plain.putDays(days);'));
+assert.ok(apiEdits.includes('isWorkoutEdit ? "workout_edits" : "workouts"'));
+assert.ok(apiEdits.includes('"target_id", "action", "load_key", "load_kg"'));
+assert.ok(projectorEdits.includes('WorkoutEdits.apply(day.optJSONArray("workouts")'));
+assert.ok(editing.includes('rows.remove(target);'));
+assert.ok(editing.includes('UUID.nameUUIDFromBytes('));
+assert.ok(editing.includes('rows.put(target,revised);'));
+assert.ok(editing.includes('new JSONObject(source.toString())'));
+assert.ok(editing.includes('if(reps==0)revised.put("attempt_status","failed")'));
+assert.ok(html.includes('const recentDates=[...byDate.keys()].sort((a,b)=>b.localeCompare(a)).slice(0,10)'));
+assert.ok(html.includes('r.exercise_id===exerciseId'));
+assert.ok(html.includes('className="exercise-history"'));
+assert.ok(html.includes('className="exercise-history-date"'));
+assert.ok(html.includes('let activeWorkoutEdit=null'));
+for(const id of ["workoutEditOverlay","workoutEditKg","workoutEditReps",
+ "workoutEditCopies","workoutEditNote","workoutEditSave","workoutEditDelete",
+ "workoutEditClose"]){
+ assert.ok(html.includes('id="'+id+'"'),"Missing workout editor field: "+id);
+}
+assert.ok(html.includes('BodyTraceNative.editWorkout(JSON.stringify(payload))'));
+assert.ok(html.includes('case "workout_edit_local_saved":{'));
+assert.ok(features.includes('className="secondary mini strength-edit-action"'));
+assert.ok(features.includes('editAction.onclick=()=>window.BodyTraceWorkoutEditor?.open(v)'));
+const editStyle=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
+assert.ok(editStyle.includes('.workout-edit-overlay[hidden]{display:none!important}'));
+assert.ok(editStyle.includes('.exercise-history-date-head{display:flex'));
 // Compact chrome, always reachable save, and distinct muscle categories.
 const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),

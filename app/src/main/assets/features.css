@@ -683,3 +683,32 @@
 .sleep-event button{flex-shrink:0}
 .sleep-error{font-size:11px;color:#ffa79e;margin:6px 0}
 @media(max-width:380px){.sleep-event strong{font-size:10px}.tabs button{padding:5px 4px}}
+
+/* The selected day's each action shows up to ten older training dates. */
+.exercise-history{border-top:1px solid #38524a;margin-top:14px;padding-top:11px}
+.exercise-history-heading{color:#a9d3bc;font-weight:750;font-size:12px;margin-bottom:8px}
+.exercise-history-date{padding:8px 9px;margin-top:6px;background:#182a28;border:1px solid #324b41;border-radius:9px}
+.exercise-history-date-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.exercise-history-date-head strong{font-size:12px;color:#b2d9c6;font-variant-numeric:tabular-nums}
+.exercise-history-date-head small{font-size:10px;color:#91aa9c}
+.exercise-history-sets{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.exercise-history-set{padding:5px 7px;border-radius:7px;background:#274238;
+ color:#d6f4e5;font-size:11px;font-variant-numeric:tabular-nums}
+.exercise-history-set.failed{border:1px solid #9d5260;background:#38292e;color:#ffb4b9}
+
+/* Rare corrections use direct-number inputs, never the training ruler. */
+.strength-edit-action{display:block;margin-top:9px;margin-left:auto;border-color:#759990}
+.workout-edit-overlay[hidden]{display:none!important}
+.workout-edit-overlay{position:fixed;inset:0;z-index:45;display:flex;
+ align-items:center;justify-content:center;background:rgba(0,0,0,.77);
+ padding:17px;overflow-y:auto}
+body.workout-edit-open{overflow:hidden}
+.workout-edit-sheet{width:min(100%,460px);max-height:92dvh;overflow-y:auto;
+ background:#172729;border:1px solid #56776b;border-radius:18px;padding:18px;
+ box-shadow:0 20px 55px #000b}
+.workout-edit-sheet .field{margin-top:12px}
+.workout-edit-sheet input{padding:10px 11px}
+.workout-edit-sheet .primary{margin-top:13px}
+.workout-edit-danger{width:100%;margin-top:12px;border-color:#aa5c66;color:#ffb1ba;
+ background:#352529}
+#workoutEditFeedback{min-height:19px}

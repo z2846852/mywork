@@ -718,6 +718,11 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   t.textContent=labels[i].slice(5);svg.append(t);
  }
  const byDate=new Map(),points=[],pointSelectors=[],recentButtons=[];
+ const editAction=document.createElement("button");
+ editAction.type="button";
+ editAction.className="secondary mini strength-edit-action";
+ editAction.textContent="编辑所选训练点";
+ editAction.disabled=true;
  const detail=document.createElement("div");
  detail.className="strength-point-detail";
  detail.setAttribute("role","status");
@@ -776,6 +781,8 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
    point.setAttribute("stroke-width","2");
    detail.textContent="已选："+hint+extra;
    detail.classList.toggle("failed",failure);
+   editAction.disabled=!v.id;
+   editAction.onclick=()=>window.BodyTraceWorkoutEditor?.open(v);
    for(const entry of recentButtons)entry.button.classList.toggle("active",entry.value===v);
   };
   hit.addEventListener("click",selectPoint);
@@ -802,6 +809,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   recent.append(button);
  }
  chart.append(svg,detail,recent);
+ chart.append(editAction);
  // On each sync, show the newest SAVED set without requiring a dot tap.
  if(pointSelectors.length)pointSelectors[pointSelectors.length-1].select();
  disclaimer.textContent=isAssist?

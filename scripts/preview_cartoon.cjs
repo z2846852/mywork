@@ -568,6 +568,122 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if((await page.evaluate(()=>window.__sleepBridge.deleted[0]))!==sleepId)
    throw Error("Two-click local deletion guard did not invoke native bridge");
   await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
+  // Historical daily drill-down: all sets per date and max 10 past dates
+  // for each of today's four actions, without mixing other exercise IDs.
+  await page.evaluate(()=>{
+   const current={schema_version:2,date:"2026-11-20",
+    workouts:[
+     {id:"64007ed2-e1ad-49c5-88b0-d3959b3c0001",exercise_id:"hip_thrust",load_kg:70,reps:10},
+     {id:"64007ed2-e1ad-49c5-88b0-d3959b3c0002",exercise_id:"chest_press",load_kg:35,reps:10},
+     {id:"64007ed2-e1ad-49c5-88b0-d3959b3c0003",exercise_id:"row",load_kg:40,reps:12},
+     {id:"64007ed2-e1ad-49c5-88b0-d3959b3c0004",exercise_id:"shoulder_press",load_kg:15,reps:8}
+    ],nutrition:[],measurements:[]};
+   window.__previewDays.push(current);
+   for(let i=1;i<=11;i++){
+    const day="2026-11-"+String(i).padStart(2,"0");
+    window.__previewDays.push({schema_version:2,date:day,
+     workouts:[
+      {id:"a0000000-0000-4000-8000-"+String(i).padStart(12,"0"),
+       exercise_id:"hip_thrust",load_kg:20+i,reps:10},
+      {id:"b0000000-0000-4000-8000-"+String(i).padStart(12,"0"),
+       exercise_id:"hip_thrust",load_kg:25+i,reps:8},
+      {id:"c0000000-0000-4000-8000-"+String(i).padStart(12,"0"),
+       exercise_id:"chest_press",load_kg:30+i,reps:12}
+     ],nutrition:[],measurements:[]});
+   }
+   window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
+   state.calendarBrowsing=true;state.selected="2026-11-20";renderHeat();renderDay();
+   navigate("home");
+  });
+  const hips=page.locator('#dayDetails .exercise[data-exercise-id="hip_thrust"]');
+  const hipDates=hips.locator(".exercise-history-date");
+  if(await hipDates.count()!==10)
+   throw Error("Expected exactly ten historical hip-thrust DATES");
+  const firstDate=await hipDates.first().locator("strong").innerText();
+  const lastDate=await hipDates.last().locator("strong").innerText();
+  if(firstDate!=="2026-11-11"||lastDate!=="2026-11-02")
+   throw Error("Historical dates must be newest first: "+firstDate+"/"+lastDate);
+  if(await hipDates.first().locator(".exercise-history-set").count()!==2)
+   throw Error("History must show all sets on one previous date");
+  if(await page.locator("#dayDetails > .exercise").count()!==4)
+   throw Error("Selected day must retain exactly four exercise sections");
+  const chestHistory=page.locator('#dayDetails .exercise[data-exercise-id="chest_press"]');
+  if(await chestHistory.locator(".exercise-history-date").count()!==10 ||
+    await chestHistory.locator(".exercise-history-set").count()!==10)
+   throw Error("Other current-day action should get its own independent history");
+  if(await page.locator('#dayDetails .exercise[data-exercise-id="row"] .exercise-history-date').count()!==1)
+   throw Error("Row has one old history date from the earlier test fixture");
+  // Selecting a hip thrust dot then editing it must generate an immutable
+  // correction payload with old UUID, not rewrite/remove source HTML rows.
+  await page.evaluate(()=>{
+   window.__editPayloads=[];
+   window.BodyTraceNative.editWorkout=raw=>window.__editPayloads.push(JSON.parse(raw));
+   navigate("analytics");
+  });
+  const hipChart=page.locator('#strengthList [data-exercise-id="hip_thrust"]');
+  const hipRecent=hipChart.locator(".strength-recent-set");
+  await hipRecent.first().click();
+  await hipChart.locator(".strength-edit-action").click();
+  if(await page.locator("#workoutEditOverlay").isHidden())
+   throw Error("Selected trend point did not open manual edit dialog");
+  const selectedId=await page.locator("#workoutEditIdentity").innerText();
+  if(!selectedId.includes("2026-11-20"))
+   throw Error("Edit modal did not retain chosen training date: "+selectedId);
+  await page.fill("#workoutEditKg","80");
+  await page.fill("#workoutEditReps","6");
+  await page.fill("#workoutEditCopies","2");
+  await page.fill("#workoutEditNote","更新后训练组");
+  await page.locator("#workoutEditSave").click();
+  const correction=await page.evaluate(()=>window.__editPayloads[0]);
+  if(correction?.target_id!=="64007ed2-e1ad-49c5-88b0-d3959b3c0001" ||
+    correction.date!=="2026-11-20"||correction.action!=="replace"||
+    correction.load_kg!==80||correction.reps!==6||correction.copies!==2||
+    correction.note!=="更新后训练组")
+   throw Error("Trend editor must persist exact correction event: "+JSON.stringify(correction));
+  // Native projects the immutable edit log into effective rows and replies
+  // with view_model. Simulate that projection without updating source JSON.
+  await page.evaluate(()=>{
+   const old=state.rows.map(row=>({...row}));
+   const key="64007ed2-e1ad-49c5-88b0-d3959b3c0001";
+   const current=old.find(row=>row.id===key);
+   current.load_kg="80";current.reps="6";current.note="更新后训练组";
+   old.push({...current,id:"64007ed2-e1ad-49c5-88b0-d3959b3c0009"});
+   window.__effectiveTestRows=old;
+   window.bodyTraceReceive({type:"workout_edit_local_saved",
+     event:{type:"workout_edit",action:"replace",target_id:key,id:"demo-edit"},
+     count:1,
+     view_model:{view_schema_version:1,workouts:old,
+      measurements:state.measurements,nutrition:state.nutrition}});
+  });
+  if(!(await page.locator("#workoutEditOverlay").isHidden()))
+   throw Error("Edit modal should close on confirmed native saved event");
+  const afterHip=page.locator('#strengthList [data-exercise-id="hip_thrust"]');
+  if(await afterHip.locator(".strength-visible-point").count()!==24)
+   throw Error("Editing one group to two did not add exactly one effective workout point");
+  await afterHip.locator(".strength-recent-set").first().click();
+  await afterHip.locator(".strength-edit-action").click();
+  await page.locator("#workoutEditDelete").click();
+  const armed=await page.locator("#workoutEditDelete").innerText();
+  if(!armed.includes("确认删除")||(await page.evaluate(()=>window.__editPayloads.length))!==1)
+   throw Error("Workout deletion must require two clicks");
+  await page.locator("#workoutEditDelete").click();
+  const deletion=await page.evaluate(()=>window.__editPayloads[1]);
+  if(deletion?.action!=="delete"||deletion.date!=="2026-11-20")
+   throw Error("Delete must reference the selected saved UUID: "+JSON.stringify(deletion));
+  await page.evaluate(op=>{
+   const rows=window.__effectiveTestRows.filter(x=>x.id!==op.target_id);
+   window.__effectiveTestRows=rows;
+   window.bodyTraceReceive({type:"workout_edit_local_saved",event:op,count:1,
+    view_model:{view_schema_version:1,workouts:rows,
+     measurements:state.measurements,nutrition:state.nutrition}});
+   // Re-pulling the SAME effective data must not resurrect deleted UUID.
+   window.bodyTraceReceive({type:"data",cached:false,
+    view_model:{view_schema_version:1,workouts:rows,
+     measurements:state.measurements,nutrition:state.nutrition}});
+  },deletion);
+  const removed=await page.evaluate(id=>state.rows.some(row=>row.id===id),deletion.target_id);
+  if(removed)throw Error("Deleted workout point resurrected on simulated GitHub sync");
+  await page.screenshot({path:"bodytrace-historical-workout-and-edit-preview.png",fullPage:true});
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.join(" | "));
   console.log("PASS: 2 schematic figures, "+plots+" recent-first charts, group labels, ruler, batch/measurement JSON");
  }finally{await browser.close()}
