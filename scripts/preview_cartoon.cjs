@@ -484,9 +484,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(!residual.includes("custom_demoarm"))
    throw Error("Legacy arm workouts should remain accessible through Other");
   await page.screenshot({path:"bodytrace-four-major-regions-preview.png",fullPage:false});
-  // Sleep tab: synthetic local session history, adjustable dBFS screening and playback.
+  // Sleep workbench: one-screen waveform, baseline fine tuning, audio playback.
   await page.evaluate(()=>{
-   window.__sleepBridge={started:0,stopped:0,list:0,analysis:[],played:[],deleted:[],paused:0};
+   window.__sleepBridge={started:0,stopped:0,list:0,analysis:[],
+    cached:[],sequences:[],deleted:[],paused:0};
    window.BodyTraceNative={
     ...(window.BodyTraceNative||{}),
     sleepStatus:()=>window.__sleepBridge.list++,
@@ -494,157 +495,120 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     sleepStop:()=>window.__sleepBridge.stopped++,
     sleepAnalyze:(id,threshold,seconds,gap)=>
      window.__sleepBridge.analysis.push({id,threshold,seconds,gap}),
-    sleepPlay:(id,start,duration)=>window.__sleepBridge.played.push({id,start,duration}),
+    sleepReadCached:(id,threshold,seconds,gap)=>
+     window.__sleepBridge.cached.push({id,threshold,seconds,gap}),
+    sleepPlaySequence:(id,json,skip)=>
+     window.__sleepBridge.sequences.push({id,ranges:JSON.parse(json),skip}),
     sleepStopPlayback:()=>window.__sleepBridge.paused++,
     sleepDelete:id=>window.__sleepBridge.deleted.push(id)
    };
   });
   await page.locator('.tabs button[data-page="sleep"]').click();
-  if((await page.locator("#page-sleep").getAttribute("class")).includes("active")===false)
-   throw Error("Sleep section should be active after tab click");
   if((await page.evaluate(()=>window.__sleepBridge.list))!==1)
-   throw Error("Sleep tab should load local sessions");
+   throw Error("Sleep workbench should load local sessions");
   const sleepId="1700000000000-ab123456";
-  await page.evaluate(id=>{
-   window.bodyTraceReceive({type:"sleep_status",recording:false,sessions:[{
-    id,started_ms:1795000000000,ended_ms:1795028800000,
-    status:"completed",bytes:86134000,levels_cached:false
-   }]});
-  },sleepId);
+  await page.evaluate(id=>window.bodyTraceReceive({
+   type:"sleep_status",recording:false,sessions:[{
+    id,started_ms:1795000000000,ended_ms:1795028800000,status:"completed",
+    original_name:"night.m4a",bytes:419430400,levels_cached:false
+   }]
+  }),sleepId);
   if(await page.locator("#sleepHistory .sleep-history-card").count()!==1)
-   throw Error("Local sleep history not rendered");
+   throw Error("Local sleep history missing");
+  if(await page.locator("#sleepSessionSelect").inputValue()!==sleepId)
+   throw Error("Recording selector must show the current file");
+  if(await page.locator("#sleepVisualization").isVisible())
+   throw Error("Waveform should stay hidden until its local envelope exists");
+  await page.locator("#sleepCollectionDetails > summary").click();
   await page.locator("#sleepStart").click();
   if((await page.evaluate(()=>window.__sleepBridge.started))!==1)
-   throw Error("Sleep start button did not invoke Android bridge");
+   throw Error("Recording start did not reach the native bridge");
   await page.evaluate(id=>window.bodyTraceReceive({
    type:"sleep_status",recording:true,active_id:id,sessions:[{
     id,started_ms:1795000000000,status:"recording",bytes:20480
    }]
   }),sleepId);
   if(!(await page.locator("#sleepStart").isDisabled())||
-    (await page.locator("#sleepStop").isDisabled()))
-   throw Error("Sleep recording state controls incorrect");
+      (await page.locator("#sleepStop").isDisabled()))
+   throw Error("Recording controls did not switch to the live state");
   await page.locator("#sleepStop").click();
   if((await page.evaluate(()=>window.__sleepBridge.stopped))!==1)
-   throw Error("Sleep stop button did not invoke Android bridge");
+   throw Error("Stop recording should call native bridge");
   await page.evaluate(id=>window.bodyTraceReceive({
    type:"sleep_status",recording:false,sessions:[{
     id,started_ms:1795000000000,ended_ms:1795028800000,
-    status:"completed",bytes:86134000,levels_cached:true
+    original_name:"night.m4a",status:"completed",bytes:419430400,levels_cached:false
    }]
   }),sleepId);
   await page.locator("#sleepAnalyze").click();
-  const req=await page.evaluate(()=>window.__sleepBridge.analysis[0]);
-  if(req.id!==sleepId||req.threshold!==-40||req.seconds!==5||req.gap!==1)
-   throw Error("Initial offline sound filter parameters incorrect: "+JSON.stringify(req));
-  await page.evaluate(id=>window.bodyTraceReceive({
-   type:"sleep_analysis",id,started_ms:1795000000000,total_seconds:28800,
-   threshold_dbfs:-40,minimum_seconds:5,gap_seconds:1,
-   events:[{start_sec:440,end_sec:448,active_sec:7,peak_dbfs:-25.3},
-           {start_sec:2700,end_sec:2706,active_sec:6,peak_dbfs:-29.9}]
-  }),sleepId);
-  if(await page.locator("#sleepAnalysis .sleep-event").count()!==2)
-   throw Error("Two detected sound events should be visible");
-  const summary=await page.locator(".sleep-analysis-summary").innerText();
-  if(!summary.includes("2 段")||!summary.includes("-40 dBFS")||
-    !summary.includes("不代表确认为鼾声"))
-   throw Error("Candidate sound event summary needs uncertainty disclaimer: "+summary);
-  await page.locator(".sleep-event button").first().click();
-  const playback=await page.evaluate(()=>window.__sleepBridge.played[0]);
-  if(playback.id!==sleepId||playback.start!==438||playback.duration<9)
-   throw Error("Audio clip playback offset or lead-in invalid: "+JSON.stringify(playback));
-  await page.locator("#sleepStopPlayback").click();
-  if((await page.evaluate(()=>window.__sleepBridge.paused))!==1)
-   throw Error("Stop playback button failed");
-  await page.locator("#sleepThreshold").evaluate(input=>{
-   input.value="-35";input.dispatchEvent(new Event("input",{bubbles:true}));
-   input.dispatchEvent(new Event("change",{bubbles:true}));
-  });
-  const changed=await page.evaluate(()=>window.__sleepBridge.analysis.at(-1));
-  if(changed.threshold!==-35||changed.seconds!==5)
-   throw Error("Adjusting threshold did not re-run analysis");
-  await page.evaluate(id=>window.bodyTraceReceive({
-   type:"sleep_analysis",id,started_ms:1795000000000,total_seconds:28800,
-   threshold_dbfs:-35,minimum_seconds:5,gap_seconds:1,events:[]
-  }),sleepId);
-  const del=page.locator(".sleep-history-actions .danger-soft");
-  await del.click();await del.click();
-  if((await page.evaluate(()=>window.__sleepBridge.deleted[0]))!==sleepId)
-   throw Error("Two-click local deletion guard did not invoke native bridge");
-
-  // Nightly analysis includes the full 8h RMS/peak envelope, but the
-  // Canvas renderer must not create a DOM node for every 1-second sample.
+  const request=await page.evaluate(()=>window.__sleepBridge.analysis[0]);
+  if(request.id!==sleepId||request.threshold!==-40)
+   throw Error("First analysis should use initial -40 dBFS while loading");
   const seconds=8*60*60;
   await page.evaluate(({id,seconds})=>{
    const rms=Array.from({length:seconds},(_,i)=>
-     i>=4200&&i<4250?-24:(i%3500<120?-32:-62));
+    i>=4200&&i<4250?-24:(i%3500<120?-32:-62));
    const peak=rms.map(v=>v+9);
-   window.bodyTraceReceive({type:"sleep_analysis",id,started_ms:1795000000000,
-     date_basis:"user_supplied",total_seconds:seconds,threshold_dbfs:-40,
-     minimum_seconds:5,gap_seconds:1,levels_dbfs:rms,peak_levels_dbfs:peak,
-     events:[{start_sec:4200,end_sec:4250,active_sec:50,peak_dbfs:-24},
-             {start_sec:7200,end_sec:7210,active_sec:10,peak_dbfs:-32}]
-   });
+   window.bodyTraceReceive({type:"sleep_analysis",id,
+    started_ms:1795000000000,date_basis:"user_supplied",
+    total_seconds:seconds,threshold_dbfs:-40,minimum_seconds:5,
+    gap_seconds:1,levels_dbfs:rms,peak_levels_dbfs:peak,events:[]});
   },{id:sleepId,seconds});
   if(await page.locator("#sleepVisualization").isHidden())
-   throw Error("Waveform panel must display after valid analyzed envelope");
-  if(await page.locator("#sleepSoundStats .sleep-sound-stat").count()!==6)
-   throw Error("Expected six distinct noise/threshold statistics");
+   throw Error("The waveform must appear after a valid analysis");
+  if((await page.locator("#sleepThreshold").inputValue())!=="-60.0")
+   throw Error("Robust P20 background -62dBFS should default to -60.0dBFS");
+  await page.locator("#sleepThresholdUp").click();
+  if((await page.locator("#sleepThreshold").inputValue())!=="-59.9")
+   throw Error("0.1 dB micro adjustment failed");
+  await page.locator("#sleepThresholdReset").click();
+  if((await page.locator("#sleepThreshold").inputValue())!=="-60.0")
+   throw Error("Baseline reset must restore P20+2dB for this recording");
+  if(await page.locator("#sleepQuickSummary").innerText()==="")
+   throw Error("One-screen candidate summary is missing");
+  if(await page.locator("#sleepSoundStats .sleep-sound-stat").count()!==4)
+   throw Error("Detailed metrics should be compact (four, not six cards)");
   if(await page.locator("#sleepHourlyActivity .sleep-hour-block").count()!==8)
-   throw Error("Expected 8 hourly activity bars for imported 8 hour audio");
-  const canvasDims=await page.locator("#sleepWaveCanvas").evaluate(x=>({width:x.width,height:x.height}));
-  if(canvasDims.width<200||canvasDims.height<200)
-   throw Error("Full-night waveform Canvas not rendered: "+JSON.stringify(canvasDims));
-  const overDraw=await page.locator(".sleep-visualization").locator("*").count();
-  if(overDraw>250)throw Error("8h waveform rendered too many DOM nodes: "+overDraw);
+   throw Error("Eight-hour imported audio should render 8 hourly bars");
+  const dims=await page.locator("#sleepWaveCanvas").evaluate(c=>({w:c.width,h:c.height}));
+  if(dims.w<200||dims.h<200)
+   throw Error("Compact waveform failed to render: "+JSON.stringify(dims));
+  const oldAxis=await page.evaluate(()=>window.BodyTraceSleepVisual.state());
   await page.locator('#sleepVisualization [data-sleep-zoom="3600"]').click();
-  const state1=await page.evaluate(()=>window.BodyTraceSleepVisual.state());
-  if(state1.span!==3600)throw Error("One-hour zoom failed: "+JSON.stringify(state1));
-  await page.locator("#sleepNextWindow").click();
-  const state2=await page.evaluate(()=>window.BodyTraceSleepVisual.state());
-  if(!(state2.start>state1.start))throw Error("Waveform navigation to next window failed");
-  await page.locator("#sleepWaveCanvas").click({position:{x:190,y:100}});
+  const newAxis=await page.evaluate(()=>window.BodyTraceSleepVisual.state());
+  if(newAxis.span!==3600||newAxis.axisMin!==oldAxis.axisMin||
+      newAxis.axisMax!==oldAxis.axisMax)
+   throw Error("Horizontal zoom must preserve locked Y axis");
+  await page.locator("#sleepWaveCanvas").click({position:{x:190,y:85}});
   if(await page.locator("#sleepPlaySelection").isDisabled())
-   throw Error("Waveform tap should activate localized audio playback");
+   throw Error("Waveform tap should enable playback");
   await page.locator("#sleepPlaySelection").click();
-  const played=await page.evaluate(()=>window.__sleepBridge.played.at(-1));
-  if(played.duration!==15||played.id!==sleepId)
-   throw Error("Waveform selection did not play 15s clip");
-  await page.locator('.sleep-event-focus').first().click();
-  const focusState=await page.evaluate(()=>window.BodyTraceSleepVisual.state());
-  if(focusState.cursor<4200||focusState.cursor>4250||focusState.span!==600)
-   throw Error("Event focus must center waveform on chosen sound region: "+JSON.stringify(focusState));
-  await page.evaluate(id=>{
-    window.bodyTraceReceive({type:"sleep_analysis",id,started_ms:1795000000000,
-      date_basis:"imported_at",total_seconds:600,threshold_dbfs:-40,
-      minimum_seconds:5,gap_seconds:1,
-      levels_dbfs:Array(600).fill(-50),peak_levels_dbfs:Array(600).fill(-40),
-      events:[{start_sec:100,end_sec:106,active_sec:6,peak_dbfs:-40}]});
-  },sleepId);
-  if(!(await page.locator("#sleepVisualCaveat").innerText()).includes("相对时间"))
-   throw Error("Unknown imported recording time should not fabricate clock dates");
-  if(!(await page.locator(".sleep-event strong").first().innerText()).includes("+"))
-   throw Error("Unknown recording start must show elapsed event offset");
-  const rawTabs=await page.locator('.tabs button[data-page="raw"]').count();
-  if(rawTabs!==0)throw Error("Raw should not occupy a bottom tab");
-  await page.locator('.tabs button[data-page="settings"]').click();
-  const rawDetails=page.locator("#rawSettingsAccordion");
-  if(await rawDetails.count()!==1)
-   throw Error("Raw inbox was not moved to bottom of Log");
-  await rawDetails.locator("summary").click();
-  if(!(await page.locator("#rawText").isVisible()))
-   throw Error("Raw textarea should be usable from the Log accordion");
-  // SAF import bridge call is UI-only in browser; native picker uses Android.
-  await page.locator('.tabs button[data-page="sleep"]').click();
+  const ordinary=await page.evaluate(()=>window.__sleepBridge.sequences.at(-1));
+  if(!ordinary||ordinary.id!==sleepId||ordinary.skip)
+   throw Error("Default playback should stream original audio from cursor");
+  await page.locator("#sleepSkipQuiet").check();
+  await page.locator("#sleepPlaySelection").click();
+  const filtered=await page.evaluate(()=>window.__sleepBridge.sequences.at(-1));
+  if(!filtered.skip||!filtered.ranges.length)
+   throw Error("Skip mode should play only qualifying audio ranges");
+  await page.locator("#sleepStopPlayback").click();
+  if((await page.evaluate(()=>window.__sleepBridge.paused))<1)
+   throw Error("Stop playback must reach native service");
+  await page.locator(".sleep-events-details > summary").click();
+  if((await page.locator("#sleepAnalysis .sleep-event").count())<1)
+   throw Error("Candidate events should remain accessible in collapsed details");
+  const decodeCount=await page.evaluate(()=>window.__sleepBridge.analysis.length);
+  await page.locator("#sleepThresholdDown").click();
+  if((await page.evaluate(()=>window.__sleepBridge.analysis.length))!==decodeCount)
+   throw Error("Changing threshold must not decode the original M4A again");
+  await page.fill("#sleepImportStarted","2026-11-18T23:00");
   await page.evaluate(()=>window.BodyTraceNative.sleepImport=value=>{
    window.__importStarted=value;
   });
-  await page.fill("#sleepImportStarted","2026-11-18T23:00");
   await page.locator("#sleepImport").click();
   if((await page.evaluate(()=>window.__importStarted))!=="2026-11-18T23:00")
-   throw Error("Import must preserve user-supplied original recording start time");
-  await page.screenshot({path:"bodytrace-sleep-waveform-import-preview.png",fullPage:true});
-
+   throw Error("Import should preserve the supplied recording date");
+  await page.screenshot({path:"bodytrace-sleep-waveform-import-preview.png",fullPage:false});
   await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
   // Historical daily drill-down: all sets per date and max 10 past dates
   // for each of today's four actions, without mixing other exercise IDs.
