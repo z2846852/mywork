@@ -54,6 +54,8 @@
   const target=sessions.find(s=>s.id===id);
   if(busy||loadingCachedId||analysis?.id===id||!target?.levels_cached||!bridge()?.sleepReadCached)return;
   loadingCachedId=id;
+  busy=true;
+  render();
   bridge().sleepReadCached(id,Number($("sleepThreshold").value),
    Number($("sleepMinSeconds").value),Number($("sleepGapSeconds").value));
  }
@@ -200,7 +202,7 @@
   }
  }
  function analyze(){
-  if(busy||!current()||recording)return;
+  if(busy||!!loadingCachedId||!current()||recording)return;
   const threshold=Number($("sleepThreshold").value);
   const seconds=Number($("sleepMinSeconds").value);
   const gap=Number($("sleepGapSeconds").value);
@@ -213,6 +215,7 @@
    busy=true;loadingCachedId=selectedId;
    $("sleepAnalyze").disabled=true;
    $("sleepSelected").textContent="正在使用缓存重新筛选声音片段…";
+   render();
    bridge().sleepReadCached(selectedId,threshold,seconds,gap);
    return;
   }
@@ -223,6 +226,7 @@
   runningAnalysisId=selectedId;
   $("sleepAnalyze").disabled=true;
   updateAnalysisProgress(0,Date.now());
+  render();
   bridge().sleepAnalyze(selectedId,threshold,seconds,gap);
  }
  $("sleepThreshold").addEventListener("input",updateThreshold);
