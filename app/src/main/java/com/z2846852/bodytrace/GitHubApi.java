@@ -119,8 +119,9 @@ final class GitHubApi {
             }
             boolean isNutrition = "nutrition".equals(event.optString("type"));
             boolean isMeasurement = "measurement".equals(event.optString("type"));
+            boolean isWorkoutEdit="workout_edit".equals(event.optString("type"));
             String category = isNutrition ? "nutrition" :
-                    isMeasurement ? "measurements" : "workouts";
+                    isMeasurement ? "measurements" : isWorkoutEdit ? "workout_edits" : "workouts";
             JSONArray records = daily.optJSONArray(category);
             if (records == null) {
                 records = new JSONArray();
@@ -140,7 +141,9 @@ final class GitHubApi {
                         "intake_carbs", "intake_sugar_oil", "source", "created_at"} : isMeasurement ?
                     new String[]{"id", "weight_kg", "shoulder_cm", "chest_cm", "waist_cm",
                         "upper_arm_cm", "hip_cm", "thigh_cm", "calf_cm",
-                        "source", "created_at"} :
+                        "source", "created_at"} : isWorkoutEdit ?
+                    new String[]{"id", "target_id", "action", "load_key", "load_kg",
+                        "reps", "copies", "note", "source", "created_at"} :
                     new String[]{"id", "exercise_id", "exercise_label", "exercise_region",
                         "reps", "load_kg", "assistance_kg", "attempt_status",
                         "load_basis", "date_basis", "note", "source", "created_at"};
