@@ -239,11 +239,11 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   <p class="sub">请先打开 APP 点击开始，再锁屏。必须授权麦克风；Android 13+ 可授权通知便于从锁屏通知停止。部分手机需要允许后台活动、关闭该 APP 的省电限制；系统异常终止仍可能中断录音。</p>
  </div>
  <div class="panel">
-  <h2>筛选声音片段</h2>
+  <h2>声音筛选器</h2>
   <p class="sub">阈值采用 <b>dBFS 数字音量</b>，不是经声学校准的环境 dB SPL。默认 -40 dBFS 不代表真实声压 40 dB；可根据录音调节。</p>
   <div class="field">
    <label for="sleepThreshold">RMS 音量阈值：<strong id="sleepThresholdText">-40 dBFS</strong></label>
-   <input id="sleepThreshold" type="range" min="-90" max="-5" step="5" value="-40">
+   <input id="sleepThreshold" type="range" min="-90" max="-5" step="1" value="-40" aria-label="RMS分贝阈值">
   </div>
   <div class="formgrid">
    <div class="field">
@@ -259,10 +259,9 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   <div class="sleep-selected" id="sleepSelected">请从下方选择一个已完成的录音</div>
   <div class="sleep-visualization" id="sleepVisualization" hidden>
    <div class="sleep-visual-head">
-    <h3>全夜声波概况</h3>
-    <span class="sub">1 秒 RMS / 峰值包络，非原始振荡波形</span>
+    <h3>音频浏览器</h3>
+    <span class="sub">双指缩放 · 单指拖动 · 点击定位</span>
    </div>
-   <div id="sleepSoundStats" class="sleep-sound-stats"></div>
    <div class="sleep-wave-controls" role="group" aria-label="声波缩放">
     <button type="button" class="mini secondary" data-sleep-zoom="all">整晚</button>
     <button type="button" class="mini secondary" data-sleep-zoom="3600">1 小时</button>
@@ -272,20 +271,32 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <button type="button" class="mini secondary" id="sleepNextWindow">▶</button>
    </div>
    <div class="sleep-wave-frame">
-    <canvas id="sleepWaveCanvas" height="220" role="img" aria-label="整晚音频RMS与峰值音量、事件时间线；点击选择音频片段"></canvas>
+    <canvas id="sleepWaveCanvas" height="260" role="img" aria-label="音频逐秒响度，红色横线为RMS阈值；双指缩放，单指拖动，点击选择播放位置"></canvas>
    </div>
-   <p id="sleepWaveSelection" class="sub">点击波形可定位时间并回听附近片段。</p>
+   <p id="sleepWaveSelection" class="sub">点击选择时间 · 单指拖动画面 · 双指缩放时间轴</p>
+   <div id="sleepSoundStats" class="sleep-sound-stats"></div>
+   <p id="sleepNoiseWarning" class="sleep-noise-warning" hidden></p>
    <div class="sleep-wave-legend">
     <span class="sleep-wave-key peak">峰值包络</span>
     <span class="sleep-wave-key rms">RMS 音量</span>
-    <span class="sleep-wave-key event">超过阈值的声音</span>
-    <span class="sleep-wave-key threshold">筛选阈值</span>
+    <span class="sleep-wave-key event">合格片段</span>
+    <span class="sleep-wave-key threshold">红线阈值 / 红色冒头</span>
    </div>
-   <div class="row wrap">
-    <button type="button" class="secondary mini" id="sleepPlaySelection" disabled>播放选中位置附近15秒</button>
-    <button type="button" class="secondary mini" id="sleepFocusSelection" disabled>放大选中位置</button>
+   <div class="sleep-transport">
+    <label class="sleep-skip-option" for="sleepSkipQuiet">
+     <input type="checkbox" id="sleepSkipQuiet">
+     <span>跳过不达标的安静段</span>
+    </label>
+    <p class="sub">勾选后，仅连续播放满足最短持续时间和允许空隙规则的候选片段。</p>
+    <div class="sleep-playbar">
+     <button type="button" class="secondary mini" id="sleepPreviousEvent">上一段</button>
+     <button type="button" class="primary" id="sleepPlaySelection" disabled>▶ 从此处播放</button>
+     <button type="button" class="secondary mini" id="sleepNextEvent">下一段</button>
+    </div>
+    <p id="sleepPlaybackStatus" class="sub" role="status">尚未播放</p>
+    <button type="button" class="secondary mini" id="sleepFocusSelection" disabled>放大游标位置</button>
    </div>
-   <h3>逐小时声音分布</h3>
+   <h3>逐小时超阈值分布</h3>
    <div id="sleepHourlyActivity" class="sleep-hourly-activity"></div>
    <p id="sleepVisualCaveat" class="sub">仅分析响度，不能识别打鼾、呼吸暂停或睡眠分期；风扇和讲话也可能触发。</p>
   </div>
@@ -300,7 +311,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   </div>
   <div id="sleepAnalysis" class="sleep-analysis" aria-live="polite"></div>
   <div class="row wrap" style="margin-top:12px">
-   <button type="button" id="sleepStopPlayback" class="secondary mini">停止播放片段</button>
+   <button type="button" id="sleepStopPlayback" class="secondary mini">■ 停止播放</button>
    <button type="button" id="sleepRefresh" class="secondary mini">刷新录音记录</button>
   </div>
  </div>
