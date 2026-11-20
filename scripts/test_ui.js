@@ -366,6 +366,49 @@ assert.ok(features.includes('editAction.onclick=()=>window.BodyTraceWorkoutEdito
 const editStyle=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(editStyle.includes('.workout-edit-overlay[hidden]{display:none!important}'));
 assert.ok(editStyle.includes('.exercise-history-date-head{display:flex'));
+// Sleep audio import uses SAF URI grants + streaming copy (not full-file RAM)
+// and samples RMS/peak levels for whole-night waveforms.
+const sleepVisualization=fs.readFileSync(path.join(root,
+ "app/src/main/assets/sleep_visualization.js"),"utf8");
+new vm.Script(sleepVisualization,{filename:"sleep_visualization.js"});
+assert.ok(native.includes('readAsset("sleep_visualization.js")'));
+assert.ok(native.includes("Intent.ACTION_OPEN_DOCUMENT"));
+assert.ok(native.includes('choose.setType("audio/*")'));
+assert.ok(native.includes('PICK_SLEEP_AUDIO_REQUEST=7204'));
+assert.ok(native.includes('getContentResolver().openInputStream(uri)'));
+assert.ok(native.includes('byte[] block=new byte[65536]'));
+assert.ok(native.includes('length>SLEEP_IMPORT_MAX_BYTES'));
+assert.ok(native.includes('reportedStart.trim()'));
+assert.ok(native.includes('session.put("audio_extension",ext)'));
+assert.ok(native.includes('MediaExtractor extractor=new MediaExtractor()'));
+assert.ok(native.includes('"sleep_imported"'));
+assert.ok(native.includes('"sleep_import_progress"'));
+assert.ok(sleepStore.includes('static File importedAudio('));
+assert.ok(sleepStore.includes('"audio_extension"'));
+assert.ok(sleepStore.includes('"original_name","duration_ms"'));
+assert.ok(sleepAnalyzer.includes('decodeEnvelope(File input,IntConsumer progress)'));
+assert.ok(sleepAnalyzer.includes('levels.add(dbfs(squares,count))'));
+assert.ok(sleepAnalyzer.includes('peaks.add(peakDbfs(peak))'));
+assert.ok(native.includes('answer.put("levels_dbfs",levels)'));
+assert.ok(native.includes('answer.put("peak_levels_dbfs",peaks)'));
+assert.ok(native.includes('session.put("peak_levels_dbfs",peaks)'));
+assert.ok(html.includes('id="sleepImport"'));
+assert.ok(html.includes('id="sleepImportStarted"'));
+assert.ok(html.includes('id="sleepWaveCanvas"'));
+assert.ok(html.includes('id="sleepHourlyActivity"'));
+assert.ok(html.includes('id="sleepSoundStats"'));
+assert.ok(sleepJS.includes('bridge().sleepImport('));
+assert.ok(sleepJS.includes('events.slice(0,eventLimit)'));
+assert.ok(sleepJS.includes('eventLimit+=80'));
+assert.ok(sleepVisualization.includes('getContext("2d")'));
+assert.ok(sleepVisualization.includes('requestAnimationFrame('));
+assert.ok(sleepVisualization.includes('for(let px=0;px<plotWidth;px++)'));
+assert.ok(sleepVisualization.includes('Math.max(240,Math.round(bounds.width||320))'));
+assert.ok(sleepVisualization.includes('window.BodyTraceSleepVisual={'));
+assert.ok(!html.includes('data-page="raw"'),"Remove Raw from bottom tabs");
+assert.ok(html.includes('id="rawSettingsAccordion"'));
+assert.ok(html.indexOf('id="page-settings"')<html.indexOf('id="page-raw"'));
+assert.ok(html.indexOf('id="page-raw"')<html.indexOf('</section>',html.indexOf('id="page-settings"')));
 // Compact chrome, always reachable save, and distinct muscle categories.
 const featureStyles=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.includes('class="quick-head"')&&!html.includes('<h1>体迹'),
