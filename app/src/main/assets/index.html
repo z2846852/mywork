@@ -678,7 +678,7 @@ function renderDay(){
   // This stays local, derived from effective/synced rows, no network call.
   const exerciseId=items[0].exercise_id;
   const historyRows=state.rows.filter(r=>r.exercise_id===exerciseId &&
-   r.session_date<state.selected && /^\\d{4}-\\d{2}-\\d{2}$/.test(r.session_date));
+   r.session_date<state.selected && /^\d{4}-\d{2}-\d{2}$/.test(r.session_date));
   const byDate=new Map();
   for(const row of historyRows){
    if(!byDate.has(row.session_date))byDate.set(row.session_date,[]);
