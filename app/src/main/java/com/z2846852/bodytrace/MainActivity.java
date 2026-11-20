@@ -7,6 +7,13 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.media.MediaPlayer;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
+import android.media.MediaMetadataRetriever;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
@@ -38,6 +45,9 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private WebView web;
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
+    private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
+    private static final long SLEEP_IMPORT_MAX_BYTES=2L*1024*1024*1024; // 2 GiB
+    private String pendingSleepStart="";
     private final Handler sleepHandler=new Handler(Looper.getMainLooper());
     private MediaPlayer sleepPlayer;
     private Runnable stopPlayback;
@@ -83,7 +93,7 @@ public final class MainActivity extends Activity {
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
             String js = readAsset("wheel.js") + "\n" + readAsset("features.js") +
-                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js") + "\n" + readAsset("sleep.js");
+                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js") + "\n" + readAsset("sleep.js") + "\n" + readAsset("sleep_visualization.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             // The friendly cartoon avatar is a local SVG; no heavy GLB or
             // third-party scripts are loaded in the 2D release.
@@ -233,15 +243,143 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != PICK_AVATAR_REQUEST || resultCode != RESULT_OK) return;
-        Uri uri = data == null ? null : data.getData();
-        worker.execute(() -> {
-            try {
-                importAvatar(uri);
-            } catch (Exception error) {
-                error("导入高清人物图失败：" + safeMessage(error));
+        if(resultCode!=RESULT_OK){
+            if(requestCode==PICK_SLEEP_AUDIO_REQUEST){
+                pendingSleepStart="";
+                reply(message("sleep_import_cancelled"));
             }
+            return;
+        }
+        Uri uri=data==null?null:data.getData();
+        if(requestCode==PICK_SLEEP_AUDIO_REQUEST){
+            String reportedStart=pendingSleepStart;
+            pendingSleepStart="";
+            worker.execute(()->{
+                try{importSleepAudio(uri,reportedStart);}
+                catch(Exception failure){error("睡眠录音导入失败："+safeMessage(failure));}
+            });
+            return;
+        }
+        if(requestCode!=PICK_AVATAR_REQUEST)return;
+        worker.execute(() -> {
+            try { importAvatar(uri); }
+            catch (Exception failure){error("导入高清人物图失败：" + safeMessage(failure));}
         });
+    }
+
+
+    /**
+     * ACTION_OPEN_DOCUMENT grants only this selected URI. Stream-copy an
+     * existing 8-hour recording; never allocate its entire bytes in memory.
+     * The original URI is not retained. No media/storage-wide permission.
+     */
+    private void importSleepAudio(Uri uri,String reportedStart) throws Exception {
+        if(uri==null || !"content".equals(uri.getScheme()))
+            throw new IllegalArgumentException("请选择有效的本机音频文件");
+        String filename="录音";
+        long knownSize=-1;
+        try(Cursor cursor=getContentResolver().query(uri,
+                new String[]{OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE},null,null,null)){
+            if(cursor!=null&&cursor.moveToFirst()){
+                int nameCol=cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                int sizeCol=cursor.getColumnIndex(OpenableColumns.SIZE);
+                if(nameCol>=0&&!cursor.isNull(nameCol))filename=cursor.getString(nameCol);
+                if(sizeCol>=0&&!cursor.isNull(sizeCol))knownSize=cursor.getLong(sizeCol);
+            }
+        }
+        if(filename==null)filename="录音";
+        if(filename.length()>100)filename=filename.substring(0,100);
+        String lower=filename.toLowerCase(java.util.Locale.ROOT);
+        String ext=lower.contains(".")?lower.substring(lower.lastIndexOf('.')+1):"";
+        if(!ext.matches("mp3|m4a|mp4|wav|ogg|opus|flac|3gp|aac|amr")){
+            String mime=getContentResolver().getType(uri);
+            if("audio/mpeg".equals(mime))ext="mp3";
+            else if("audio/wav".equals(mime)||"audio/x-wav".equals(mime))ext="wav";
+            else if("audio/flac".equals(mime))ext="flac";
+            else if("audio/ogg".equals(mime))ext="ogg";
+            else if("audio/mp4".equals(mime)||"audio/x-m4a".equals(mime))ext="m4a";
+            else throw new IllegalArgumentException("不支持的音频格式。请选择 MP3/M4A/WAV/FLAC/OGG 等文件");
+        }
+        if(knownSize>SLEEP_IMPORT_MAX_BYTES)
+            throw new IllegalArgumentException("录音超过2GB导入上限，请先压缩为M4A或MP3");
+        File folder=SleepSessions.audioDir(this);
+        if(knownSize>0 && folder.getUsableSpace()<knownSize+32L*1024*1024)
+            throw new IllegalStateException("手机空间不足，导入需先复制音频文件");
+        long importedAt=System.currentTimeMillis();
+        String id=importedAt+"-"+UUID.randomUUID().toString().substring(0,8);
+        File dest=SleepSessions.importedAudio(this,id,ext);
+        long length=0;
+        int lastProgress=-1;
+        try{
+            try(InputStream input=getContentResolver().openInputStream(uri);
+                FileOutputStream output=new FileOutputStream(dest)){
+                if(input==null)throw new IllegalArgumentException("无法读取所选音频");
+                byte[] block=new byte[65536];
+                int read;
+                while((read=input.read(block))!=-1){
+                    length+=read;
+                    if(length>SLEEP_IMPORT_MAX_BYTES)
+                        throw new IllegalArgumentException("文件超过2GB导入上限");
+                    output.write(block,0,read);
+                    if(knownSize>0){
+                        int pct=(int)Math.min(99,length*100/knownSize);
+                        if(pct/5>lastProgress/5){
+                            lastProgress=pct;
+                            JSONObject p=message("sleep_import_progress");
+                            p.put("percent",pct);reply(p);
+                        }
+                    }
+                }
+                output.getFD().sync();
+            }
+            if(length<1024)throw new IllegalArgumentException("音频内容为空或损坏");
+            // Validate the copied file has an Android-supported audio track.
+            MediaExtractor extractor=new MediaExtractor();
+            try{
+                extractor.setDataSource(dest.getAbsolutePath());
+                boolean audioTrack=false;
+                for(int i=0;i<extractor.getTrackCount();i++){
+                    MediaFormat f=extractor.getTrackFormat(i);
+                    String mime=f.getString(MediaFormat.KEY_MIME);
+                    if(mime!=null&&mime.startsWith("audio/")){audioTrack=true;break;}
+                }
+                if(!audioTrack)throw new IllegalArgumentException("文件没有可解码的音轨");
+            }finally{extractor.release();}
+            long duration=0;
+            MediaMetadataRetriever retriever=new MediaMetadataRetriever();
+            try{
+                retriever.setDataSource(dest.getAbsolutePath());
+                String time=retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+                if(time!=null)duration=Long.parseLong(time);
+            }catch(Exception ignored){/* analyzer will determine actual duration */}
+            finally{retriever.release();}
+            long start=importedAt;
+            String dateBasis="imported_at";
+            if(reportedStart!=null&&!reportedStart.trim().isEmpty()){
+                LocalDateTime local=LocalDateTime.parse(reportedStart.trim(),
+                    DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                start=local.toInstant(BEIJING).toEpochMilli();
+                dateBasis="user_supplied";
+            }
+            JSONObject session=new JSONObject();
+            session.put("id",id).put("started_ms",start)
+                .put("ended_ms",start+duration)
+                .put("duration_ms",duration)
+                .put("imported_ms",importedAt)
+                .put("date_basis",dateBasis)
+                .put("source","imported-audio")
+                .put("original_name",filename)
+                .put("audio_extension",ext)
+                .put("status","completed");
+            SleepSessions.write(this,session);
+            JSONObject msg=message("sleep_imported");
+            msg.put("id",id).put("bytes",length);
+            reply(msg);
+            sendSleepStatus();
+        }catch(Exception problem){
+            if(dest.exists())dest.delete();
+            throw problem;
+        }
     }
 
     private byte[] readAssetBytes(String name) throws Exception {
@@ -1165,6 +1303,24 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+        @JavascriptInterface public void sleepImport(String reportedStart){
+            runOnUiThread(()->{
+                try{
+                    if(SleepRecorderService.isRecording())
+                        throw new IllegalStateException("请先停止当前录音再导入");
+                    if(reportedStart!=null && !reportedStart.trim().isEmpty()){
+                        LocalDateTime.parse(reportedStart.trim(),DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                    }
+                    pendingSleepStart=reportedStart==null?"":reportedStart.trim();
+                    Intent choose=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    choose.addCategory(Intent.CATEGORY_OPENABLE);
+                    choose.setType("audio/*");
+                    choose.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(choose,PICK_SLEEP_AUDIO_REQUEST);
+                }catch(Exception ex){error("无法打开录音选择器："+safeMessage(ex));}
+            });
+        }
+
         @JavascriptInterface public void sleepStatus(){
             worker.execute(MainActivity.this::sendSleepStatus);
         }
@@ -1206,16 +1362,31 @@ public final class MainActivity extends Activity {
                     if(!audio.isFile()||audio.length()<1024)
                         throw new IllegalStateException("录音文件不可用");
                     JSONArray levels=session.optJSONArray("levels_dbfs");
-                    if(levels==null){
-                        levels=SleepAudioAnalyzer.decodeLevels(audio);
+                    JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
+                    if(levels==null || peaks==null || peaks.length()!=levels.length()){
+                        JSONObject envelope=SleepAudioAnalyzer.decodeEnvelope(audio,percent->{
+                            try{
+                                JSONObject update=message("sleep_analysis_progress");
+                                update.put("id",sessionId).put("percent",percent);
+                                reply(update);
+                            }catch(Exception ignored){}
+                        });
+                        levels=envelope.getJSONArray("rms_dbfs");
+                        peaks=envelope.getJSONArray("peak_dbfs");
                         session.put("levels_dbfs",levels);
+                        session.put("peak_levels_dbfs",peaks);
+                        session.put("duration_ms",(long)levels.length()*1000L);
                         SleepSessions.write(MainActivity.this,session);
                     }
                     JSONArray events=SleepAudioAnalyzer.detect(levels,threshold,seconds,gap);
                     JSONObject answer=message("sleep_analysis");
                     answer.put("id",sessionId);
                     answer.put("started_ms",session.optLong("started_ms"));
+                    answer.put("date_basis",session.optString("date_basis","recorded_at"));
+                    answer.put("original_name",session.optString("original_name",""));
                     answer.put("total_seconds",levels.length());
+                    answer.put("levels_dbfs",levels);
+                    answer.put("peak_levels_dbfs",peaks);
                     answer.put("threshold_dbfs",threshold);
                     answer.put("minimum_seconds",seconds);
                     answer.put("gap_seconds",gap);

@@ -37,7 +37,23 @@ final class SleepSessions {
 
     static File audio(Context context, String id) {
         verifyId(id);
-        return new File(audioDir(context), id + ".m4a");
+        String extension="m4a";
+        try {
+            File meta=json(context,id);
+            if(meta.isFile()){
+                JSONObject data=load(context,id);
+                String saved=data.optString("audio_extension","m4a");
+                if(saved.matches("[a-z0-9]{2,5}"))extension=saved;
+            }
+        }catch(Exception ignored){} // New recordings do not have metadata yet.
+        return new File(audioDir(context), id + "." + extension);
+    }
+
+    static File importedAudio(Context context,String id,String extension) {
+        verifyId(id);
+        if(!extension.matches("mp3|m4a|mp4|wav|ogg|opus|flac|3gp|aac|amr"))
+            throw new IllegalArgumentException("不支持的录音文件格式");
+        return new File(audioDir(context),id+"."+extension);
     }
 
     static File json(Context context, String id) {
@@ -86,7 +102,8 @@ final class SleepSessions {
                 try {
                     JSONObject s = load(context, file.getName().replace(".json", ""));
                     JSONObject summary = new JSONObject();
-                    for (String key : new String[]{"id","started_ms","ended_ms","status","error"}) {
+                    for (String key : new String[]{"id","started_ms","ended_ms","status","error",
+                            "source","date_basis","original_name","duration_ms"}) {
                         if (s.has(key)) summary.put(key, s.get(key));
                     }
                     File audio = audio(context,s.getString("id"));
