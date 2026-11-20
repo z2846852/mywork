@@ -413,7 +413,8 @@ assert.ok(sleepAnalyzer.includes('levels.add(dbfs(squares,count))'));
 assert.ok(sleepAnalyzer.includes('peaks.add(peakDbfs(peak))'));
 assert.ok(native.includes('answer.put("levels_dbfs",levels)'));
 assert.ok(native.includes('answer.put("peak_levels_dbfs",peaks)'));
-assert.ok(native.includes('session.put("peak_levels_dbfs",peaks)'));
+assert.ok(sleepAnalysisService.includes('session.put("peak_levels_dbfs",peaks)'),
+ "Foreground analyzer must persist peak envelope locally");
 assert.ok(html.includes('id="sleepImport"'));
 assert.ok(html.includes('id="sleepImportStarted"'));
 assert.ok(html.includes('id="sleepWaveCanvas"'));
