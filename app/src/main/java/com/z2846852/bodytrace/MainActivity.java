@@ -486,6 +486,9 @@ public final class MainActivity extends Activity {
             result.put("analysis_running",SleepAnalysisService.isRunning());
             result.put("analysis_id",SleepAnalysisService.currentId());
             result.put("analysis_percent",SleepAnalysisService.currentProgress());
+            android.content.SharedPreferences last=getSharedPreferences(
+                "bodytrace_sleep_analysis",MODE_PRIVATE);
+            result.put("last_analysis_id",last.getString("last_id",""));
             result.put("sessions",SleepSessions.list(this));
             reply(result);
         }catch(Exception e){error("读取睡眠记录失败："+safeMessage(e));}
@@ -1458,6 +1461,16 @@ public final class MainActivity extends Activity {
                         .putExtra(SleepAnalysisService.EXTRA_GAP,gap);
                     startForegroundService(service);
                 }catch(Exception e){error("睡眠录音分析启动失败："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void sleepReadCached(String sessionId,int threshold,int seconds,int gap){
+            worker.execute(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    if(threshold<-90||threshold>-5||seconds<1||seconds>120||gap<0||gap>5)
+                        throw new IllegalArgumentException("音频筛选参数无效");
+                    deliverSleepAnalysis(sessionId,threshold,seconds,gap);
+                }catch(Exception e){error("睡眠录音缓存读取失败："+safeMessage(e));}
             });
         }
         @JavascriptInterface public void sleepPlay(String sessionId,int offset,int duration){
