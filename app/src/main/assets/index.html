@@ -339,6 +339,31 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 </section>
 </main>
+<div id="workoutEditOverlay" class="workout-edit-overlay" hidden role="dialog"
+ aria-modal="true" aria-labelledby="workoutEditTitle">
+ <section class="workout-edit-sheet">
+  <div class="row">
+   <h2 id="workoutEditTitle">编辑训练记录</h2>
+   <button type="button" class="secondary mini" id="workoutEditClose">关闭</button>
+  </div>
+  <p id="workoutEditIdentity" class="sub"></p>
+  <div class="formgrid">
+   <div class="field"><label for="workoutEditKg">重量（kg）</label>
+    <input id="workoutEditKg" inputmode="decimal" type="number" min="0" max="500" step="0.1"></div>
+   <div class="field"><label for="workoutEditReps">次数（0 = 失败）</label>
+    <input id="workoutEditReps" inputmode="numeric" type="number" min="0" max="200" step="1"></div>
+  </div>
+  <div class="field"><label for="workoutEditCopies">将所选组变为多少组（1–10）</label>
+   <input id="workoutEditCopies" inputmode="numeric" type="number" min="1" max="10" step="1" value="1">
+  </div>
+  <p class="sub">组数增加会保留当前组，并额外复制新组，各组具有独立 ID。已有的其他训练组不受影响。</p>
+  <div class="field"><label for="workoutEditNote">备注（可空）</label>
+   <input id="workoutEditNote" maxlength="200" placeholder="可修改或清除备注"></div>
+  <p id="workoutEditFeedback" class="sub" role="status"></p>
+  <button id="workoutEditSave" type="button" class="primary">保存修正并同步 GitHub</button>
+  <button id="workoutEditDelete" type="button" class="secondary workout-edit-danger">删除所选记录</button>
+ </section>
+</div>
 <div id="wheelOverlay" class="wheel-overlay" hidden aria-hidden="true">
   <div class="wheel-scrim" id="wheelScrim"></div>
   <section class="wheel-sheet" role="dialog" aria-modal="true" aria-labelledby="wheelTitle">
@@ -848,6 +873,17 @@ window.bodyTraceReceive=function(evt){
    if(note.id===evt.id)note.local_status="uploaded";
   }
   renderRawHistory();toast("Raw 原文已上传私有 GitHub 收件箱");break;
+ case "workout_edit_local_saved":{
+  state.pending=evt.count||0;
+  const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) :
+    normaliseDays(evt.days||[]);
+  state.rows=parsed.rows;state.measurements=parsed.measurements;state.nutrition=parsed.nutrition;
+  state.hasCache=true;indexData();renderBody();renderStatus();
+  if(window.BodyTraceRenderFeatures)window.BodyTraceRenderFeatures();
+  workoutEditClose();
+  toast("训练修正已保存本机"+(state.connected?"，正在同步 GitHub":"，待连接后同步"));
+  break;
+ }
  case "local_saved":{
   state.pending=evt.count||0;
   const added=Array.isArray(evt.events)&&evt.events.length?evt.events:[evt.event];
@@ -883,8 +919,75 @@ window.bodyTraceReceive=function(evt){
   pre.style.display="block";
   toast("已显示由 App 本地生成的 view_model.json");break;
  }
- case "error":toast(evt.message||"操作失败",true);break;
+ case "error":
+  if(workoutEditBusy){workoutEditBusy=false;$("workoutEditFeedback").textContent=evt.message||"保存失败";}
+  toast(evt.message||"操作失败",true);break;
  }
+};
+// Trend modal edits a selected record by UUID; native layer appends immutable
+// correction events, so a removed point stays removed after GitHub sync.
+let activeWorkoutEdit=null,workoutDeleteArmed=false,workoutEditBusy=false;
+function workoutEditClose(){
+ $("workoutEditOverlay").hidden=true;activeWorkoutEdit=null;workoutDeleteArmed=false;
+ workoutEditBusy=false;document.body.classList.remove("workout-edit-open");
+}
+function workoutEditOpen(row){
+ if(!row?.id||!/^[0-9a-fA-F-]{36}$/.test(row.id)){
+  toast("此历史点没有可编辑的训练 UUID",true);return;
+ }
+ activeWorkoutEdit={...row};workoutDeleteArmed=false;workoutEditBusy=false;
+ $("workoutEditIdentity").textContent=(exerciseLabels[row.exercise_id]||row.exercise||row.exercise_id)+
+  " · "+row.session_date+" · 记录 "+row.id.slice(0,8);
+ const assisted=row.exercise_id==="assisted_pullup"||row.exercise_id==="assisted_dip";
+ $("workoutEditKg").value=assisted?row.assistance_kg:row.load_kg;
+ $("workoutEditReps").value=row.reps;
+ $("workoutEditCopies").value="1";
+ $("workoutEditNote").value=row.note||"";
+ $("workoutEditFeedback").textContent="只修改当前选中的组；0 次表示尝试失败。";
+ $("workoutEditDelete").textContent="删除所选记录";
+ $("workoutEditOverlay").hidden=false;document.body.classList.add("workout-edit-open");
+ $("workoutEditKg").focus();
+}
+window.BodyTraceWorkoutEditor={open:workoutEditOpen,close:workoutEditClose};
+$("workoutEditClose").onclick=workoutEditClose;
+$("workoutEditOverlay").addEventListener("click",evt=>{
+ if(evt.target===$("workoutEditOverlay"))workoutEditClose();
+});
+$("workoutEditSave").onclick=()=>{
+ if(workoutEditBusy||!activeWorkoutEdit)return;
+ const kg=Number($("workoutEditKg").value),reps=Number($("workoutEditReps").value),
+  copies=Number($("workoutEditCopies").value),note=$("workoutEditNote").value.trim();
+ if($("workoutEditKg").value===""||!Number.isFinite(kg)||kg<0||kg>500||
+    Math.abs(kg*10-Math.round(kg*10))>0.00001||
+    $("workoutEditReps").value===""||!Number.isInteger(reps)||reps<0||reps>200||
+    !Number.isInteger(copies)||copies<1||copies>10||note.length>200){
+  $("workoutEditFeedback").textContent="请检查重量(0–500，最多一位小数)、次数(0–200)、组数(1–10)。";
+  return;
+ }
+ if(!window.BodyTraceNative?.editWorkout){toast("请升级 APP 后再编辑训练",true);return}
+ const assisted=activeWorkoutEdit.exercise_id==="assisted_pullup"||
+  activeWorkoutEdit.exercise_id==="assisted_dip";
+ const payload={action:"replace",date:activeWorkoutEdit.session_date,
+  target_id:activeWorkoutEdit.id,load_key:assisted?"assistance_kg":"load_kg",
+  load_kg:kg,reps,copies,note};
+ workoutEditBusy=true;
+ $("workoutEditFeedback").textContent="正在本地保存修正…";
+ BodyTraceNative.editWorkout(JSON.stringify(payload));
+};
+$("workoutEditDelete").onclick=()=>{
+ if(workoutEditBusy||!activeWorkoutEdit)return;
+ if(!workoutDeleteArmed){
+  workoutDeleteArmed=true;
+  $("workoutEditDelete").textContent="确认删除此组（再次点击）";
+  $("workoutEditFeedback").textContent="删除仅针对选中这组；GitHub 保留原始数据与删除事件以便审计。";
+  return;
+ }
+ if(!window.BodyTraceNative?.editWorkout){toast("请升级 APP 后再删除训练",true);return}
+ workoutEditBusy=true;
+ BodyTraceNative.editWorkout(JSON.stringify({
+  action:"delete",date:activeWorkoutEdit.session_date,target_id:activeWorkoutEdit.id
+ }));
+ $("workoutEditFeedback").textContent="正在本地保存删除事件…";
 };
 refreshExerciseRecommendation(true);renderStatus();renderHeat(true);renderDay();renderRawHistory();
 if(window.BodyTraceNative)BodyTraceNative.ready();
