@@ -132,7 +132,13 @@
     bridge().sleepPlay(analysis.id,Math.floor(start),Math.ceil(length));
     toast("正在播放候选片段（含前后几秒）");
    };
-   row.append(info,play);root.append(row);
+   const focus=document.createElement("button");
+   focus.type="button";focus.className="mini secondary sleep-event-focus";
+   focus.textContent="查看波形";
+   focus.onclick=()=>window.BodyTraceSleepVisual?.focus(event.start_sec,event.end_sec);
+   const controls=document.createElement("div");controls.className="sleep-event-actions";
+   controls.append(play,focus);
+   row.append(info,controls);root.append(row);
   });
   if(events.length>eventLimit){
    const more=document.createElement("button");more.type="button";
