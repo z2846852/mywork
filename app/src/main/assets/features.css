@@ -833,3 +833,98 @@ body.workout-edit-open{overflow:hidden}
  .exercise-actions-row .exercise-quick-remove{font-size:10px;min-width:105px}
  .exercise-actions-row #recordSortMode{flex-basis:100%;max-width:100%!important}
 }
+
+
+/* Sleep workbench: the waveform, threshold and transport stay in one viewport.
+ * Deep analysis, importing and past recordings live in collapsed sections. */
+#page-sleep{padding-bottom:85px}
+#page-sleep .sleep-workbench{padding:12px 12px 14px;border-top:2px solid #73b79f}
+.sleep-workbench-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sleep-workbench-head .eyebrow{font-size:8px;color:#81bca8;letter-spacing:1.1px}
+.sleep-workbench-head h2{font-size:16px;margin:2px 0 0;color:#e6f8f0}
+.sleep-workbench-badge{border-radius:20px;font-size:9px;color:#9bcfbd;
+ background:#224238;padding:4px 8px;flex-shrink:0}
+.sleep-active-row{display:flex;align-items:center;gap:6px;margin-top:10px}
+.sleep-active-row select{flex:1;min-width:0;margin:0;padding:7px 9px;
+ min-height:37px;border:1px solid #47675d;border-radius:9px;background:#182e2b;
+ color:#e1f0ea;font-size:11px}
+.sleep-active-row button{flex-shrink:0;margin:0;min-height:35px}
+#page-sleep .sleep-selected{color:#8fb9ac;font-size:10px;margin:5px 0 0;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#page-sleep .sleep-visualization{margin:6px 0 0;padding:0;border:0}
+#page-sleep .sleep-visual-head{margin:0 0 3px}
+#page-sleep .sleep-visual-head h3{font-size:11px;color:#d1e8df;margin:0}
+#page-sleep .sleep-visual-head .sub{font-size:9px;margin:0}
+#page-sleep .sleep-wave-controls{display:flex;flex-wrap:nowrap;overflow-x:auto;
+ scrollbar-width:none;margin:4px 0 6px;gap:4px;padding:0}
+#page-sleep .sleep-wave-controls::-webkit-scrollbar{display:none}
+#page-sleep .sleep-wave-controls .mini{flex:1 0 auto;min-width:0;
+ padding:5px 6px;min-height:29px;font-size:10px;border-radius:8px}
+#page-sleep .sleep-wave-frame{border-radius:10px;border-color:#36594f}
+#page-sleep #sleepWaveCanvas{height:208px}
+#page-sleep #sleepWaveSelection{font-size:10px;min-height:17px;line-height:1.4;
+ margin:5px 0 2px;color:#b1cfc5;white-space:nowrap;overflow:hidden;
+ text-overflow:ellipsis}
+.sleep-threshold-workbench{background:#1b3030;border:1px solid #365f59;
+ border-radius:10px;padding:8px 9px 6px;margin:6px 0}
+.sleep-threshold-header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.sleep-threshold-header>span:first-child{font-size:11px;color:#b3d2c8;font-weight:700}
+.sleep-threshold-header strong{font-variant-numeric:tabular-nums;color:#ffaeb9;
+ font-size:16px;font-weight:800}
+.sleep-threshold-offset{margin-left:auto;color:#8cd5b8;font-size:11px;
+ font-variant-numeric:tabular-nums}
+.sleep-threshold-controls{display:grid;grid-template-columns:33px minmax(0,1fr) 33px 52px;
+ gap:5px;align-items:center;margin-top:5px}
+.sleep-threshold-controls button{margin:0;padding:5px 3px;min-height:32px;
+ border-radius:7px;font-size:12px;font-weight:800}
+.sleep-threshold-controls #sleepThreshold{width:100%;margin:0;
+ padding:0;min-height:26px;accent-color:#ff7185;touch-action:pan-y}
+#page-sleep #sleepBaselineLabel{font-size:9px;color:#9bb9af;line-height:1.4;
+ margin:2px 0 0}
+.sleep-quick-constraints{display:flex;align-items:center;gap:6px;min-width:0;
+ margin:7px 0 5px;flex-wrap:wrap}
+.sleep-quick-constraints label{display:inline-flex;align-items:center;gap:4px;
+ font-size:10px;color:#b6cfc7;white-space:nowrap}
+.sleep-quick-constraints input{width:38px;min-height:30px;padding:4px 2px;text-align:center;
+ font-size:12px;font-variant-numeric:tabular-nums;color:#dff0e8;
+ background:#122725;border:1px solid #3a5d55;border-radius:6px}
+#sleepQuickSummary{margin-left:auto;font-size:11px;color:#9ce0bb;font-weight:750;
+ font-variant-numeric:tabular-nums}
+#page-sleep .sleep-transport{background:transparent;border:0;padding:0;margin:5px 0}
+#page-sleep .sleep-skip-option{font-size:11px;font-weight:650;min-height:27px}
+#page-sleep .sleep-skip-option input{width:17px;height:17px}
+#page-sleep .sleep-playbar{grid-template-columns:minmax(0,.87fr) minmax(0,1.5fr)
+ minmax(0,.87fr) 47px;gap:4px;margin-top:4px}
+#page-sleep .sleep-playbar button{font-size:10px;min-height:37px;padding:5px 3px;
+ border-radius:8px}
+#page-sleep .sleep-playbar #sleepPlaySelection{font-size:11px}
+#page-sleep #sleepPlaybackStatus{font-size:10px;margin:5px 0 0;line-height:1.2;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:13px}
+#page-sleep #sleepAnalyze{width:100%;margin:10px 0 0;min-height:38px}
+#page-sleep #sleepAnalyze[hidden]{display:none}
+#page-sleep .sleep-noise-warning{font-size:10px;margin:5px 0 4px;padding:5px 7px}
+#page-sleep .sleep-extras,#page-sleep .sleep-collection,#page-sleep .sleep-events-details{
+ border:1px solid #395951;border-radius:10px;background:#172c2a;margin:9px 0 0;
+ padding:0;overflow:hidden}
+#page-sleep .sleep-extras>summary,#page-sleep .sleep-collection>summary,
+#page-sleep .sleep-events-details>summary{font-size:11px;font-weight:650;
+ color:#bed8cc;padding:11px 12px;cursor:pointer;list-style:revert}
+#page-sleep .sleep-extras[open],#page-sleep .sleep-collection[open],
+#page-sleep .sleep-events-details[open]{overflow:visible}
+#page-sleep .sleep-extras>*:not(summary){margin-left:10px;margin-right:10px}
+#page-sleep .sleep-collection>.panel{margin:0;border:0;box-shadow:none}
+#page-sleep .sleep-events-details .sleep-analysis{padding:9px}
+#page-sleep #sleepLibraryCount,#page-sleep #sleepEventCount{
+ float:right;color:#78c5a5;font-size:10px;font-variant-numeric:tabular-nums}
+#page-sleep .sleep-sound-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+#page-sleep .sleep-visualization h3{font-size:11px}
+#page-sleep .sleep-wave-legend{margin:8px 0}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;overflow:hidden;
+ clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:350px){
+ #page-sleep .sleep-workbench{padding:10px 8px}
+ #page-sleep .sleep-playbar{grid-template-columns:repeat(4,minmax(0,1fr))}
+ #page-sleep .sleep-playbar button{font-size:9px}
+ .sleep-threshold-controls{grid-template-columns:31px minmax(0,1fr) 31px 47px}
+ #sleepQuickSummary{font-size:10px}
+}
