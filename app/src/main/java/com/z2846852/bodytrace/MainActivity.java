@@ -1,6 +1,12 @@
 package com.z2846852.bodytrace;
 
 import android.annotation.SuppressLint;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.media.MediaPlayer;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
@@ -31,6 +37,10 @@ import java.util.concurrent.Executors;
 /** Native networking, local encrypted state and offline-first training event queue. */
 public final class MainActivity extends Activity {
     private WebView web;
+    private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
+    private final Handler sleepHandler=new Handler(Looper.getMainLooper());
+    private MediaPlayer sleepPlayer;
+    private Runnable stopPlayback;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private SecureStore vault;
     private JsonStore plain;
@@ -73,7 +83,7 @@ public final class MainActivity extends Activity {
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
             String js = readAsset("wheel.js") + "\n" + readAsset("features.js") +
-                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js");
+                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js") + "\n" + readAsset("sleep.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             // The friendly cartoon avatar is a local SVG; no heavy GLB or
             // third-party scripts are loaded in the 2D release.
@@ -273,6 +283,46 @@ public final class MainActivity extends Activity {
             j.put("message", message);
             reply(j);
         } catch (Exception ignored) { }
+    }
+
+    private void sendSleepStatus() {
+        try {
+            JSONObject result=message("sleep_status");
+            result.put("recording",SleepRecorderService.isRecording());
+            result.put("active_id",SleepRecorderService.currentSessionId());
+            result.put("sessions",SleepSessions.list(this));
+            reply(result);
+        }catch(Exception e){error("读取睡眠记录失败："+safeMessage(e));}
+    }
+    private void startSleepCapture() {
+        if(SleepRecorderService.isRecording()){worker.execute(this::sendSleepStatus);return;}
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            error("没有麦克风权限，无法开始睡眠录音");return;
+        }
+        try{
+            Intent service=new Intent(this,SleepRecorderService.class).setAction(SleepRecorderService.ACTION_START);
+            startForegroundService(service);
+            sleepHandler.postDelayed(()->worker.execute(this::sendSleepStatus),1300);
+        }catch(Exception e){error("启动前台录音失败："+safeMessage(e));}
+    }
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grants){
+        super.onRequestPermissionsResult(requestCode,permissions,grants);
+        if(requestCode!=SLEEP_AUDIO_PERMISSION_REQUEST)return;
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)
+            startSleepCapture();
+        else error("麦克风授权被拒绝，未启动录音");
+    }
+    @Override protected void onResume(){
+        super.onResume();
+        if(uiReady)worker.execute(this::sendSleepStatus);
+    }
+    private void stopSleepPlayback(){
+        if(stopPlayback!=null){sleepHandler.removeCallbacks(stopPlayback);stopPlayback=null;}
+        if(sleepPlayer!=null){
+            try{sleepPlayer.stop();}catch(Exception ignored){}
+            try{sleepPlayer.release();}catch(Exception ignored){}
+            sleepPlayer=null;
+        }
     }
 
     private JSONArray localDays() throws Exception {
@@ -835,6 +885,7 @@ public final class MainActivity extends Activity {
                 restore();
                 uiReady = true;
                 consumePendingSharedAvatar();
+                sendSleepStatus();
             });
         }
         @JavascriptInterface public void connect(String rawToken) {
@@ -1017,6 +1068,116 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+        @JavascriptInterface public void sleepStatus(){
+            worker.execute(MainActivity.this::sendSleepStatus);
+        }
+        @JavascriptInterface public void sleepStart(){
+            runOnUiThread(()->{
+                if(SleepRecorderService.isRecording()){
+                    worker.execute(MainActivity.this::sendSleepStatus);return;
+                }
+                if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+                    if(Build.VERSION.SDK_INT>=33)
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO,
+                            Manifest.permission.POST_NOTIFICATIONS},SLEEP_AUDIO_PERMISSION_REQUEST);
+                    else requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
+                        SLEEP_AUDIO_PERMISSION_REQUEST);
+                }else startSleepCapture();
+            });
+        }
+        @JavascriptInterface public void sleepStop(){
+            runOnUiThread(()->{
+                if(!SleepRecorderService.isRecording()){
+                    worker.execute(MainActivity.this::sendSleepStatus);return;
+                }
+                Intent service=new Intent(MainActivity.this,SleepRecorderService.class)
+                    .setAction(SleepRecorderService.ACTION_STOP);
+                startService(service);
+                sleepHandler.postDelayed(()->worker.execute(MainActivity.this::sendSleepStatus),1200);
+            });
+        }
+        @JavascriptInterface public void sleepAnalyze(String sessionId,int threshold,int seconds,int gap){
+            worker.execute(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    if(SleepRecorderService.isCurrentSession(sessionId))
+                        throw new IllegalStateException("请先停止录音再分析");
+                    if(threshold<-90||threshold>-5||seconds<1||seconds>120||gap<0||gap>5)
+                        throw new IllegalArgumentException("阈值或持续时间超出范围");
+                    JSONObject session=SleepSessions.load(MainActivity.this,sessionId);
+                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
+                    if(!audio.isFile()||audio.length()<1024)
+                        throw new IllegalStateException("录音文件不可用");
+                    JSONArray levels=session.optJSONArray("levels_dbfs");
+                    if(levels==null){
+                        levels=SleepAudioAnalyzer.decodeLevels(audio);
+                        session.put("levels_dbfs",levels);
+                        SleepSessions.write(MainActivity.this,session);
+                    }
+                    JSONArray events=SleepAudioAnalyzer.detect(levels,threshold,seconds,gap);
+                    JSONObject answer=message("sleep_analysis");
+                    answer.put("id",sessionId);
+                    answer.put("started_ms",session.optLong("started_ms"));
+                    answer.put("total_seconds",levels.length());
+                    answer.put("threshold_dbfs",threshold);
+                    answer.put("minimum_seconds",seconds);
+                    answer.put("gap_seconds",gap);
+                    answer.put("events",events);
+                    reply(answer);
+                }catch(Exception e){error("睡眠录音分析失败："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void sleepPlay(String sessionId,int offset,int duration){
+            runOnUiThread(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    if(SleepRecorderService.isRecording())
+                        throw new IllegalStateException("录音进行中不可播放");
+                    if(offset<0||duration<1||duration>180)
+                        throw new IllegalArgumentException("无效回放时段");
+                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
+                    if(!audio.isFile())throw new IllegalArgumentException("录音文件丢失");
+                    stopSleepPlayback();
+                    MediaPlayer player=new MediaPlayer();
+                    sleepPlayer=player;
+                    player.setDataSource(audio.getAbsolutePath());
+                    player.setOnErrorListener((m,what,extra)->{
+                        stopSleepPlayback();
+                        error("音频片段播放失败");return true;
+                    });
+                    player.setOnPreparedListener(m->m.seekTo(offset*1000));
+                    player.setOnSeekCompleteListener(m->{
+                        if(sleepPlayer!=m)return;
+                        m.start();
+                        stopPlayback=MainActivity.this::stopSleepPlayback;
+                        sleepHandler.postDelayed(stopPlayback,duration*1000L);
+                    });
+                    player.prepareAsync();
+                }catch(Exception e){stopSleepPlayback();error("无法播放片段："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void sleepStopPlayback(){
+            runOnUiThread(MainActivity.this::stopSleepPlayback);
+        }
+
+        @JavascriptInterface public void sleepDelete(String sessionId){
+            runOnUiThread(MainActivity.this::stopSleepPlayback);
+            worker.execute(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    if(SleepRecorderService.isCurrentSession(sessionId))
+                        throw new IllegalStateException("不能删除正在录制的文件");
+                    SleepSessions.load(MainActivity.this,sessionId);
+                    File audio=SleepSessions.audio(MainActivity.this,sessionId);
+                    File metadata=SleepSessions.json(MainActivity.this,sessionId);
+                    if(audio.exists()&&!audio.delete())
+                        throw new IllegalStateException("无法删除本机音频");
+                    if(!metadata.delete())throw new IllegalStateException("无法删除睡眠记录");
+                    sendSleepStatus();
+                }catch(Exception e){error("删除睡眠录音失败："+safeMessage(e));}
+            });
+        }
+
         @JavascriptInterface public void saveNutrition(String nutritionJson) {
             worker.execute(() -> {
                 try {
@@ -1086,6 +1247,8 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        stopSleepPlayback();
+        sleepHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
         worker.shutdown();
         if (web != null) {

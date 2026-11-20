@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,"..");
 const read=name=>fs.readFileSync(path.join(root,"app/src/main/assets",name),"utf8");
 let html=read("index.html");
 html=html.replace("</head>","<style>"+read("features.css")+"</style></head>");
-html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"\n"+read("git_log.js")+"</script></body>");
+html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"\n"+read("git_log.js")+"\n"+read("sleep.js")+"</script></body>");
 (async()=>{
  const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
  try{
@@ -480,6 +480,94 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(!residual.includes("custom_demoarm"))
    throw Error("Legacy arm workouts should remain accessible through Other");
   await page.screenshot({path:"bodytrace-four-major-regions-preview.png",fullPage:false});
+  // Sleep tab: synthetic local session history, adjustable dBFS screening and playback.
+  await page.evaluate(()=>{
+   window.__sleepBridge={started:0,stopped:0,list:0,analysis:[],played:[],deleted:[],paused:0};
+   window.BodyTraceNative={
+    ...(window.BodyTraceNative||{}),
+    sleepStatus:()=>window.__sleepBridge.list++,
+    sleepStart:()=>window.__sleepBridge.started++,
+    sleepStop:()=>window.__sleepBridge.stopped++,
+    sleepAnalyze:(id,threshold,seconds,gap)=>
+     window.__sleepBridge.analysis.push({id,threshold,seconds,gap}),
+    sleepPlay:(id,start,duration)=>window.__sleepBridge.played.push({id,start,duration}),
+    sleepStopPlayback:()=>window.__sleepBridge.paused++,
+    sleepDelete:id=>window.__sleepBridge.deleted.push(id)
+   };
+  });
+  await page.locator('.tabs button[data-page="sleep"]').click();
+  if((await page.locator("#page-sleep").getAttribute("class")).includes("active")===false)
+   throw Error("Sleep section should be active after tab click");
+  if((await page.evaluate(()=>window.__sleepBridge.list))!==1)
+   throw Error("Sleep tab should load local sessions");
+  const sleepId="1700000000000-ab123456";
+  await page.evaluate(id=>{
+   window.bodyTraceReceive({type:"sleep_status",recording:false,sessions:[{
+    id,started_ms:1795000000000,ended_ms:1795028800000,
+    status:"completed",bytes:86134000,levels_cached:false
+   }]});
+  },sleepId);
+  if(await page.locator("#sleepHistory .sleep-history-card").count()!==1)
+   throw Error("Local sleep history not rendered");
+  await page.locator("#sleepStart").click();
+  if((await page.evaluate(()=>window.__sleepBridge.started))!==1)
+   throw Error("Sleep start button did not invoke Android bridge");
+  await page.evaluate(id=>window.bodyTraceReceive({
+   type:"sleep_status",recording:true,active_id:id,sessions:[{
+    id,started_ms:1795000000000,status:"recording",bytes:20480
+   }]
+  }),sleepId);
+  if(!(await page.locator("#sleepStart").isDisabled())||
+    (await page.locator("#sleepStop").isDisabled()))
+   throw Error("Sleep recording state controls incorrect");
+  await page.locator("#sleepStop").click();
+  if((await page.evaluate(()=>window.__sleepBridge.stopped))!==1)
+   throw Error("Sleep stop button did not invoke Android bridge");
+  await page.evaluate(id=>window.bodyTraceReceive({
+   type:"sleep_status",recording:false,sessions:[{
+    id,started_ms:1795000000000,ended_ms:1795028800000,
+    status:"completed",bytes:86134000,levels_cached:true
+   }]
+  }),sleepId);
+  await page.locator("#sleepAnalyze").click();
+  const req=await page.evaluate(()=>window.__sleepBridge.analysis[0]);
+  if(req.id!==sleepId||req.threshold!==-40||req.seconds!==5||req.gap!==1)
+   throw Error("Initial offline sound filter parameters incorrect: "+JSON.stringify(req));
+  await page.evaluate(id=>window.bodyTraceReceive({
+   type:"sleep_analysis",id,started_ms:1795000000000,total_seconds:28800,
+   threshold_dbfs:-40,minimum_seconds:5,gap_seconds:1,
+   events:[{start_sec:440,end_sec:448,active_sec:7,peak_dbfs:-25.3},
+           {start_sec:2700,end_sec:2706,active_sec:6,peak_dbfs:-29.9}]
+  }),sleepId);
+  if(await page.locator("#sleepAnalysis .sleep-event").count()!==2)
+   throw Error("Two detected sound events should be visible");
+  const summary=await page.locator(".sleep-analysis-summary").innerText();
+  if(!summary.includes("2 段")||!summary.includes("-40 dBFS")||
+    !summary.includes("不代表确认为鼾声"))
+   throw Error("Candidate sound event summary needs uncertainty disclaimer: "+summary);
+  await page.locator(".sleep-event button").first().click();
+  const playback=await page.evaluate(()=>window.__sleepBridge.played[0]);
+  if(playback.id!==sleepId||playback.start!==438||playback.duration<9)
+   throw Error("Audio clip playback offset or lead-in invalid: "+JSON.stringify(playback));
+  await page.locator("#sleepStopPlayback").click();
+  if((await page.evaluate(()=>window.__sleepBridge.paused))!==1)
+   throw Error("Stop playback button failed");
+  await page.locator("#sleepThreshold").evaluate(input=>{
+   input.value="-35";input.dispatchEvent(new Event("input",{bubbles:true}));
+   input.dispatchEvent(new Event("change",{bubbles:true}));
+  });
+  const changed=await page.evaluate(()=>window.__sleepBridge.analysis.at(-1));
+  if(changed.threshold!==-35||changed.seconds!==5)
+   throw Error("Adjusting threshold did not re-run analysis");
+  await page.evaluate(id=>window.bodyTraceReceive({
+   type:"sleep_analysis",id,started_ms:1795000000000,total_seconds:28800,
+   threshold_dbfs:-35,minimum_seconds:5,gap_seconds:1,events:[]
+  }),sleepId);
+  const del=page.locator(".sleep-history-actions .danger-soft");
+  await del.click();await del.click();
+  if((await page.evaluate(()=>window.__sleepBridge.deleted[0]))!==sleepId)
+   throw Error("Two-click local deletion guard did not invoke native bridge");
+  await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.join(" | "));
   console.log("PASS: 2 schematic figures, "+plots+" recent-first charts, group labels, ruler, batch/measurement JSON");
  }finally{await browser.close()}
