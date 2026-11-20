@@ -93,7 +93,7 @@ public final class MainActivity extends Activity {
             // Bundle all UI code with the APK: no remote scripts or styles.
             String css = readAsset("features.css");
             String js = readAsset("wheel.js") + "\n" + readAsset("features.js") +
-                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js") + "\n" + readAsset("sleep.js");
+                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js") + "\n" + readAsset("sleep.js") + "\n" + readAsset("sleep_visualization.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             // The friendly cartoon avatar is a local SVG; no heavy GLB or
             // third-party scripts are loaded in the 2D release.
@@ -243,7 +243,13 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if(resultCode!=RESULT_OK)return;
+        if(resultCode!=RESULT_OK){
+            if(requestCode==PICK_SLEEP_AUDIO_REQUEST){
+                pendingSleepStart="";
+                reply(message("sleep_import_cancelled"));
+            }
+            return;
+        }
         Uri uri=data==null?null:data.getData();
         if(requestCode==PICK_SLEEP_AUDIO_REQUEST){
             String reportedStart=pendingSleepStart;
@@ -303,6 +309,7 @@ public final class MainActivity extends Activity {
         String id=importedAt+"-"+UUID.randomUUID().toString().substring(0,8);
         File dest=SleepSessions.importedAudio(this,id,ext);
         long length=0;
+        int lastProgress=-1;
         try{
             try(InputStream input=getContentResolver().openInputStream(uri);
                 FileOutputStream output=new FileOutputStream(dest)){
@@ -314,6 +321,14 @@ public final class MainActivity extends Activity {
                     if(length>SLEEP_IMPORT_MAX_BYTES)
                         throw new IllegalArgumentException("文件超过2GB导入上限");
                     output.write(block,0,read);
+                    if(knownSize>0){
+                        int pct=(int)Math.min(99,length*100/knownSize);
+                        if(pct/5>lastProgress/5){
+                            lastProgress=pct;
+                            JSONObject p=message("sleep_import_progress");
+                            p.put("percent",pct);reply(p);
+                        }
+                    }
                 }
                 output.getFD().sync();
             }
