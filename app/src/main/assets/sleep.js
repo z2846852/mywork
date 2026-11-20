@@ -79,7 +79,7 @@
   const chosen=current();
   $("sleepAnalyze").disabled=!chosen||recording||busy||!!loadingCachedId||
    !(chosen.status==="completed"||chosen.status==="interrupted");
-  $("sleepAnalyze").textContent=busy?(loadingCachedId?"正在加载波形缓存…":"正在后台分析，请查看进度"):
+  $("sleepAnalyze").textContent=loadingCachedId?"正在加载波形缓存…":busy?"正在后台分析，请查看进度":
    chosen?.levels_cached?"✓ 已生成波形 · 重新筛选":"首次分析并生成波形";
   $("sleepSelected").textContent=chosen?
    "已选："+(chosen.date_basis==="imported_at"?"导入录音（未知录制起始日期）":
@@ -272,6 +272,13 @@
     busy=true;
     updateAnalysisProgress(evt.analysis_percent,Date.now());
    }else if(!analysisStarting&&!loadingCachedId){
+    if(runningAnalysisId&&!analysis){
+     // The process may have finished while the Activity was not listening.
+     // If its cache exists, load that result rather than restarting decode.
+     const finished=sessions.find(x=>x.id===runningAnalysisId);
+     if(!finished?.levels_cached)
+      toast("音频分析已中断，未产生缓存；可以重新尝试",true);
+    }
     busy=false;
     clearAnalysisProgress();
    }
