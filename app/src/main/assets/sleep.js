@@ -6,6 +6,27 @@
  let recording=false,sessions=[],selectedId="",analysis=null,busy=false;
  let pendingDelete="";
  let eventLimit=80;
+ let runningAnalysisId="";
+ let analysisStarting=false;
+ let loadingCachedId="";
+ let completedAnalysisId="";
+ function updateAnalysisProgress(percent,updatedMs){
+  const raw=Number(percent);
+  const pct=Number.isFinite(raw)?Math.max(0,Math.min(100,Math.floor(raw))):0;
+  $("sleepAnalysisProgress").hidden=false;
+  $("sleepAnalysisTrack").value=pct;
+  $("sleepAnalysisPercent").textContent=pct+"%";
+  const stamp=Number(updatedMs)||Date.now();
+  const label=new Date(stamp).toLocaleTimeString("zh-CN",
+   {timeZone:"Asia/Shanghai",hour12:false});
+  $("sleepAnalysisStage").textContent="最后更新 "+label+
+   " · "+(pct===0?"正在初始化解码器或读取音频":"已解码约 "+pct+"%")+
+   " · 可以锁屏，通知栏继续提示进度";
+ }
+ function clearAnalysisProgress(){
+  $("sleepAnalysisProgress").hidden=true;
+  runningAnalysisId="";
+ }
  const bridge=()=>window.BodyTraceNative||null;
  const pad=n=>String(n).padStart(2,"0");
  const time=ms=>!Number.isFinite(Number(ms))?"未知时间":
@@ -26,11 +47,22 @@
  function current(){
   return sessions.find(s=>s.id===selectedId)||null;
  }
+ function readCachedIfAvailable(id){
+  const target=sessions.find(s=>s.id===id);
+  if(busy||loadingCachedId||!target?.levels_cached||!bridge()?.sleepReadCached)return;
+  loadingCachedId=id;
+  bridge().sleepReadCached(id,Number($("sleepThreshold").value),
+   Number($("sleepMinSeconds").value),Number($("sleepGapSeconds").value));
+ }
  function selectSession(id){
+  if(busy&&id!==selectedId){
+   toast("已有整晚录音正在后台分析，完成后可切换",true);return;
+  }
   if(selectedId!==id)analysis=null;
   selectedId=id;
   eventLimit=80;
-  busy=false;render();
+  render();
+  readCachedIfAvailable(id);
  }
  function render(){
   $("sleepStatus").textContent=recording?
@@ -157,10 +189,21 @@
     !Number.isInteger(gap)||gap<0||gap>5){
    toast("最短持续时间限制1–120秒，间断时间限制0–5秒",true);return;
   }
+  if(current()?.levels_cached&&bridge()?.sleepReadCached){
+   // Changing thresholds requires only a quick rescan of cached 1s levels.
+   busy=true;loadingCachedId=selectedId;
+   $("sleepAnalyze").disabled=true;
+   $("sleepSelected").textContent="正在使用缓存重新筛选声音片段…";
+   bridge().sleepReadCached(selectedId,threshold,seconds,gap);
+   return;
+  }
   if(!bridge()?.sleepAnalyze){toast("当前 APK 不支持睡眠分析",true);return;}
   busy=true;
-  $("sleepSelected").textContent="分析中：首次处理整晚音频可能需要一段时间…";
+  analysisStarting=true;
+  completedAnalysisId="";
+  runningAnalysisId=selectedId;
   $("sleepAnalyze").disabled=true;
+  updateAnalysisProgress(0,Date.now());
   bridge().sleepAnalyze(selectedId,threshold,seconds,gap);
  }
  $("sleepThreshold").addEventListener("input",updateThreshold);
@@ -197,13 +240,28 @@
   if(evt.type==="sleep_status"){
    recording=!!evt.recording;
    sessions=Array.isArray(evt.sessions)?evt.sessions:[];
+   if(evt.analysis_running&&evt.analysis_id&&evt.analysis_id!==completedAnalysisId){
+    if(selectedId!==evt.analysis_id)analysis=null;
+    selectedId=evt.analysis_id;
+    runningAnalysisId=evt.analysis_id;
+    analysisStarting=false;
+    busy=true;
+    updateAnalysisProgress(evt.analysis_percent,Date.now());
+   }else if(!analysisStarting){
+    busy=false;
+    clearAnalysisProgress();
+   }
    if(!sessions.some(s=>s.id===selectedId)){
     selectedId=sessions.find(s=>s.status==="completed"||s.status==="interrupted")?.id||"";
     analysis=null;
    }
-   busy=false;pendingDelete="";render();
+   pendingDelete="";render();
+   if(!busy&&!analysis&&selectedId)readCachedIfAvailable(selectedId);
   }else if(evt.type==="sleep_analysis"){
-   busy=false;selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
+   busy=false;analysisStarting=false;loadingCachedId="";
+   completedAnalysisId=evt.id||selectedId;
+   clearAnalysisProgress();
+   selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
    render();
   }else if(evt.type==="sleep_import_progress"){
    $("sleepImportStatus").textContent="正在复制到本机："+evt.percent+"%";
@@ -212,9 +270,16 @@
   }else if(evt.type==="sleep_import_cancelled"){
    $("sleepImportStatus").textContent="已取消导入，未修改本机数据。";
   }else if(evt.type==="sleep_analysis_progress"){
-   $("sleepSelected").textContent="正在解码整晚音频："+evt.percent+"%";
+   if(evt.id&&runningAnalysisId&&evt.id!==runningAnalysisId)return;
+   analysisStarting=false;
+   completedAnalysisId="";
+   busy=true;
+   runningAnalysisId=evt.id||selectedId;
+   updateAnalysisProgress(evt.percent,evt.updated_ms);
+   $("sleepAnalyze").disabled=true;
   }else if(evt.type==="error"&&/睡眠|录音|片段/.test(evt.message||"")){
-   busy=false;render();
+   busy=false;analysisStarting=false;loadingCachedId="";
+   clearAnalysisProgress();render();
   }
  };
  updateThreshold();
