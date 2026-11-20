@@ -184,6 +184,14 @@ public final class SleepAnalysisService extends Service {
                 // Cache even if the Activity has been closed or the device locked.
                 SleepSessions.write(this,session);
             }
+            // Remember the most recently completed local analysis, allowing
+            // a restarted Activity to restore the chart without re-decoding.
+            getSharedPreferences("bodytrace_sleep_analysis",MODE_PRIVATE).edit()
+                .putString("last_id",id)
+                .putInt("threshold",threshold)
+                .putInt("minimum",minimum)
+                .putInt("gap",gap)
+                .commit();
             // Broadcast only a tiny completion token. Full-night JSON can
             // exceed Android's Binder transaction limit (1 MB). MainActivity
             // reads the cached envelope directly from its private file.
