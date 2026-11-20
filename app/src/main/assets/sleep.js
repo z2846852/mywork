@@ -5,6 +5,7 @@
  const receiver=window.bodyTraceReceive;
  let recording=false,sessions=[],selectedId="",analysis=null,busy=false;
  let pendingDelete="";
+ let eventLimit=80;
  const bridge=()=>window.BodyTraceNative||null;
  const pad=n=>String(n).padStart(2,"0");
  const time=ms=>!Number.isFinite(Number(ms))?"未知时间":
@@ -28,6 +29,7 @@
  function selectSession(id){
   if(selectedId!==id)analysis=null;
   selectedId=id;
+  eventLimit=80;
   busy=false;render();
  }
  function render(){
@@ -41,7 +43,8 @@
   $("sleepAnalyze").disabled=!chosen||recording||busy||
    !(chosen.status==="completed"||chosen.status==="interrupted");
   $("sleepSelected").textContent=chosen?
-   "已选："+time(chosen.started_ms)+" · "+statusText(chosen.status):
+   "已选："+(chosen.date_basis==="imported_at"?"导入录音（未知录制起始日期）":
+    time(chosen.started_ms))+" · "+statusText(chosen.status):
    "请从下方选择一个已完成的录音";
   const history=$("sleepHistory");history.replaceChildren();
   if(!sessions.length){
@@ -53,10 +56,15 @@
    const card=document.createElement("article");
    card.className="sleep-history-card"+(item.id===selectedId?" selected":"");
    const title=document.createElement("strong");
-   title.textContent=time(item.started_ms)+" · "+statusText(item.status);
+   title.textContent=(item.date_basis==="imported_at"?
+    "导入录音 · 原始开始时间未提供":time(item.started_ms))+
+    " · "+statusText(item.status);
    const extra=document.createElement("div");extra.className="sub";
-   const millis=(item.ended_ms||Date.now())-item.started_ms;
-   extra.textContent="时长 "+duration(millis/1000)+" · "+
+   const millis=Number(item.duration_ms)>0?Number(item.duration_ms):
+    (item.ended_ms||Date.now())-item.started_ms;
+   extra.textContent=(item.source==="imported-audio"?"本机导入 · ":"")+
+    (item.original_name?item.original_name+" · ":"")+
+    "时长 "+duration(millis/1000)+" · "+
      ((Number(item.bytes)||0)/1048576).toFixed(1)+" MB"+
      (item.levels_cached?" · 已有音量分析":"");
    card.append(title,extra);
@@ -102,13 +110,14 @@
    p.textContent="没有符合阈值和持续时间的候选片段；可调整筛选参数重新分析。";
    root.append(p);return;
   }
-  events.forEach((event,i)=>{
+  events.slice(0,eventLimit).forEach((event,i)=>{
    const row=document.createElement("div");row.className="sleep-event";
    const info=document.createElement("div");
    const name=document.createElement("strong");
+   const label=offset=>analysis.date_basis==="imported_at"?
+    "+"+duration(offset):clock(analysis.started_ms+offset*1000);
    name.textContent="声音片段 "+(i+1)+" · "+
-    clock(analysis.started_ms+event.start_sec*1000)+"—"+
-    clock(analysis.started_ms+event.end_sec*1000);
+    label(event.start_sec)+"—"+label(event.end_sec);
    const meta=document.createElement("small");
    meta.textContent="超阈值 "+event.active_sec+" 秒 · 峰值 "+
     Number(event.peak_dbfs).toFixed(1)+" dBFS";
@@ -125,6 +134,13 @@
    };
    row.append(info,play);root.append(row);
   });
+  if(events.length>eventLimit){
+   const more=document.createElement("button");more.type="button";
+   more.className="secondary mini sleep-event-more";
+   more.textContent="再显示后续 80 段（"+eventLimit+"/"+events.length+"）";
+   more.onclick=()=>{eventLimit+=80;renderEvents();};
+   root.append(more);
+  }
  }
  function analyze(){
   if(busy||!current()||recording)return;
@@ -144,6 +160,12 @@
  $("sleepThreshold").addEventListener("input",updateThreshold);
  for(const field of ["sleepThreshold","sleepMinSeconds","sleepGapSeconds"])
   $(field).addEventListener("change",()=>{if(analysis&&selectedId)analyze();});
+ $("sleepImport").onclick=()=>{
+  if(recording||busy){toast("请先完成当前录音或分析",true);return;}
+  if(!bridge()?.sleepImport){toast("请安装支持导入录音的新版 APK",true);return;}
+  $("sleepImportStatus").textContent="请选择已有录音文件；会复制到 APP 私有空间，不删除原文件。";
+  bridge().sleepImport($("sleepImportStarted").value||"");
+ };
  $("sleepStart").onclick=()=>{
   if(!bridge()?.sleepStart){toast("请安装含睡眠录音功能的 APK",true);return;}
   $("sleepStatus").textContent="正在请求麦克风权限／启动录音…";
@@ -175,8 +197,16 @@
    }
    busy=false;pendingDelete="";render();
   }else if(evt.type==="sleep_analysis"){
-   busy=false;selectedId=evt.id||selectedId;analysis=evt;
+   busy=false;selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
    render();
+  }else if(evt.type==="sleep_import_progress"){
+   $("sleepImportStatus").textContent="正在复制到本机："+evt.percent+"%";
+  }else if(evt.type==="sleep_imported"){
+   $("sleepImportStatus").textContent="已导入 "+(Number(evt.bytes)/1048576).toFixed(1)+" MB，可选择记录后分析。";
+  }else if(evt.type==="sleep_import_cancelled"){
+   $("sleepImportStatus").textContent="已取消导入，未修改本机数据。";
+  }else if(evt.type==="sleep_analysis_progress"){
+   $("sleepSelected").textContent="正在解码整晚音频："+evt.percent+"%";
   }else if(evt.type==="error"&&/睡眠|录音|片段/.test(evt.message||"")){
    busy=false;render();
   }
