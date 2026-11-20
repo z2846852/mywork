@@ -208,9 +208,8 @@
  function metrics(){
   const levels=rms();
   if(!levels.length)return;
-  const sorted=levels.filter(Number.isFinite).sort((a,b)=>a-b);
-  if(!sorted.length)return;
-  const pct=p=>sorted[Math.floor((sorted.length-1)*p)];
+  // The P20 reference was computed once on file load by sleep.js.
+  // Slider changes must not sort tens of thousands of samples again.
   const active=levels.filter(v=>v>=result.threshold_dbfs).length;
   const max=events().reduce((n,e)=>Math.max(n,Number(e.end_sec)-Number(e.start_sec)),0);
   const cells=[
@@ -367,7 +366,8 @@
    const distanceY=Math.max(1,Math.abs(pts[0].y-pts[1].y));
    const midX=(pts[0].x+pts[1].x)/2,midY=(pts[0].y+pts[1].y)/2;
    gesture={kind:"dual",mode:null,distanceX,distanceY,midX,midY,
-    span:windowSpan,anchor:secAt(midX),low:axisMin,high:axisMax,moved:true};
+    startYs:pts.map(p=>p.y),span:windowSpan,
+    anchor:secAt(midX),low:axisMin,high:axisMax,moved:true};
   }else gesture=null;
  }
  canvas.addEventListener("pointerdown",evt=>{
@@ -391,9 +391,15 @@
    const diffX=Math.abs(distanceX-gesture.distanceX);
    const diffY=Math.abs(distanceY-gesture.distanceY);
    if(!gesture.mode){
-    if(diffY>12&&diffY>diffX*1.35)gesture.mode="vertical-zoom";
-    else if(moveY>9&&moveY>Math.max(moveX,diffX)*1.25)
+    // Do not treat the FIRST finger's vertical move as a pinch. Wait for
+    // BOTH fingers to move, then classify same-direction vs opposite-direction.
+    const dyA=pts[0].y-gesture.startYs[0];
+    const dyB=pts[1].y-gesture.startYs[1];
+    const twoMoved=Math.abs(dyA)>6&&Math.abs(dyB)>6;
+    if(twoMoved&&dyA*dyB>0&&moveY>8&&moveY>moveX)
      gesture.mode="vertical-pan";
+    else if(twoMoved&&dyA*dyB<0&&diffY>12)
+     gesture.mode="vertical-zoom";
     else if(diffX>8||moveX>10)gesture.mode="horizontal";
    }
    if(gesture.mode==="vertical-pan"){
