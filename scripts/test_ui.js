@@ -83,6 +83,8 @@ const sleepRecorder=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/SleepRecorderService.java"),"utf8");
 const sleepAnalyzer=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/SleepAudioAnalyzer.java"),"utf8");
+const sleepAnalysisService=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/SleepAnalysisService.java"),"utf8");
 const sleepStore=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/SleepSessions.java"),"utf8");
 for(const field of ["page-sleep","sleepStart","sleepStop","sleepStatus",
@@ -107,7 +109,27 @@ assert.ok(sleepRecorder.includes('MediaRecorder.AudioEncoder.AAC'));
 assert.ok(sleepRecorder.includes('PowerManager.PARTIAL_WAKE_LOCK'));
 assert.ok(sleepRecorder.includes('START_NOT_STICKY'),"Microphone must be user initiated, not auto-restored");
 assert.ok(sleepAnalyzer.includes('MediaExtractor')&&sleepAnalyzer.includes('MediaCodec'));
-assert.ok(sleepAnalyzer.includes('Math.sqrt(squareSum/count)/32768.0'));
+assert.ok(sleepAnalyzer.includes('Math.sqrt((double)squareSum/count)/32768.0'));
+assert.ok(sleepAnalyzer.includes('short[] pcmBlock=new short[8192]'));
+assert.ok(sleepAnalyzer.includes('ShortBuffer')&&sleepAnalyzer.includes('samples.get(pcmBlock,0,n)'),
+ "Bulk PCM processing should avoid per-sample ByteBuffer.getShort()");
+assert.ok(sleepAnalyzer.includes('now-lastReport>=1500'),"Progress heartbeat should report liveness");
+assert.ok(sleepAnalysisService.includes('startForeground('));
+assert.ok(sleepAnalysisService.includes('FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING'));
+assert.ok(sleepAnalysisService.includes('SleepSessions.write(this,session)'));
+assert.ok(sleepAnalysisService.includes('sendBroadcast(intent)'));
+assert.ok(sleepAnalysisService.includes('publishProgress(id,pct)'));
+assert.ok(sleepAnalysisService.includes('NotificationManager'));
+assert.ok(manifest.includes('android:name=".SleepAnalysisService"'));
+assert.ok(manifest.includes('android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING'));
+assert.ok(manifest.includes('android.permission.FOREGROUND_SERVICE_DATA_SYNC'));
+assert.ok(native.includes('registerReceiver(sleepAnalysisReceiver'));
+assert.ok(native.includes('SleepAnalysisService.ACTION_START'));
+assert.ok(native.includes('analysis_running'));
+for(const field of ['sleepAnalysisProgress','sleepAnalysisTrack','sleepAnalysisPercent',
+  'sleepAnalysisStage']) assert.ok(html.includes('id="'+field+'"'));
+assert.ok(sleepJS.includes('updateAnalysisProgress('));
+assert.ok(sleepJS.includes('analysis_running'));
 assert.ok(sleepAnalyzer.includes('if(highCount>=minimum)'));
 assert.ok(sleepAnalyzer.includes('int maxGap'));
 assert.ok(sleepStore.includes('AtomicFile'),"Sessions must save atomically");
