@@ -653,7 +653,7 @@ function renderDay(){
  view.className="";
  const byEx=new Map();for(const r of list){const key=r.exercise_id||r.exercise;if(!byEx.has(key))byEx.set(key,[]);byEx.get(key).push(r)}
  for(const [ex,items] of byEx){
-  const section=document.createElement("section");section.className="exercise";
+  const section=document.createElement("section");section.className="exercise";section.dataset.exerciseId=ex;
   const header=document.createElement("div");header.className="row";const name=document.createElement("span");name.className="exercise-name";name.textContent=exerciseLabels[ex]||items[0].exercise||ex;
   const count=document.createElement("span");count.className="exercise-count";count.textContent=items.filter(r=>!isFailedAttempt(r)).length+" 组"+
   (items.some(isFailedAttempt)?" / "+items.filter(isFailedAttempt).length+" 次失败":"");header.append(name,count);section.append(header);
