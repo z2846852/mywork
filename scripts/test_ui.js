@@ -737,6 +737,7 @@ catalogContext.clearTrainingEdits=()=>{
  catalogContext.weightEditedByUser=false;
  catalogContext.repsEditedByUser=false;
 };
+catalogContext.BodyTraceNative=catalogContext.window.BodyTraceNative;
 vm.runInNewContext(catalogJS,catalogContext);
 const selectIds=()=>Array.from(nodes.recordExercise.children,item=>item.value);
 assert.equal(nodes.recordGroup.value,"","Default muscle filter must be All");
