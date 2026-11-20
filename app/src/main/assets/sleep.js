@@ -13,6 +13,51 @@
  let importing=false;
  let pendingAutoAnalyzeId="";
  let pendingRemoveId="";
+ let playbackActive=false;
+ // Match native filter: only above-threshold seconds count toward minimum;
+ // allowed gaps join valid spans but do not count as sound.
+ function detectCandidates(levels,peaks,threshold,minimum,maxGap){
+  if(!Array.isArray(levels)||!Number.isFinite(threshold)||
+     !Number.isInteger(minimum)||minimum<1||minimum>120||
+     !Number.isInteger(maxGap)||maxGap<0||maxGap>5)return [];
+  const result=[];
+  let start=-1,lastHigh=-1,active=0,peak=-96;
+  for(let t=0;t<=levels.length;t++){
+   const loud=t<levels.length&&Number(levels[t])>=threshold;
+   if(loud){
+    if(start<0)start=t;
+    lastHigh=t;active++;
+    const value=Number(peaks?.[t]);
+    peak=Math.max(peak,Number.isFinite(value)?value:Number(levels[t]));
+   }else if(start>=0&&(t===levels.length||t-lastHigh>maxGap)){
+    if(active>=minimum)result.push({
+     start_sec:start,end_sec:lastHigh+1,active_sec:active,peak_dbfs:peak
+    });
+    start=-1;lastHigh=-1;active=0;peak=-96;
+   }
+  }
+  return result;
+ }
+ function applyLiveFilters(updateUi=true){
+  if(!analysis||!Array.isArray(analysis.levels_dbfs))return false;
+  const threshold=Number($("sleepThreshold").value);
+  const minimum=Number($("sleepMinSeconds").value);
+  const gap=Number($("sleepGapSeconds").value);
+  if(!Number.isFinite(threshold)||threshold<-90||threshold>-5||
+     !Number.isInteger(minimum)||minimum<1||minimum>120||
+     !Number.isInteger(gap)||gap<0||gap>5)return false;
+  analysis.threshold_dbfs=threshold;
+  analysis.minimum_seconds=minimum;
+  analysis.gap_seconds=gap;
+  analysis.events=detectCandidates(analysis.levels_dbfs,
+   analysis.peak_levels_dbfs,threshold,minimum,gap);
+  if(updateUi){
+   renderEvents();
+   window.BodyTraceSleepVisual?.refreshFilters?.();
+  }
+  return true;
+ }
+ window.BodyTraceAudioFilter={detect:detectCandidates};
  function updateAnalysisProgress(percent,updatedMs){
   const raw=Number(percent);
   const pct=Number.isFinite(raw)?Math.max(0,Math.min(100,Math.floor(raw))):0;
@@ -153,10 +198,9 @@
   const head=document.createElement("p");head.className="sleep-analysis-summary";
   const events=Array.isArray(analysis.events)?analysis.events:[];
   const total=events.reduce((sum,e)=>sum+(Number(e.active_sec)||0),0);
-  head.textContent="已筛选 "+events.length+" 段候选声音 · 超阈值累计 "+
-   duration(total)+" · 总录音 "+duration(analysis.total_seconds)+
-   " · 阈值 "+analysis.threshold_dbfs+" dBFS · 最短 "+analysis.minimum_seconds+
-   " 秒（不代表确认为鼾声）";
+  head.textContent="符合规则 "+events.length+" 段 · 有效超阈值累计 "+
+   duration(total)+" · 最短 "+analysis.minimum_seconds+" 秒，允许空隙 "+
+   analysis.gap_seconds+" 秒（不等于确诊鼾声）";
   root.append(head);
   if(!events.length){
    const p=document.createElement("p");p.className="sub";
@@ -178,13 +222,7 @@
    const play=document.createElement("button");
    play.type="button";play.className="mini secondary";
    play.textContent="回听";
-   play.onclick=()=>{
-    const start=Math.max(0,Number(event.start_sec)-2);
-    const length=Math.min(180,Math.max(1,Number(event.end_sec)-start+3));
-    if(!bridge()?.sleepPlay){toast("请安装支持录音播放的版本",true);return;}
-    bridge().sleepPlay(analysis.id,Math.floor(start),Math.ceil(length));
-    toast("正在播放候选片段（含前后几秒）");
-   };
+   play.onclick=()=>window.BodyTraceSleepVisual?.playEvent?.(i);
    const focus=document.createElement("button");
    focus.type="button";focus.className="mini secondary sleep-event-focus";
    focus.textContent="查看波形";
@@ -229,9 +267,20 @@
   render();
   bridge().sleepAnalyze(selectedId,threshold,seconds,gap);
  }
- $("sleepThreshold").addEventListener("input",updateThreshold);
- for(const field of ["sleepThreshold","sleepMinSeconds","sleepGapSeconds"])
-  $(field).addEventListener("change",()=>{if(analysis&&selectedId)analyze();});
+ // Reactive filtering uses the cached one-second envelope. Neither slider
+ // nor duration/gap edits trigger another native full-night decode.
+ for(const field of ["sleepThreshold","sleepMinSeconds","sleepGapSeconds"]){
+  $(field).addEventListener("input",()=>{
+   updateThreshold();
+   if(playbackActive&&$("sleepSkipQuiet").checked){
+    bridge()?.sleepStopPlayback?.();
+    playbackActive=false;
+    $("sleepPlaybackStatus").textContent=
+     "筛选规则已改变，旧的跳段播放已停止，请重新播放";
+   }
+   applyLiveFilters();
+  });
+ }
  $("sleepImport").onclick=()=>{
   if(recording||busy||importing){toast("请先完成当前录音或分析",true);return;}
   if(!bridge()?.sleepImport){toast("请安装支持导入录音的新版 APK",true);return;}
@@ -255,7 +304,10 @@
   bridge().sleepStatus();
  };
  $("sleepAnalyze").onclick=analyze;
- $("sleepStopPlayback").onclick=()=>{bridge()?.sleepStopPlayback?.();};
+ $("sleepStopPlayback").onclick=()=>{
+  bridge()?.sleepStopPlayback?.();
+  $("sleepPlaybackStatus").textContent="正在停止播放…";
+ };
  document.querySelector('.tabs button[data-page="sleep"]')?.addEventListener("click",()=>{
   bridge()?.sleepStatus?.();
  });
@@ -305,6 +357,7 @@
    completedAnalysisId=evt.id||selectedId;
    clearAnalysisProgress();
    selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
+   applyLiveFilters(false);
    render();
   }else if(evt.type==="sleep_imported"){
    importing=false;
@@ -325,6 +378,14 @@
   }else if(evt.type==="sleep_import_progress"){
    // Backward compatibility with a pending old-version import.
    $("sleepImportStatus").textContent="正在处理旧版音频："+evt.percent+"%";
+  }else if(evt.type==="sleep_playback"){
+   playbackActive=!!evt.playing;
+   if(evt.playing){
+    $("sleepPlaybackStatus").textContent=
+     (evt.skip?"正在跳过不达标声音 · ":"正在正常播放 · ")+
+     "第 "+evt.segment_index+"/"+evt.total_segments+" 段 · "+
+     duration(evt.start_sec||0);
+   }else $("sleepPlaybackStatus").textContent="播放已结束或停止";
   }else if(evt.type==="sleep_analysis_progress"){
    if(evt.id&&runningAnalysisId&&evt.id!==runningAnalysisId)return;
    analysisStarting=false;
