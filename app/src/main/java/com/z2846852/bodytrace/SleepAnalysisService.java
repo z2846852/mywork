@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.File;
@@ -34,6 +35,7 @@ public final class SleepAnalysisService extends Service {
     private static volatile String activeId="";
     private static volatile int progressPercent=0;
     private final ExecutorService executor=Executors.newSingleThreadExecutor();
+    private PowerManager.WakeLock decodeWakeLock;
 
     static boolean isRunning(){return !activeId.isEmpty();}
     static String currentId(){return activeId;}
@@ -67,7 +69,8 @@ public final class SleepAnalysisService extends Service {
                 throw new IllegalStateException("录音进行中不能分析，请先停止");
             synchronized(SleepAnalysisService.class){
                 if(!activeId.isEmpty()){
-                    if(!activeId.equals(id))throw new IllegalStateException("已有其他录音正在分析");
+                    if(!activeId.equals(id))
+                        publishError("睡眠音频分析启动失败：已有其他录音正在分析");
                     return START_REDELIVER_INTENT;
                 }
                 activeId=id;
@@ -103,7 +106,7 @@ public final class SleepAnalysisService extends Service {
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentIntent(openApp())
             .setOnlyAlertOnce(true)
-            .setCategory(Notification.CATEGORY_PROGRESS);
+            .setCategory(Notification.CATEGORY_SERVICE);
     }
 
     private Notification ongoingNotification(int percent){
@@ -158,6 +161,12 @@ public final class SleepAnalysisService extends Service {
     private void analyze(String id,int threshold,int minimum,int gap){
         boolean success=false;
         try{
+            PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
+            decodeWakeLock=power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                "bodytrace:sleep-audio-analysis");
+            // Foreground notification + a bounded CPU wake lock keep decoding
+            // active while the phone is locked. The lock is always released.
+            decodeWakeLock.acquire(3L*60*60*1000);
             publishProgress(id,0);
             JSONObject session=SleepSessions.load(this,id);
             File audio=SleepSessions.audio(this,id);
@@ -175,24 +184,22 @@ public final class SleepAnalysisService extends Service {
                 // Cache even if the Activity has been closed or the device locked.
                 SleepSessions.write(this,session);
             }
-            JSONArray events=SleepAudioAnalyzer.detect(levels,threshold,minimum,gap);
-            JSONObject result=new JSONObject().put("type","sleep_analysis")
-                .put("id",id).put("started_ms",session.optLong("started_ms"))
-                .put("date_basis",session.optString("date_basis","recorded_at"))
-                .put("original_name",session.optString("original_name",""))
-                .put("total_seconds",levels.length())
-                .put("levels_dbfs",levels).put("peak_levels_dbfs",peaks)
-                .put("threshold_dbfs",threshold).put("minimum_seconds",minimum)
-                .put("gap_seconds",gap).put("events",events);
-            publishProgress(id,100);
-            send(result);
+            // Broadcast only a tiny completion token. Full-night JSON can
+            // exceed Android's Binder transaction limit (1 MB). MainActivity
+            // reads the cached envelope directly from its private file.
+            send(new JSONObject().put("type","sleep_analysis_ready")
+                .put("id",id).put("threshold",threshold)
+                .put("minimum",minimum).put("gap",gap));
             success=true;
         }catch(Exception e){
             publishError("睡眠录音分析失败："+reason(e));
         }finally{
-            try{finishedNotification(success);}catch(Exception ignored){}
+            if(decodeWakeLock!=null&&decodeWakeLock.isHeld()){
+                try{decodeWakeLock.release();}catch(Exception ignored){}
+            }
             activeId="";
             progressPercent=0;
+            try{finishedNotification(success);}catch(Exception ignored){}
             stopSelf();
         }
     }
