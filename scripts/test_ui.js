@@ -111,6 +111,15 @@ assert.ok(fetchModel.includes("10c95ea3eb9a7bb4cb8bddf6feb023250381008177ac162ce
 assert.ok(workflow.includes("Fetch and SHA256-verify offline YAMNet model"));
 assert.ok(html.includes('id="sleepDetectionMode"'));
 assert.ok(html.includes('id="sleepSnoreThreshold"'));
+assert.ok(html.includes('id="sleepAiHighRecall"')&&html.includes('id="sleepAiStandard"'));
+assert.ok(sleepJS.includes('setAiPreset(AI_HIGH_RECALL_SCORE,1)'),
+ "High recall must refilter cached AI scores without decoding the original audio");
+assert.ok(sleepVisualization.includes("evt.short_levels_dbfs||evt.levels_dbfs"),
+ "Locked Y axis must use short RMS instead of instantaneous peak outliers");
+assert.ok(!sleepVisualization.includes("ctx.fillRect(x,top,markWidth,plotHeight)"),
+ "Full-height event overlays hide the waveform and must not return");
+assert.ok(sleepVisualization.includes("const baselineY=yAt(backgroundDb)"),
+ "Event ribbon must stay close to the yellow RMS contour");
 for(const field of ["page-sleep","sleepStart","sleepStop","sleepStatus",
  "sleepHistory","sleepAnalyze","sleepThreshold","sleepMinSeconds",
  "sleepGapSeconds","sleepAnalysis","sleepStopPlayback"]){
@@ -1005,6 +1014,15 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.match(el("sleepAnalyze").textContent,/已生成波形/);
   assert.equal(el("sleepDetectionMode").value,"ai",
    "AI scores should switch to the actual sound model by default");
+  el("sleepAiHighRecall").onclick();
+  assert.equal(el("sleepSnoreThreshold").value,"0.05");
+  assert.equal(el("sleepMinSeconds").value,"1");
+  assert.equal(el("sleepGapSeconds").value,"3");
+  assert.equal(calls.decode.length,1,"Changing AI sensitivity must not re-decode M4A");
+  el("sleepAiStandard").onclick();
+  assert.equal(el("sleepSnoreThreshold").value,"0.15");
+  assert.equal(el("sleepMinSeconds").value,"2");
+  assert.equal(calls.decode.length,1);
   el("sleepMinSeconds").value="1";
   el("sleepMinSeconds").handlers.input();
   assert.equal(sleepWindow.BodyTraceAudioFilter.detectSnoreEvents(
@@ -1079,7 +1097,7 @@ assert.ok(sleepJS.includes('evt.type==="sleep_playback_position"'));
   const fakeCtx={
     setTransform(){},save(){},restore(){},
     fillRect(x,y,w,h){
-      if(this.fillStyle==="#ff6e81")candidateMarks.push({x,y,w,h});
+      if(this.fillStyle==="#ff6e81"&&w>=4)candidateMarks.push({x,y,w,h});
     },
     beginPath(){},moveTo(){},lineTo(){},
     arc(){},fill(){},fillText(){},setLineDash(){},
@@ -1132,6 +1150,8 @@ assert.ok(sleepJS.includes('evt.type==="sleep_playback_position"'));
   assert.ok(candidateMarks.length>=2);
   assert.ok(candidateMarks.every(m=>m.w>=4),
     "Short candidate regions need >=4px visibility even when zoomed out");
+   assert.ok(candidateMarks.every(m=>m.y>15&&m.h<=4),
+    "Candidate ribbons should be at waveform level, not span chart height");
   assert.equal(fakeWindow.BodyTraceSleepVisual.state().span,600);
   fakeWindow.bodyTraceReceive({type:"sleep_playback",id:"night1",playing:true,
     start_sec:20,position_ms:20000,segment_index:1,total_segments:2,skip:true});

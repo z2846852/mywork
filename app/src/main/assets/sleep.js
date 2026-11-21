@@ -18,6 +18,7 @@
  const thresholdBySession=new Map();
  const snoreThresholdBySession=new Map();
  const AI_DEFAULT_SCORE=0.15;
+ const AI_HIGH_RECALL_SCORE=0.05;
  function aiAvailable(){
   return Array.isArray(analysis?.ai_snore_scores)&&
    analysis.ai_snore_scores.length===analysis.levels_dbfs?.length;
@@ -112,7 +113,7 @@
   $("sleepThresholdWorkbench").hidden=active;
   $("sleepDetectionMode").disabled=!aiAvailable();
   $("sleepDetectorNote").textContent=aiAvailable()?
-   active?"AI 模型得分未校准；筛选与音量无关，需逐段回听验证。":
+   active?"AI 模型分数未校准；可用「高召回测试」检查漏检（也可能增加误报）。":
    "当前为传统响度候选模式，不代表实际鼾声。":
    "当前录音尚未进行 AI 分类；点击下方按钮可对原音频执行离线 YAMNet 分析。";
  }
@@ -387,6 +388,18 @@
   setThreshold(Number($("sleepThreshold").value));
  });
  $("sleepDetectionMode").addEventListener("change",onFilterChanged);
+ // Presets only refilter cached AI scores; they never restart native decoding.
+ function setAiPreset(score,minimum){
+  $("sleepDetectionMode").value="ai";
+  $("sleepSnoreThreshold").value=score.toFixed(2);
+  $("sleepSnoreThresholdText").textContent=score.toFixed(2);
+  $("sleepMinSeconds").value=String(minimum);
+  $("sleepGapSeconds").value="3";
+  if(selectedId)snoreThresholdBySession.set(selectedId,score);
+  onFilterChanged();
+ }
+ $("sleepAiStandard").onclick=()=>setAiPreset(AI_DEFAULT_SCORE,2);
+ $("sleepAiHighRecall").onclick=()=>setAiPreset(AI_HIGH_RECALL_SCORE,1);
  $("sleepSnoreThreshold").addEventListener("input",()=>{
   $("sleepSnoreThresholdText").textContent=Number($("sleepSnoreThreshold").value).toFixed(2);
   if(selectedId)snoreThresholdBySession.set(selectedId,

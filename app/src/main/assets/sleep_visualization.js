@@ -31,7 +31,9 @@
   // Global quantile range is computed ONCE for each recording.
   // Horizontal pinch/drag NEVER changes the Y axis.
   const p05=quantile(evt.levels_dbfs,.05);
-  const p995=quantile(evt.peak_levels_dbfs||evt.levels_dbfs,.995);
+  // Keep the locked Y axis relevant to the audible short-RMS curve.
+  // Raw PCM peak outliers used to inflate the scale by 60-80 dB.
+  const p995=quantile(evt.short_levels_dbfs||evt.levels_dbfs,.995);
   const lower=Math.min(-4,(p05??backgroundDb-5)-backgroundDb);
   const upper=Math.max(8,(p995??backgroundDb+12)-backgroundDb);
   axisMin=Math.floor((lower-2)/5)*5;
@@ -106,29 +108,8 @@
    ctx.fillStyle=COLORS.text;
    ctx.fillText((delta>0?"+":"")+delta,4,y);
   }
-  // Strong candidate highlights: for full-night charts, a 5–20 second
-  // interval may be <1 physical pixel wide. Expand the VISUAL marker to
-  // at least 4 CSS px without changing actual event duration or hit-testing.
-  // The top cap and edge distinguish qualified events from raw RMS spikes.
-  for(const event of events()){
-   const a=Math.max(windowStart,Number(event.start_sec));
-   const b=Math.min(windowStart+windowSpan,Number(event.end_sec));
-   if(b<=a)continue;
-   const xa=xAt(a),xb=xAt(b),actualWidth=xb-xa;
-   const markWidth=Math.min(plotWidth,Math.max(4,actualWidth));
-   const center=clamp((xa+xb)/2,left+markWidth/2,right-markWidth/2);
-   const x=center-markWidth/2;
-   ctx.fillStyle="#eb536b";ctx.globalAlpha=.40;
-   ctx.fillRect(x,top,markWidth,plotHeight);
-   ctx.fillStyle="#ff6e81";ctx.globalAlpha=.94;
-   ctx.fillRect(x,top,markWidth,4);
-   if(actualWidth>=5){
-    ctx.fillStyle="#ff8c98";ctx.globalAlpha=.72;
-    ctx.fillRect(x,top,1.5,plotHeight);
-    ctx.fillRect(x+markWidth-1.5,top,1.5,plotHeight);
-   }
-  }
-  ctx.globalAlpha=1;
+  // Render the audio envelope first. Event highlights will be overlaid
+  // ON THE SHORT-RMS CURVE instead of spanning the whole graph height.
   const threshold=Number(result.threshold_dbfs);
   for(let px=0;px<plotWidth;px++){
    const a=Math.max(0,Math.floor(windowStart+px/plotWidth*windowSpan));
@@ -161,6 +142,50 @@
     ctx.fillRect(x,bottom-barHeight,1,barHeight);
    }
   }
+  // Candidate ribbons follow the same short-RMS height used for the yellow
+  // waveform. Leave the grey peak envelope and chart grid unobscured.
+  // Expand subpixel events to 4 px visually only (not in stored time ranges).
+  for(const event of events()){
+   const a=Math.max(windowStart,Number(event.start_sec));
+   const b=Math.min(windowStart+windowSpan,Number(event.end_sec));
+   if(b<=a)continue;
+   const xa=xAt(a),xb=xAt(b),actualWidth=xb-xa;
+   const markWidth=Math.min(plotWidth,Math.max(4,actualWidth));
+   const center=clamp((xa+xb)/2,left+markWidth/2,right-markWidth/2);
+   const x=center-markWidth/2;
+   const eventFirst=Math.max(0,Math.floor(a));
+   const eventLast=Math.min(total(),Math.ceil(b));
+   let topLevel=-96;
+   for(let i=eventFirst;i<eventLast;i++){
+    const v=Number(shortLevels[i]);
+    if(Number.isFinite(v))topLevel=Math.max(topLevel,v);
+   }
+   const referenceY=yAt(topLevel);
+   const baselineY=yAt(backgroundDb);
+   // A narrow cap remains visible at full-night scale; NO top-to-bottom blocks.
+   ctx.fillStyle="#ff6e81";ctx.globalAlpha=.94;
+   ctx.fillRect(x,clamp(referenceY-1,top,bottom-2),markWidth,2);
+   for(let px=Math.floor(x);px<Math.ceil(x+markWidth);px++){
+    if(px<left||px>=right)continue;
+    const secA=windowStart+(px-left)/plotWidth*windowSpan;
+    const secB=windowStart+(px+1-left)/plotWidth*windowSpan;
+    const first=clamp(Math.floor(Math.max(a,secA)),eventFirst,eventLast-1);
+    const last=clamp(Math.max(first+1,Math.ceil(Math.min(b,secB))),first+1,eventLast);
+    let shortMax=-96;
+    for(let i=first;i<last;i++){
+     const v=Number(shortLevels[i]);
+     if(Number.isFinite(v))shortMax=Math.max(shortMax,v);
+    }
+    const sy=yAt(shortMax);
+    const bandTop=Math.min(sy,baselineY);
+    const bandHeight=Math.max(2,Math.abs(sy-baselineY));
+    ctx.fillStyle="#f05c79";ctx.globalAlpha=.20;
+    ctx.fillRect(px,bandTop,1,bandHeight);
+    ctx.fillStyle="#ff6e81";ctx.globalAlpha=.96;
+    ctx.fillRect(px,clamp(sy-1,top,bottom-2),1,2);
+   }
+  }
+  ctx.globalAlpha=1;
   // A high-contrast horizontal RED reference, moving synchronously with slider.
   const thresholdY=yAt(threshold);
   if(!aiMode()){

@@ -248,7 +248,11 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
      <strong id="sleepSnoreThresholdText">0.15</strong></label>
     <input id="sleepSnoreThreshold" type="range" min="0.01" max="0.9"
      step="0.01" value="0.15" aria-label="AI 鼾声模型最低得分">
-    <p class="sub">模型输出是未校准分数，不是鼾声概率；降低阈值增加召回，也可能增加误报。</p>
+    <div class="row wrap sleep-ai-presets">
+     <button type="button" class="secondary mini" id="sleepAiStandard">标准筛选</button>
+     <button type="button" class="secondary mini" id="sleepAiHighRecall">高召回测试</button>
+    </div>
+    <p class="sub" id="sleepAiPresetHint">标准：得分 ≥0.15、累计2秒；高召回：≥0.05、累计1秒。仅更改筛选，不重新解码。可能增加误报。</p>
    </div>
    <p id="sleepDetectorNote" class="sub">等待本地 AI 声音分类。</p>
    <div class="sleep-wave-controls" role="group" aria-label="声波缩放">
