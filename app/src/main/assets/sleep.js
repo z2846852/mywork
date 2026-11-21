@@ -262,12 +262,19 @@
     Math.max(0,Number(chosen.ended_ms)-Number(chosen.started_ms)):0);
   const knownTime=!!chosen&&
    (chosen.external_file?
-    ["user_supplied","media_date_unverified"].includes(chosen.date_basis):
+    ["user_supplied","media_date_unverified","filename_inferred",
+     "filename_media_end_match"].includes(chosen.date_basis):
     chosen.date_basis!=="imported_at")&&
    Number.isFinite(Number(chosen.started_ms))&&Number(chosen.started_ms)>0;
   const timeSource=!chosen?"":chosen.date_basis==="user_supplied"?
-   "手动确认时间":chosen.date_basis==="media_date_unverified"?
-   "媒体日期（可能是修改时间）":knownTime?"APP 实际录制时间":"录音开始时间未知";
+   "手动确认时间":
+   chosen.date_basis==="filename_media_end_match"?
+    "文件名录制时间（与结束时间吻合）":
+   chosen.date_basis==="filename_inferred"?
+    "文件名推断录制开始时间":
+   chosen.date_basis==="media_date_unverified"?
+    "媒体日期（可能是录制结束时间）":
+   knownTime?"APP 实际录制时间":"录音开始时间未知";
   $("sleepSelectedFile").textContent=chosen?
    "本机 · "+(chosen.external_file?"引用原音频":"APP 私有录音")+
    " · "+(chosenBytes>0?(chosenBytes/1048576).toFixed(2)+" MB":"大小未确定")+
@@ -283,8 +290,12 @@
      new Date(ms+8*60*60*1000).toISOString().slice(0,16):"";
     startEditorSessionId=selectedId;
    }
-   $("sleepTimeSourceHint").textContent=chosen.date_basis==="media_date_unverified"?
-    "已提取文件内嵌媒体日期，但它也可能是文件修改时间；请核对录制起点。":
+   $("sleepTimeSourceHint").textContent=chosen.date_basis==="filename_media_end_match"?
+    "识别了文件名中的录制时间；结合音频时长计算的结束时间与媒体日期接近。这是高置信推断，可手动校正。":
+    chosen.date_basis==="filename_inferred"?
+    "已提取文件名中的时间（默认按北京时间）。这是录制开始时间的推断，请确认。":
+    chosen.date_basis==="media_date_unverified"?
+    "内嵌媒体日期可能是文件结束写入时间，不一定是录制开始；请优先根据文件名确认。":
     knownTime?"当前录制起点已指定。修改这里只更新时间轴，不会重新分析 AI。":
     "此录音没有可信的起始时间。手动填入后横轴即可显示凌晨 03:00 等真实时间。";
   }
@@ -527,7 +538,12 @@
   if(!evt||!evt.type)return;
   if(evt.type==="sleep_status"){
    recording=!!evt.recording;
+   const previous=sessions.find(x=>x.id===selectedId);
    sessions=Array.isArray(evt.sessions)?evt.sessions:[];
+   const updated=sessions.find(x=>x.id===selectedId);
+   if(previous&&updated&&
+     (previous.started_ms!==updated.started_ms||previous.date_basis!==updated.date_basis))
+    startEditorSessionId="";
    // Status responses may have been queued BEFORE the user pressed Analyze.
    // Never unlock the button while startup, cache-read, or background decode is pending.
    const running=!!evt.analysis_running&&!!evt.analysis_id;

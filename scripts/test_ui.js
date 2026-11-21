@@ -488,6 +488,27 @@ assert.ok(html.includes('id="sleepTimeMode"')&&html.includes('id="sleepEditStart
 assert.ok(native.includes('sleepSetStartTime(String sessionId,String localStart)'));
 assert.ok(native.includes('MediaMetadataRetriever.METADATA_KEY_DATE'));
 assert.ok(native.includes('parseEmbeddedMediaDate('));
+assert.ok(native.includes('SleepRecordingTime.infer('),
+ "Resolve filename timestamp before trusting metadata DATE");
+assert.ok(native.includes('filename_time_checked'),
+ "Existing imported recordings need one-time filename correction");
+assert.ok(native.includes('updateImportedTimeGuess(session)'),
+ "Use cached results for the migrated recording without decoding");
+assert.ok(native.includes('"user_supplied".equals(meta.optString("date_basis"))'),
+ "Manual recording start must not be overwritten by inference");
+const timeInference=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/SleepRecordingTime.java"),"utf8");
+assert.ok(timeInference.includes('FILENAME_END_MATCH="filename_media_end_match"'));
+assert.ok(timeInference.includes('filenameStart+durationMillis'));
+assert.ok(timeInference.includes('ZoneOffset.ofHours(8)'));
+assert.ok(sleepJS.includes('"filename_media_end_match"'));
+assert.ok(sleepJS.includes('"filename_inferred"'));
+assert.ok(sleepStore.includes('!s.optBoolean("filename_time_checked",false)'),
+ "Old imported recordings must be corrected even during in-progress AI analysis");
+assert.ok(sleepStore.includes('SleepRecordingTime.infer('),
+ "Metadata-only migration should not reopen 300 MB imported M4A");
+assert.ok(sleepStore.includes('write(context,s)'),
+ "Time correction must persist for next time the recording is selected");
 assert.ok(native.includes('dateBasis="media_date_unverified"'));
 assert.ok(sleepVisualization.includes('timeAxisMode=hasRecordingStart()?'));
 assert.ok(sleepVisualization.includes('setTimeMode,'));

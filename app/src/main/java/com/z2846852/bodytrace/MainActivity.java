@@ -427,14 +427,19 @@ public final class MainActivity extends Activity {
         }finally{extractor.release();}
         long startTime=importedAt;
         String dateBasis="imported_at";
-        // A media DATE tag can reflect file creation OR later modification.
-        // It is a candidate timestamp, not a verified microphone start time.
+        // The media date may actually be the FILE FINALIZATION TIME. Prefer
+        // the strongly structured YYYYMMDD_HHMMSS filename when present.
         Long embeddedDate=readEmbeddedMediaDate(uri);
-        if(embeddedDate!=null){
+        SleepRecordingTime.Guess filenameGuess=SleepRecordingTime.infer(
+            filename,duration,embeddedDate,importedAt);
+        if(filenameGuess!=null){
+            startTime=filenameGuess.startMillis;
+            dateBasis=filenameGuess.basis;
+        }else if(embeddedDate!=null){
             startTime=embeddedDate;
             dateBasis="media_date_unverified";
         }
-        // The user's explicit recording-start time takes precedence over tags.
+        // The user's explicit recording-start time takes precedence over all estimates.
         if(reportedStart!=null&&!reportedStart.trim().isEmpty()){
             LocalDateTime local=LocalDateTime.parse(reportedStart.trim(),
                 DateTimeFormatter.ISO_LOCAL_DATE_TIME);
@@ -448,6 +453,10 @@ public final class MainActivity extends Activity {
             .put("imported_ms",importedAt)
             .put("date_basis",dateBasis)
             .put("media_date_checked",true)
+            .put("filename_time_checked",true)
+            .put("media_date_role",filenameGuess!=null&&filenameGuess.mediaLooksLikeEnd?
+                "likely_end":"unverified")
+            .put("media_date_ms",embeddedDate==null?JSONObject.NULL:embeddedDate)
             .put("source","saf-document")
             .put("source_uri",uri.toString())
             .put("original_name",filename)
@@ -552,29 +561,63 @@ public final class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
+    /**
+     * One-time metadata migration. The small session JSON is updated in place;
+     * the original audio, 8-hour RMS envelope and cached YAMNet scores remain.
+     * Manual user-supplied starts are never overwritten.
+     */
+    private void updateImportedTimeGuess(JSONObject session) throws Exception {
+        if(!SleepSessions.isExternal(session)||
+                "user_supplied".equals(session.optString("date_basis"))||
+                session.optBoolean("filename_time_checked",false))return;
+        String id=session.getString("id");
+        JSONObject meta=SleepSessions.loadMetadata(this,id);
+        if("user_supplied".equals(meta.optString("date_basis"))||
+                meta.optBoolean("filename_time_checked",false))return;
+        Long mediaDate=meta.isNull("media_date_ms")?null:
+                (meta.has("media_date_ms")?meta.optLong("media_date_ms"):null);
+        // For files imported by the previous app, media_date_unverified was
+        // incorrectly stored as started_ms. Treat it as media DATE instead.
+        if(mediaDate==null&&"media_date_unverified".equals(meta.optString("date_basis")))
+            mediaDate=meta.optLong("started_ms",0);
+        if(mediaDate!=null&&mediaDate<=0)mediaDate=null;
+        if(mediaDate==null){
+            try{mediaDate=readEmbeddedMediaDate(SleepSessions.externalUri(meta));}
+            catch(Exception ignored){/* Filename may still be sufficient. */}
+        }
+        long duration=meta.optLong("duration_ms",0);
+        SleepRecordingTime.Guess guess=SleepRecordingTime.infer(
+            meta.optString("original_name",""),duration,mediaDate,
+            System.currentTimeMillis());
+        if(guess!=null){
+            meta.put("started_ms",guess.startMillis);
+            meta.put("ended_ms",guess.startMillis+duration);
+            meta.put("date_basis",guess.basis);
+            meta.put("media_date_role",guess.mediaLooksLikeEnd?"likely_end":"unverified");
+        }else if("imported_at".equals(meta.optString("date_basis"))&&mediaDate!=null){
+            meta.put("started_ms",mediaDate);
+            meta.put("ended_ms",mediaDate+duration);
+            meta.put("date_basis","media_date_unverified");
+        }
+        meta.put("media_date_checked",true);
+        meta.put("filename_time_checked",true);
+        if(mediaDate!=null)meta.put("media_date_ms",mediaDate);
+        SleepSessions.write(this,meta);
+        session.put("started_ms",meta.optLong("started_ms"));
+        session.put("date_basis",meta.optString("date_basis"));
+        session.put("media_date_role",meta.optString("media_date_role",""));
+    }
+
     /** Load cached envelope on the regular worker only AFTER decoding is done.
      * Large (8h+) arrays must never cross Android's Broadcast/Intent Binder limit. */
     private void deliverSleepAnalysis(String sessionId,int threshold,int minimum,int gap){
         try{
             SleepSessions.verifyId(sessionId);
             JSONObject session=SleepSessions.load(this,sessionId);
-            // Existing imported recordings created before the metadata-aware
-            // release are probed exactly once when selected; AI scores remain cached.
-            if(SleepSessions.isExternal(session)&&
-                    "imported_at".equals(session.optString("date_basis","imported_at"))&&
-                    !session.optBoolean("media_date_checked",false)){
-                Long inferred=readEmbeddedMediaDate(SleepSessions.externalUri(session));
-                JSONObject meta=SleepSessions.loadMetadata(this,sessionId);
-                meta.put("media_date_checked",true);
-                if(inferred!=null){
-                    meta.put("started_ms",inferred);
-                    meta.put("ended_ms",inferred+meta.optLong("duration_ms",0));
-                    meta.put("date_basis","media_date_unverified");
-                    session.put("started_ms",inferred);
-                    session.put("date_basis","media_date_unverified");
-                }
-                SleepSessions.write(this,meta);
-            }
+            // Upgrade existing cached imports without repeating YAMNet analysis.
+            // A previously imported media DATE can be the recording END, so
+            // re-evaluate it against the filename even when media_date_checked=true.
+            updateImportedTimeGuess(session);
             JSONArray levels=session.optJSONArray("levels_dbfs");
             JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
             JSONArray shortLevels=session.optJSONArray("short_levels_dbfs");

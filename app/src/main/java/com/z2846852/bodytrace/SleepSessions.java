@@ -239,6 +239,29 @@ final class SleepSessions {
                             s=loadMetadata(context,id);
                         }catch(Exception ignored){/* legacy cache still readable */}
                     }
+                    // Metadata-only migration during the regular list refresh,
+                    // even while AI is still analyzing. No 300MB M4A needs reopening.
+                    // Prior versions often stored the media END as started_ms.
+                    if(isExternal(s)&&!"user_supplied".equals(s.optString("date_basis"))&&
+                            !s.optBoolean("filename_time_checked",false)){
+                        Long media=s.has("media_date_ms")&&!s.isNull("media_date_ms")?
+                            s.optLong("media_date_ms"):null;
+                        if(media==null&&"media_date_unverified".equals(s.optString("date_basis")))
+                            media=s.optLong("started_ms",0);
+                        SleepRecordingTime.Guess guess=SleepRecordingTime.infer(
+                            s.optString("original_name",""),s.optLong("duration_ms",0),media,
+                            System.currentTimeMillis());
+                        if(guess!=null){
+                            long duration=s.optLong("duration_ms",0);
+                            s.put("started_ms",guess.startMillis);
+                            s.put("ended_ms",guess.startMillis+duration);
+                            s.put("date_basis",guess.basis);
+                            s.put("media_date_role",guess.mediaLooksLikeEnd?"likely_end":"unverified");
+                            s.put("filename_time_checked",true);
+                            if(media!=null)s.put("media_date_ms",media);
+                            write(context,s);
+                        }
+                    }
                     JSONObject summary = new JSONObject();
                     for (String key : new String[]{"id","started_ms","ended_ms","status","error",
                             "source","date_basis","original_name","duration_ms"}) {

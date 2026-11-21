@@ -32,6 +32,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Validate inferred recording start timestamps (plain Java)
+        run: |
+          mkdir -p "$RUNNER_TEMP/bodytrace-timestamp-test"
+          javac -d "$RUNNER_TEMP/bodytrace-timestamp-test" \
+            app/src/main/java/com/z2846852/bodytrace/SleepRecordingTime.java \
+            scripts/java_tests/com/z2846852/bodytrace/SleepRecordingTimeTest.java
+          java -cp "$RUNNER_TEMP/bodytrace-timestamp-test" \
+            com.z2846852.bodytrace.SleepRecordingTimeTest
       - name: Validate cartoon body page, JSON UI and avatar persistence
         run: node scripts/test_ui.js
       - name: Fetch and SHA256-verify offline YAMNet model

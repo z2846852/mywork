@@ -78,7 +78,11 @@
    "文件未提供可靠录制起点，请在顶部指定时间后使用真实时间轴。":
    timeAxisMode==="clock"?
    result.date_basis==="media_date_unverified"?
-    "当前按文件媒体日期显示；可能是修改时间，请核对。":
+    "当前按文件媒体日期显示；它可能是录音结束时间，请核对。":
+   result.date_basis==="filename_media_end_match"?
+    "文件名推断录音起点，媒体日期与预计结束时间吻合 · 可手动修正":
+   result.date_basis==="filename_inferred"?
+    "文件名推断录音起点（按北京时间） · 可手动修正":
     "真实钟表时间 · 跨午夜自动显示次日凌晨时间":
    "从录音开始计时 · +00:00:00 为文件起点";
  }
