@@ -702,7 +702,8 @@ assert.ok(html.includes('step="0.1"'));
 assert.ok(html.indexOf('id="sleepWaveCanvas"')<html.indexOf('id="sleepThreshold"'),
  "Threshold must sit immediately BELOW the always-visible waveform");
 assert.ok(html.indexOf('id="sleepThreshold"')<html.indexOf('id="sleepPlaySelection"'));
-assert.ok(html.includes('<details class="sleep-collection"'));
+assert.ok(html.includes('class="sleep-collection sleep-library-menu"'),
+ "Audio collection is now a compact top-toolbar disclosure");
 assert.ok(html.includes('<details class="sleep-events-details"'));
 assert.ok(html.includes('<details class="sleep-extras"'));
 assert.ok(fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8")

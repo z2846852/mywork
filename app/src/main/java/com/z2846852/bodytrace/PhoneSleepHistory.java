@@ -181,7 +181,7 @@ final class PhoneSleepHistory {
                 }
             }else{
                 JSONObject missing=new JSONObject()
-                    .put("day",night.day).put("state","insufficient")
+                    .put("day",night.day).put("state",night.state)
                     .put("message",night.reason)
                     .put("screen_on_events",night.screenOn)
                     .put("unlock_events",night.unlock);

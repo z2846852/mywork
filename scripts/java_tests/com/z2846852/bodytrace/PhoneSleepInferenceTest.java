@@ -48,14 +48,14 @@ public final class PhoneSleepInferenceTest {
         disconnected.add(event("2026-11-21",7,0,PhoneSleepInference.STARTUP));
         disconnected.add(event("2026-11-21",7,1,PhoneSleepInference.SCREEN_ON));
         PhoneSleepInference.Night off=find(PhoneSleepInference.infer(disconnected,
-            t("2026-11-21",10,0)),"2026-11-21");
+            t("2026-11-21",13,0)),"2026-11-21");
         check("insufficient".equals(off.state),
             "Shutdown must not be misread as a continuous screen-off night");
         List<PhoneSleepInference.Event> unpaired=new ArrayList<>();
         unpaired.add(event("2026-11-20",21,0,PhoneSleepInference.KEYGUARD_SHOWN));
         unpaired.add(event("2026-11-21",7,0,PhoneSleepInference.KEYGUARD_HIDDEN));
         check("insufficient".equals(find(PhoneSleepInference.infer(unpaired,
-            t("2026-11-21",10,0)),"2026-11-21").state),
+            t("2026-11-21",13,0)),"2026-11-21").state),
             "Unpaired keyguard events must not create fabricated time windows");
         // No app-imposed recent N-day history: an old event is processed if
         // Android's queryEvents actually returns it.
@@ -65,6 +65,14 @@ public final class PhoneSleepInferenceTest {
         check("candidate".equals(find(PhoneSleepInference.infer(older,
             t("2026-11-22",10,0)),"2026-10-21").state),
             "Old retained events must not be discarded by a seven-day cutoff");
+        check(PhoneSleepInference.infer(older,t("2026-11-22",10,0)).size()==1,
+            "Days without events must NOT be listed as missing nights");
+        List<PhoneSleepInference.Event> unfinished=new ArrayList<>();
+        unfinished.add(event("2026-11-21",23,0,PhoneSleepInference.SCREEN_OFF));
+        PhoneSleepInference.Night pending=find(PhoneSleepInference.infer(
+            unfinished,t("2026-11-22",3,0)),"2026-11-22");
+        check("pending".equals(pending.state),
+            "The night still in progress is pending, not failed or measured");
         check(PhoneSleepInference.infer(List.of(),t("2026-11-22",10,0)).isEmpty(),
             "No events must not create a fabricated report");
         System.out.println("PhoneSleepInferenceTest passed: multiple nights, clock, "

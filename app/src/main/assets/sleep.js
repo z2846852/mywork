@@ -577,7 +577,8 @@
    const missing=document.createElement("details");
    missing.className="phone-sleep-unresolved";
    const label=document.createElement("summary");
-   label.textContent="! "+insufficient.length+" 个日期事件不足，未生成睡眠时长";
+   label.textContent="! "+insufficient.length+
+    " 个日期缺少完整证据（含尚未结束的夜晚）";
    missing.appendChild(label);
    for(const item of insufficient){
     const line=document.createElement("p");

@@ -60,13 +60,11 @@ final class PhoneSleepInference {
         data.sort(Comparator.comparingLong(e->e.ms));
         LocalDate oldest=Instant.ofEpochMilli(data.get(0).ms)
             .atZone(ZONE).toLocalDate();
-        LocalDate latest=Instant.ofEpochMilli(
-            Math.min(now,data.get(data.size()-1).ms))
-            .atZone(ZONE).toLocalDate();
         LocalDate current=Instant.ofEpochMilli(now).atZone(ZONE).toLocalDate();
-        // Calendar nights end on the MORNING day. No arbitrary 7/30-day cutoff.
-        for(LocalDate date=oldest;!date.isAfter(latest)&&
-                !date.isAfter(current);date=date.plusDays(1)){
+        // Examine all dates between the first retained event and now. Days with
+        // zero actual event evidence are skipped below, not labeled "missing".
+        // A last event at bedtime yesterday can yield a pending night today.
+        for(LocalDate date=oldest;!date.isAfter(current);date=date.plusDays(1)){
             long begin=clock(date.minusDays(1),18);
             long end=clock(date,12);
             long wakeBegin=clock(date,4);
