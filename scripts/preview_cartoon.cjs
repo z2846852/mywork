@@ -785,7 +785,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
        pinyin_examples:"s：sī (思)、sān (三)"}
     ],warning:"尚未完成 think 的真正声学音素转录"
   }));
-  const held=await page.locator("#voicePhonemeSequence").innerText();
+  const held=await page.locator("#voicePhonemeSequence").textContent();
   if(!held.includes("/ɪ/")||!held.includes("/s/")||
      !(await page.locator("#voicePhonemeEnglish").innerText()).includes("sit"))
    throw Error("Completed utterance must display retained acoustic candidates");
@@ -797,7 +797,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    throw Error("A phoneme result must survive mic shutdown after release");
   await page.screenshot({path:"bodytrace-voice-phoneme-preview.png",fullPage:false});
   await page.locator('.tabs button[data-page="sleep"]').click();
-  if((await page.locator("#voicePhonemeSequence").innerText())!==held)
+  // innerText() is empty for a hidden page; textContent persists in DOM.
+  if((await page.locator("#voicePhonemeSequence").textContent())!==held)
    throw Error("Last analysis must survive navigation");
   await page.screenshot({path:"bodytrace-phone-sleep-report-preview.png",fullPage:false});
   await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
