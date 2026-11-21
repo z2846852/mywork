@@ -20,8 +20,8 @@ jobs:
           python-version: '3.11'
       - name: Download same GitHub pack as Android app
         env:
-          GH_TOKEN: \${{ github.token }}
-          GH_REPO: \${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/zipa"
