@@ -94,6 +94,13 @@ const fetchModel=fs.readFileSync(path.join(root,"scripts/fetch_yamnet.sh"),"utf8
 assert.ok(yamnet.includes("SNORING=38, SNORT=41"));
 assert.ok(yamnet.includes("Interpreter")&&yamnet.includes("float[][] output"));
 assert.ok(yamnet.includes("STRIDE=16000")&&yamnet.includes("WINDOW=15600"));
+assert.ok(yamnet.includes("interpreter.resizeInput(0,expected,true)"));
+assert.ok(yamnet.includes("interpreter.allocateTensors()"));
+assert.ok(yamnet.includes("current.length==1?new int[]{WINDOW}:new int[]{1,WINDOW}"));
+assert.ok(!yamnet.includes("!(in.length==2&&in[0]==1&&in[1]==WINDOW)"));
+const modelSpecTest=fs.readFileSync(path.join(root,"scripts/inspect_yamnet.py"),"utf8");
+assert.ok(modelSpecTest.includes('data[4:8] == b"TFL3"'));
+assert.ok(modelSpecTest.includes('out["shape"] == [1, 521]'));
 assert.ok(sleepAnalyzer.includes("classifier.addSample(value)"));
 assert.ok(sleepAnalyzer.includes("ai_snore_scores"));
 assert.ok(sleepAnalysisService.includes("aiScores==null"));

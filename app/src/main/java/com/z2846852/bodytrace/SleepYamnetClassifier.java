@@ -11,12 +11,13 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * Offline AudioSet/YAMNet classification. NOT a medical snoring diagnosis.
  *
  * Model: google/yamnet/classification/tflite/1 (Apache 2.0)
- * 16 kHz mono float32 input (15600 samples), float32 [1,521] output.
+ * 16 kHz mono float32 input [15600] (or compatible [1,15600]), output [1,521].
  * Class 38=Snoring, 41=Snort. Outputs are UNCALIBRATED scores, not probabilities.
  *
  * The model is bundled in the APK; microphone/file samples never leave device.
@@ -49,16 +50,38 @@ final class SleepYamnetClassifier implements AutoCloseable {
             Interpreter.Options options=new Interpreter.Options().setNumThreads(2);
             interpreter=new Interpreter(model,options);
         }
-        int[] in=interpreter.getInputTensor(0).shape();
-        int[] out=interpreter.getOutputTensor(0).shape();
-        if(interpreter.getInputTensor(0).dataType()!=DataType.FLOAT32 ||
-                interpreter.getOutputTensor(0).dataType()!=DataType.FLOAT32 ||
-                !(in.length==2&&in[0]==1&&in[1]==WINDOW) ||
-                !(out.length==2&&out[0]==1&&out[1]==CLASSES)) {
+        // Google YAMNet/classification TFLite accepts a ONE-DIMENSIONAL
+        // float32 waveform [15600]. The bundled model may initially advertise
+        // a dynamic input [1] with signature [-1], so resize before validation.
+        // Some compatible exports use [1,15600]; support both ranks.
+        try {
+            int[] current=interpreter.getInputTensor(0).shape();
+            int[] signature=interpreter.getInputTensor(0).shapeSignature();
+            if(interpreter.getInputTensor(0).dataType()!=DataType.FLOAT32 ||
+                    (current.length!=1 &&
+                     !(current.length==2&&current[0]==1))) {
+                throw new IllegalStateException("YAMNet 输入张量不受支持: "+
+                    Arrays.toString(current)+" signature="+Arrays.toString(signature));
+            }
+            int[] expected=current.length==1?new int[]{WINDOW}:new int[]{1,WINDOW};
+            if(!Arrays.equals(current,expected))
+                interpreter.resizeInput(0,expected,true);
+            interpreter.allocateTensors();
+
+            int[] in=interpreter.getInputTensor(0).shape();
+            int[] out=interpreter.getOutputTensor(0).shape();
+            if(interpreter.getInputTensor(0).dataType()!=DataType.FLOAT32 ||
+                    interpreter.getOutputTensor(0).dataType()!=DataType.FLOAT32 ||
+                    !Arrays.equals(in,expected) ||
+                    !(out.length==2&&out[0]==1&&out[1]==CLASSES)) {
+                throw new IllegalStateException("YAMNet 张量不匹配: 输入 "+
+                    Arrays.toString(in)+", 输出 "+Arrays.toString(out));
+            }
+            setFormat(sampleRate,channelCount);
+        }catch(Exception e){
             interpreter.close();
-            throw new IllegalStateException("YAMNet 模型张量规格不符合 [1,15600] → [1,521]");
+            throw e;
         }
-        setFormat(sampleRate,channelCount);
     }
 
     void setFormat(int rate,int channelCount) {

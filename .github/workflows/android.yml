@@ -35,6 +35,8 @@ jobs:
         run: node scripts/test_ui.js
       - name: Fetch and SHA256-verify offline YAMNet model
         run: bash scripts/fetch_yamnet.sh
+      - name: Inspect bundled YAMNet TFLite tensor shapes
+        run: python3 scripts/inspect_yamnet.py
       - name: Android SDK platform
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
