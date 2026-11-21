@@ -114,12 +114,6 @@ assert.ok(html.includes('id="sleepSnoreThreshold"'));
 assert.ok(html.includes('id="sleepAiHighRecall"')&&html.includes('id="sleepAiStandard"'));
 assert.ok(sleepJS.includes('setAiPreset(AI_HIGH_RECALL_SCORE,1)'),
  "High recall must refilter cached AI scores without decoding the original audio");
-assert.ok(sleepVisualization.includes("evt.short_levels_dbfs||evt.levels_dbfs"),
- "Locked Y axis must use short RMS instead of instantaneous peak outliers");
-assert.ok(!sleepVisualization.includes("ctx.fillRect(x,top,markWidth,plotHeight)"),
- "Full-height event overlays hide the waveform and must not return");
-assert.ok(sleepVisualization.includes("const baselineY=yAt(backgroundDb)"),
- "Event ribbon must stay close to the yellow RMS contour");
 for(const field of ["page-sleep","sleepStart","sleepStop","sleepStatus",
  "sleepHistory","sleepAnalyze","sleepThreshold","sleepMinSeconds",
  "sleepGapSeconds","sleepAnalysis","sleepStopPlayback"]){
@@ -441,6 +435,12 @@ assert.ok(editStyle.includes('.exercise-history-date-head{display:flex'));
 const sleepVisualization=fs.readFileSync(path.join(root,
  "app/src/main/assets/sleep_visualization.js"),"utf8");
 new vm.Script(sleepVisualization,{filename:"sleep_visualization.js"});
+assert.ok(sleepVisualization.includes("evt.short_levels_dbfs||evt.levels_dbfs"),
+ "Locked Y axis must use short RMS instead of instantaneous peak outliers");
+assert.ok(!sleepVisualization.includes("ctx.fillRect(x,top,markWidth,plotHeight)"),
+ "Full-height event overlays hide the waveform and must not return");
+assert.ok(sleepVisualization.includes("const baselineY=yAt(backgroundDb)"),
+ "Event ribbon must stay close to the yellow RMS contour");
 assert.ok(native.includes('readAsset("sleep_visualization.js")'));
 assert.ok(native.includes("Intent.ACTION_OPEN_DOCUMENT"));
 assert.ok(native.includes('choose.setType("audio/*")'));
