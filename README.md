@@ -1,5 +1,16 @@
 # 体迹 · BodyTrace
 
+## Android 完整 APK 差分升级（2026-11-22）
+
+在「设置 → APP 一键升级」点击「检查并更新 APP」。APP 访问官方 GitHub Release 查询最新版；自动检测已安装的 versionCode 和 base.apk SHA256。若最新版本的 `BodyTrace-updates.json` 含有**当前 APK 精确 SHA256** 对应的直达补丁，则下载 `BodyTrace-from-v0.2.NNN.btpatch`，用已安装 APK 在本机流式还原目标的**完整已签名 APK**；若用户跨版本、补丁缺失、大小不划算、旧 APK 字节不同或补丁验证失败，则自动下载完整 `BodyTrace-release.apk`。不需要逐版本安装补丁。
+
+- GitHub Actions 先照常生成固定签名 Release APK，再对最近最多 10 个已有 Release 的完整 APK 生成独立直达差分。补丁内容是基于固定 4KiB 块的滚动 Adler32 匹配、字节级复核、复制命令与压缩字面量。格式标记 `BTDPAT01`。超过完整包 85% 的补丁不发布，直接用整包更省事。
+- Release 同时包含 `BodyTrace-updates.json`、各旧版的 `BodyTrace-from-v0.2.NNN.btpatch` 和完整 APK，均带 SHA256。客户端校验所下载补丁、旧 APK SHA256、重建后完整 APK SHA256、包名、版本号和签名证书，再通过只读的 `ApkInstallProvider` 将本地 APK 交给 Android 系统安装器。
+- APP **不会直接安装二进制差分文件**，它先还原出 APK。Android 8+ 可能要求允许此应用「安装未知应用」，安装时系统仍会弹出用户确认；普通 APP 不能绕过 Android 系统实现静默安装。
+- 首次引入差分更新器，必须安装一次带原生更新功能的完整 APK；之后 APP 可以在旧版本与最新版本之间直接升级，如 `v161 → v167`。超过 10 个旧 Release 的历史版本没有匹配补丁时，自动下载完整 APK。
+- 后端生成脚本 `scripts/apk_delta.py`、数据往返测试 `scripts/test_apk_delta.py`、与 Android 同源的 Java 流式还原器 `ApkDeltaPatch.java` 和 JDK 测试 `ApkDeltaPatchTest.java`。
+- 这个仓库的 Android 签名私钥随公开项目发布，因此签名一致性不应被解释为对抗仓库被入侵的高强度身份验证。用户应当只信任 GitHub Release 的官方来源；SHA256 和 Android PackageInstaller 的签名检查用于防止损坏、不匹配或误装。下载需要网络及应用私有目录的额外空间（约一个完整 APK）。
+
 ## 睡眠页面紧凑布局与按需说明（2026-11-22）
 
 - 将原来常驻页面的录制/缓存、AI 阈值、手势、日期与后台权限说明移到标题右侧的「!」可展开帮助，不遮挡日常波形操作。

@@ -6,6 +6,9 @@ on:
       - 'app/**'
       - 'scripts/test_ui.js'
       - 'scripts/build_ui_bundle.py'
+      - 'scripts/apk_delta.py'
+      - 'scripts/test_apk_delta.py'
+      - 'scripts/java_tests/**'
       - 'app/src/main/assets/avatar_cartoon.svg'
       - '*.gradle'
       - 'gradle.properties'
@@ -40,6 +43,16 @@ jobs:
             scripts/java_tests/com/z2846852/bodytrace/SleepRecordingTimeTest.java
           java -cp "$RUNNER_TEMP/bodytrace-timestamp-test" \
             com.z2846852.bodytrace.SleepRecordingTimeTest
+      - name: Validate APK binary delta roundtrip (Python producer / Java consumer)
+        run: |
+          set -euo pipefail
+          python3 scripts/test_apk_delta.py
+          mkdir -p "$RUNNER_TEMP/bodytrace-delta-test"
+          javac -d "$RUNNER_TEMP/bodytrace-delta-test" \
+            app/src/main/java/com/z2846852/bodytrace/ApkDeltaPatch.java \
+            scripts/java_tests/com/z2846852/bodytrace/ApkDeltaPatchTest.java
+          java -cp "$RUNNER_TEMP/bodytrace-delta-test" \
+            com.z2846852.bodytrace.ApkDeltaPatchTest
       - name: Validate cartoon body page, JSON UI and avatar persistence
         run: node scripts/test_ui.js
       - name: Fetch and SHA256-verify offline YAMNet model
@@ -80,6 +93,13 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging \
             app/build/outputs/apk/release/app-release.apk | head -n 3
           cp app/build/outputs/apk/release/app-release.apk BodyTrace-release.apk
+      - name: Build direct APK patches from recent 10 signed Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 scripts/apk_delta.py --target BodyTrace-release.apk \
+            --version "$GITHUB_RUN_NUMBER" --output release-updates --max-versions 10
       - uses: actions/upload-artifact@v4
         with:
           name: BodyTrace-Stable-Release-APK
@@ -92,9 +112,15 @@ jobs:
         run: |
           set -euo pipefail
           tag="v0.2.$GITHUB_RUN_NUMBER"
-          gh release create "$tag" "BodyTrace-release.apk#Fixed-signature Android APK" "BodyTrace-ui.zip#Optional small UI-only update" \
+          shopt -s nullglob
+          patch_assets=(release-updates/*.btpatch)
+          gh release create "$tag" \
+            "BodyTrace-release.apk#Fixed-signature Android APK" \
+            "BodyTrace-ui.zip#Optional small UI-only update" \
+            "release-updates/BodyTrace-updates.json#Cross-version APK delta manifest" \
+            "${patch_assets[@]}" \
             --target "$GITHUB_SHA" \
             --title "BodyTrace $tag (Release)" \
-            --notes "Fixed-signature APK and optional verified UI-only bundle. UI ZIP is compatible only when native/model fingerprints match; use Settings to check." \
+            --notes "Signed APK + optional UI ZIP + direct APK delta updates for up to 10 prior versions. Update in-app; Android confirms installation." \
             --latest
           echo "https://github.com/$GH_REPO/releases/latest/download/BodyTrace-release.apk"

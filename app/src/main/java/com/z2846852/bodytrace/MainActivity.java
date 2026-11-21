@@ -48,6 +48,8 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private WebView web;
     private UiBundleManager uiBundles;
+    private ApkUpdateManager apkUpdates;
+    private volatile boolean awaitingApkInstallerPermission=false;
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
     private static final int EXPORT_SLEEP_AUDIO_REQUEST=7205;
@@ -106,6 +108,7 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(Color.rgb(13, 17, 23));
         vault = new SecureStore(getApplicationContext());
         plain = new JsonStore(getApplicationContext());
+        apkUpdates=new ApkUpdateManager(this);
         try {
             uiBundles=new UiBundleManager(this);
             uiBundles.prepareBoot();
@@ -686,6 +689,18 @@ public final class MainActivity extends Activity {
     @Override protected void onResume(){
         super.onResume();
         if(uiReady)worker.execute(this::sendSleepStatus);
+        if(awaitingApkInstallerPermission&&apkUpdates!=null&&
+            apkUpdates.hasPendingInstall()&&
+            (Build.VERSION.SDK_INT<26||
+                getPackageManager().canRequestPackageInstalls())){
+            awaitingApkInstallerPermission=false;
+            // The user has explicitly returned from the per-app install
+            // permission screen. Android still confirms the APK installation.
+            sleepHandler.post(()->{
+                try{apkUpdates.launchInstaller(this);}
+                catch(Exception e){error("打开系统安装器失败："+safeMessage(e));}
+            });
+        }
     }
     private void playbackEvent(boolean playing,int startSec){
         if(playbackSessionId.isEmpty())return;
@@ -1422,6 +1437,45 @@ public final class MainActivity extends Activity {
                     if(uiBundles!=null)reply(uiBundles.status());
                 }catch(Exception ignored){}
             });
+        }
+
+        @JavascriptInterface public void checkApkUpdate(){
+            worker.execute(()->{
+                try{
+                    JSONObject status=apkUpdates.checkAndPrepare(MainActivity.this::reply);
+                    reply(status);
+                    if("ready".equals(status.optString("state"))){
+                        runOnUiThread(()->openVerifiedApkInstaller());
+                    }
+                }catch(Exception e){
+                    try{
+                        reply(message("apk_update").put("state","error")
+                            .put("message","APK 更新失败："+safeMessage(e)));
+                    }catch(Exception ignored){}
+                }
+            });
+        }
+        @JavascriptInterface public void installPendingApk(){
+            runOnUiThread(()->openVerifiedApkInstaller());
+        }
+        private void openVerifiedApkInstaller(){
+            try{
+                if(!apkUpdates.hasPendingInstall())
+                    throw new IllegalStateException("尚无已验证的更新 APK");
+                boolean requiresPermission=Build.VERSION.SDK_INT>=26&&
+                    !getPackageManager().canRequestPackageInstalls();
+                if(requiresPermission){
+                    awaitingApkInstallerPermission=true;
+                    reply(message("apk_update").put("state","requires_permission")
+                        .put("message","需要允许本 APP 安装未知来源应用，授权后将继续打开系统安装确认。"));
+                }
+                apkUpdates.launchInstaller(MainActivity.this);
+            }catch(Exception e){
+                awaitingApkInstallerPermission=false;
+                try{reply(message("apk_update").put("state","error")
+                    .put("message","打开系统安装器失败："+safeMessage(e)));}
+                catch(Exception ignored){}
+            }
         }
 
         @JavascriptInterface public void checkUiUpdates(){

@@ -77,6 +77,47 @@ assert.ok(features.includes("musclePaths")&&features.includes("drawMuscleMap()")
 assert.ok(native.includes('readUiAsset("wheel.js")')&&!native.includes('readAsset("avatar_morph.js")'));
 const manifest=fs.readFileSync(path.join(root,"app/src/main/AndroidManifest.xml"),"utf8");
 
+const apkUpdate=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/ApkUpdateManager.java"),"utf8");
+const apkProvider=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/ApkInstallProvider.java"),"utf8");
+const apkPatch=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/ApkDeltaPatch.java"),"utf8");
+const apkBuilder=fs.readFileSync(path.join(root,"scripts/apk_delta.py"),"utf8");
+assert.ok(manifest.includes('android.permission.REQUEST_INSTALL_PACKAGES'));
+assert.ok(manifest.includes('android:name=".ApkInstallProvider"')&&
+ manifest.includes('android:exported="false"')&&
+ manifest.includes('android:grantUriPermissions="true"'));
+assert.ok(apkUpdate.includes('getApplicationInfo().sourceDir'));
+assert.ok(apkUpdate.includes('from_version_code')&&
+ apkUpdate.includes('from_sha256')&&apkUpdate.includes('patch_sha256'));
+assert.ok(apkUpdate.includes('ApkDeltaPatch.apply(installed,patchFile,staged)'));
+assert.ok(apkUpdate.includes('if(!patched)')&&apkUpdate.includes('download(expectedUrl(tag,FULL)'));
+assert.ok(apkUpdate.includes('validateApk(staged,targetVersion,fullDigest)'));
+assert.ok(apkUpdate.includes('canRequestPackageInstalls()')&&
+ apkUpdate.includes('Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES')&&
+ apkUpdate.includes('Intent.ACTION_INSTALL_PACKAGE'));
+assert.ok(apkPatch.includes('original.seek(offset)')&&
+ apkPatch.includes('new InflaterInputStream(')&&
+ apkPatch.includes('written!=newSize'));
+assert.ok(apkProvider.includes('"/verified.apk".equals(uri.getPath())'));
+assert.ok(apkProvider.includes('"r".equals(mode)')&&
+ !apkProvider.includes('MODE_WRITE_ONLY'));
+assert.ok(html.includes('id="checkApkUpdate"')&&
+ html.includes('id="installPendingApk"')&&
+ html.includes('case "apk_update":'));
+assert.ok(html.includes('BodyTraceNative.checkApkUpdate()'));
+assert.ok(html.includes('BodyTraceNative.installPendingApk()'));
+assert.ok(native.includes('checkApkUpdate()')&&
+ native.includes('installPendingApk()')&&
+ native.includes('apkUpdates.launchInstaller'));
+assert.ok(apkBuilder.includes('MAX_PATCH_RATIO=0.85')&&
+ apkBuilder.includes('MAX_LITERAL=1<<20'));
+assert.ok(workflow.includes('scripts/test_apk_delta.py')&&
+ workflow.includes('release-updates/BodyTrace-updates.json')&&
+ workflow.includes('--max-versions 10'));
+
+
 const sleepJS=fs.readFileSync(path.join(root,"app/src/main/assets/sleep.js"),"utf8");
 new vm.Script(sleepJS,{filename:"sleep.js"});
 const sleepRecorder=fs.readFileSync(path.join(root,
