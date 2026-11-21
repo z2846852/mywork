@@ -677,7 +677,7 @@
  }
  function liveDraw(){
   const canvas=$("voiceLabCanvas");
-  if(!canvas)return;
+  if(!canvas||typeof canvas.getBoundingClientRect!=="function")return;
   const ratio=Math.min(2,window.devicePixelRatio||1);
   const width=Math.max(250,Math.floor(canvas.getBoundingClientRect().width||320));
   const height=132;
@@ -769,11 +769,11 @@
   liveUpdateMode();liveDraw();
  };
  // Closing the screen must not leave a microphone running behind the UI.
- document.querySelectorAll('.tabs button[data-page]').forEach(tab=>{
+ document.querySelectorAll?.('.tabs button[data-page]')?.forEach(tab=>{
   if(tab.dataset.page!=="sleep")
    tab.addEventListener("click",()=>{if(voiceLabActive)bridge()?.voiceLabStop?.();});
  });
- window.addEventListener("pagehide",()=>{
+ window.addEventListener?.("pagehide",()=>{
   if(voiceLabActive)bridge()?.voiceLabStop?.();
  });
  liveUpdateMode();
