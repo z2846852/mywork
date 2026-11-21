@@ -464,15 +464,15 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <span class="sub">同步本机记录与私有仓库最新数据</span>
 </div>
 <div class="panel" id="apkUpdatePanel">
- <div class="eyebrow">SIGNED APK / AUTOMATIC DELTA</div>
- <h2>APP 一键升级</h2>
- <p class="sub">自动寻找当前安装版本直达最新版的差分包；匹配不到时改下载完整 APK。校验通过后打开 Android 系统安装界面，保留录音及训练数据。</p>
- <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">当前未检查更新</p>
- <div class="row wrap" style="gap:8px;margin-top:8px">
-  <button type="button" class="primary" id="checkApkUpdate">检查并更新 APP</button>
-  <button type="button" class="secondary mini" id="installPendingApk" disabled>安装已下载版本</button>
+ <div class="row"><h2>APP 版本更新</h2><span class="sub">自动查询 GitHub</span></div>
+ <div class="apk-version-row">
+  <div class="apk-version-info">
+   <span>本机 <strong id="apkInstalledVersion">读取中…</strong></span>
+   <span>最新 <strong id="apkLatestVersion">未查询</strong></span>
+  </div>
+  <button type="button" class="primary" id="checkApkUpdate">检查并升级</button>
  </div>
- <p class="sub" style="font-size:10px">首次需要完整安装支持差分更新的版本。以后可跨版本更新；Android 可能要求一次性授权“安装未知应用”，并确认安装。</p>
+ <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">进入设置后自动检查版本，不下载 APK。</p>
 </div>
 <div class="panel" id="uiUpdatePanel">
  <div class="eyebrow">SMALL UPDATES / ON-DEMAND · V1</div>
@@ -687,9 +687,24 @@ function plus(s,n){let d=parse(s);d.setUTCDate(d.getUTCDate()+n);return iso(d)}
 function todayShanghai(){return new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:"Asia/Shanghai"}).format(new Date())}
 const today=todayShanghai();$("recordDate").value=today;state.selected=today;
 function toast(msg,bad=false){let e=$("toast");e.textContent=msg;e.className=bad?"warn":"";e.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.style.display="none",4300)}
+let lastApkVersionCheck=0,apkUpdating=false,apkReady=false;
+function checkVersionOnSettingsEntry(){
+ if(apkUpdating||apkReady||Date.now()-lastApkVersionCheck<20000)return;
+ lastApkVersionCheck=Date.now();
+ $("apkLatestVersion").textContent="查询中…";
+ $("apkUpdateStatus").textContent="正在检查 GitHub 最新版本，不下载文件…";
+ if(!window.BodyTraceNative?.checkApkVersion){
+  $("apkInstalledVersion").textContent="未知";
+  $("apkLatestVersion").textContent="未知";
+  $("apkUpdateStatus").textContent="当前 APK 不支持自动版本查询，需完整安装新版一次。";
+  return;
+ }
+ BodyTraceNative.checkApkVersion();
+}
 function navigate(name){
  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+name));
  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
+ if(name==="settings")checkVersionOnSettingsEntry();
 }
 document.querySelectorAll(".tabs button").forEach(btn=>btn.onclick=()=>navigate(btn.dataset.page));
 function renderStatus(){
@@ -1053,18 +1068,18 @@ $("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的原�
 const sync=()=>BodyTraceNative.sync();
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
 $("checkApkUpdate").onclick=()=>{
+ if(apkReady&&window.BodyTraceNative?.installPendingApk){
+  BodyTraceNative.installPendingApk();
+  return;
+ }
  if(!window.BodyTraceNative?.checkApkUpdate){
-  toast("当前 APP 尚不支持 APK 差分更新，请先完整安装新版一次",true);return;
+  toast("当前 APP 不支持 APK 差分升级，请先完整安装新版一次",true);return;
  }
+ apkUpdating=true;
  $("checkApkUpdate").disabled=true;
- $("apkUpdateStatus").textContent="正在检查 GitHub 最新版…";
+ $("checkApkUpdate").textContent="准备升级…";
+ $("apkUpdateStatus").textContent="正在寻找适配本机版本的更新包…";
  BodyTraceNative.checkApkUpdate();
-};
-$("installPendingApk").onclick=()=>{
- if(!window.BodyTraceNative?.installPendingApk){
-  toast("该 APP 版本不支持内部安装入口",true);return;
- }
- BodyTraceNative.installPendingApk();
 };
 $("checkUiUpdates").onclick=()=>{
  if(!window.BodyTraceNative?.checkUiUpdates){toast("需要先安装支持界面增量更新的新版 APK",true);return;}
@@ -1087,26 +1102,55 @@ $("rollbackUiUpdate").onclick=()=>{
 $("showViewJson").onclick=()=>{if(window.BodyTraceNative)BodyTraceNative.showViewModel();};
 window.bodyTraceReceive=function(evt){
  switch(evt.type){
- case "apk_update":
+ case "apk_update":{
+  // Version-only results never start a download or disable the action button.
+  if(evt.installed_version!==undefined)
+   $("apkInstalledVersion").textContent="v0.2."+evt.installed_version;
+  if(evt.latest_version!==undefined)
+   $("apkLatestVersion").textContent="v0.2."+evt.latest_version;
+  if(evt.state==="version_checking"||evt.state==="update_available"||
+     evt.state==="version_error"||evt.state==="up_to_date"){
+   if(!apkUpdating&&!apkReady){
+    $("apkUpdateStatus").textContent=evt.message||"版本状态未知";
+    if(evt.state==="version_error")$("apkLatestVersion").textContent="查询失败";
+    if(evt.state==="up_to_date"){
+     $("checkApkUpdate").textContent="已是最新版";
+    }else $("checkApkUpdate").textContent="检查并升级";
+    $("checkApkUpdate").disabled=evt.state==="up_to_date";
+   }
+   if(evt.state==="up_to_date"&&apkUpdating){
+    apkUpdating=false;
+    $("checkApkUpdate").disabled=true;
+    $("checkApkUpdate").textContent="已是最新版";
+    $("apkUpdateStatus").textContent=evt.message||"当前已是最新版";
+   }
+   break;
+  }
   $("apkUpdateStatus").textContent=evt.message||"APK 更新状态未知";
   if(evt.state==="checking"||evt.state==="downloading"||
      evt.state==="applying"||evt.state==="verifying"){
+   apkUpdating=true;
    $("checkApkUpdate").disabled=true;
+   $("checkApkUpdate").textContent=evt.state==="downloading"?"下载中…":"升级进行中…";
   }else{
+   apkUpdating=false;
    $("checkApkUpdate").disabled=false;
   }
   if(evt.state==="ready"){
-   $("installPendingApk").disabled=false;
-   toast(evt.method==="delta"?"差分 APK 校验通过，正在打开安装器":
-     "完整 APK 已校验，正在打开安装器");
+   apkReady=true;
+   $("checkApkUpdate").textContent="继续安装";
+   toast(evt.method==="delta"?"差分 APK 已校验，打开安装器":
+     "完整 APK 已校验，打开安装器");
   }else if(evt.state==="requires_permission"){
-   $("installPendingApk").disabled=false;
-  }else if(evt.state==="up_to_date"){
-   toast(evt.message||"已是最新版");
+   apkReady=true;
+   $("checkApkUpdate").textContent="继续安装";
   }else if(evt.state==="error"){
+   apkReady=false;
+   $("checkApkUpdate").textContent="检查并升级";
    toast(evt.message||"APK 更新失败",true);
   }
   break;
+ }
  case "ui_update":
   $("checkUiUpdates").disabled=false;
   $("uiUpdateStatus").textContent=evt.message||"界面更新状态未知";

@@ -1453,6 +1453,28 @@ public final class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public void checkApkVersion(){
+            worker.execute(()->{
+                try{
+                    // Report the local PackageManager version immediately, then
+                    // make ONE small GitHub Release JSON request. No APK download.
+                    reply(message("apk_update").put("state","version_checking")
+                        .put("installed_version",apkUpdates.currentVersion())
+                        .put("message","正在读取 GitHub 最新版本…"));
+                    reply(apkUpdates.checkVersionsOnly());
+                }catch(Exception e){
+                    try{
+                        JSONObject failed=message("apk_update")
+                            .put("state","version_error")
+                            .put("message","版本检查失败："+safeMessage(e));
+                        try{failed.put("installed_version",apkUpdates.currentVersion());}
+                        catch(Exception ignored){}
+                        reply(failed);
+                    }catch(Exception ignored){}
+                }
+            });
+        }
+
         @JavascriptInterface public void checkApkUpdate(){
             worker.execute(()->{
                 try{

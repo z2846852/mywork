@@ -104,13 +104,35 @@ assert.ok(apkProvider.includes('"/verified.apk".equals(uri.getPath())'));
 assert.ok(apkProvider.includes('"r".equals(mode)')&&
  !apkProvider.includes('MODE_WRITE_ONLY'));
 assert.ok(html.includes('id="checkApkUpdate"')&&
- html.includes('id="installPendingApk"')&&
+ html.includes('id="apkInstalledVersion"')&&
+ html.includes('id="apkLatestVersion"')&&
  html.includes('case "apk_update":'));
-assert.ok(html.includes('BodyTraceNative.checkApkUpdate()'));
-assert.ok(html.includes('BodyTraceNative.installPendingApk()'));
-assert.ok(native.includes('checkApkUpdate()')&&
+assert.ok(!html.includes('id="installPendingApk"'),
+ "Only one APK update action should be displayed");
+assert.ok(html.includes('function checkVersionOnSettingsEntry()') &&
+ html.includes('if(name==="settings")checkVersionOnSettingsEntry()'),
+ "Entering Settings must automatically query the installed/latest versions");
+assert.ok(html.includes('BodyTraceNative.checkApkVersion()')&&
+ html.includes('BodyTraceNative.checkApkUpdate()')&&
+ html.includes('BodyTraceNative.installPendingApk()'));
+assert.ok(html.includes('apkReady=true')&&html.includes('继续安装'),
+ "The same update button must reopen a previously downloaded APK installer");
+assert.ok(native.includes('checkApkVersion()')&&
+ native.includes('checkApkUpdate()')&&
  native.includes('installPendingApk()')&&
  native.includes('apkUpdates.launchInstaller'));
+assert.ok(native.includes('apkUpdates.checkVersionsOnly()')&&
+ apkUpdate.includes('JSONObject checkVersionsOnly()'));
+const versionOnlyMethod=apkUpdate.slice(
+ apkUpdate.indexOf('JSONObject checkVersionsOnly()'),
+ apkUpdate.indexOf('synchronized JSONObject checkAndPrepare('));
+assert.ok(versionOnlyMethod.includes('readJson(API,MAX_JSON)')&&
+ !versionOnlyMethod.includes('download(')&&
+ !versionOnlyMethod.includes('ApkDeltaPatch.apply(')&&
+ !versionOnlyMethod.includes('Files.deleteIfExists('),
+ "Version inspection must only fetch release metadata; never download APK/patch");
+assert.ok(html.includes('evt.state==="update_available"')&&
+ html.includes('evt.state==="version_error"'));
 assert.ok(apkBuilder.includes('MAX_PATCH_RATIO=0.85')&&
  apkBuilder.includes('MAX_LITERAL=1<<20'));
 assert.ok(workflow.includes('scripts/test_apk_delta.py')&&

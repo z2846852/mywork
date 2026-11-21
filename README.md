@@ -21,6 +21,12 @@
 - 权限属于 vivo 私有 `signature|privileged`，正常第三方安装后不能通过运行时授权弹窗得到。Windows PowerShell 只读检测：`powershell -ExecutionPolicy Bypass -File scripts/probe_vivo_health.ps1`。若你**主动选择**尝试 ADB 授权，则加 `-Grant` 参数；系统可能拒绝，此时确认为 `NOT_GRANTED`，不尝试 Root、Shizuku 或绕过厂商限制。每次完整 APK 覆盖安装后授权可能失效，需重新检查。
 - 该试验是按需查询，不代表已接入 WATCH 5 的全部睡眠历史。验证成功之后才能规划长期本地缓存、睡眠音频/手机行为融合与日期选择。
 
+## 设置页面自动检查版本（2026-11-22）
+
+不再设计“检查版本”和“检查并下载”两个按钮。每次进入「设置」时自动调用 Android PackageManager 获取本机安装 `versionCode`，并仅请求 GitHub `releases/latest` 元数据获取最新正式版。左侧直接显示“本机 v0.2.NNN / 最新 v0.2.MMM”；这是**只读轻量请求，不下载 APK、补丁或 UI 更新包**，没有安装行为。
+
+右侧始终只保留一个「检查并升级」按钮：用户主动点击后才执行原来的“直达差分优先 / 完整 APK 兜底 / 校验 / 系统安装”流程。检测到已是最新版时，按钮显示“已是最新版”并禁用；网络异常时保留已读取的本机版本、提示最新版本查询失败，仍允许主动升级尝试；更新已下载但系统安装被取消时，同一按钮变成“继续安装”，不再显示额外的安装按钮。
+
 ## Android 完整 APK 差分升级（2026-11-22）
 
 在「设置 → APP 一键升级」点击「检查并更新 APP」。APP 访问官方 GitHub Release 查询最新版；自动检测已安装的 versionCode 和 base.apk SHA256。若最新版本的 `BodyTrace-updates.json` 含有**当前 APK 精确 SHA256** 对应的直达补丁，则下载 `BodyTrace-from-v0.2.NNN.btpatch`，用已安装 APK 在本机流式还原目标的**完整已签名 APK**；若用户跨版本、补丁缺失、大小不划算、旧 APK 字节不同或补丁验证失败，则自动下载完整 `BodyTrace-release.apk`。不需要逐版本安装补丁。

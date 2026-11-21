@@ -237,6 +237,26 @@ final class ApkUpdateManager {
     }
 
     /**
+     * Cheap read-only version inspection for Settings page navigation.
+     * Only the GitHub Release JSON is fetched; no update manifest, patch,
+     * APK, file writes or Android installer are involved.
+     */
+    JSONObject checkVersionsOnly() throws Exception {
+        long installed=currentVersion();
+        JSONObject release=new JSONObject(new String(
+            readJson(API,MAX_JSON),java.nio.charset.StandardCharsets.UTF_8));
+        String tag=release.getString("tag_name");
+        if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
+            throw new SecurityException("GitHub Release 版本格式无效");
+        int latest=Integer.parseInt(tag.substring(5));
+        return status(latest>installed?"update_available":"up_to_date",
+            latest>installed?"发现新版 v0.2."+latest+"，点击右侧即可升级":
+                "当前已经是 GitHub 最新正式版")
+            .put("installed_version",installed)
+            .put("latest_version",latest);
+    }
+
+    /**
      * One click: check, choose applicable direct delta, download, reconstruct,
      * verify, return a ready status. Caller launches system installer on UI.
      */

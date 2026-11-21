@@ -316,9 +316,18 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const measured=await page.evaluate(()=>window.__capturedBody);
   if(!measured||measured.weight_kg!==74.5||"shoulder_cm" in measured)
    throw Error("Body JSON should contain edited values only: "+JSON.stringify(measured));
-  // Settings are Git-log-first and render colored unified diffs without any disclosures.
+  // Opening Settings checks only Release metadata; downloading requires
+  // exactly one explicit user click on the right-side APK upgrade action.
   await page.evaluate(()=>{
+   window.__apkVersionChecks=0;window.__apkUpgradeClicks=0;
+   window.__apkInstallClicks=0;
+   window.BodyTraceNative.checkApkVersion=()=>{window.__apkVersionChecks++};
+   window.BodyTraceNative.checkApkUpdate=()=>{window.__apkUpgradeClicks++};
+   window.BodyTraceNative.installPendingApk=()=>{window.__apkInstallClicks++};
    navigate("settings");
+   window.bodyTraceReceive({type:"apk_update",state:"update_available",
+    installed_version:170,latest_version:171,
+    message:"发现新版 v0.2.171，点击右侧即可升级"});
    window.bodyTraceReceive({type:"git_log",commits:[{
     sha:"0123456789abcdef0123456789abcdef01234567",
     message:"record: workout updated",date:"2026-11-18T10:00:00+08:00",
@@ -329,6 +338,26 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     }]
    }]});
   });
+  if((await page.evaluate(()=>window.__apkVersionChecks))!==1)
+   throw Error("Settings page should automatically make exactly one metadata-only version check");
+  if((await page.locator("#apkInstalledVersion").innerText())!=="v0.2.170"||
+     (await page.locator("#apkLatestVersion").innerText())!=="v0.2.171")
+   throw Error("Installed and latest APK versions should both be visible on Settings");
+  if(await page.locator("#apkUpdatePanel button").count()!==1)
+   throw Error("APK upgrade panel should expose a SINGLE action button");
+  if((await page.evaluate(()=>window.__apkUpgradeClicks))!==0)
+   throw Error("Automatic version check must not initiate a download");
+  await page.locator("#checkApkUpdate").click();
+  if((await page.evaluate(()=>window.__apkUpgradeClicks))!==1)
+   throw Error("Upgrade button must invoke native APK download exactly once");
+  await page.evaluate(()=>window.bodyTraceReceive({
+   type:"apk_update",state:"ready",installed_version:170,latest_version:171,
+   message:"差分已校验",method:"delta"}));
+  if((await page.locator("#checkApkUpdate").innerText())!=="继续安装")
+   throw Error("Single APK upgrade button should become a continue-install action");
+  await page.locator("#checkApkUpdate").click();
+  if((await page.evaluate(()=>window.__apkInstallClicks))!==1)
+   throw Error("One-button installer reopen action did not invoke the native bridge");
   const quickSyncPosition=await page.evaluate(()=>{
    const page=document.getElementById("page-settings");
    const first=page.firstElementChild;
