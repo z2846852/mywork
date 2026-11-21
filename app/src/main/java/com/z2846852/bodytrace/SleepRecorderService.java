@@ -151,15 +151,43 @@ public final class SleepRecorderService extends Service {
         started=false;
         currentId="";
         if(id!=null){
+            boolean saved=false;
+            long bytes=0,elapsed=0;
+            String failure="";
             try{
                 JSONObject s;
                 try{s=SleepSessions.load(this,id);}
                 catch(Exception ignored){s=new JSONObject().put("id",id).put("started_ms",startMs);}
-                s.put("ended_ms",System.currentTimeMillis());
+                long ended=System.currentTimeMillis();
+                elapsed=Math.max(0,ended-startMs);
                 File audio=SleepSessions.audio(this,id);
-                s.put("status",valid&&audio.length()>1024?"completed":"failed");
-                if(!valid || audio.length()<=1024)s.put("error","录音未能正常完成，音频可能不完整");
+                bytes=audio.isFile()?audio.length():0;
+                saved=valid&&bytes>1024;
+                s.put("ended_ms",ended);
+                s.put("duration_ms",elapsed);
+                s.put("audio_bytes",bytes);
+                s.put("status",saved?"completed":"failed");
+                if(!saved){
+                    failure="录音未能正常完成，音频可能不完整";
+                    s.put("error",failure);
+                }else s.remove("error");
                 SleepSessions.write(this,s);
+            }catch(Exception failureError){
+                saved=false;
+                failure="录音数据保存失败："+failureError.getClass().getSimpleName();
+            }
+            // Completion event is sent ONLY after MediaRecorder.stop and session JSON
+            // have been committed. A fixed 1200ms refresh may arrive too early.
+            try{
+                JSONObject event=new JSONObject()
+                    .put("type","sleep_recording_finished")
+                    .put("id",id).put("saved",saved)
+                    .put("bytes",bytes).put("duration_ms",elapsed)
+                    .put("message",failure);
+                Intent broadcast=new Intent(SleepAnalysisService.ACTION_EVENT)
+                    .setPackage(getPackageName())
+                    .putExtra(SleepAnalysisService.EXTRA_JSON,event.toString());
+                sendBroadcast(broadcast);
             }catch(Exception ignored){}
         }
         stopForeground(STOP_FOREGROUND_REMOVE);

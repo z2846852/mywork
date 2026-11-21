@@ -16,6 +16,8 @@
   return pad(Math.floor(t/3600))+":"+pad(Math.floor(t%3600/60))+":"+pad(t%60);
  };
  let result=null,windowStart=0,windowSpan=0,cursor=-1,paintPending=false;
+ const timeModeById=new Map();
+ let timeAxisMode="relative";
  let playheadSeconds=-1,playheadActive=false,followPlayback=true;
  const axisById=new Map();
  let axisMin=-10,axisMax=25,backgroundDb=-40;
@@ -60,11 +62,34 @@
  const aiMode=()=>result?.detection_mode==="ai"&&
   Array.isArray(result?.ai_snore_scores)&&result.ai_snore_scores.length===total();
  const aiScores=()=>aiMode()?result.ai_snore_scores:[];
+ function hasRecordingStart(){
+  return !!result&&result.date_basis!=="imported_at"&&
+   Number.isFinite(Number(result.started_ms))&&Number(result.started_ms)>0;
+ }
  function stamp(sec){
-  if(!result||result.date_basis==="imported_at")return "+"+relative(sec);
+  if(timeAxisMode!=="clock"||!hasRecordingStart())return "+"+relative(sec);
   return new Date(Number(result.started_ms)+sec*1000).toLocaleTimeString(
    "zh-CN",{timeZone:"Asia/Shanghai",hour12:false,
     hour:"2-digit",minute:"2-digit",second:"2-digit"});
+ }
+ function updateTimeModeLabel(){
+  $("sleepTimeMode").value=timeAxisMode;
+  $("sleepTimeModeHint").textContent=!hasRecordingStart()?
+   "文件未提供可靠录制起点，请在顶部指定时间后使用真实时间轴。":
+   timeAxisMode==="clock"?
+   result.date_basis==="media_date_unverified"?
+    "当前按文件媒体日期显示；可能是修改时间，请核对。":
+    "真实钟表时间 · 跨午夜自动显示次日凌晨时间":
+   "从录音开始计时 · +00:00:00 为文件起点";
+ }
+ function setTimeMode(mode){
+  if(mode==="clock"&&!hasRecordingStart()){
+   timeAxisMode="relative";
+  }else timeAxisMode=mode==="relative"?"relative":"clock";
+  if(result)timeModeById.set(result.id,timeAxisMode);
+  updateTimeModeLabel();
+  refreshFilters();
+  window.BodyTraceSleepRenderEvents?.();
  }
  function plotSize(){
   const width=Math.max(240,Math.round(canvas.getBoundingClientRect().width||320));
@@ -91,8 +116,7 @@
   }
   context.setTransform(dpr,0,0,dpr,0,0);
   const ctx=context,{left,right,top,bottom,plotWidth}=plotSize();
-  const plotHeight=bottom-top,levels=rms(),pks=peaks(),shortLevels=shortRms(),
-   scores=aiScores();
+  const plotHeight=bottom-top,levels=rms(),pks=peaks(),shortLevels=shortRms();
   ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,width,height);
   const yAt=db=>clamp(top+
    (axisMax-(Number(db)-backgroundDb))/(axisMax-axisMin)*plotHeight,top,bottom);
@@ -115,10 +139,9 @@
    const a=Math.max(0,Math.floor(windowStart+px/plotWidth*windowSpan));
    const b=Math.min(total(),Math.max(a+1,
     Math.ceil(windowStart+(px+1)/plotWidth*windowSpan)));
-   let maxRms=-96,maxPeak=-96,maxShort=-96,maxScore=0;
+   let maxRms=-96,maxPeak=-96,maxShort=-96;
    for(let i=a;i<b;i++){
     const v=Number(levels[i]),pk=Number(pks[i]),sv=Number(shortLevels[i]);
-    if(scores.length)maxScore=Math.max(maxScore,Number(scores[i])||0);
     if(Number.isFinite(v))maxRms=Math.max(maxRms,v);
     if(Number.isFinite(pk))maxPeak=Math.max(maxPeak,pk);
     if(Number.isFinite(sv))maxShort=Math.max(maxShort,sv);
@@ -134,13 +157,7 @@
    ctx.fillStyle=aiMode()?"#e8b66f":
     maxShort>=threshold?COLORS.threshold:"#e8b66f";
    ctx.fillRect(x,sy,1,Math.max(2,ry-sy));
-   if(scores.length){
-    // Small normalized model-score strip at chart bottom; NOT a dB axis.
-    const barHeight=Math.round(clamp(maxScore,0,1)*24);
-    ctx.fillStyle=maxScore>=Number(result.ai_score_threshold)?
-     COLORS.threshold:"#607d85";
-    ctx.fillRect(x,bottom-barHeight,1,barHeight);
-   }
+   // AI scores are available in the selection readout; no bottom score bars.
   }
   // Candidate ribbons follow the same short-RMS height used for the yellow
   // waveform. Leave the grey peak envelope and chart grid unobscured.
@@ -273,7 +290,10 @@
    const eligible=events().some(e=>cursor>=e.start_sec&&cursor<e.end_sec);
    const detector=Number.isFinite(short)?short:value;
    const delta=detector-backgroundDb;
-   $("sleepWaveSelection").textContent=stamp(cursor)+
+   const datePrefix=timeAxisMode==="clock"&&hasRecordingStart()?
+    new Date(Number(result.started_ms)+cursor*1000).toLocaleDateString(
+     "zh-CN",{timeZone:"Asia/Shanghai",month:"2-digit",day:"2-digit"})+" ":"";
+   $("sleepWaveSelection").textContent=datePrefix+stamp(cursor)+
     " · 短时背景"+(delta>=0?"+":"")+delta.toFixed(1)+" dB"+
     " · 短时"+(Number.isFinite(detector)?detector.toFixed(1):"未知")+
     " dBFS · 整秒"+(Number.isFinite(value)?value.toFixed(1):"未知")+
@@ -335,7 +355,8 @@
    const btn=document.createElement("button");
    btn.type="button";btn.className="sleep-hour-block";
    btn.setAttribute("aria-label","查看第"+(i+1)+"小时，超阈值"+high[i]+"秒");
-   const title=document.createElement("small");title.textContent=stamp(i*3600).slice(0,5);
+   const title=document.createElement("small");
+   title.textContent=stamp(i*3600).slice(0,-3);
    const bar=document.createElement("div");bar.className="sleep-hour-bar";
    const fill=document.createElement("span");fill.style.height=(high[i]/max*100)+"%";bar.append(fill);
    const count=document.createElement("strong");count.textContent=high[i]+"s";
@@ -364,16 +385,19 @@
    initializeAxis(evt);
    cursor=-1;playheadSeconds=-1;playheadActive=false;followPlayback=true;
    windowStart=0;windowSpan=total();
+   // Clock time is the default when start time exists; never fabricate it
+   // from imported_at. A user's per-recording toggle is retained in memory.
+   timeAxisMode=hasRecordingStart()?
+    (timeModeById.get(evt.id)||"clock"):"relative";
   }
   else{
    windowSpan=clamp(windowSpan,5,total());
    windowStart=clamp(windowStart,0,Math.max(0,total()-windowSpan));
   }
+  updateTimeModeLabel();
   $("sleepVisualCaveat").textContent=aiMode()?
-    "AI YAMNet 对每秒音频进行本地分类；底部短柱表示未经校准的模型分数，不等于鼾声概率或诊断。":
-    evt.date_basis==="imported_at"?
-    "纵轴是相对背景dB，不是校准声压；+HH:MM:SS 为录音相对时间。":
-    "纵轴dB相对本晚背景，非校准声压dB SPL；仅为响度候选筛选。";
+    "AI YAMNet 对每秒音频离线分类；模型得分可在点击时间点后查看，既不是概率也不是医学诊断。":
+    "纵轴是相对本晚背景的 dB，而非校准声压 dB SPL；横轴可切换录制时钟或相对时长。";
   refreshFilters();
  }
  function playFromCursor(){
@@ -430,6 +454,9 @@
   }
   playEvent(index);
  }
+ $("sleepTimeMode").addEventListener("change",()=>{
+  setTimeMode($("sleepTimeMode").value);
+ });
  for(const zoom of document.querySelectorAll("[data-sleep-zoom]")){
   zoom.onclick=()=>{if(!result)return;
    const size=zoom.dataset.sleepZoom==="all"?total():Number(zoom.dataset.sleepZoom);
@@ -563,8 +590,10 @@
   refreshFilters,
   setCursor:showCursor,
   playFromCursor,playEvent,
+  setTimeMode,
+  formatTime:(seconds,id)=>result&&result.id===id?stamp(seconds):null,
   state:()=>({id:result?.id||"",seconds:total(),start:windowStart,
-   span:windowSpan,cursor,events:events().length,
+   span:windowSpan,cursor,events:events().length,timeAxisMode,
    axisMin,axisMax,backgroundDb,playheadSeconds,playheadActive,followPlayback})
  };
  const priorReceive=window.bodyTraceReceive;

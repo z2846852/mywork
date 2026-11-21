@@ -50,6 +50,8 @@ public final class MainActivity extends Activity {
     private UiBundleManager uiBundles;
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
+    private static final int EXPORT_SLEEP_AUDIO_REQUEST=7205;
+    private String pendingSleepExportId="";
     private static final long SLEEP_IMPORT_MAX_BYTES=2L*1024*1024*1024; // 2 GiB
     private String pendingSleepStart="";
     private final Handler sleepHandler=new Handler(Looper.getMainLooper());
@@ -289,10 +291,48 @@ public final class MainActivity extends Activity {
             if(requestCode==PICK_SLEEP_AUDIO_REQUEST){
                 pendingSleepStart="";
                 reply(message("sleep_import_cancelled"));
+            }else if(requestCode==EXPORT_SLEEP_AUDIO_REQUEST){
+                pendingSleepExportId="";
             }
             return;
         }
         Uri uri=data==null?null:data.getData();
+        if(requestCode==EXPORT_SLEEP_AUDIO_REQUEST){
+            String sourceId=pendingSleepExportId;
+            pendingSleepExportId="";
+            if(uri==null||sourceId.isEmpty()){
+                error("录音导出失败：未选择目标文件");
+                return;
+            }
+            worker.execute(()->{
+                try{
+                    SleepSessions.verifyId(sourceId);
+                    JSONObject meta=SleepSessions.loadMetadata(this,sourceId);
+                    if(SleepSessions.isExternal(meta))
+                        throw new IllegalArgumentException("外部导入音频不需要重复导出");
+                    File source=SleepSessions.audio(this,sourceId);
+                    if(!source.isFile()||source.length()<=1024)
+                        throw new IllegalStateException("APP 原始录音不存在或无效");
+                    long bytes=0;
+                    try(InputStream in=new FileInputStream(source);
+                        OutputStream out=getContentResolver().openOutputStream(uri,"w")){
+                        if(out==null)throw new IllegalStateException("无法写入目标文件");
+                        byte[] buffer=new byte[65536];int size;
+                        while((size=in.read(buffer))!=-1){
+                            out.write(buffer,0,size);bytes+=size;
+                        }
+                        out.flush();
+                    }
+                    if(bytes!=source.length())
+                        throw new IllegalStateException("录音导出大小不一致");
+                    reply(message("sleep_exported").put("id",sourceId)
+                        .put("bytes",bytes));
+                }catch(Exception e){
+                    error("睡眠录音导出失败："+safeMessage(e));
+                }
+            });
+            return;
+        }
         if(requestCode==PICK_SLEEP_AUDIO_REQUEST){
             String reportedStart=pendingSleepStart;
             pendingSleepStart="";
@@ -387,6 +427,14 @@ public final class MainActivity extends Activity {
         }finally{extractor.release();}
         long startTime=importedAt;
         String dateBasis="imported_at";
+        // A media DATE tag can reflect file creation OR later modification.
+        // It is a candidate timestamp, not a verified microphone start time.
+        Long embeddedDate=readEmbeddedMediaDate(uri);
+        if(embeddedDate!=null){
+            startTime=embeddedDate;
+            dateBasis="media_date_unverified";
+        }
+        // The user's explicit recording-start time takes precedence over tags.
         if(reportedStart!=null&&!reportedStart.trim().isEmpty()){
             LocalDateTime local=LocalDateTime.parse(reportedStart.trim(),
                 DateTimeFormatter.ISO_LOCAL_DATE_TIME);
@@ -399,6 +447,7 @@ public final class MainActivity extends Activity {
             .put("duration_ms",duration)
             .put("imported_ms",importedAt)
             .put("date_basis",dateBasis)
+            .put("media_date_checked",true)
             .put("source","saf-document")
             .put("source_uri",uri.toString())
             .put("original_name",filename)
@@ -411,6 +460,47 @@ public final class MainActivity extends Activity {
         msg.put("copied",false);
         reply(msg);
         sendSleepStatus();
+    }
+
+    /**
+     * Extract the embedded date only when the file explicitly includes a
+     * timezone. Neither SAF LAST_MODIFIED nor import time is recording start.
+     * MediaMetadataRetriever.DATE may represent creation OR modification.
+     */
+    private Long readEmbeddedMediaDate(Uri uri){
+        MediaMetadataRetriever retriever=new MediaMetadataRetriever();
+        try{
+            retriever.setDataSource(this,uri);
+            return parseEmbeddedMediaDate(
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DATE));
+        }catch(Exception ignored){
+            return null;
+        }finally{
+            try{retriever.release();}catch(Exception ignored){}
+        }
+    }
+
+    private static Long parseEmbeddedMediaDate(String value){
+        if(value==null||value.trim().isEmpty())return null;
+        String raw=value.trim();
+        try{
+            java.time.Instant instant;
+            if(raw.matches("[0-9]{8}T[0-9]{6}(\\.[0-9]+)?Z")){
+                String compact=raw.replaceFirst("\\.[0-9]+Z$","Z");
+                LocalDateTime t=LocalDateTime.parse(compact,
+                    DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'"));
+                instant=t.toInstant(ZoneOffset.UTC);
+            }else{
+                instant=OffsetDateTime.parse(raw).toInstant();
+            }
+            long millis=instant.toEpochMilli();
+            // Reject placeholder 1904/1970 timestamps and impossible futures.
+            if(millis<946684800000L||
+                    millis>System.currentTimeMillis()+86400000L)return null;
+            return millis;
+        }catch(Exception ignored){
+            return null;
+        }
     }
 
     private byte[] readAssetBytes(String name) throws Exception {
@@ -468,6 +558,23 @@ public final class MainActivity extends Activity {
         try{
             SleepSessions.verifyId(sessionId);
             JSONObject session=SleepSessions.load(this,sessionId);
+            // Existing imported recordings created before the metadata-aware
+            // release are probed exactly once when selected; AI scores remain cached.
+            if(SleepSessions.isExternal(session)&&
+                    "imported_at".equals(session.optString("date_basis","imported_at"))&&
+                    !session.optBoolean("media_date_checked",false)){
+                Long inferred=readEmbeddedMediaDate(SleepSessions.externalUri(session));
+                JSONObject meta=SleepSessions.loadMetadata(this,sessionId);
+                meta.put("media_date_checked",true);
+                if(inferred!=null){
+                    meta.put("started_ms",inferred);
+                    meta.put("ended_ms",inferred+meta.optLong("duration_ms",0));
+                    meta.put("date_basis","media_date_unverified");
+                    session.put("started_ms",inferred);
+                    session.put("date_basis","media_date_unverified");
+                }
+                SleepSessions.write(this,meta);
+            }
             JSONArray levels=session.optJSONArray("levels_dbfs");
             JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
             JSONArray shortLevels=session.optJSONArray("short_levels_dbfs");
@@ -480,7 +587,8 @@ public final class MainActivity extends Activity {
             JSONObject answer=message("sleep_analysis");
             answer.put("id",sessionId);
             answer.put("started_ms",session.optLong("started_ms"));
-            answer.put("date_basis",session.optString("date_basis","recorded_at"));
+            answer.put("date_basis",session.optString("date_basis",
+                SleepSessions.isExternal(session)?"imported_at":"recorded_at"));
             answer.put("original_name",session.optString("original_name",""));
             answer.put("total_seconds",levels.length());
             answer.put("levels_dbfs",levels);
@@ -1578,6 +1686,61 @@ public final class MainActivity extends Activity {
                     else requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
                         SLEEP_AUDIO_PERMISSION_REQUEST);
                 }else startSleepCapture();
+            });
+        }
+        @JavascriptInterface public void sleepSetStartTime(String sessionId,String localStart){
+            worker.execute(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    JSONObject data=SleepSessions.loadMetadata(MainActivity.this,sessionId);
+                    if(!SleepSessions.isExternal(data))
+                        throw new IllegalArgumentException("APP 自录音有准确起点，无需修改");
+                    if(SleepAnalysisService.isRunning()&&
+                            sessionId.equals(SleepAnalysisService.currentId()))
+                        throw new IllegalStateException("AI 分析进行中，请完成后再修正时间");
+                    LocalDateTime local=LocalDateTime.parse(localStart,
+                        DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                    long start=local.toInstant(BEIJING).toEpochMilli();
+                    if(start<946684800000L || start>System.currentTimeMillis()+86400000L)
+                        throw new IllegalArgumentException("时间超出允许范围");
+                    long duration=data.optLong("duration_ms",0);
+                    data.put("started_ms",start);
+                    data.put("ended_ms",start+duration);
+                    data.put("date_basis","user_supplied");
+                    // Metadata only. The stored waveform and 8h AI scores are untouched.
+                    SleepSessions.write(MainActivity.this,data);
+                    reply(message("sleep_start_updated").put("id",sessionId)
+                        .put("started_ms",start));
+                    sendSleepStatus();
+                }catch(Exception e){
+                    error("睡眠录音开始时间修改失败："+safeMessage(e));
+                }
+            });
+        }
+
+        @JavascriptInterface public void sleepExport(String sessionId){
+            runOnUiThread(()->{
+                try{
+                    SleepSessions.verifyId(sessionId);
+                    JSONObject metadata=SleepSessions.loadMetadata(MainActivity.this,sessionId);
+                    if(SleepSessions.isExternal(metadata))
+                        throw new IllegalArgumentException("请直接在原文件所在位置管理导入录音");
+                    File file=SleepSessions.audio(MainActivity.this,sessionId);
+                    if(!file.isFile()||file.length()<=1024)
+                        throw new IllegalStateException("尚未保存有效的 M4A 录音");
+                    if(SleepRecorderService.isCurrentSession(sessionId))
+                        throw new IllegalStateException("请停止录音后再导出");
+                    String filename="BodyTrace_"+sessionId+".m4a";
+                    Intent choose=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    choose.addCategory(Intent.CATEGORY_OPENABLE);
+                    choose.setType("audio/mp4");
+                    choose.putExtra(Intent.EXTRA_TITLE,filename);
+                    pendingSleepExportId=sessionId;
+                    startActivityForResult(choose,EXPORT_SLEEP_AUDIO_REQUEST);
+                }catch(Exception e){
+                    pendingSleepExportId="";
+                    error("睡眠录音导出失败："+safeMessage(e));
+                }
             });
         }
         @JavascriptInterface public void sleepStop(){

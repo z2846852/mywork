@@ -231,6 +231,27 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
    <button type="button" id="sleepRefresh" class="secondary mini" aria-label="刷新录音列表">刷新</button>
   </div>
   <div id="sleepSelected" class="sleep-selected">请从下方选择一个已完成的录音</div>
+  <p id="sleepSelectedFile" class="sub">录音大小和缓存状态将显示在这里</p>
+  <div id="sleepEditStartRow" class="sleep-time-edit" hidden>
+   <label for="sleepEditStart">录音实际开始时间（北京时间，可校正文件日期）</label>
+   <div class="row wrap">
+    <input type="datetime-local" id="sleepEditStart">
+    <button type="button" class="secondary mini" id="sleepSaveStart">保存时间（不重算 AI）</button>
+   </div>
+   <p id="sleepTimeSourceHint" class="sub">文件媒体日期可能是修改时间；不确定时请手动核对。</p>
+  </div>
+  <div class="sleep-analysis-launch">
+   <p id="sleepAnalyzeHint" class="sub">首次选择自动 AI 分析；再次选择直接加载本机缓存。</p>
+   <button type="button" class="secondary" id="sleepAnalyze" disabled>手动重试 AI 分析</button>
+   <div id="sleepAnalysisProgress" class="sleep-analysis-progress" hidden role="status" aria-live="off">
+    <div class="sleep-progress-header">
+     <span><i class="sleep-progress-pulse" aria-hidden="true"></i> 正在后台解析音频</span>
+     <strong id="sleepAnalysisPercent">0%</strong>
+    </div>
+    <progress id="sleepAnalysisTrack" max="100" value="0" aria-label="整晚录音分析进度"></progress>
+    <p class="sub" id="sleepAnalysisStage">可以锁屏或切换 APP；通知栏持续显示进度。</p>
+   </div>
+  </div>
   <div class="sleep-visualization" id="sleepVisualization" hidden>
    <div class="sleep-visual-head">
     <h3>全夜声音 · AI 鼾声候选</h3>
@@ -255,6 +276,14 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <p class="sub" id="sleepAiPresetHint">标准：得分 ≥0.15、累计2秒；高召回：≥0.05、累计1秒。仅更改筛选，不重新解码。可能增加误报。</p>
    </div>
    <p id="sleepDetectorNote" class="sub">等待本地 AI 声音分类。</p>
+   <div class="sleep-time-axis-row">
+    <label for="sleepTimeMode">横轴时间</label>
+    <select id="sleepTimeMode">
+     <option value="clock">实际钟表时间（默认）</option>
+     <option value="relative">录音从 00:00 起</option>
+    </select>
+    <span id="sleepTimeModeHint" class="sub">跨午夜会自动显示凌晨时间</span>
+   </div>
    <div class="sleep-wave-controls" role="group" aria-label="声波缩放">
     <button type="button" class="mini secondary" data-sleep-zoom="all">整晚</button>
     <button type="button" class="mini secondary" data-sleep-zoom="3600">1小时</button>
@@ -319,29 +348,22 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <p id="sleepVisualCaveat" class="sub">YAMNet 依据音频内容分类；得分不是实际概率，未经个人录音验证。dB 仅用于辅助波形，不是声压计。</p>
    </details>
   </div>
-  <button type="button" class="secondary" id="sleepAnalyze" disabled>首次分析并生成波形</button>
-  <div id="sleepAnalysisProgress" class="sleep-analysis-progress" hidden role="status" aria-live="off">
-   <div class="sleep-progress-header">
-    <span><i class="sleep-progress-pulse" aria-hidden="true"></i> 正在后台解析音频</span>
-    <strong id="sleepAnalysisPercent">0%</strong>
-   </div>
-   <progress id="sleepAnalysisTrack" max="100" value="0" aria-label="整晚录音分析进度"></progress>
-   <p class="sub" id="sleepAnalysisStage">可以锁屏或切换 APP；通知栏持续显示进度。</p>
-  </div>
+
  </div>
  <details class="sleep-collection" id="sleepCollectionDetails">
   <summary>录音管理 / 导入 <span id="sleepLibraryCount">0 条记录</span></summary>
   <div class="panel sleep-recording-panel">
    <div class="sleep-status" id="sleepStatus" role="status">正在读取本地录音状态…</div>
+   <p id="sleepRecordingResult" class="sub" role="status">APP 内录音保存在手机私有目录，列表显示文件大小；可单独导出 M4A。</p>
    <div class="row wrap sleep-actions">
     <button type="button" class="primary" id="sleepStart">开始睡眠录音</button>
     <button type="button" class="secondary" id="sleepStop" disabled>停止并保存</button>
    </div>
    <div class="sleep-import-actions">
     <button type="button" class="secondary" id="sleepImport">选择本机音频（不复制原文件）</button>
-    <label class="sub" for="sleepImportStarted">原始录音开始时间（可选）</label>
+    <label class="sub" for="sleepImportStarted">原始录音开始时间（可选，可覆盖文件日期）</label>
     <input type="datetime-local" id="sleepImportStarted">
-    <p class="sub">只保存系统选中文件的长期只读授权，不会复制 400 MB 原音频。首次自动生成波形缓存，之后可反复查看；原文件丢失后图表可看，但无法回听。</p>
+    <p class="sub">尝试读取 M4A 内嵌日期（可能是创建或修改时间，需核对）；没有可靠时间时用相对轴，可在选中后手动设置。音频不复制；首次离线 AI 分析，之后直接读取缓存。</p>
     <p id="sleepImportStatus" class="sub" role="status"></p>
    </div>
    <p class="sub">录音需要麦克风授权；锁屏期间由前台服务录制，部分手机需要允许后台活动。</p>

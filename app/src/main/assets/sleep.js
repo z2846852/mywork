@@ -12,6 +12,8 @@
  let completedAnalysisId="";
  let importing=false;
  let pendingAutoAnalyzeId="";
+ const autoAnalysisAttemptedIds=new Set();
+ let startEditorSessionId="";
  let pendingRemoveId="";
  let playbackActive=false;
  const noiseBySession=new Map();
@@ -205,7 +207,16 @@
   selectedId=id;
   eventLimit=80;
   render();
-  readCachedIfAvailable(id);
+  // First manual selection: analyze uncached audio exactly once.
+  // Cached files load the saved model scores without decoding.
+  const target=current();
+  if(!target||recording||
+    !(target.status==="completed"||target.status==="interrupted"))return;
+  if(target.levels_cached)readCachedIfAvailable(id);
+  else if(!autoAnalysisAttemptedIds.has(id)){
+   autoAnalysisAttemptedIds.add(id);
+   analyze();
+  }
  }
  function render(){
   $("sleepStatus").textContent=recording?
@@ -220,10 +231,18 @@
   $("sleepAnalyze").disabled=!chosen||recording||busy||!!loadingCachedId||
    !(chosen.status==="completed"||chosen.status==="interrupted");
   const ready=analysis?.id===selectedId&&aiAvailable();
-   $("sleepAnalyze").textContent=loadingCachedId?"正在加载波形缓存…":busy?"正在后台 AI 分析，请查看进度":
-    chosen?.levels_cached?(ready?"✓ 已生成波形 · AI 已完成":"✓ 已生成波形 · 运行 AI 鼾声识别"):
-    "首次分析：响度 + AI 鼾声识别";
-   $("sleepAnalyze").hidden=!!chosen?.levels_cached&&ready&&!busy&&!loadingCachedId;
+  $("sleepAnalyze").textContent=loadingCachedId?"正在加载缓存…":
+   busy?"正在后台 AI 分析，请查看进度":
+   ready?"AI 已缓存":
+   chosen?.levels_cached?"补充缺失的 AI 模型结果":
+   "手动重试 AI 分析";
+  $("sleepAnalyze").hidden=!chosen||ready&&!busy&&!loadingCachedId;
+  $("sleepAnalyzeHint").textContent=busy?
+   "正在分析并保存结果；下次选中直接读取本机缓存。":
+   ready?"✓ 波形与 AI 识别结果已缓存，下次选中无需重复推理。":
+   chosen?.levels_cached?"已有波形，正在检查 AI 缓存。":
+   chosen?"首次选择后自动分析；失败时可以手动重试。":
+   "选择录音后自动分析，无须点击底部按钮。";
   const select=$("sleepSessionSelect");
   select.replaceChildren();
   const empty=document.createElement("option");empty.value="";empty.textContent="选择录音";
@@ -237,6 +256,38 @@
    select.append(opt);
   }
   select.value=chosen?.id||"";
+  const chosenBytes=Number(chosen?.bytes)||0;
+  const chosenDuration=Number(chosen?.duration_ms)||(
+   chosen?.ended_ms&&chosen?.started_ms?
+    Math.max(0,Number(chosen.ended_ms)-Number(chosen.started_ms)):0);
+  const knownTime=!!chosen&&
+   (chosen.external_file?
+    ["user_supplied","media_date_unverified"].includes(chosen.date_basis):
+    chosen.date_basis!=="imported_at")&&
+   Number.isFinite(Number(chosen.started_ms))&&Number(chosen.started_ms)>0;
+  const timeSource=!chosen?"":chosen.date_basis==="user_supplied"?
+   "手动确认时间":chosen.date_basis==="media_date_unverified"?
+   "媒体日期（可能是修改时间）":knownTime?"APP 实际录制时间":"录音开始时间未知";
+  $("sleepSelectedFile").textContent=chosen?
+   "本机 · "+(chosen.external_file?"引用原音频":"APP 私有录音")+
+   " · "+(chosenBytes>0?(chosenBytes/1048576).toFixed(2)+" MB":"大小未确定")+
+   " · "+duration(chosenDuration/1000)+
+   " · "+timeSource+
+   (chosen.levels_cached?" · 已缓存":" · 待分析"):
+   "这里显示所选录音的文件大小、时长和缓存状态";
+  $("sleepEditStartRow").hidden=!chosen?.external_file;
+  if(chosen?.external_file){
+   if(startEditorSessionId!==selectedId){
+    const ms=knownTime?Number(chosen.started_ms):0;
+    $("sleepEditStart").value=ms?
+     new Date(ms+8*60*60*1000).toISOString().slice(0,16):"";
+    startEditorSessionId=selectedId;
+   }
+   $("sleepTimeSourceHint").textContent=chosen.date_basis==="media_date_unverified"?
+    "已提取文件内嵌媒体日期，但它也可能是文件修改时间；请核对录制起点。":
+    knownTime?"当前录制起点已指定。修改这里只更新时间轴，不会重新分析 AI。":
+    "此录音没有可信的起始时间。手动填入后横轴即可显示凌晨 03:00 等真实时间。";
+  }
   $("sleepLibraryCount").textContent=sessions.length+" 条记录";
   $("sleepSelected").textContent=chosen?
    "已选："+(chosen.date_basis==="imported_at"?"导入录音（未知录制起始日期）":
@@ -263,7 +314,8 @@
    extra.textContent=sourceLabel+" · "+
     (item.original_name?item.original_name+" · ":"")+
     "时长 "+duration(millis/1000)+" · "+
-     ((Number(item.bytes)||0)/1048576).toFixed(1)+" MB（音频大小）"+
+     (Number(item.bytes)>0?(Number(item.bytes)/1048576).toFixed(2)+" MB":
+       "文件大小未确定")+"（音频文件）"+
      (item.levels_cached?" · ✓ 波形已缓存":" · 未解析");
    card.append(title,extra);
    if(item.error){
@@ -273,9 +325,20 @@
    const actions=document.createElement("div");actions.className="sleep-history-actions";
    const choose=document.createElement("button");
    choose.type="button";choose.className="mini"+(item.id===selectedId?" active":"");
-   choose.textContent=item.id===selectedId?"已选中":"选择分析";
+   choose.textContent=item.id===selectedId?"已选中":"选择（自动 AI）";
    choose.onclick=()=>selectSession(item.id);
    actions.append(choose);
+   if(!item.external_file&&item.source==="local-microphone"&&
+       item.status!=="recording"&&Number(item.bytes)>1024){
+    const exportButton=document.createElement("button");
+    exportButton.type="button";exportButton.className="mini secondary";
+    exportButton.textContent="导出 M4A 到手机";
+    exportButton.onclick=()=>{
+     if(!bridge()?.sleepExport){toast("需要新版 APK 才能导出录音",true);return;}
+     bridge().sleepExport(item.id);
+    };
+    actions.append(exportButton);
+   }
    if(!recording&&item.status!=="recording"){
     const del=document.createElement("button");
     del.type="button";del.className="mini danger-soft";
@@ -323,8 +386,9 @@
    const row=document.createElement("div");row.className="sleep-event";
    const info=document.createElement("div");
    const name=document.createElement("strong");
-   const label=offset=>analysis.date_basis==="imported_at"?
-    "+"+duration(offset):clock(analysis.started_ms+offset*1000);
+   const label=offset=>window.BodyTraceSleepVisual?.formatTime?.(offset,analysis.id)||
+    (analysis.date_basis==="imported_at"?
+     "+"+duration(offset):clock(analysis.started_ms+offset*1000));
    name.textContent="声音片段 "+(i+1)+" · "+
     label(event.start_sec)+"—"+label(event.end_sec);
    const meta=document.createElement("small");
@@ -354,6 +418,7 @@
    root.append(more);
   }
  }
+ window.BodyTraceSleepRenderEvents=renderEvents;
  function analyze(){
   if(busy||!!loadingCachedId||!current()||recording)return;
   const threshold=Number($("sleepThreshold").value);
@@ -375,6 +440,7 @@
   }
   if(!bridge()?.sleepAnalyze){toast("当前 APK 不支持睡眠分析",true);return;}
   busy=true;
+  autoAnalysisAttemptedIds.add(selectedId);
   analysisStarting=true;
   completedAnalysisId="";
   runningAnalysisId=selectedId;
@@ -438,6 +504,17 @@
   bridge().sleepStatus();
  };
  $("sleepAnalyze").onclick=analyze;
+ $("sleepSaveStart").onclick=()=>{
+  const value=$("sleepEditStart").value;
+  if(!current()?.external_file||!value){
+   toast("请先选择外部录音并填写准确的录制开始时间",true);return;
+  }
+  if(!bridge()?.sleepSetStartTime){
+   toast("当前 APK 不支持修改录音起始时间，请安装完整版",true);return;
+  }
+  $("sleepTimeSourceHint").textContent="正在保存录制起点，不重新分析音频…";
+  bridge().sleepSetStartTime(selectedId,value);
+ };
  $("sleepStopPlayback").onclick=()=>{
   bridge()?.sleepStopPlayback?.();
   $("sleepPlaybackStatus").textContent="正在停止播放…";
@@ -482,9 +559,9 @@
    }
    render();
    if(pendingAutoAnalyzeId&&selectedId===pendingAutoAnalyzeId&&!busy){
+    const id=pendingAutoAnalyzeId;
     pendingAutoAnalyzeId="";
-    if(current()?.levels_cached)readCachedIfAvailable(selectedId);
-    else analyze();
+    selectSession(id);
    }else if(!busy&&!analysis&&selectedId)readCachedIfAvailable(selectedId);
   }else if(evt.type==="sleep_analysis"){
    busy=false;analysisStarting=false;loadingCachedId="";
@@ -505,6 +582,38 @@
    analysis.background_dbfs=noiseFloor()??-40;
    applyLiveFilters(false);
    render();
+   // Upgrade old 1-second RMS caches that are missing YAMNet scores once.
+   if(!hasAi&&!recording&&!autoAnalysisAttemptedIds.has(selectedId)){
+    autoAnalysisAttemptedIds.add(selectedId);
+    analyze();
+   }
+  }else if(evt.type==="sleep_start_updated"){
+   const target=sessions.find(x=>x.id===evt.id);
+   if(target){
+    target.started_ms=evt.started_ms;
+    target.ended_ms=Number(evt.started_ms)+Number(target.duration_ms||0);
+    target.date_basis="user_supplied";
+   }
+   if(analysis?.id===evt.id){
+    analysis.started_ms=evt.started_ms;
+    analysis.date_basis="user_supplied";
+    window.BodyTraceSleepVisual?.setTimeMode?.("clock");
+    renderEvents();
+   }
+   startEditorSessionId="";
+   render();
+   toast("已保存真实时间轴，不需要重新分析 AI");
+  }else if(evt.type==="sleep_recording_finished"){
+   // Recording file and metadata have been finalized on the service side.
+   if(evt.saved&&evt.id)pendingAutoAnalyzeId=evt.id;
+   $("sleepRecordingResult").textContent=evt.saved?
+    "✓ 已保存在 APP 本机存储 · "+((Number(evt.bytes)||0)/1048576).toFixed(2)+
+      " MB · "+duration((Number(evt.duration_ms)||0)/1000):
+    "录音保存失败："+(evt.message||"请查看详情");
+   bridge()?.sleepStatus?.();
+  }else if(evt.type==="sleep_exported"){
+   $("sleepRecordingResult").textContent="✓ 已导出 M4A 至所选手机文件夹，APP 内原件保留";
+   toast("导出成功 · "+((Number(evt.bytes)||0)/1048576).toFixed(2)+" MB");
   }else if(evt.type==="sleep_imported"){
    importing=false;
    pendingAutoAnalyzeId=evt.id||"";

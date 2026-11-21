@@ -938,3 +938,15 @@ body.workout-edit-open{overflow:hidden}
 .sleep-ai-controls label{display:flex;justify-content:space-between;font-weight:700;font-size:12px}
 .sleep-ai-controls input{width:100%;accent-color:#ea667d;margin:10px 0}
 #sleepAiControls[hidden],#sleepThresholdWorkbench[hidden]{display:none!important}
+
+/* Sleep recording metadata and clock/relative timeline controls. */
+.sleep-time-axis-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.sleep-time-axis-row label{font-size:12px;font-weight:700}
+.sleep-time-axis-row select{max-width:70%;min-width:150px;padding:8px;border-radius:9px}
+.sleep-time-axis-row .sub{flex-basis:100%;font-size:11px}
+.sleep-time-edit{border:1px solid #315952;border-radius:10px;padding:10px;margin:8px 0}
+.sleep-time-edit label{display:block;font-size:12px;margin-bottom:8px}
+.sleep-time-edit input{max-width:100%;min-width:175px}
+.sleep-time-edit .row{align-items:center;gap:8px}
+.sleep-analysis-launch{margin:10px 0}
+#sleepSelectedFile,#sleepRecordingResult{overflow-wrap:anywhere}

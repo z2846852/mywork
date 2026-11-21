@@ -467,6 +467,34 @@ assert.ok(sleepStore.includes('external_file'));
 assert.ok(sleepAnalysisService.includes('SleepAudioAnalyzer.decodeEnvelope('));
 assert.ok(sleepAnalyzer.includes('decodeEnvelope(Context context,JSONObject session,IntConsumer progress)'));
 assert.ok(sleepJS.includes('pendingAutoAnalyzeId'));
+assert.ok(sleepJS.includes('const autoAnalysisAttemptedIds=new Set()'));
+assert.ok(sleepJS.includes('if(target.levels_cached)readCachedIfAvailable(id)'));
+assert.ok(sleepJS.includes('else if(!autoAnalysisAttemptedIds.has(id))'));
+assert.ok(sleepJS.includes('evt.type==="sleep_recording_finished"'));
+assert.ok(sleepJS.includes('evt.type==="sleep_exported"'));
+assert.ok(native.includes('sleepExport(String sessionId)'));
+assert.ok(native.includes('Intent.ACTION_CREATE_DOCUMENT'));
+assert.ok(sleepRecorder.includes('put("audio_bytes",bytes)') &&
+ sleepRecorder.includes('put("duration_ms",elapsed)'));
+assert.ok(sleepRecorder.includes('sleep_recording_finished') &&
+ sleepRecorder.includes('SleepAnalysisService.ACTION_EVENT'));
+assert.ok(!sleepVisualization.includes('const barHeight=Math.round(clamp(maxScore,0,1)*24)'),
+ "Remove the unrelated bottom-of-graph AI score bars");
+assert.ok(html.includes('id="sleepSelectedFile"') &&
+ html.includes('id="sleepAnalyzeHint"') &&
+ html.includes('id="sleepRecordingResult"'));
+assert.ok(html.includes('id="sleepTimeMode"')&&html.includes('id="sleepEditStart"')&&
+ html.includes('id="sleepSaveStart"'));
+assert.ok(native.includes('sleepSetStartTime(String sessionId,String localStart)'));
+assert.ok(native.includes('MediaMetadataRetriever.METADATA_KEY_DATE'));
+assert.ok(native.includes('parseEmbeddedMediaDate('));
+assert.ok(native.includes('dateBasis="media_date_unverified"'));
+assert.ok(sleepVisualization.includes('timeAxisMode=hasRecordingStart()?'));
+assert.ok(sleepVisualization.includes('setTimeMode,'));
+assert.ok(sleepVisualization.includes('formatTime:(seconds,id)=>'));
+assert.ok(!sleepVisualization.includes('Small normalized model-score strip'));
+assert.ok(html.indexOf('id="sleepAnalyze"')<html.indexOf('id="sleepVisualization"'));
+
 assert.ok(sleepJS.includes('pendingRemoveId'));
 assert.ok(sleepJS.includes('if(!analysisStarting&&!loadingCachedId)') ||
   sleepJS.includes('!analysisStarting&&!loadingCachedId'),
@@ -951,6 +979,8 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
       sleepAnalyze(...args){calls.decode.push(args)},
       sleepReadCached(...args){calls.cached.push(args)},
       sleepDelete(id){calls.delete.push(id)},
+      sleepExport(id){calls.exported??=[];calls.exported.push(id)},
+      sleepSetStartTime(...args){calls.dateUpdates??=[];calls.dateUpdates.push(args)},
       sleepStatus(){}
     }
   };
@@ -1011,7 +1041,16 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   el("sleepThresholdReset").onclick();
   assert.equal(el("sleepThreshold").value,"-48.0");
   assert.equal(el("sleepAnalysisProgress").hidden,true);
-  assert.match(el("sleepAnalyze").textContent,/已生成波形/);
+  assert.match(el("sleepAnalyze").textContent,/AI 已缓存/);
+  assert.equal(el("sleepEditStartRow").hidden,false);
+  assert.match(el("sleepTimeSourceHint").textContent,/没有可信的起始时间/);
+  el("sleepEditStart").value="2026-11-21T23:00";
+  el("sleepSaveStart").onclick();
+  assert.deepEqual(calls.dateUpdates,[["imported_doc","2026-11-21T23:00"]]);
+  sleepWindow.bodyTraceReceive({type:"sleep_start_updated",id:"imported_doc",
+    started_ms:Date.UTC(2026,10,21,15,0,0)});
+  assert.match(el("sleepSelectedFile").textContent,/手动确认时间/);
+  assert.equal(calls.decode.length,1,"Changing time origin must NOT rerun AI");
   assert.equal(el("sleepDetectionMode").value,"ai",
    "AI scores should switch to the actual sound model by default");
   el("sleepAiHighRecall").onclick();
@@ -1019,6 +1058,7 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.equal(el("sleepMinSeconds").value,"1");
   assert.equal(el("sleepGapSeconds").value,"3");
   assert.equal(calls.decode.length,1,"Changing AI sensitivity must not re-decode M4A");
+  assert.match(el("sleepSelectedFile").textContent,/400.00 MB/);
   el("sleepAiStandard").onclick();
   assert.equal(el("sleepSnoreThreshold").value,"0.15");
   assert.equal(el("sleepMinSeconds").value,"2");
@@ -1043,7 +1083,29 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.match(deleteControl().textContent,/确认移出/);
   deleteControl().onclick();
   assert.deepEqual(calls.delete,["imported_doc"]);
-  console.log("Sleep UX tests passed: zero-copy auto analysis, status race, cache recovery and safe removal.");
+  // Distinguish an App-owned M4A from an externally referenced audio file:
+  // show saved bytes at the top and offer an explicit SAF export action.
+  const owned={id:"recorded_doc",status:"completed",source:"local-microphone",
+   started_ms:1795090000000,ended_ms:1795090010000,duration_ms:10000,
+   bytes:30240,levels_cached:true};
+  sleepWindow.bodyTraceReceive({type:"sleep_status",recording:false,
+    analysis_running:false,sessions:[owned]});
+  // A newly selected cache is read without decoding. It already has a local file.
+  el("sleepSessionSelect").value=owned.id;
+  el("sleepSessionSelect").handlers.change();
+  assert.equal(calls.decode.length,1,
+   "Selecting a cached local recording must not trigger second model inference");
+  assert.equal(calls.cached.length,3);
+  assert.match(el("sleepSelectedFile").textContent,/0.03 MB/);
+  const ownedActions=el("sleepHistory").children[0].children.at(-1).children;
+  const exportButton=ownedActions.find(button=>button.textContent==="导出 M4A 到手机");
+  assert.ok(exportButton,"App-owned recordings must support explicit file export");
+  exportButton.onclick();
+  assert.deepEqual(calls.exported,["recorded_doc"]);
+  sleepWindow.bodyTraceReceive({type:"sleep_recording_finished",id:owned.id,
+    saved:true,bytes:30240,duration_ms:10000});
+  assert.match(el("sleepRecordingResult").textContent,/已保存在 APP 本机存储/);
+  console.log("Sleep UX tests passed: first-select AI, cache reload, recording completion, file size and export.");
 }
 
 
@@ -1216,5 +1278,21 @@ assert.ok(sleepJS.includes('evt.type==="sleep_playback_position"'));
   fakeWindow.BodyTraceSleepVisual.playFromCursor();
   assert.deepEqual(JSON.parse(calls[1][1]),[[0,600]],
     "Ordinary mode must play continuously from cursor, without arbitrary 15s cap");
-  console.log("Sleep gesture/filter/skip regression passed.");
+  // Clock-label conversion must cross midnight without shifting the source PCM.
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().timeAxisMode,"relative");
+  assert.equal(fakeWindow.BodyTraceSleepVisual.formatTime(14400,"night1"),"+04:00:00");
+  const start=Date.UTC(2026,10,21,15,0,0);
+  fakeWindow.bodyTraceReceive({type:"sleep_analysis",id:"night2",
+    date_basis:"user_supplied",started_ms:start,
+    levels_dbfs:levels,peak_levels_dbfs:levelPeaks,threshold_dbfs:-40,
+    minimum_seconds:5,gap_seconds:1,events:segments});
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().timeAxisMode,"clock");
+  assert.equal(fakeWindow.BodyTraceSleepVisual.formatTime(14400,"night2"),"03:00:00");
+  get("sleepTimeMode").value="relative";
+  get("sleepTimeMode").handlers.change();
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().timeAxisMode,"relative");
+  assert.equal(fakeWindow.BodyTraceSleepVisual.formatTime(14400,"night2"),"+04:00:00");
+  fakeWindow.BodyTraceSleepVisual.setTimeMode("clock");
+  assert.equal(fakeWindow.BodyTraceSleepVisual.formatTime(14400,"night2"),"03:00:00");
+  console.log("Sleep gesture/filter/skip + clock/relative timeline regression passed.");
 }
