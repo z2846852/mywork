@@ -191,7 +191,7 @@ assert.ok(native.includes('voiceLabStart(String requestedMode)')&&
  native.includes('voiceLabStop()')&&
  native.includes('voiceLabFinishPhoneme()')&&
  native.includes('VOICE_LAB_MIC_PERMISSION_REQUEST')&&
- native.includes('new VoiceLabController(this,this::reply)'));
+ native.includes('new VoiceLabController(this,this::reply,phoneModels)'));
 assert.ok(labNative.includes('new AudioRecord(')&&
  labNative.includes('AudioRecord.READ_BLOCKING')&&
  labNative.includes('PitchDetector.analyze(window,RATE)')&&
