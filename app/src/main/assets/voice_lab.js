@@ -13,6 +13,89 @@
  const maxPoints=700;
  const pitchChart=$("voicePitchChart"),grid=$("voicePitchGrid"),traces=$("voicePitchTraces");
  const hold=$("voicePhonemeHold");
+ let modelsInstalled=new Set();
+ let modelsSelected="acoustic";
+ let lastPhonemeEvent=null;
+ let modelBusy=false;
+ function voiceModelStatus(message){safeText("voiceModelsStatus",message);}
+ function renderModels(evt){
+  if(evt.state==="downloading"||evt.state==="checking"){
+   modelBusy=true;
+   $("voiceModelsInstall").disabled=true;
+   $("voiceModelsDelete").disabled=true;
+   voiceModelStatus(evt.message||"下载中…");
+   return;
+  }
+  if(evt.state==="error"){
+   modelBusy=false;
+   voiceModelStatus(evt.message||"模型下载失败");
+   $("voiceModelsInstall").disabled=false;
+   return;
+  }
+  if(evt.state==="installed"){
+   voiceModelStatus(evt.message||"下载完成");
+   return;
+  }
+  if(evt.state!=="listed")return;
+  modelBusy=false;
+  modelsInstalled=new Set((evt.models||[]).filter(m=>m.installed).map(m=>m.id));
+  modelsSelected=evt.selected||"acoustic";
+  $("voiceModelsChoice").value=modelsSelected;
+  safeText("voiceModelsEngine",
+   modelsSelected==="acoustic"?"基础声学探针":modelsSelected+" ✓ 已安装");
+  const chosen=modelsSelected;
+  $("voiceModelsInstall").disabled=chosen==="acoustic"||modelsInstalled.has(chosen);
+  $("voiceModelsDelete").disabled=chosen==="acoustic"||!modelsInstalled.has(chosen);
+  voiceModelStatus(evt.message||"模型已就绪，可开始测试");
+ }
+ function updateModelActions(){
+  const choice=$("voiceModelsChoice").value;
+  $("voiceModelsInstall").disabled=modelBusy||
+    choice==="acoustic"||modelsInstalled.has(choice);
+  $("voiceModelsDelete").disabled=modelBusy||
+    choice==="acoustic"||!modelsInstalled.has(choice);
+  if(choice==="acoustic"||modelsInstalled.has(choice)){
+   if(bridge()?.voiceModelsSelect)bridge().voiceModelsSelect(choice);
+   else voiceModelStatus("安装新 APK 后才能选择神经音素模型");
+  }else{
+   voiceModelStatus("当前选项尚未安装。点击“下载并启用”，从独立 GitHub Release 获取模型。");
+  }
+ }
+ $("voiceModelsChoice").addEventListener("change",updateModelActions);
+ $("voiceModelsInstall").addEventListener("click",()=>{
+  const id=$("voiceModelsChoice").value;
+  if(modelBusy||id==="acoustic"||modelsInstalled.has(id))return;
+  if(!bridge()?.voiceModelsInstall){
+   voiceModelStatus("需要安装支持模型包的新 APK");return;
+  }
+  modelBusy=true;$("voiceModelsInstall").disabled=true;
+  voiceModelStatus("正在查询模型包；首装会下载几十 MB，后续 APK 升级不重复下载。");
+  bridge().voiceModelsInstall(id);
+ });
+ $("voiceModelsDelete").addEventListener("click",()=>{
+  const id=$("voiceModelsChoice").value;
+  if(modelBusy||id==="acoustic"||!modelsInstalled.has(id))return;
+  if(holding||analyzing){
+   voiceModelStatus("请结束发音分析后再删除");return;
+  }
+  if(bridge()?.voiceModelsDelete)bridge().voiceModelsDelete(id);
+ });
+ $("voiceModelsRefresh").addEventListener("click",()=>bridge()?.voiceModelsStatus?.());
+ function displayPhoneExamples(){
+  const isZh=$("voicePhoneDisplay").value==="zh";
+  $("voicePhonemeEnglishBox").hidden=isZh;
+  $("voicePhonemePinyinBox").hidden=!isZh;
+  if(isZh)safeText("voicePhonemeLimit",
+    "普通话模式只展示 IPA 音素与相近拼音音例；当前模型不能可靠还原完整拼音音节或声调。");
+  else if(lastPhonemeEvent)safeText("voicePhonemeLimit",
+    lastPhonemeEvent.warning||"神经音素输出也不能直接证明口音正确");
+ }
+ $("voicePhoneDisplay").addEventListener("change",displayPhoneExamples);
+ displayPhoneExamples();
+ // Installed models are private app data, queried once when the Voice page opens.
+ document.querySelector('.tabs button[data-page="voice"]')?.addEventListener("click",
+  ()=>bridge()?.voiceModelsStatus?.());
+
 
  const names=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
  const noteName=midi=>names[((midi%12)+12)%12]+(Math.floor(midi/12)-1);
@@ -125,6 +208,10 @@
   if(message)safeText("voicePhonemeStatus",message);
  }
  function showPhonemes(evt){
+  lastPhonemeEvent=evt;
+  safeText("voicePhonemeUsedEngine",evt.engine_kind==="neural_ctc"?
+   "· 神经网络："+evt.engine_id:evt.engine_kind==="neural_error"?
+   "· 模型运行错误":"· 基础声学探针");
   analyzing=false;holding=false;hasPhonemeResult=true;hold.disabled=false;
   hold.textContent="按住说话";
   setPhonemeState("已完成 · 结果保留",evt.message||"本次声学分析已结束");
@@ -150,7 +237,8 @@
   safeText("voicePhonemeEnglish",[...uniqueEnglish].slice(0,4).join("；")||"—");
   safeText("voicePhonemePinyin",[...uniquePinyin].slice(0,4).join("；")||"—");
   safeText("voicePhonemeLimit",evt.warning||
-   "实验性声学特征，不能代表完整音素转录或发音准确率。");
+   "声学候选不能直接代表完整音素转录或发音准确率。");
+  displayPhoneExamples();
  }
  function stopAll(){
   if(pitchOn||holding||analyzing)bridge()?.voiceLabStop?.();
@@ -236,7 +324,9 @@
 
  window.bodyTraceReceive=function(evt){
   if(typeof oldReceiver==="function")oldReceiver(evt);
-  if(!evt||evt.type!=="voice_lab")return;
+  if(!evt)return;
+  if(evt.type==="voice_models"){renderModels(evt);return;}
+  if(evt.type!=="voice_lab")return;
   if(evt.state==="pitch_sample"){pitchSample(evt);return;}
   if(evt.state==="phoneme_result"){showPhonemes(evt);return;}
   if(evt.state==="permission_ready"){

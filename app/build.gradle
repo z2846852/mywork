@@ -1,4 +1,4 @@
-plugins { id 'com.android.application' }
+plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
 
 def buildNumber = (project.findProperty('appBuildNumber') ?: '1').toString().toInteger()
 def signingFile = System.getenv('BODYTRACE_SIGNING_FILE')
@@ -15,6 +15,7 @@ android {
         applicationId 'com.z2846852.bodytrace'
         minSdk 26
         targetSdk 34
+        ndk { abiFilters 'arm64-v8a' }
         versionCode buildNumber
         versionName "0.2." + buildNumber
     }
@@ -51,4 +52,8 @@ android {
 dependencies {
     // Stable TensorFlow Lite Java interpreter for the pinned offline YAMNet model.
     implementation 'org.tensorflow:tensorflow-lite:2.14.0'
+    // Official sherpa-onnx Android AAR, pinned SHA256, downloaded at build time.
+    // Contains the runtime JNI only. ZIPA weights are never included in this APK.
+    implementation files('libs/sherpa-onnx-2.0.1.aar')
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.25'
 }

@@ -7,6 +7,7 @@ import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.SystemClock;
+import java.io.File;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -35,6 +36,7 @@ final class VoiceLabController {
     private static final int LIMIT_SAMPLES=RATE*5;
     private final Activity activity;
     private final Sink sink;
+    private final PhoneModelPacks modelPacks;
     private volatile Session active;
     private int nextToken=0;
 
@@ -42,18 +44,20 @@ final class VoiceLabController {
         final AudioRecord input;
         final String mode;
         final int token;
+        final String modelId;
         volatile boolean stopRequested=false;
         volatile boolean analyzeOnFinish=false;
         final short[] phrase;
         int phraseLength=0;
-        Session(AudioRecord input,String mode,int token){
+        Session(AudioRecord input,String mode,int token,String modelId){
             this.input=input;this.mode=mode;this.token=token;
+            this.modelId=modelId;
             this.phrase="phoneme".equals(mode)?new short[LIMIT_SAMPLES]:null;
         }
     }
 
-    VoiceLabController(Activity activity,Sink sink){
-        this.activity=activity;this.sink=sink;
+    VoiceLabController(Activity activity,Sink sink,PhoneModelPacks packs){
+        this.activity=activity;this.sink=sink;this.modelPacks=packs;
     }
     boolean isRunning(){return active!=null;}
     private void status(String mode,String state,String message){
@@ -89,7 +93,8 @@ final class VoiceLabController {
             if(input.getState()!=AudioRecord.STATE_INITIALIZED)
                 throw new IllegalStateException("音频采集器初始化失败");
             input.startRecording();
-            Session session=new Session(input,requestedMode,++nextToken);
+            Session session=new Session(input,requestedMode,++nextToken,
+                modelPacks.selected());
             active=session;
             Thread worker=new Thread(()->capture(session),"bodytrace-voice-capture");
             worker.setDaemon(true);
@@ -202,6 +207,10 @@ final class VoiceLabController {
 
     private void analyzePhrase(Session session){
         int total=session.phraseLength;
+        if(!PhoneModelPacks.ACOUSTIC.equals(session.modelId)){
+            analyzeNeural(session,total);
+            return;
+        }
         int duration=(int)Math.round(total*1000.0/RATE);
         JSONArray segments=new JSONArray();
         int evaluated=0,recognized=0;
@@ -261,6 +270,62 @@ final class VoiceLabController {
         }catch(Exception e){
             if(active==session)
                 status("phoneme","error","整段音素分析失败："+e.getClass().getSimpleName());
+        }
+    }
+
+
+    /**
+     * Run genuine neural IPA phone recognition AFTER recording has ended.
+     * Never call the heuristic on neural failure: doing so would fake a result.
+     */
+    private void analyzeNeural(Session session,int count){
+        String id=session.modelId;
+        try{
+            if(count<1600)throw new IllegalArgumentException("发声太短：至少约 0.1 秒");
+            File dir=modelPacks.modelDir(id);
+            if(!modelPacks.installed(id)||dir==null)
+                throw new IllegalStateException("所选的神经音素模型尚未安装");
+            long start=android.os.SystemClock.elapsedRealtime();
+            String[] phones=new PhonemeNeuralEngine().decode(dir,session.phrase,count);
+            long inferenceMs=android.os.SystemClock.elapsedRealtime()-start;
+            JSONArray resultPhones=new JSONArray();
+            for(String phone:phones){
+                if(phone==null||phone.trim().isEmpty()||resultPhones.length()>=96)
+                    continue;
+                resultPhones.put(new JSONObject()
+                    .put("ipa",phone)
+                    .put("english_words",PhoneReferenceExamples.english(phone))
+                    .put("pinyin_examples",PhoneReferenceExamples.mandarin(phone)));
+            }
+            JSONObject result=new JSONObject()
+                .put("type","voice_lab").put("state","phoneme_result")
+                .put("mode","phoneme").put("engine_id",id)
+                .put("engine_kind","neural_ctc")
+                .put("is_trained_phoneme_model",true)
+                .put("duration_ms",Math.round(count*1000.0/RATE))
+                .put("inference_ms",inferenceMs)
+                .put("candidates",resultPhones)
+                .put("message",resultPhones.length()>0?
+                    "ZIPA 神经音素识别完成 · 耗时 "+inferenceMs+"ms":
+                    "ZIPA 未输出稳定音素：可能是静音、短音或模型局限")
+                .put("warning","这些是声学模型直接输出的 IPA 候选，绝非识别出的单词；"+
+                    "相似例词只是参考。模型可能把非标准发音归一化，也不提供可靠的普通话拼音与声调评分。");
+            if(active==session)sink.onEvent(result);
+        }catch(Exception|LinkageError failure){
+            if(active!=session)return;
+            try{
+                JSONObject error=new JSONObject().put("type","voice_lab")
+                    .put("mode","phoneme").put("state","phoneme_result")
+                    .put("engine_id",id).put("engine_kind","neural_error")
+                    .put("is_trained_phoneme_model",false)
+                    .put("duration_ms",Math.round(count*1000.0/RATE))
+                    .put("candidates",new JSONArray())
+                    .put("message","ZIPA 模型运行失败，不使用旧算法伪装结果")
+                    .put("warning",failure.getClass().getSimpleName()+": "+
+                        String.valueOf(failure.getMessage()).substring(0,
+                            Math.min(180,String.valueOf(failure.getMessage()).length())));
+                sink.onEvent(error);
+            }catch(Exception ignored){}
         }
     }
 

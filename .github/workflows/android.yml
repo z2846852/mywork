@@ -103,6 +103,8 @@ jobs:
           echo "BODYTRACE_STORE_PASSWORD=bodytrace-public-signing-v1" >> "$GITHUB_ENV"
           echo "BODYTRACE_KEY_ALIAS=bodytrace" >> "$GITHUB_ENV"
           echo "BODYTRACE_KEY_PASSWORD=bodytrace-public-signing-v1" >> "$GITHUB_ENV"
+      - name: Fetch SHA256-pinned sherpa-onnx Android runtime (model weights excluded)
+        run: bash scripts/fetch_sherpa_aar.sh
       - name: Assemble signed Release APK
         run: gradle --no-daemon -PappBuildNumber="$GITHUB_RUN_NUMBER" :app:assembleRelease
       - name: Verify APK signature and app version

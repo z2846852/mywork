@@ -230,6 +230,50 @@ assert.ok(uiBundler.includes('"voice_lab.js"')&&
  native.includes('readUiAsset("voice_lab.js")'),
  "Bundled UI must include the separated Voice module");
 assert.ok(workflow.includes('VoiceLabDspTest.java'));
+const modelPacks=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/PhoneModelPacks.java"),"utf8");
+const neuralBridge=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/PhonemeNeuralEngine.kt"),"utf8");
+const packScript=fs.readFileSync(path.join(root,
+ "scripts/build_voice_model_packs.py"),"utf8");
+const modelsWorkflow=fs.readFileSync(path.join(root,
+ ".github/workflows/voice-models.yml"),"utf8");
+for(const id of ["voiceModelsPanel","voiceModelsChoice","voiceModelsInstall",
+ "voiceModelsDelete","voiceModelsRefresh","voicePhoneDisplay",
+ "voiceModelsStatus","voicePhonemeUsedEngine","voicePhonemeEnglishBox",
+ "voicePhonemePinyinBox"]){
+ assert.ok(html.includes('id="'+id+'"'),"Model UI missing: "+id);
+}
+assert.ok(native.includes('voiceModelsInstall(String modelId)')&&
+ native.includes('voiceModelsSelect(String modelId)')&&
+ native.includes('voiceModelsDelete(String modelId)')&&
+ native.includes('new PhoneModelPacks(this)'));
+assert.ok(modelPacks.includes('releases/tags/voice-models-v1')&&
+ modelPacks.includes('filesDir')===false&&
+ modelPacks.includes('getFilesDir()')&&
+ modelPacks.includes('sha256(zip)')&&
+ modelPacks.includes('sha256(file)')&&
+ modelPacks.includes('model.int8.onnx')&&
+ modelPacks.includes('remove(modelDir(id))'));
+assert.ok(labNative.includes('new PhonemeNeuralEngine().decode(')&&
+ labNative.includes('"neural_ctc"')&&
+ labNative.includes('"neural_error"'),
+ "Neural runtime must be wired into full utterance analysis with explicit errors");
+assert.ok(neuralBridge.includes('OfflineZipformerCtcModelConfig')&&
+ neuralBridge.includes('OfflineRecognizer(')&&
+ neuralBridge.includes('recognizer.decode(stream)')&&
+ neuralBridge.includes('tokens'));
+assert.ok(voiceLabJS.includes('voiceModelsInstall(id)')&&
+ voiceLabJS.includes('voiceModelsDelete(id)')&&
+ voiceLabJS.includes('evt.type==="voice_models"'));
+assert.ok(packScript.includes('"anyspeech/zipa-small-crctc-300k"')&&
+ packScript.includes('"anyspeech/zipa-small-crctc-500k"')&&
+ packScript.includes('"anyspeech/zipa-small-crctc-ns-700k"'));
+assert.ok(modelsWorkflow.includes('gh release create "$tag"')&&
+ modelsWorkflow.includes('voice-models-v1')&&
+ modelsWorkflow.includes('--latest=false'));
+assert.ok(workflow.includes('fetch_sherpa_aar.sh'));
+
 
 const sleepRecorder=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/SleepRecorderService.java"),"utf8");

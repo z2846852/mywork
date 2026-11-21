@@ -501,14 +501,36 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <div class="panel voice-card">
       <div class="voice-title-row"><h3>按住发音 → 松开分析</h3><span id="voicePhonemeState" class="voice-state">待发音</span></div>
       <p class="sub">按住下方按钮，说一个音或单词，松开后分析整段声音。结果保留，直到下一次分析。</p>
+      <div class="voice-models" id="voiceModelsPanel">
+        <div class="voice-models-head"><strong>免费离线音素引擎</strong><span id="voiceModelsEngine">当前：基础声学探针</span></div>
+        <select id="voiceModelsChoice" aria-label="选择音素识别引擎">
+          <option value="acoustic">旧版 F1/F2 + 擦音探针（弱声学参考，无下载）</option>
+          <option value="zipa-cr-small-300k">ZIPA CTC 300k（英语/普通话 IPA）</option>
+          <option value="zipa-cr-small-500k">ZIPA CTC 500k（英语/普通话 IPA）</option>
+          <option value="zipa-cr-small-ns-700k">ZIPA CTC NS 700k（非商业授权）</option>
+        </select>
+        <div class="voice-model-actions">
+          <button type="button" id="voiceModelsInstall" class="secondary">下载并启用</button>
+          <button type="button" id="voiceModelsDelete" class="secondary">删除已装模型</button>
+          <button type="button" id="voiceModelsRefresh" class="secondary" aria-label="刷新本机模型状态">↻</button>
+        </div>
+        <div id="voiceModelsStatus" class="sub" role="status">模型不包含在 APK 中。安装一次，后续升级 APP 可继续使用。</div>
+        <div class="voice-models-language">
+          <label for="voicePhoneDisplay">发音参考</label>
+          <select id="voicePhoneDisplay">
+            <option value="en">英语 · IPA / 英文例词</option>
+            <option value="zh">普通话 · IPA / 拼音音例（非拼音识别）</option>
+          </select>
+        </div>
+      </div>
       <button type="button" id="voicePhonemeHold" class="voice-hold-button">按住说话</button>
       <p id="voicePhonemeStatus" class="sub" role="status">支持约 0.3–5 秒的短音频；不保存录音文件。</p>
       <div id="voicePhonemeReport" class="voice-phoneme-report">
-        <div class="voice-phoneme-heading">本次候选音素 <span id="voicePhonemeDuration">—</span></div>
+        <div class="voice-phoneme-heading">本次候选音素 <span id="voicePhonemeDuration">—</span> <span id="voicePhonemeUsedEngine">—</span></div>
         <div id="voicePhonemeSequence" class="voice-phoneme-sequence"><span class="voice-empty">尚无分析结果</span></div>
         <div class="voice-phoneme-reference">
-          <div><span>相似的英语例词</span><strong id="voicePhonemeEnglish">—</strong></div>
-          <div><span>相似的拼音示例</span><strong id="voicePhonemePinyin">—</strong></div>
+          <div id="voicePhonemeEnglishBox"><span>相似英语音例（非识别单词）</span><strong id="voicePhonemeEnglish">—</strong></div>
+          <div id="voicePhonemePinyinBox" hidden><span>普通话拼音音例（非实际识别的拼音/声调）</span><strong id="voicePhonemePinyin">—</strong></div>
         </div>
         <p id="voicePhonemeLimit" class="sub">当前为 F1/F2 和擦音的初级声学探针，不能可靠识别整句或判断普通话声调。尤其无法完整识别 think 的 /θɪŋk/。</p>
       </div>

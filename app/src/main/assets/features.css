@@ -1283,3 +1283,30 @@ body.workout-edit-open{overflow:hidden}
  #page-voice .voice-values strong{font-size:13px}
  #page-voice .voice-phoneme-reference{grid-template-columns:1fr}
 }
+
+/* Standalone free neural IPA model packs; hidden weights in app private files. */
+#page-voice .voice-models{padding:10px;margin:12px 0 9px;
+ border:1px solid #416d57;border-radius:10px;background:#19352b}
+#page-voice .voice-models-head{display:flex;flex-wrap:wrap;
+ align-items:center;justify-content:space-between;gap:3px;margin-bottom:7px}
+#page-voice .voice-models-head strong{font-size:12px;color:#cfebda}
+#page-voice .voice-models-head span{font-size:9px;color:#9ec2ae}
+#page-voice .voice-models>select{min-height:39px;width:100%;
+ font-size:11px;padding:7px 8px;max-width:100%}
+#page-voice .voice-model-actions{display:grid;grid-template-columns:1fr 1fr 34px;
+ gap:6px;margin-top:7px}
+#page-voice .voice-model-actions button{padding:6px 5px;
+ min-height:36px;margin:0;font-size:10px;border-radius:8px}
+#page-voice .voice-model-actions button:disabled{opacity:.4}
+#page-voice #voiceModelsStatus{font-size:10px;line-height:1.55;
+ margin:7px 0;min-height:15px;color:#afd2bf}
+#page-voice .voice-models-language{margin-top:8px;padding-top:8px;
+ border-top:1px solid #315646;display:flex;gap:8px;align-items:center}
+#page-voice .voice-models-language label{font-size:10px;white-space:nowrap}
+#page-voice .voice-models-language select{flex:1;min-width:0;
+ padding:5px 6px;min-height:34px;font-size:10px}
+#page-voice .voice-phoneme-heading{flex-wrap:wrap}
+#page-voice #voicePhonemeUsedEngine{font-size:10px;color:#98bdab;font-weight:400}
+#page-voice #voicePhonemeEnglishBox[hidden],
+#page-voice #voicePhonemePinyinBox[hidden]{display:none!important}
+#page-voice .voice-phoneme-reference{grid-template-columns:1fr}

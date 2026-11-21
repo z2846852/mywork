@@ -1,0 +1,64 @@
+name: Publish free offline IPA model packs
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_voice_model_packs.py'
+      - '.github/workflows/voice-models.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: bodytrace-voice-models-v1
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install official Hugging Face downloader
+        run: python -m pip install --disable-pip-version-check "huggingface_hub>=0.26,<2"
+      - name: Verify exact source repos and build model-only archives
+        run: |
+          set -euo pipefail
+          python scripts/build_voice_model_packs.py --output release-voice-models
+          python - <<'PY'
+          import hashlib,json,pathlib,zipfile
+          root=pathlib.Path("release-voice-models")
+          manifest=json.loads((root/"VoicePhone-models.json").read_text())
+          assert len(manifest["models"])==3
+          for m in manifest["models"]:
+              p=root/m["name"]
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==m["sha256"]
+              with zipfile.ZipFile(p) as z:
+                  assert set(z.namelist())=={"model.int8.onnx","tokens.txt","pack.json"}
+                  inner=json.loads(z.read("pack.json"))
+                  assert inner["id"]==m["id"]
+                  for name,desc in inner["files"].items():
+                      assert hashlib.sha256(z.read(name)).hexdigest()==desc["sha256"]
+              print("verified:",m["id"],p.stat().st_size)
+          PY
+      - name: Publish independent model-pack GitHub Release (NOT latest APK)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="voice-models-v1"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Model pack tag already published; leaving existing immutable archives unchanged."
+            exit 0
+          fi
+          gh release create "$tag" \
+            release-voice-models/VoicePhone-models.json \
+            release-voice-models/VoicePhone-zipa-cr-small-300k.zip \
+            release-voice-models/VoicePhone-zipa-cr-small-500k.zip \
+            release-voice-models/VoicePhone-zipa-cr-small-ns-700k.zip \
+            --target "$GITHUB_SHA" \
+            --title "BodyTrace downloadable offline ZIPA phone models (v1)" \
+            --notes "Independent ONNX phone-recognition packs: original ZIPA small CTC 300k / 500k / NS 700k, with original-source revision, per-file SHA256, attribution and license. CC BY 4.0 for 300k/500k. CC BY-NC-SA 4.0 for NS 700k (personal noncommercial use). These are neural IPA phone recognizers, NOT speech-to-text or Mandarin tone/pinyin recognition. Packages are opt-in and never bundled in the app APK." \
+            --latest=false

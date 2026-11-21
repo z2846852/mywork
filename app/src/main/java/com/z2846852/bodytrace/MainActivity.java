@@ -54,6 +54,7 @@ public final class MainActivity extends Activity {
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int VOICE_LAB_MIC_PERMISSION_REQUEST=7206;
     private VoiceLabController voiceLab;
+    private PhoneModelPacks phoneModels;
     private String pendingVoiceLabMode="";
     private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
     private static final int EXPORT_SLEEP_AUDIO_REQUEST=7205;
@@ -113,7 +114,8 @@ public final class MainActivity extends Activity {
         vault = new SecureStore(getApplicationContext());
         plain = new JsonStore(getApplicationContext());
         apkUpdates=new ApkUpdateManager(this);
-        voiceLab=new VoiceLabController(this,this::reply);
+        phoneModels=new PhoneModelPacks(this);
+        voiceLab=new VoiceLabController(this,this::reply,phoneModels);
         try {
             uiBundles=new UiBundleManager(this);
             uiBundles.prepareBoot();
@@ -1877,6 +1879,43 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void voiceLabFinishPhoneme(){
             runOnUiThread(()->voiceLab.finishPhoneme());
         }
+        @JavascriptInterface public void voiceModelsStatus(){
+            worker.execute(()->{
+                try{reply(phoneModels.state("手机本地模型状态"));}
+                catch(Exception e){error("读取音素模型列表失败："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void voiceModelsInstall(String modelId){
+            worker.execute(()->{
+                try{phoneModels.install(modelId,MainActivity.this::reply);}
+                catch(Exception e){
+                    try{reply(message("voice_models").put("state","error")
+                        .put("id",modelId).put("message","模型安装失败："+safeMessage(e)));}
+                    catch(Exception ignored){}
+                    try{reply(phoneModels.state("可重试下载；已安装模型不受影响"));}
+                    catch(Exception ignored){}
+                }
+            });
+        }
+        @JavascriptInterface public void voiceModelsSelect(String modelId){
+            worker.execute(()->{
+                try{
+                    phoneModels.select(modelId);
+                    reply(phoneModels.state("已切换所选音素模型"));
+                }catch(Exception e){error("模型切换失败："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void voiceModelsDelete(String modelId){
+            worker.execute(()->{
+                try{
+                    if(voiceLab.isRunning())
+                        throw new IllegalStateException("请先结束麦克风录音");
+                    phoneModels.delete(modelId);
+                    reply(phoneModels.state("已删除模型包；APK 无需重新安装"));
+                }catch(Exception e){error("删除模型失败："+safeMessage(e));}
+            });
+        }
+
         @JavascriptInterface public void voiceLabCapabilities(){
             runOnUiThread(()->{
                 try{

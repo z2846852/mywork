@@ -1,5 +1,21 @@
 # 体迹 · BodyTrace
 
+## 免费离线音素引擎扩展包（2026-11-22）
+
+**不使用收费 API，不转写文字后反推音标。** APK 只内置开源 sherpa-onnx Android JNI 推理运行时（官方 v2.0.1 AAR SHA256 固定；仅 arm64），ZIPA 音素模型权重和 tokens.txt 完全不放在 APK。用户在「声音 → 音素 / 口音 → 免费离线音素引擎」按需选择下载，保存在 Android 私有 `files/voice_models`，正常覆盖升级 APK、跨版本二进制差分升级或 UI-only ZIP 更新均无需重新下载。可切换、删除每个模型。删除后不改变 APK，亦不会触发外部付费接口。
+
+独立 GitHub Release `voice-models-v1` 由 `.github/workflows/voice-models.yml` 在 CI 中从原始 Hugging Face 仓库下载、打包、计算 SHA256，并发布模型 ZIP。它不是最新 APK Release，也不会增加 APK 差分体积。APP 通过 GitHub Release API 提供的 `sha256:` 摘要校验 ZIP，再校验 ZIP 中的 `pack.json` 所记录的每个权重、词表的 SHA256。拒绝不可信 URL、任意 ZIP 路径和超大文件；只在校验通过后原子迁移目录。联网仅在首次下载/更新模型时需要，实际音素推理完全离线。**不要把 ZIPA 的模型授权与项目源码 MIT 混淆。**
+
+按需选择的三个神经音素引擎（都以音频直接输出 IPA phones，不输出英文单词）：
+- ZIPA small CRCTC 300k：`anyspeech/zipa-small-crctc-300k`，CC BY 4.0；
+- ZIPA small CRCTC 500k：`anyspeech/zipa-small-crctc-500k`，CC BY 4.0；
+- ZIPA small CRCTC NS 700k：`anyspeech/zipa-small-crctc-ns-700k`，CC BY-NC-SA 4.0，**仅非商业使用**。
+原作者模型、权重和标注来自 [ZIPA](https://github.com/lingjzhu/zipa) / [AnySpeech](https://huggingface.co/anyspeech/models)；sherpa-onnx 运行时来自 [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)，不复制训练代码。用户可选择旧版 F1/F2 + 擦音实验探针作为不下载时的保底参考，但会明确标识为非神经模型。三个神经模型独立可下载、切换、删除，方便真实发音逐个比较。
+
+对于 `think` 和 `can't`，神经模型会尝试直接输出整段 IPA 音素而不是静态字典词条。候选音素仅是模型的**实际声学预测**，不一定反映真实口音差异，也不能当作专业纠音评分。英语界面显示 IPA 与对应例词（例词不代表识别到的单词）；普通话界面显示同一多语言模型输出的 IPA 与类似拼音声学例子，**并不可靠识别完整拼音、汉字或声调**。普通话音节及声调专项需独立有监督模型。默认不上传发音录音到 GitHub 或第三方服务。首次加载/推理延迟尚需 Android 实机实测，不承诺 0.x 秒。
+
+构建 Android APK：先运行 `bash scripts/fetch_sherpa_aar.sh` 下载并 SHA256 验证官方 Android AAR，再执行 `gradle :app:assembleRelease`。CI 自动完成此步骤，且仅生成纯 APK；模型包通过独立 workflow 发布，正常 CI 不访问权重，未将模型包打包进 APK。
+
 ## 独立「声音」Tab：音高轨迹与按住发音（2026-11-22）
 
 从睡眠页拆出全新的底部「♫ 声音」Tab，并拆成两个独立子页面。旧版「声音实验室」出现的大块白色空图是因为旧 Canvas 与 UI 样式未同步加载；本版改成固定深色 SVG，不依赖 Canvas/WebGL。
