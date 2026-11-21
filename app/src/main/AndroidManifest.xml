@@ -9,6 +9,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- vivo Health private-provider diagnostic. Usually signature|privileged;
+         not a runtime permission and never requested with a UI permission dialog. -->
+    <uses-permission android:name="com.vivo.health.widget.permission"/>
+    <queries>
+        <package android:name="com.vivo.health"/>
+        <provider android:authorities="com.vivo.health.provider"/>
+    </queries>
     <application
         android:label="体迹 · BodyTrace"
         android:icon="@mipmap/ic_launcher"

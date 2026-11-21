@@ -363,6 +363,21 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   </div>
 
  </div>
+ <details class="sleep-watch-probe" id="vivoSleepPanel">
+  <summary>vivo WATCH 5 · 睡眠数据 <span id="vivoSleepBadge">未检测</span></summary>
+  <div class="sleep-watch-content">
+   <button type="button" class="secondary mini" id="vivoSleepRead">检测并读取最近一晚</button>
+   <p id="vivoSleepResult" class="sub" role="status" aria-live="polite"></p>
+   <div id="vivoSleepValues" class="sleep-watch-values" hidden></div>
+   <details class="sleep-watch-help">
+    <summary>! 接入说明 / ADB 授权</summary>
+    <p>仅从已同步到手机 vivo 健康 APP 的记录读取，不直接连接手表，不上传健康信息。该接口为 vivo 私有接口，可能因系统版本而不可用。</p>
+    <p>若显示“缺少权限”，需通过电脑 ADB 测试系统是否允许授权：</p>
+    <code>adb shell pm grant com.z2846852.bodytrace com.vivo.health.widget.permission</code>
+    <p>执行后再点检测。部分 ROM 会拒绝这条命令；以 APP 实际权限结果为准。安装新 APK 后也可能需要再次授权。</p>
+   </details>
+  </div>
+ </details>
  <details class="sleep-collection" id="sleepCollectionDetails">
   <summary>录音管理 / 导入 <span id="sleepLibraryCount">0 条记录</span></summary>
   <div class="panel sleep-recording-panel">

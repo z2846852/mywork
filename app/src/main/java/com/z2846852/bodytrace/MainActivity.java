@@ -1768,6 +1768,18 @@ public final class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public void vivoSleepProbe(){
+            // Never request private permissions silently or send results online.
+            worker.execute(()->{
+                try{reply(new VivoSleepProbe(MainActivity.this).read());}
+                catch(Exception e){
+                    try{reply(message("vivo_sleep").put("capability","ERROR")
+                        .put("message","vivo 健康读取失败："+safeMessage(e)));}
+                    catch(Exception ignored){}
+                }
+            });
+        }
+
         @JavascriptInterface public void sleepStatus(){
             worker.execute(MainActivity.this::sendSleepStatus);
         }

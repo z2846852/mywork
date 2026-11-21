@@ -161,6 +161,35 @@ for(const field of ["page-sleep","sleepStart","sleepStop","sleepStatus",
  assert.ok(html.includes('id="'+field+'"'),"Missing sleep field "+field);
 }
 assert.ok(html.includes('data-page="sleep"'),"Sleep tab should be selectable");
+
+const vivoProbe=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/VivoSleepProbe.java"),"utf8");
+assert.ok(manifest.includes('com.vivo.health.widget.permission'));
+assert.ok(manifest.includes('com.vivo.health.provider')&&
+ manifest.includes('<queries>'));
+assert.ok(vivoProbe.includes('content://com.vivo.health.provider/sleep'));
+assert.ok(vivoProbe.includes('PERMISSION_GRANTED') &&
+ vivoProbe.includes('resolveContentProvider(AUTHORITY,0)') &&
+ vivoProbe.includes('getContentResolver().query(URI,null,null,null,null)'));
+assert.ok(vivoProbe.includes('ENTER_TIME')&&vivoProbe.includes('EXIT_TIME')&&
+ vivoProbe.includes('TOTAL_DURATION')&&vivoProbe.includes('DEEP_SLEEP_DURATION'));
+assert.ok(vivoProbe.includes('NO_DATA')&&vivoProbe.includes('NOT_GRANTED')&&
+ vivoProbe.includes('UNSUPPORTED')&&vivoProbe.includes('PASS'));
+assert.ok(!vivoProbe.includes('getSharedPreferences(') &&
+ !vivoProbe.includes('http://')&&!vivoProbe.includes('https://'),
+ "Private health read must not transmit or persist records by default");
+assert.ok(native.includes('vivoSleepProbe()')&&
+ native.includes('new VivoSleepProbe(MainActivity.this).read()'));
+assert.ok(html.includes('id="vivoSleepPanel"')&&
+ html.includes('id="vivoSleepRead"')&&
+ html.includes('id="vivoSleepValues"')&&
+ html.includes('id="vivoSleepResult"'));
+assert.ok(sleepJS.includes('bridge().vivoSleepProbe()')&&
+ sleepJS.includes('if(evt.type==="vivo_sleep"){renderVivoSleep(evt);return;}'));
+assert.ok(sleepJS.includes('textContent=value')&&
+ sleepJS.includes('timeZone:"Asia/Shanghai"'),
+ "Read-only watch data must be rendered as text and use real local clock time");
+
 for(const perm of ["RECORD_AUDIO","FOREGROUND_SERVICE_MICROPHONE",
  "FOREGROUND_SERVICE","WAKE_LOCK","POST_NOTIFICATIONS"]){
  assert.ok(manifest.includes('android.permission.'+perm),"Missing permission "+perm);

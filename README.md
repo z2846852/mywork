@@ -1,5 +1,15 @@
 # 体迹 · BodyTrace
 
+## vivo WATCH 5 / vivo 健康只读睡眠接口试验（2026-11-22）
+
+在 BodyTrace「睡眠」页面折叠的「vivo WATCH 5 · 睡眠数据」面板内，按需点击「检测并读取最近一晚」。仅从**手机已同步的 vivo 健康 APP**查询，不直接连接手环蓝牙；不需要也不请求 Health Connect。
+
+- 背景：参考 [Akari Pulse](https://github.com/yoruuuchan/akari-pulse) 对 vivo X200 Pro / Android 15 上私有 `content://com.vivo.health.provider/sleep` 的 2026-08-14 真机验证。**原案例使用 vivo WATCH GT，尚未证明 vivo WATCH 5 与用户的 ROM 可以复现**。BodyTrace 独立实现最低限度的 Java 只读诊断，并不复制上游 AGPL 源码。
+- 首先检查手机 `com.vivo.health.provider` 是否可见，随后检查 `com.vivo.health.widget.permission` 是否真已授权；仅两者通过时才执行 `ContentResolver.query`。允许状态：`UNSUPPORTED`、`NOT_GRANTED`、`NO_DATA`、`PASS`、`ERROR`。绝不伪造缺失的记录或把 UI 中显示的时间作为原始传感器读数。
+- 成功时只显示第一行睡眠记录的 `ENTER_TIME`、`EXIT_TIME`、`TOTAL_DURATION`、可能存在的 `LIGHT_SLEEP_DURATION` / `DEEP_SLEEP_DURATION` / `REM_SLEEP_DURATION` / `AWAKE_SLEEP_DURATION` 及 `SCORE`，用北京时间显示，不上传、不自动保存，也不影响录音和 YAMNet 缓存。
+- 权限属于 vivo 私有 `signature|privileged`，正常第三方安装后不能通过运行时授权弹窗得到。Windows PowerShell 只读检测：`powershell -ExecutionPolicy Bypass -File scripts/probe_vivo_health.ps1`。若你**主动选择**尝试 ADB 授权，则加 `-Grant` 参数；系统可能拒绝，此时确认为 `NOT_GRANTED`，不尝试 Root、Shizuku 或绕过厂商限制。每次完整 APK 覆盖安装后授权可能失效，需重新检查。
+- 该试验是按需查询，不代表已接入 WATCH 5 的全部睡眠历史。验证成功之后才能规划长期本地缓存、睡眠音频/手机行为融合与日期选择。
+
 ## Android 完整 APK 差分升级（2026-11-22）
 
 在「设置 → APP 一键升级」点击「检查并更新 APP」。APP 访问官方 GitHub Release 查询最新版；自动检测已安装的 versionCode 和 base.apk SHA256。若最新版本的 `BodyTrace-updates.json` 含有**当前 APK 精确 SHA256** 对应的直达补丁，则下载 `BodyTrace-from-v0.2.NNN.btpatch`，用已安装 APK 在本机流式还原目标的**完整已签名 APK**；若用户跨版本、补丁缺失、大小不划算、旧 APK 字节不同或补丁验证失败，则自动下载完整 `BodyTrace-release.apk`。不需要逐版本安装补丁。

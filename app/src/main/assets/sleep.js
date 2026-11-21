@@ -522,9 +522,59 @@
  document.querySelector('.tabs button[data-page="sleep"]')?.addEventListener("click",()=>{
   bridge()?.sleepStatus?.();
  });
+ $("vivoSleepRead").onclick=()=>{
+  if(!bridge()?.vivoSleepProbe){
+   $("vivoSleepResult").textContent="需要安装支持 vivo 健康读取测试的新版 APK。";
+   return;
+  }
+  $("vivoSleepRead").disabled=true;
+  $("vivoSleepBadge").textContent="读取中";
+  $("vivoSleepResult").textContent="正在检测手机上的 vivo 健康接口与读取权限…";
+  $("vivoSleepValues").hidden=true;
+  bridge().vivoSleepProbe();
+ };
+ const vivoTime=ms=>new Date(Number(ms)).toLocaleString("zh-CN",{
+  timeZone:"Asia/Shanghai",year:"numeric",month:"2-digit",
+  day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false
+ });
+ const vivoLength=ms=>{
+  const mins=Math.floor(Math.max(0,Number(ms)||0)/60000);
+  return Math.floor(mins/60)+"小时"+String(mins%60).padStart(2,"0")+"分";
+ };
+ function renderVivoSleep(evt){
+  $("vivoSleepRead").disabled=false;
+  const pass=evt.capability==="PASS";
+  $("vivoSleepBadge").textContent=pass?"✓ 已读取":
+   evt.capability==="NOT_GRANTED"?"缺少权限":
+   evt.capability==="UNSUPPORTED"?"不支持":
+   evt.capability==="NO_DATA"?"暂无数据":"读取失败";
+  $("vivoSleepResult").textContent=evt.message||"没有返回诊断结果";
+  const list=$("vivoSleepValues");
+  list.replaceChildren();list.hidden=!pass;
+  if(!pass)return;
+  const rows=[
+   ["开始",vivoTime(evt.start_ms)],
+   ["结束",vivoTime(evt.end_ms)],
+   ["睡眠时长",vivoLength(evt.duration_ms)]
+  ];
+  for(const [label,key] of [
+   ["浅睡","light_ms"],["深睡","deep_ms"],["REM","rem_ms"],["清醒","awake_ms"]]){
+   if(Number.isFinite(Number(evt[key]))&&evt[key]!==undefined&&evt[key]!==null)
+    rows.push([label,vivoLength(evt[key])]);
+  }
+  if(Number.isFinite(Number(evt.score))&&evt.score!==undefined)
+   rows.push(["睡眠评分",String(evt.score)]);
+  for(const [name,value] of rows){
+   const item=document.createElement("div");
+   const caption=document.createElement("span");caption.textContent=name;
+   const number=document.createElement("strong");number.textContent=value;
+   item.append(caption,number);list.appendChild(item);
+  }
+ }
  window.bodyTraceReceive=function(evt){
   if(typeof receiver==="function")receiver(evt);
   if(!evt||!evt.type)return;
+  if(evt.type==="vivo_sleep"){renderVivoSleep(evt);return;}
   if(evt.type==="sleep_status"){
    recording=!!evt.recording;
    const previous=sessions.find(x=>x.id===selectedId);
