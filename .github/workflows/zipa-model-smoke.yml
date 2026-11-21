@@ -51,7 +51,7 @@ jobs:
           assert os.path.getsize(model)>40_000_000
           recognizer=sherpa_onnx.OfflineRecognizer.from_zipformer_ctc(
               model=model,tokens=tokens,num_threads=2,
-              sample_rate=16000,feature_dim=80,dither=0.0,debug=False
+              sample_rate=16000,feature_dim=80,debug=False
           )
           stream=recognizer.create_stream()
           waveform=np.zeros(2*16000,dtype=np.float32)
