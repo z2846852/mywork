@@ -107,7 +107,7 @@ final class SleepYamnetClassifier implements AutoCloseable {
         }
     }
 
-    JSONArray result(int seconds) {
+    JSONArray result(int seconds) throws org.json.JSONException {
         JSONArray result=new JSONArray();
         for(int i=0;i<seconds;i++)
             result.put(i<scores.size()?scores.get(i):0.0);
