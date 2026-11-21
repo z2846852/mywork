@@ -1,5 +1,17 @@
 # 体迹 · BodyTrace
 
+## 小包界面增量更新（2026-11-22）
+
+首次安装内置 UI 更新器的 APK 后，后续若**只改 HTML/CSS/JS**，不必重复下载约 20 MB 的完整 APK。在「设置 → 界面增量更新」里，由用户主动点击「检查并下载界面更新」，再点「重新加载界面」。不会后台自动检查或下载。GitHub Release 始终保留完整 APK。
+
+- 允许小包更新的文件严格限定为 8 个：index.html、features.css、wheel.js、features.js、exercise_catalog.js、git_log.js、sleep.js、sleep_visualization.js。
+- 每次 Actions 构建先生成随 APK 内置的 ui_base.json，再发布 BodyTrace-ui.zip 压缩包。构建脚本 scripts/build_ui_bundle.py；验证脚本 scripts/test_ui_bundle.py。
+- 原生兼容指纹覆盖 app/src/main 中全部非上述 UI 文件，包括 Java、Manifest、res、YAMNet 模型，以及相关构建脚本。最新小包指纹必须与本 APK 一致，否则明确要求下载完整 APK，不尝试在手机上热替换原生代码、so 或模型。
+- 每个资源有 SHA256；ZIP 最大 2 MiB、解压最多 3 MiB、单文件最多 1 MiB，拒绝未知路径和重复条目。仅从官方 z2846852/mywork 的 HTTPS GitHub Release 获取，由用户点击触发；网络断开不影响 APP。
+- 更新资源写入 App 私有目录并用 AtomicFile 原子切换；新版 UI 若未正常调用 native ready()，下次启动回退到内置 UI。用户也可在设置主动恢复。原始 M4A、训练 JSON 和 GitHub PAT 不变。
+- **安全边界：**更新后的页面 JavaScript 仍能调用高权限 BodyTraceNative，因此 GitHub Release 是高信任更新来源。SHA256 用于完整性校验，不等于独立发布者数字签名。项目公开的 APK 签名密钥也不能被当作强身份认证。
+- 第一次启用仍须完整 APK 覆盖安装一次。此后的界面修改可下载小包，原生/AI 模型改动仍必须下载完整 APK。
+
 ## 睡眠音频：离线 YAMNet 声音分类（2026-11-21）
 
 - 睡眠页支持 **AI 鼾声候选（默认）/传统响度候选** 两种模式。AI 模式基于 YAMNet/classification TFLite，按约每秒一个 0.975 秒窗口对本地 PCM 分类；Snoring 类索引 38、Snort 类索引 41，取二者最高得分。模型得分**不是校准后的概率**，不能诊断鼾声、睡眠呼吸暂停或其他疾病。

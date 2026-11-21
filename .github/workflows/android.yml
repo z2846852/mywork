@@ -5,6 +5,7 @@ on:
     paths:
       - 'app/**'
       - 'scripts/test_ui.js'
+      - 'scripts/build_ui_bundle.py'
       - 'app/src/main/assets/avatar_cartoon.svg'
       - '*.gradle'
       - 'gradle.properties'
@@ -37,6 +38,11 @@ jobs:
         run: bash scripts/fetch_yamnet.sh
       - name: Inspect bundled YAMNet TFLite tensor shapes
         run: python3 scripts/inspect_yamnet.py
+      - name: Generate verified UI-only bundle
+        run: |
+          python3 scripts/build_ui_bundle.py --version "$GITHUB_RUN_NUMBER" --commit "$GITHUB_SHA"
+          python3 scripts/test_ui_bundle.py
+          cp build/ui_bundle.zip BodyTrace-ui.zip
       - name: Android SDK platform
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
@@ -78,9 +84,9 @@ jobs:
         run: |
           set -euo pipefail
           tag="v0.2.$GITHUB_RUN_NUMBER"
-          gh release create "$tag" "BodyTrace-release.apk#Fixed-signature Android APK" \
+          gh release create "$tag" "BodyTrace-release.apk#Fixed-signature Android APK" "BodyTrace-ui.zip#Optional small UI-only update" \
             --target "$GITHUB_SHA" \
             --title "BodyTrace $tag (Release)" \
-            --notes "Personal-only app. The fixed public Android signing identity is intentionally stored in signing/bodytrace-release.p12.b64. Future builds use the same signing certificate." \
+            --notes "Fixed-signature APK and optional verified UI-only bundle. UI ZIP is compatible only when native/model fingerprints match; use Settings to check." \
             --latest
           echo "https://github.com/$GH_REPO/releases/latest/download/BodyTrace-release.apk"

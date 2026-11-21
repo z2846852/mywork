@@ -74,7 +74,7 @@ assert.ok(!html.includes('id="analyticsExercise"')&&html.includes('id="strengthL
 assert.ok(features.includes("orderedExerciseGroups(state.rows)"));
 assert.ok(features.includes("for(const group of groups)"));
 assert.ok(features.includes("musclePaths")&&features.includes("drawMuscleMap()"));
-assert.ok(native.includes('readAsset("wheel.js")')&&!native.includes('readAsset("avatar_morph.js")'));
+assert.ok(native.includes('readUiAsset("wheel.js")')&&!native.includes('readAsset("avatar_morph.js")'));
 const manifest=fs.readFileSync(path.join(root,"app/src/main/AndroidManifest.xml"),"utf8");
 
 const sleepJS=fs.readFileSync(path.join(root,"app/src/main/assets/sleep.js"),"utf8");
@@ -126,7 +126,7 @@ for(const perm of ["RECORD_AUDIO","FOREGROUND_SERVICE_MICROPHONE",
 }
 assert.ok(manifest.includes('android:foregroundServiceType="microphone"'));
 assert.ok(manifest.includes('android:exported="false"'));
-assert.ok(native.includes('readAsset("sleep.js")'));
+assert.ok(native.includes('readUiAsset("sleep.js")'));
 for(const name of ["sleepStart()","sleepStop()","sleepStatus()","sleepAnalyze(",
  "sleepPlay(","sleepStopPlayback()","sleepDelete("]){
  assert.ok(native.includes(name),"Missing sleep native bridge "+name);
@@ -441,7 +441,7 @@ assert.ok(!sleepVisualization.includes("ctx.fillRect(x,top,markWidth,plotHeight)
  "Full-height event overlays hide the waveform and must not return");
 assert.ok(sleepVisualization.includes("const baselineY=yAt(backgroundDb)"),
  "Event ribbon must stay close to the yellow RMS contour");
-assert.ok(native.includes('readAsset("sleep_visualization.js")'));
+assert.ok(native.includes('readUiAsset("sleep_visualization.js")'));
 assert.ok(native.includes("Intent.ACTION_OPEN_DOCUMENT"));
 assert.ok(native.includes('choose.setType("audio/*")'));
 assert.ok(native.includes('PICK_SLEEP_AUDIO_REQUEST=7204'));
@@ -724,7 +724,7 @@ assert.ok(allLogNodes.some(el=>el.className==="git-diff-unavailable"&&
 logTab.handlers.click();
 assert.equal(refreshCount,2,"Reopening log page must refetch instead of caching stale history");
 assert.ok(github.includes('readRecentCommits(String token)'));
-assert.ok(native.includes('void readGitLog()')&&native.includes('readAsset("git_log.js")'));
+assert.ok(native.includes('void readGitLog()')&&native.includes('readUiAsset("git_log.js")'));
 assert.ok(github.includes('currentSha.equals(expectedSha)'));
 assert.ok(html.includes('id="manageExercises"')&&html.includes('id="addCustomExercise"'));
 for(const id of ["leg_extension","leg_press","leg_press_45","barbell_bench","dumbbell_bench","front_raise","rear_delt_fly","face_pull"]){
@@ -737,7 +737,7 @@ assert.ok(native.includes('custom_[a-z0-9]{8,32}'));
 const store=fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/JsonStore.java"),"utf8");
 assert.ok(store.includes('exercise_catalog.json'));
 assert.ok(github.includes('readExerciseCatalog(String token)')&&github.includes('writeExerciseCatalog(String token'));
-assert.ok(native.includes('readAsset("exercise_catalog.js")'));
+assert.ok(native.includes('readUiAsset("exercise_catalog.js")'));
 assert.ok(workflow.includes("app:assembleRelease")&&workflow.includes("Load fixed public signing identity"));
 
 const start=features.indexOf("function orderedExerciseGroups(rows){");

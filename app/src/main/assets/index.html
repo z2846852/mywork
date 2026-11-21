@@ -398,6 +398,18 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-settings">
+<div class="panel" id="uiUpdatePanel">
+ <div class="eyebrow">SMALL UPDATES / ON-DEMAND</div>
+ <h2>界面增量更新</h2>
+ <p class="sub">仅下载官方 GitHub Release 的 HTML / CSS / JS，小包更新不包含 YAMNet、Java 或安卓运行时。只有原生版本兼容时才应用；离线仍可使用。</p>
+ <p id="uiUpdateStatus" class="sub" role="status">当前界面版本读取中…</p>
+ <div class="row wrap" style="margin-top:12px">
+  <button type="button" class="secondary mini" id="checkUiUpdates">检查并下载界面更新</button>
+  <button type="button" class="secondary mini" id="restartUiAfterUpdate" disabled>重新加载界面</button>
+  <button type="button" class="secondary mini" id="rollbackUiUpdate">恢复 APK 内置界面</button>
+ </div>
+ <p class="sub">首次需安装支持小包更新的新 APK；之后仅界面改动通常只需下载很小的压缩包。原生代码、AI 模型或权限发生变化时，仍需完整 APK，不能绕过系统签名安装。</p>
+</div>
 <div class="settings-sync-strip" aria-label="GitHub 快速同步">
  <button type="button" id="syncSettings" class="primary settings-sync-button">⇅ 立即同步 GitHub</button>
  <span class="sub">同步本机记录与私有仓库最新数据</span>
@@ -968,9 +980,46 @@ $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("
 $("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的原始 JSON 和未上传记录会保留。"))BodyTraceNative.disconnect()};
 const sync=()=>BodyTraceNative.sync();
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
+$("checkUiUpdates").onclick=()=>{
+ if(!window.BodyTraceNative?.checkUiUpdates){toast("需要先安装支持界面增量更新的新版 APK",true);return;}
+ $("checkUiUpdates").disabled=true;
+ $("uiUpdateStatus").textContent="正在连接 GitHub Release，检查兼容性并下载小型界面包…";
+ BodyTraceNative.checkUiUpdates();
+};
+$("restartUiAfterUpdate").onclick=()=>{
+ if(!window.BodyTraceNative?.restartUi)return;
+ if(confirm("重新加载界面？请先保存当前未提交的表单内容。"))BodyTraceNative.restartUi();
+};
+$("rollbackUiUpdate").onclick=()=>{
+ if(!window.BodyTraceNative?.rollbackUi){toast("当前版本不支持回退",true);return;}
+ if(confirm("恢复本 APK 自带的界面？本机训练记录、录音和 AI 缓存不会删除。")){
+  $("uiUpdateStatus").textContent="正在恢复内置界面…";
+  BodyTraceNative.rollbackUi();
+  $("restartUiAfterUpdate").disabled=false;
+ }
+};
 $("showViewJson").onclick=()=>{if(window.BodyTraceNative)BodyTraceNative.showViewModel();};
 window.bodyTraceReceive=function(evt){
  switch(evt.type){
+ case "ui_update":
+  $("checkUiUpdates").disabled=false;
+  $("uiUpdateStatus").textContent=evt.message||"界面更新状态未知";
+  if(evt.base_version||evt.ui_version){
+   $("uiUpdateStatus").textContent+=
+    " · 内置 v0.2."+(evt.base_version||"?")+
+    " / 当前界面 v0.2."+(evt.ui_version||evt.base_version||"?");
+  }
+  if(evt.state==="downloaded"){
+   $("restartUiAfterUpdate").disabled=false;
+   toast("增量界面包已校验完成，重新加载后生效");
+  }else if(evt.state==="requires_apk"){
+   toast("此次有原生变更，请使用 GitHub Release 的完整 APK 更新",true);
+  }else if(evt.state==="error"){
+   toast(evt.message||"检查更新失败",true);
+  }else if(evt.state==="rolled_back"){
+   $("restartUiAfterUpdate").disabled=false;
+  }
+  break;
  case "status":
   state.connected=!!evt.connected;renderStatus();
   if(state.connected)toast("GitHub 已连接：新记录即时上传，刷新时拉取更新");

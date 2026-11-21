@@ -47,6 +47,7 @@ import java.util.concurrent.Executors;
 /** Native networking, local encrypted state and offline-first training event queue. */
 public final class MainActivity extends Activity {
     private WebView web;
+    private UiBundleManager uiBundles;
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
     private static final long SLEEP_IMPORT_MAX_BYTES=2L*1024*1024*1024; // 2 GiB
@@ -103,6 +104,13 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(Color.rgb(13, 17, 23));
         vault = new SecureStore(getApplicationContext());
         plain = new JsonStore(getApplicationContext());
+        try {
+            uiBundles=new UiBundleManager(this);
+            uiBundles.prepareBoot();
+        }catch(Exception ignored){
+            // Embedded signed-APK UI is always a complete offline fallback.
+            uiBundles=null;
+        }
         web = new WebView(this);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -122,11 +130,12 @@ public final class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "BodyTraceNative");
         setContentView(web);
         try {
-            String html = readAsset("index.html");
-            // Bundle all UI code with the APK: no remote scripts or styles.
-            String css = readAsset("features.css");
-            String js = readAsset("wheel.js") + "\n" + readAsset("features.js") +
-                    "\n" + readAsset("exercise_catalog.js") + "\n" + readAsset("git_log.js") + "\n" + readAsset("sleep.js") + "\n" + readAsset("sleep_visualization.js");
+            String html = readUiAsset("index.html");
+            // Only user-approved SHA256-verified UI updates can override these.
+            // The APK remains fully functional offline and without any patch.
+            String css = readUiAsset("features.css");
+            String js = readUiAsset("wheel.js") + "\n" + readUiAsset("features.js") +
+                    "\n" + readUiAsset("exercise_catalog.js") + "\n" + readUiAsset("git_log.js") + "\n" + readUiAsset("sleep.js") + "\n" + readUiAsset("sleep_visualization.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             // The friendly cartoon avatar is a local SVG; no heavy GLB or
             // third-party scripts are loaded in the 2D release.
@@ -412,6 +421,14 @@ public final class MainActivity extends Activity {
             while ((count = in.read(bytes)) > 0) out.write(bytes, 0, count);
             return out.toByteArray();
         }
+    }
+
+    private String readUiAsset(String name) throws Exception {
+        if(uiBundles!=null){
+            String updated=uiBundles.readOverride(name);
+            if(updated!=null)return updated;
+        }
+        return readAsset(name);
     }
 
     private String readAsset(String name) throws Exception {
@@ -1243,14 +1260,49 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void ready() {
+            if(uiBundles!=null)uiBundles.markReady();
             worker.execute(() -> {
                 restore();
                 sendUiPreferences();
                 uiReady = true;
                 consumePendingSharedAvatar();
                 sendSleepStatus();
+                try{
+                    if(uiBundles!=null)reply(uiBundles.status());
+                }catch(Exception ignored){}
             });
         }
+
+        @JavascriptInterface public void checkUiUpdates(){
+            worker.execute(()->{
+                try {
+                    if(uiBundles==null)
+                        throw new IllegalStateException("请先安装支持界面增量更新的 APK");
+                    reply(uiBundles.fetchLatest());
+                }catch(Exception e){
+                    JSONObject report=message("ui_update");
+                    try{
+                        report.put("state","error");
+                        report.put("message","检查界面更新失败："+safeMessage(e));
+                    }catch(Exception ignored){}
+                    reply(report);
+                }
+            });
+        }
+
+        @JavascriptInterface public void rollbackUi(){
+            worker.execute(()->{
+                if(uiBundles!=null){
+                    uiBundles.rollback();
+                    try{reply(uiBundles.status());}catch(Exception ignored){}
+                }
+            });
+        }
+
+        @JavascriptInterface public void restartUi(){
+            runOnUiThread(()->recreate());
+        }
+
         @JavascriptInterface public void connect(String rawToken) {
             worker.execute(() -> {
                 String token = rawToken == null ? "" : rawToken.trim();
