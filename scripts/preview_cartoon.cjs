@@ -819,9 +819,12 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
       (await page.locator("#voicePhonemePinyin").innerText()).includes("妈"))
    throw Error("Mandarin mode must not invent example Chinese words or tones");
   await page.locator("#voicePhoneDisplay").selectOption("en");
+  // The Mandarin regression above replaced the original think result; compare
+  // against the MOST RECENT real result, not an older snapshot.
+  const mostRecentPhones=await page.locator("#voicePhonemeSequence").textContent();
   await page.locator('.tabs button[data-page="sleep"]').click();
-  // innerText() is empty for a hidden page; textContent persists in DOM.
-  if((await page.locator("#voicePhonemeSequence").textContent())!==held)
+  // innerText() is empty for hidden tabs, but textContent must be preserved.
+  if((await page.locator("#voicePhonemeSequence").textContent())!==mostRecentPhones)
    throw Error("Last analysis must survive navigation");
   await page.screenshot({path:"bodytrace-phone-sleep-report-preview.png",fullPage:false});
   await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
