@@ -190,7 +190,22 @@ public final class SleepAnalysisService extends Service {
                 session.put("short_levels_dbfs",shortLevels);
                 session.put("ai_snore_scores",aiScores);
                 session.put("ai_model",SleepYamnetClassifier.MODEL_NAME);
-                session.put("duration_ms",(long)levels.length()*1000L);
+                // The filename may have been corrected while this multi-hour
+                // decode was running. Merge the LATEST small metadata before
+                // persisting the new AI envelope, or we would overwrite the
+                // corrected start time with the stale session snapshot.
+                JSONObject latest=SleepSessions.loadMetadata(this,id);
+                for(String key:new String[]{"started_ms","ended_ms","date_basis",
+                        "filename_time_checked","media_date_checked",
+                        "media_date_ms","media_date_role"}){
+                    if(latest.has(key))session.put(key,latest.get(key));
+                }
+                long preciseDuration=latest.optLong("duration_ms",0);
+                session.put("duration_ms",preciseDuration>0?
+                    preciseDuration:(long)levels.length()*1000L);
+                if(session.has("started_ms"))
+                    session.put("ended_ms",session.optLong("started_ms")+
+                        session.optLong("duration_ms"));
                 // Cache even if the Activity has been closed or the device locked.
                 SleepSessions.write(this,session);
             }

@@ -512,6 +512,11 @@ assert.ok(sleepStore.includes('SleepRecordingTime.infer('),
  "Metadata-only migration should not reopen 300 MB imported M4A");
 assert.ok(sleepStore.includes('write(context,s)'),
  "Time correction must persist for next time the recording is selected");
+assert.ok(sleepAnalysisService.includes('SleepSessions.loadMetadata(this,id)') &&
+ sleepAnalysisService.includes('preciseDuration=latest.optLong("duration_ms",0)'),
+ "AI finalization must re-read and retain newly corrected start times and durations");
+assert.ok(sleepAnalysisService.includes('"filename_time_checked","media_date_checked"'),
+ "AI cache persistence must not overwrite a concurrent filename-time migration");
 assert.ok(native.includes('dateBasis="media_date_unverified"'));
 assert.ok(sleepVisualization.includes('timeAxisMode=hasRecordingStart()?'));
 assert.ok(sleepVisualization.includes('setTimeMode,'));
