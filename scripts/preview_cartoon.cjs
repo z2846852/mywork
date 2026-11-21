@@ -343,7 +343,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if((await page.locator("#apkInstalledVersion").innerText())!=="v0.2.170"||
      (await page.locator("#apkLatestVersion").innerText())!=="v0.2.171")
    throw Error("Installed and latest APK versions should both be visible on Settings");
-  if(await page.locator("#apkUpdatePanel button").count()!==1)
+  if(await page.locator("#apkUpdatePanel > .apk-version-row > button").count()!==1)
    throw Error("APK upgrade panel should expose a SINGLE action button");
   if((await page.evaluate(()=>window.__apkUpgradeClicks))!==0)
    throw Error("Automatic version check must not initiate a download");
@@ -722,6 +722,11 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
      !(await page.locator("#voiceLabHz").innerText()).includes("440.0"))
    throw Error("Live pitch readouts missing native audio sample");
   await page.locator("#voiceLabMode").selectOption("vowel");
+  // Native stop on mode switch is asynchronous. Emulate its status callback
+  // so the Start control can enable again before the next experiment.
+  await page.evaluate(()=>window.bodyTraceReceive({
+   type:"voice_lab",state:"stopped",mode:"pitch",message:"已停止"
+  }));
   await page.locator("#voiceLabStart").click();
   if((await page.evaluate(()=>window.__labMock.started.at(-1)))!=="vowel")
    throw Error("Native vowel acoustic probe was not selected");
