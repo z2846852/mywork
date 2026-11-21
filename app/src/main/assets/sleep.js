@@ -444,13 +444,24 @@
    // Backward compatibility with a pending old-version import.
    $("sleepImportStatus").textContent="正在处理旧版音频："+evt.percent+"%";
   }else if(evt.type==="sleep_playback"){
+   if(evt.id!==selectedId)return;
    playbackActive=!!evt.playing;
    if(evt.playing){
     $("sleepPlaybackStatus").textContent=
-     (evt.skip?"正在跳过不达标声音 · ":"正在正常播放 · ")+
+     (evt.skip?"跳过安静段 · ":"连续播放 · ")+
      "第 "+evt.segment_index+"/"+evt.total_segments+" 段 · "+
      duration(evt.start_sec||0);
    }else $("sleepPlaybackStatus").textContent="播放已结束或停止";
+  }else if(evt.type==="sleep_playback_position"){
+   if(evt.id!==selectedId||!evt.playing)return;
+   playbackActive=true;
+   const played=Math.max(0,Number(evt.position_ms)||0)/1000;
+   const hh=pad(Math.floor(played/3600));
+   const mm=pad(Math.floor(played%3600/60));
+   const ss=pad(Math.floor(played%60));
+   $("sleepPlaybackStatus").textContent=
+    (evt.skip?"跳过安静段":"连续播放")+" · "+hh+":"+mm+":"+ss+
+    " · 第 "+evt.segment_index+"/"+evt.total_segments+" 段";
   }else if(evt.type==="sleep_analysis_progress"){
    if(evt.id&&runningAnalysisId&&evt.id!==runningAnalysisId)return;
    analysisStarting=false;
