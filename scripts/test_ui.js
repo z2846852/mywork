@@ -166,11 +166,11 @@ assert.ok(html.includes('id="sleepAudioToolbar"') &&
  html.includes('id="phoneSleepHistory"') &&
  html.includes('id="phoneSleepGrant"'),
  "Phone reports and one-line audio toolbar must exist");
-const start=html.indexOf('id="sleepAudioToolbar"');
-const end=html.indexOf('id="sleepSelected"',start);
-assert.ok(start>0&&end>start);
+const phoneToolbarStart=html.indexOf('id="sleepAudioToolbar"');
+const phoneToolbarEnd=html.indexOf('id="sleepSelected"',phoneToolbarStart);
+assert.ok(phoneToolbarStart>0&&phoneToolbarEnd>phoneToolbarStart);
 for(const id of ["sleepSessionSelect","sleepStart","sleepStop","sleepImport","sleepCollectionDetails"])
- assert.ok(html.slice(start,end).includes('id="'+id+'"'),
+ assert.ok(html.slice(phoneToolbarStart,phoneToolbarEnd).includes('id="'+id+'"'),
   "Audio browser action must appear on the same top row: "+id);
 assert.equal((html.match(/id="sleepStart"/g)||[]).length,1,
  "No duplicate recording actions at bottom");
