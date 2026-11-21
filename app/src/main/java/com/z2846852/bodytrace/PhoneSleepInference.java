@@ -101,10 +101,14 @@ final class PhoneSleepInference {
                     lastOff=-1;
                 }
             }
-            String state=bestGap>0?"candidate":"insufficient";
+            // Never manufacture an "insufficient" date without ANY events.
+            if(incidentCount==0)continue;
+            boolean inProgress=date.equals(current)&&
+                now<clock(date,12)&&bestGap==0;
+            String state=bestGap>0?"candidate":inProgress?"pending":"insufficient";
             String reason=bestGap>0?
                 "最长连续熄屏窗口：可作为休息机会的参考，不等于真实睡眠":
-                incidentCount==0?"无可用屏幕或解锁事件":
+                inProgress?"尚未观察到可确认的早晨亮屏，当前夜晚可能还未结束":
                 "缺少可配对的夜间熄屏与早晨亮屏事件";
             reports.add(new Night(date.toString(),state,bestOff,bestOn,
                 bestGap,screenOn,unlock,screenOff,reason));
