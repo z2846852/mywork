@@ -1,0 +1,64 @@
+name: ZIPA offline CTC real model smoke test
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/zipa-model-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download same GitHub pack as Android app
+        env:
+          GH_TOKEN: \${{ github.token }}
+          GH_REPO: \${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/zipa"
+          gh release download voice-models-v1 --repo "$GH_REPO" \
+            --pattern "VoicePhone-zipa-cr-small-500k.zip" \
+            --dir "$RUNNER_TEMP/zipa"
+          cd "$RUNNER_TEMP/zipa"
+          unzip -q VoicePhone-zipa-cr-small-500k.zip
+          sha256sum model.int8.onnx tokens.txt
+          python - <<'PY'
+          import json,hashlib,pathlib
+          m=json.loads(pathlib.Path("pack.json").read_text())
+          for filename,entry in m["files"].items():
+              assert hashlib.sha256(pathlib.Path(filename).read_bytes()).hexdigest()==entry["sha256"]
+          print("Verified ZIPA 500k pack:",m["revision"])
+          PY
+      - name: Install CPU sherpa-onnx
+        run: |
+          python -m pip install --disable-pip-version-check "sherpa-onnx==2.0.1" "numpy<3"
+      - name: Run real ONNX inference on 16 kHz PCM
+        run: |
+          python - <<'PY'
+          import os, numpy as np, sherpa_onnx
+          folder=os.path.join(os.environ["RUNNER_TEMP"],"zipa")
+          model=os.path.join(folder,"model.int8.onnx")
+          tokens=os.path.join(folder,"tokens.txt")
+          assert os.path.getsize(model)>40_000_000
+          recognizer=sherpa_onnx.OfflineRecognizer.from_zipformer_ctc(
+              model=model,tokens=tokens,num_threads=2,
+              sample_rate=16000,feature_dim=80,dither=0.0,debug=False
+          )
+          stream=recognizer.create_stream()
+          waveform=np.zeros(2*16000,dtype=np.float32)
+          stream.accept_waveform(16000,waveform)
+          recognizer.decode_stream(stream)
+          result=stream.result
+          assert hasattr(result,"tokens") and hasattr(result,"text")
+          print("ZIPA neural model loaded and decoded 2-second silent PCM")
+          print("Tokens (no fabricated pronunciation required):",repr(result.tokens))
+          PY
