@@ -500,7 +500,8 @@ assert.ok(sleepJS.includes('if(!analysisStarting&&!loadingCachedId)') ||
   sleepJS.includes('!analysisStarting&&!loadingCachedId'),
  "Do not unlock Analyze button while loading cached envelope");
 assert.ok(sleepJS.includes('移出列表（保留原文件）'));
-assert.ok(html.includes('不会复制 400 MB 原音频'));
+assert.ok(html.includes('音频不复制；首次离线 AI 分析') &&
+ html.includes('文件媒体日期'),"Local audio and timestamp caveat must be visible");
 assert.ok(sleepStore.includes('static File importedAudio('));
 assert.ok(sleepStore.includes('"audio_extension"'));
 assert.ok(sleepStore.includes('"original_name","duration_ms"'));
