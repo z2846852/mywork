@@ -161,6 +161,10 @@ final class SleepSessions {
                     throw new IllegalStateException("波形缓存 ID 不一致");
                 doc.put("levels_dbfs",envelope.getJSONArray("levels_dbfs"));
                 doc.put("peak_levels_dbfs",envelope.getJSONArray("peak_levels_dbfs"));
+                JSONArray shortLevels=envelope.optJSONArray("short_levels_dbfs");
+                if(shortLevels!=null&&
+                        shortLevels.length()==doc.getJSONArray("levels_dbfs").length())
+                    doc.put("short_levels_dbfs",shortLevels);
             }else{
                 // Lost cache: original audio can still be decoded again.
                 doc.remove("levels_cached");
@@ -189,13 +193,17 @@ final class SleepSessions {
         JSONObject metadata=new JSONObject(session.toString());
         JSONArray levels=metadata.optJSONArray("levels_dbfs");
         JSONArray peaks=metadata.optJSONArray("peak_levels_dbfs");
+        JSONArray shortLevels=metadata.optJSONArray("short_levels_dbfs");
         if(levels!=null&&peaks!=null&&levels.length()==peaks.length()){
             JSONObject envelope=new JSONObject()
-                .put("id",id).put("schema_version",1)
+                .put("id",id).put("schema_version",2)
                 .put("levels_dbfs",levels).put("peak_levels_dbfs",peaks);
+            if(shortLevels!=null&&shortLevels.length()==levels.length())
+                envelope.put("short_levels_dbfs",shortLevels);
             writeJson(envelopeFile(context,id),envelope);
             metadata.remove("levels_dbfs");
             metadata.remove("peak_levels_dbfs");
+            metadata.remove("short_levels_dbfs");
             metadata.put("levels_cached",true);
             metadata.put("envelope_seconds",levels.length());
         }

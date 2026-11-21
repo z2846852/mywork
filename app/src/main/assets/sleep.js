@@ -52,14 +52,16 @@
  }
  // Match native filter: only above-threshold seconds count toward minimum;
  // allowed gaps join valid spans but do not count as sound.
- function detectCandidates(levels,peaks,threshold,minimum,maxGap){
+ function detectCandidates(levels,peaks,threshold,minimum,maxGap,shortLevels){
   if(!Array.isArray(levels)||!Number.isFinite(threshold)||
      !Number.isInteger(minimum)||minimum<1||minimum>120||
      !Number.isInteger(maxGap)||maxGap<0||maxGap>5)return [];
   const result=[];
+  const useShort=Array.isArray(shortLevels)&&shortLevels.length===levels.length;
+  const detector=useShort?shortLevels:levels;
   let start=-1,lastHigh=-1,active=0,peak=-96;
   for(let t=0;t<=levels.length;t++){
-   const loud=t<levels.length&&Number(levels[t])>=threshold;
+   const loud=t<levels.length&&Number(detector[t])>=threshold;
    if(loud){
     if(start<0)start=t;
     lastHigh=t;active++;
@@ -86,7 +88,7 @@
   analysis.minimum_seconds=minimum;
   analysis.gap_seconds=gap;
   analysis.events=detectCandidates(analysis.levels_dbfs,
-   analysis.peak_levels_dbfs,threshold,minimum,gap);
+   analysis.peak_levels_dbfs,threshold,minimum,gap,analysis.short_levels_dbfs);
   if(updateUi){
    renderEvents();
    window.BodyTraceSleepVisual?.refreshFilters?.();
@@ -169,9 +171,13 @@
   const chosen=current();
   $("sleepAnalyze").disabled=!chosen||recording||busy||!!loadingCachedId||
    !(chosen.status==="completed"||chosen.status==="interrupted");
-  $("sleepAnalyze").textContent=loadingCachedId?"正在加载波形缓存…":busy?"正在后台分析，请查看进度":
-   chosen?.levels_cached?"✓ 已生成波形 · 重新筛选":"首次分析并生成波形";
-  $("sleepAnalyze").hidden=!!chosen?.levels_cached&&!busy&&!loadingCachedId;
+  const enhanced=analysis?.id===selectedId&&
+    Array.isArray(analysis.short_levels_dbfs)&&
+    analysis.short_levels_dbfs.length===analysis.levels_dbfs?.length;
+   $("sleepAnalyze").textContent=loadingCachedId?"正在加载波形缓存…":busy?"正在后台分析，请查看进度":
+    chosen?.levels_cached?(enhanced?"✓ 已生成波形（增强）· 可直接调阈值":"升级旧录音：提取200ms短时响度"):
+    "首次分析并生成波形";
+   $("sleepAnalyze").hidden=!!chosen?.levels_cached&&enhanced&&!busy&&!loadingCachedId;
   const select=$("sleepSessionSelect");
   select.replaceChildren();
   const empty=document.createElement("option");empty.value="";empty.textContent="选择录音";
@@ -307,8 +313,11 @@
     !Number.isInteger(gap)||gap<0||gap>5){
    toast("最短持续时间限制1–120秒，间断时间限制0–5秒",true);return;
   }
-  if(current()?.levels_cached&&bridge()?.sleepReadCached){
-   // Changing thresholds requires only a quick rescan of cached 1s levels.
+  const enhanced=analysis?.id===selectedId&&
+   Array.isArray(analysis.short_levels_dbfs)&&
+   analysis.short_levels_dbfs.length===analysis.levels_dbfs?.length;
+  if(current()?.levels_cached&&enhanced&&bridge()?.sleepReadCached){
+    // Enhanced cache already exists: only a quick rescan is needed.
    busy=true;loadingCachedId=selectedId;
    $("sleepAnalyze").disabled=true;
    $("sleepSelected").textContent="正在使用缓存重新筛选声音片段…";

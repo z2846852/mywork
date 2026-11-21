@@ -18,7 +18,7 @@ import java.util.function.IntConsumer;
 
 /**
  * Stream decode audio using Android MediaExtractor/MediaCodec.
- * Retain only ONE-SECOND RMS and peak envelope values (~29K pairs for 8h);
+ * Retain one-second RMS/peak and maximum 200ms RMS envelopes (~29K triples for 8h);
  * never load 8h PCM buffers into Java memory or a WebView.
  * dBFS is relative to digitized full-scale, NOT calibrated dB SPL.
  */
@@ -46,6 +46,7 @@ final class SleepAudioAnalyzer {
         MediaCodec decoder=null;
         ArrayList<Double> levels=new ArrayList<>();
         ArrayList<Double> peaks=new ArrayList<>();
+        ArrayList<Double> shortLevels=new ArrayList<>();
         try {
             if(session!=null){
                 SleepSessions.configureExtractor(context,session,extractor);
@@ -67,7 +68,10 @@ final class SleepAudioAnalyzer {
             int channels=format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
             int encoding=AudioFormat.ENCODING_PCM_16BIT;
             long windowSamples=Math.max(1L,(long)sampleRate*channels);
-            long count=0;long squares=0;int peak=0;
+            long shortWindowSamples=Math.max(1L,windowSamples/5L);
+            long count=0,squares=0,shortSquares=0;
+            int peak=0,shortCount=0;
+            double maxShort=-96;
             short[] pcmBlock=new short[8192];
             float[] floatBlock=new float[4096];
             boolean inputEnd=false,outputEnd=false;
@@ -120,6 +124,7 @@ final class SleepAudioAnalyzer {
                             encoding!=AudioFormat.ENCODING_PCM_FLOAT)
                         throw new IllegalStateException("设备解码器不支持的PCM采样格式");
                     windowSamples=Math.max(1L,(long)sampleRate*channels);
+                    shortWindowSamples=Math.max(1L,windowSamples/5L);
                     lastProgress=SystemClock.elapsedRealtime();
                 }else if(out>=0){
                     if(info.size>0){
@@ -142,15 +147,24 @@ final class SleepAudioAnalyzer {
                                     float sample=floatBlock[k];
                                     int value=Float.isFinite(sample)?(int)Math.round(
                                         Math.min(1.0,Math.max(-1.0,sample))*32767):0;
-                                    squares+=(long)value*value;
+                                    long power=(long)value*value;
+                                    squares+=power;
+                                    shortSquares+=power;
+                                    if(++shortCount>=shortWindowSamples){
+                                        maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
+                                        shortSquares=0;shortCount=0;
+                                    }
                                     int abs=Math.abs(value);
                                     if(abs>peak)peak=abs;
                                     if(++count>=windowSamples){
+                                        if(shortCount>0)
+                                            maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
                                         levels.add(dbfs(squares,count));
                                         peaks.add(peakDbfs(peak));
+                                        shortLevels.add(maxShort);
                                         if(levels.size()>86400)
                                             throw new IllegalArgumentException("超过24小时录音分析限制");
-                                        count=0;squares=0;peak=0;
+                                        count=0;squares=0;peak=0;shortSquares=0;shortCount=0;maxShort=-96;
                                     }
                                 }
                             }
@@ -162,15 +176,24 @@ final class SleepAudioAnalyzer {
                                 samples.get(pcmBlock,0,n);
                                 for(int k=0;k<n;k++){
                                     int value=pcmBlock[k];
-                                    squares+=(long)value*value;
+                                    long power=(long)value*value;
+                                    squares+=power;
+                                    shortSquares+=power;
+                                    if(++shortCount>=shortWindowSamples){
+                                        maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
+                                        shortSquares=0;shortCount=0;
+                                    }
                                     int abs=Math.abs(value);
                                     if(abs>peak)peak=abs;
                                     if(++count>=windowSamples){
+                                        if(shortCount>0)
+                                            maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
                                         levels.add(dbfs(squares,count));
                                         peaks.add(peakDbfs(peak));
+                                        shortLevels.add(maxShort);
                                         if(levels.size()>86400)
                                             throw new IllegalArgumentException("超过24小时录音分析限制");
-                                        count=0;squares=0;peak=0;
+                                        count=0;squares=0;peak=0;shortSquares=0;shortCount=0;maxShort=-96;
                                     }
                                 }
                             }
@@ -184,14 +207,19 @@ final class SleepAudioAnalyzer {
                     throw new IllegalStateException("音频解码超过30秒无进展");
             }
             if(count>0){
+                if(shortCount>0)maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
                 levels.add(dbfs(squares,count));peaks.add(peakDbfs(peak));
+                shortLevels.add(maxShort);
             }
             if(levels.isEmpty())throw new IllegalStateException("音频解码结果为空");
-            JSONArray rms=new JSONArray(),pk=new JSONArray();
-            for(int i=0;i<levels.size();i++){rms.put(levels.get(i));pk.put(peaks.get(i));}
+            JSONArray rms=new JSONArray(),pk=new JSONArray(),shortRms=new JSONArray();
+            for(int i=0;i<levels.size();i++){
+                rms.put(levels.get(i));pk.put(peaks.get(i));
+                shortRms.put(shortLevels.get(i));
+            }
             if(progress!=null)progress.accept(100);
             return new JSONObject().put("rms_dbfs",rms).put("peak_dbfs",pk)
-                .put("duration_seconds",levels.size());
+                .put("short_rms_dbfs",shortRms).put("duration_seconds",levels.size());
         }finally{
             if(decoder!=null){try{decoder.stop();}catch(Exception ignored){}decoder.release();}
             extractor.release();
@@ -209,17 +237,25 @@ final class SleepAudioAnalyzer {
 
     /** The required count is ABOVE-threshold seconds; optional gaps do not count. */
     static JSONArray detect(JSONArray levels,int threshold,int minimum,int maxGap) throws Exception {
+        return detect(levels,null,threshold,minimum,maxGap);
+    }
+
+    static JSONArray detect(JSONArray levels,JSONArray shortLevels,int threshold,
+            int minimum,int maxGap) throws Exception {
+        boolean useShort=shortLevels!=null&&shortLevels.length()==levels.length();
         if(threshold<-90||threshold>-5||minimum<1||minimum>120||maxGap<0||maxGap>5)
             throw new IllegalArgumentException("筛选范围不合法");
         JSONArray results=new JSONArray();
         int start=-1,lastHigh=-1,highCount=0;
         double peak=-96;
         for(int t=0;t<=levels.length();t++){
-            boolean loud=t<levels.length()&&levels.optDouble(t,-96)>=threshold;
+            double value=t<levels.length()?
+                (useShort?shortLevels.optDouble(t,-96):levels.optDouble(t,-96)):-96;
+            boolean loud=t<levels.length()&&value>=threshold;
             if(loud){
                 if(start<0)start=t;
                 lastHigh=t;highCount++;
-                peak=Math.max(peak,levels.getDouble(t));
+                peak=Math.max(peak,value);
             }else if(start>=0&&(t==levels.length()||t-lastHigh>maxGap)){
                 if(highCount>=minimum){
                     results.put(new JSONObject()

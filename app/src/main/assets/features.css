@@ -765,6 +765,7 @@ body.workout-edit-open{overflow:hidden}
 .sleep-wave-key::before{content:"";display:block;width:9px;height:9px;border-radius:2px}
 .sleep-wave-key.peak::before{background:#718ca7}
 .sleep-wave-key.rms::before{background:#64d4ab}
+.sleep-wave-key.short::before{background:#e8b66f}
 .sleep-wave-key.event::before{background:#ff8f82}
 .sleep-wave-key.threshold::before{background:#ff536d}
 .sleep-visualization h3{margin:14px 0 7px;font-size:12px}

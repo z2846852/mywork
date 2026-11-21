@@ -52,6 +52,8 @@
  const total=()=>Array.isArray(result?.levels_dbfs)?result.levels_dbfs.length:0;
  const rms=()=>result?.levels_dbfs||[];
  const peaks=()=>result?.peak_levels_dbfs||[];
+ const shortRms=()=>Array.isArray(result?.short_levels_dbfs)&&
+  result.short_levels_dbfs.length===rms().length?result.short_levels_dbfs:rms();
  const events=()=>Array.isArray(result?.events)?result.events:[];
  function stamp(sec){
   if(!result||result.date_basis==="imported_at")return "+"+relative(sec);
@@ -84,7 +86,7 @@
   }
   context.setTransform(dpr,0,0,dpr,0,0);
   const ctx=context,{left,right,top,bottom,plotWidth}=plotSize();
-  const plotHeight=bottom-top,levels=rms(),pks=peaks();
+  const plotHeight=bottom-top,levels=rms(),pks=peaks(),shortLevels=shortRms();
   ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,width,height);
   const yAt=db=>clamp(top+
    (axisMax-(Number(db)-backgroundDb))/(axisMax-axisMin)*plotHeight,top,bottom);
@@ -128,20 +130,23 @@
    const a=Math.max(0,Math.floor(windowStart+px/plotWidth*windowSpan));
    const b=Math.min(total(),Math.max(a+1,
     Math.ceil(windowStart+(px+1)/plotWidth*windowSpan)));
-   let maxRms=-96,maxPeak=-96;
+   let maxRms=-96,maxPeak=-96,maxShort=-96;
    for(let i=a;i<b;i++){
-    const v=Number(levels[i]),pk=Number(pks[i]);
+    const v=Number(levels[i]),pk=Number(pks[i]),sv=Number(shortLevels[i]);
     if(Number.isFinite(v))maxRms=Math.max(maxRms,v);
     if(Number.isFinite(pk))maxPeak=Math.max(maxPeak,pk);
+    if(Number.isFinite(sv))maxShort=Math.max(maxShort,sv);
    }
-   const x=left+px,ry=yAt(maxRms),py=yAt(maxPeak);
+   const x=left+px,ry=yAt(maxRms),py=yAt(maxPeak),sy=yAt(maxShort);
    ctx.fillStyle=COLORS.rms;ctx.globalAlpha=.22;
    ctx.fillRect(x,ry,1,bottom-ry);
-   ctx.globalAlpha=1;
+   ctx.globalAlpha=.35;
    ctx.fillStyle=COLORS.peak;
    ctx.fillRect(x,py,1,Math.max(1,ry-py));
-   ctx.fillStyle=maxRms>=threshold?COLORS.threshold:COLORS.rms;
-   ctx.fillRect(x,ry,1,maxRms>=threshold?3:2);
+   ctx.globalAlpha=1;
+   // Short RMS is the detector; peak is a faint diagnostic channel.
+   ctx.fillStyle=maxShort>=threshold?COLORS.threshold:"#e8b66f";
+   ctx.fillRect(x,sy,1,Math.max(2,ry-sy));
   }
   // A high-contrast horizontal RED reference, moving synchronously with slider.
   const thresholdY=yAt(threshold);
@@ -224,13 +229,15 @@
   if(cursor<windowStart||cursor>windowStart+windowSpan){
    windowStart=clamp(cursor-windowSpan*.5,0,Math.max(0,total()-windowSpan));
   }
-  const value=Number(rms()[cursor]),peak=Number(peaks()[cursor]);
-  const eligible=events().some(e=>cursor>=e.start_sec&&cursor<e.end_sec);
-  const delta=value-backgroundDb;
-  $("sleepWaveSelection").textContent=stamp(cursor)+
-   " · 背景"+(delta>=0?"+":"")+delta.toFixed(1)+" dB"+
-   " · "+(Number.isFinite(value)?value.toFixed(1):"未知")+
-   " dBFS · "+(eligible?"符合筛选":"未达筛选");
+  const value=Number(rms()[cursor]),short=Number(shortRms()[cursor]);
+   const eligible=events().some(e=>cursor>=e.start_sec&&cursor<e.end_sec);
+   const detector=Number.isFinite(short)?short:value;
+   const delta=detector-backgroundDb;
+   $("sleepWaveSelection").textContent=stamp(cursor)+
+    " · 短时背景"+(delta>=0?"+":"")+delta.toFixed(1)+" dB"+
+    " · 短时"+(Number.isFinite(detector)?detector.toFixed(1):"未知")+
+    " dBFS · 整秒"+(Number.isFinite(value)?value.toFixed(1):"未知")+
+    " dBFS · "+(eligible?"位于候选片段":"未选中");
   $("sleepPlaySelection").disabled=false;
   $("sleepFocusSelection").disabled=false;
   schedule();
@@ -240,7 +247,7 @@
   if(!levels.length)return;
   // The P20 reference was computed once on file load by sleep.js.
   // Slider changes must not sort tens of thousands of samples again.
-  const active=levels.filter(v=>v>=result.threshold_dbfs).length;
+  const active=shortRms().filter(v=>v>=result.threshold_dbfs).length;
   const max=events().reduce((n,e)=>Math.max(n,Number(e.end_sec)-Number(e.start_sec)),0);
   const cells=[
    ["合格片段",events().length+" 段"],
@@ -258,7 +265,7 @@
   const warning=$("sleepNoiseWarning");
   warning.hidden=active/levels.length<.90;
   if(!warning.hidden)warning.textContent=
-   "阈值过低：整晚至少90%的RMS都超过红线；建议调高阈值。";
+   "阈值过低：整晚至少90%的短时RMS都超过红线；建议调高阈值。";
   const compact=$("sleepNoiseHint");
   compact.hidden=warning.hidden;
   if(!compact.hidden)compact.textContent="阈值过低，几乎整晚都超标，请调高红线";
@@ -272,7 +279,7 @@
   for(let h=0;h<hours;h++){
    let count=0;
    for(let t=h*3600;t<Math.min(seconds,(h+1)*3600);t++){
-    if(rms()[t]>=result.threshold_dbfs)count++;
+    if(shortRms()[t]>=result.threshold_dbfs)count++;
    }
    high.push(count);
   }

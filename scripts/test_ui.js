@@ -131,6 +131,13 @@ for(const field of ['sleepAnalysisProgress','sleepAnalysisTrack','sleepAnalysisP
 assert.ok(sleepJS.includes('updateAnalysisProgress('));
 assert.ok(sleepJS.includes('analysis_running'));
 assert.ok(sleepAnalyzer.includes('if(highCount>=minimum)'));
+assert.ok(sleepAnalyzer.includes('shortLevels.add(maxShort)'));
+assert.ok(sleepAnalyzer.includes('shortWindowSamples'));
+assert.ok(sleepStore.includes('short_levels_dbfs'));
+assert.ok(sleepAnalysisService.includes('shortLevels==null'));
+assert.ok(native.includes('answer.put("short_levels_dbfs",shortLevels)'));
+assert.ok(html.includes('id="sleepMinSeconds" type="number" inputmode="numeric" min="1" max="120" step="1" value="2"'));
+assert.ok(html.includes('id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="3"'));
 assert.ok(sleepAnalyzer.includes('int maxGap'));
 assert.ok(sleepStore.includes('AtomicFile'),"Sessions must save atomically");
 assert.ok(sleepStore.includes('sleep_audio')&&sleepStore.includes('sleep_sessions'));
@@ -953,7 +960,8 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.equal(el("sleepAnalyze").disabled,true);
   const results={type:"sleep_analysis",id:input.id,started_ms:1795090000000,
     total_seconds:2,threshold_dbfs:-40,minimum_seconds:5,
-    events:[],levels_dbfs:[-50,-20],peak_levels_dbfs:[-43,-10]};
+    events:[],levels_dbfs:[-50,-20],peak_levels_dbfs:[-43,-10],
+    short_levels_dbfs:[-49,-19]};
   sleepWindow.bodyTraceReceive(results);
   assert.equal(el("sleepThreshold").value,"-48.0",
    "P20(-50 dBFS)+2 dB should be the adaptive default");
@@ -1016,6 +1024,18 @@ assert.ok(sleepJS.includes('evt.type==="sleep_playback_position"'));
   assert.equal(detect(values,peaks,-40,4,0).length,0);
   assert.equal(detect(values,peaks,-40,2,0).length,3);
   assert.equal(detect(values,peaks,-20,1,5).length,0);
+  // High sample peaks alone must NOT produce events. Short (200ms) RMS
+  // recovers intermittent snore-like bursts that 1s averages conceal.
+  const quiet=[-45,-45,-45,-45,-45,-45],impulses=quiet.map(()=>-2);
+  const short=[-45,-25,-43,-24,-45,-45];
+  assert.equal(detect(quiet,impulses,-30,2,3).length,0);
+  const rescued=detect(quiet,impulses,-30,2,3,short);
+  assert.equal(rescued.length,1);
+  assert.equal(rescued[0].start_sec,1);
+  assert.equal(rescued[0].end_sec,4);
+  assert.equal(rescued[0].active_sec,2);
+  assert.equal(detect(quiet,impulses,-30,2,3,[-20]).length,0,
+    "Invalid enhanced cache must fall back to full-second RMS");
 
   const nodes=new Map(),eventsByName={},calls=[],redLines=[];
   const candidateMarks=[],playheadLines=[];

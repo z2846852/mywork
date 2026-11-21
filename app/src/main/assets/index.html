@@ -265,11 +265,12 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <p id="sleepBaselineLabel" class="sub">读取波形后自动估算背景噪音，默认在背景基础上提高 2.0 dB。</p>
    </div>
    <div class="sleep-quick-constraints">
-    <label>持续 <input id="sleepMinSeconds" type="number" inputmode="numeric" min="1" max="120" step="1" value="5"> 秒</label>
-    <label>空隙 <input id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="1"> 秒</label>
+    <label>持续 <input id="sleepMinSeconds" type="number" inputmode="numeric" min="1" max="120" step="1" value="2"> 秒</label>
+    <label>空隙 <input id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="3"> 秒</label>
     <span id="sleepQuickSummary" aria-live="polite">暂无候选片段</span>
    </div>
    <p id="sleepNoiseHint" class="sleep-noise-warning" hidden></p>
+    <p class="sub">默认累计2秒、允许3秒间隔。短时RMS仅筛选候选声音，不能单凭响度确诊鼾声。</p>
    <div class="sleep-transport">
     <label class="sleep-skip-option" for="sleepSkipQuiet">
      <input type="checkbox" id="sleepSkipQuiet"><span>跳过不达标的安静段</span>
@@ -287,8 +288,9 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <div id="sleepSoundStats" class="sleep-sound-stats"></div>
     <p id="sleepNoiseWarning" class="sleep-noise-warning" hidden></p>
     <div class="sleep-wave-legend">
-     <span class="sleep-wave-key peak">峰值包络</span>
-     <span class="sleep-wave-key rms">RMS 响度</span>
+     <span class="sleep-wave-key peak">瞬时峰值（仅参考）</span>
+      <span class="sleep-wave-key rms">整秒 RMS</span>
+      <span class="sleep-wave-key short">200ms短时 RMS（用于筛选）</span>
      <span class="sleep-wave-key event">有效片段</span>
      <span class="sleep-wave-key threshold">红色阈值</span>
     </div>

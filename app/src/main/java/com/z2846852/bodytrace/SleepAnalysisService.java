@@ -173,13 +173,17 @@ public final class SleepAnalysisService extends Service {
             // requires reading the persisted external document or local audio.
             JSONArray levels=session.optJSONArray("levels_dbfs");
             JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
-            if(levels==null||peaks==null||peaks.length()!=levels.length()){
+            JSONArray shortLevels=session.optJSONArray("short_levels_dbfs");
+            if(levels==null||peaks==null||peaks.length()!=levels.length()||
+                    shortLevels==null||shortLevels.length()!=levels.length()){
                 JSONObject envelope=SleepAudioAnalyzer.decodeEnvelope(
                     this,session,pct->publishProgress(id,pct));
                 levels=envelope.getJSONArray("rms_dbfs");
                 peaks=envelope.getJSONArray("peak_dbfs");
+                shortLevels=envelope.getJSONArray("short_rms_dbfs");
                 session.put("levels_dbfs",levels);
                 session.put("peak_levels_dbfs",peaks);
+                session.put("short_levels_dbfs",shortLevels);
                 session.put("duration_ms",(long)levels.length()*1000L);
                 // Cache even if the Activity has been closed or the device locked.
                 SleepSessions.write(this,session);

@@ -453,9 +453,11 @@ public final class MainActivity extends Activity {
             JSONObject session=SleepSessions.load(this,sessionId);
             JSONArray levels=session.optJSONArray("levels_dbfs");
             JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
+            JSONArray shortLevels=session.optJSONArray("short_levels_dbfs");
             if(levels==null||peaks==null||levels.length()!=peaks.length())
                 throw new IllegalStateException("音频分析缓存不存在，请重新分析");
-            JSONArray events=SleepAudioAnalyzer.detect(levels,threshold,minimum,gap);
+            if(shortLevels!=null&&shortLevels.length()!=levels.length())shortLevels=null;
+            JSONArray events=SleepAudioAnalyzer.detect(levels,shortLevels,threshold,minimum,gap);
             JSONObject answer=message("sleep_analysis");
             answer.put("id",sessionId);
             answer.put("started_ms",session.optLong("started_ms"));
@@ -464,6 +466,7 @@ public final class MainActivity extends Activity {
             answer.put("total_seconds",levels.length());
             answer.put("levels_dbfs",levels);
             answer.put("peak_levels_dbfs",peaks);
+            if(shortLevels!=null)answer.put("short_levels_dbfs",shortLevels);
             answer.put("threshold_dbfs",threshold);
             answer.put("minimum_seconds",minimum);
             answer.put("gap_seconds",gap);
