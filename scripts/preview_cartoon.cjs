@@ -688,6 +688,41 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    throw Error("Phone report should show actual system event coverage");
   if(!(await page.locator(".phone-sleep-night").first().innerText()).includes("不等于睡眠时长"))
    throw Error("Phone idle interval must never be mislabeled as actual sleep");
+  await page.evaluate(()=>{
+    window.__labMock={started:[],stopped:0};
+    window.BodyTraceNative.voiceLabStart=mode=>window.__labMock.started.push(mode);
+    window.BodyTraceNative.voiceLabStop=()=>window.__labMock.stopped++;
+  });
+  await page.locator("#voiceLabStart").click();
+  if((await page.evaluate(()=>window.__labMock.started[0]))!=="pitch")
+   throw Error("Live pitch must start in native microphone bridge");
+  await page.evaluate(()=>window.bodyTraceReceive({
+   type:"voice_lab",state:"running",mode:"pitch",message:"正在采集PCM"
+  }));
+  await page.evaluate(()=>window.bodyTraceReceive({
+   type:"voice_lab",state:"sample",mode:"pitch",
+   pitch_hz:440.0,note:"A4",cents:0.0,rms_dbfs:-18,clarity:0.98
+  }));
+  if(!(await page.locator("#voiceLabNote").innerText()).includes("A4")||
+     !(await page.locator("#voiceLabHz").innerText()).includes("440.0"))
+   throw Error("Live pitch readouts missing native audio sample");
+  await page.locator("#voiceLabMode").selectOption("vowel");
+  await page.locator("#voiceLabStart").click();
+  if((await page.evaluate(()=>window.__labMock.started.at(-1)))!=="vowel")
+   throw Error("Native vowel acoustic probe was not selected");
+  await page.evaluate(()=>window.bodyTraceReceive({
+   type:"voice_lab",state:"sample",mode:"vowel",
+   pitch_hz:170,note:"F3",cents:8,rms_dbfs:-21,
+   ipa:"/æ/",english_words:"cat、bad、man",
+   pinyin_examples:"a：mā (妈)、dà (大)",
+   f1_hz:800,f2_hz:1700,
+   warning:"声学近邻，非已训练的音素模型"
+  }));
+  if(!(await page.locator("#voiceLabIpa").innerText()).includes("/æ/")||
+     !(await page.locator("#voiceLabWords").innerText()).includes("cat")||
+     !(await page.locator("#voiceLabPinyin").innerText()).includes("妈"))
+   throw Error("PCM acoustic candidate must display IPA and example words/pinyin");
+  await page.screenshot({path:"bodytrace-voice-lab-preview.png",fullPage:false});
   await page.screenshot({path:"bodytrace-phone-sleep-report-preview.png",fullPage:false});
   await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
   // Historical daily drill-down: all sets per date and max 10 past dates

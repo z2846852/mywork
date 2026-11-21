@@ -1172,3 +1172,55 @@ body.workout-edit-open{overflow:hidden}
  min-height:39px;margin:0;padding:8px 10px;border-radius:9px;font-size:11px;flex-shrink:0}
 #apkUpdatePanel #checkApkUpdate:disabled{opacity:.6;cursor:default}
 #apkUpdatePanel #apkUpdateStatus{font-size:10px;margin-top:7px;line-height:1.45}
+
+/* Live voice lab: compact mobile-first PCM pitch/phonetic probes. */
+#page-sleep .voice-lab-panel{margin:8px 0;padding:10px 12px;border-color:#456b61}
+#page-sleep .voice-lab-head{display:flex;align-items:center;
+ justify-content:space-between;gap:6px;margin-bottom:7px}
+#page-sleep .voice-lab-head .eyebrow{font-size:8px;margin-bottom:2px}
+#page-sleep .voice-lab-head h3{font-size:14px;margin:0}
+#page-sleep .voice-lab-state{font-size:10px;color:#b4d4be;
+ border:1px solid #4e7863;border-radius:20px;padding:4px 7px}
+#page-sleep .voice-lab-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;
+ gap:5px;align-items:center;margin-bottom:8px}
+#page-sleep .voice-lab-toolbar select{width:100%;min-height:37px;min-width:0;
+ padding:6px 5px;font-size:11px}
+#page-sleep .voice-lab-toolbar button{min-height:37px;margin:0;
+ white-space:nowrap;font-size:11px;padding:5px 9px}
+#page-sleep .voice-lab-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:5px;margin:7px 0}
+#page-sleep .voice-lab-stats>div{min-width:0;padding:8px 5px;border-radius:8px;
+ background:#1a342d;display:flex;flex-direction:column;gap:2px}
+#page-sleep .voice-lab-stats span{font-size:9px;color:#98b9a8}
+#page-sleep .voice-lab-stats strong{font-size:12px;font-variant-numeric:tabular-nums;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#d3f0df}
+#page-sleep #voiceLabCanvas{width:100%;display:block;height:132px;
+ background:#152c25;border:1px solid #3c6352;border-radius:7px}
+#page-sleep .voice-lab-phonetics{margin:7px 0;padding:9px;border-radius:9px;
+ background:#1a342b;border:1px solid #3e5d4a}
+#page-sleep .voice-lab-phonetics[hidden]{display:none}
+#page-sleep .voice-lab-ipa{display:flex;gap:10px;align-items:center;
+ justify-content:space-between;margin-bottom:6px}
+#page-sleep .voice-lab-ipa span{font-size:10px;color:#a3c8b0}
+#page-sleep .voice-lab-ipa strong{font-size:25px;color:#b8f1d5}
+#page-sleep .voice-lab-examples{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#page-sleep .voice-lab-examples>div{min-width:0;display:flex;
+ flex-direction:column;gap:4px;padding:8px;border-radius:7px;background:#223e32}
+#page-sleep .voice-lab-examples span{font-size:10px;color:#aec7b9}
+#page-sleep .voice-lab-examples strong{font-size:11px;color:#d8ede0;
+ line-height:1.5;overflow-wrap:anywhere}
+#page-sleep .voice-lab-formants{font-size:10px;color:#a8ccb9;margin:7px 0}
+#page-sleep #voiceLabWarning,#page-sleep #voiceLabStatus{
+ font-size:10px;color:#b7cbbf;margin:7px 0 4px;line-height:1.55}
+#page-sleep .voice-lab-help{border-top:1px solid #345c4c;
+ margin-top:8px;padding-top:6px}
+#page-sleep .voice-lab-help>summary{cursor:pointer;color:#a9d2ba;
+ font-size:10px;padding:3px 0}
+#page-sleep .voice-lab-help p{font-size:10px;line-height:1.65;
+ margin:6px 0;color:#b4c9b9}
+@media(max-width:350px){
+ #page-sleep .voice-lab-examples{grid-template-columns:1fr}
+ #page-sleep .voice-lab-stats strong{font-size:10px}
+ #page-sleep .voice-lab-toolbar{gap:3px}
+ #page-sleep .voice-lab-toolbar button{padding:5px 6px}
+}

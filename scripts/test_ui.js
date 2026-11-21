@@ -142,6 +142,46 @@ assert.ok(workflow.includes('scripts/test_apk_delta.py')&&
 
 const sleepJS=fs.readFileSync(path.join(root,"app/src/main/assets/sleep.js"),"utf8");
 new vm.Script(sleepJS,{filename:"sleep.js"});
+
+const pitchSource=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/PitchDetector.java"),"utf8");
+const phonemeSource=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/PhonemeProbe.java"),"utf8");
+const vowelSource=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/VowelSpectrum.java"),"utf8");
+const labNative=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/VoiceLabController.java"),"utf8");
+for(const id of ["voiceLabPanel","voiceLabStart","voiceLabStop",
+ "voiceLabMode","voiceLabNote","voiceLabHz","voiceLabCents",
+ "voiceLabCanvas","voiceLabIpa","voiceLabWords","voiceLabPinyin",
+ "voiceLabWarning","voiceLabPhonetics"]){
+ assert.ok(html.includes('id="'+id+'"'),"Live voice lab missing "+id);
+}
+assert.ok(native.includes("voiceLabStart(String requestedMode)") &&
+ native.includes("voiceLabStop()") &&
+ native.includes("VOICE_LAB_MIC_PERMISSION_REQUEST") &&
+ native.includes("new VoiceLabController(this,this::reply)"));
+assert.ok(labNative.includes("new AudioRecord(")&&
+ labNative.includes("AudioRecord.READ_BLOCKING")&&
+ labNative.includes("PitchDetector.analyze(window,RATE)")&&
+ labNative.includes("PhonemeProbe.analyze(window,RATE,pitch)"));
+assert.ok(!labNative.includes("SpeechRecognizer")&&
+ !labNative.includes("RecognizerIntent")&&
+ !labNative.includes("MediaMetadataRetriever")&&
+ !labNative.includes("String transcript"));
+assert.ok(labNative.includes("is_trained_phoneme_model") &&
+ labNative.includes('false'));
+assert.ok(pitchSource.includes("YIN_THRESHOLD")&&
+ pitchSource.includes("Math.log(hz/440.0)"));
+assert.ok(vowelSource.includes('"/i/"')&&vowelSource.includes('"/æ/"'));
+assert.ok(phonemeSource.includes('"vowel_formants"')&&
+ phonemeSource.includes('"fricative_spectral"')&&
+ phonemeSource.includes('"/s/ 类"'));
+assert.ok(sleepJS.includes('if(evt.type==="voice_lab"){liveRender(evt);return;}')&&
+ sleepJS.includes('bridge().voiceLabStart(mode)')&&
+ sleepJS.includes('bridge()?.voiceLabStop?.()'));
+assert.ok(workflow.includes('VoiceLabDspTest.java'));
+
 const sleepRecorder=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/SleepRecorderService.java"),"utf8");
 const sleepAnalyzer=fs.readFileSync(path.join(root,

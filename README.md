@@ -1,5 +1,22 @@
 # 体迹 · BodyTrace
 
+## 实时声音实验室 Demo（2026-11-22）
+
+在睡眠页的「实时声音实验室」，点击开始使用 Android AudioRecord 原始 PCM。三个实验模式：
+- YIN 基频/音符/音分/实时音高曲线。
+- 元音声学候选：用 F1/F2 粗略匹配 IPA 元音，并列出相似英文单词与普通话拼音韵母例子。
+- 擦音声学候选：用频谱重心和过零率初步区分 /s/ 类与 /ʃ/ 类噪声，并显示英文、拼音例子。
+
+这三者都是直接处理麦克风的声学算法，没有使用语音转文字再转国际音标。尚未集成真正训练过的连续音素识别网络；F1/F2、擦音分类可靠度较低，不是正确率评分。不会保存或上传原始音频；退出 APP/切换页停止麦克风，夜间录音运行时拒绝并行启动。
+
+现成 GitHub 参考项目：
+- Allosaurus: https://github.com/xinjli/allosaurus — 直接从音频转 IPA，Python 模型，GPL-3.0，尚未部署到 Android。
+- ZIPA: https://github.com/lingjzhu/zipa — 提供 INT8/FP16 ONNX 手机推理模型，MIT 仓库；是下一步引入训练音素模型的优先路线，需验证模型许可、前处理和延迟。
+- voicesu: https://github.com/brentenjackson/voicesu — 实时 IPA 元音图、LPC/F1/F2、个人发音校准；参考其结构，当前未复制代码。
+- PhoneticXeus: https://github.com/changelinglab/PhoneticXeus — 多语言 IPA 模型，尚未验证手机性能。
+
+实验测试见 VoiceLabDspTest.java、scripts/test_ui.js 及浏览器截图回归，实际麦克风表现仍需实机验证。
+
 ## 手机行为睡眠报告：系统实际历史、逐夜补全（2026-11-22）
 
 「睡眠 → 手机行为 · 睡眠报告」提供一键开启 Android **使用情况访问权限**（特殊访问权限，需要用户在系统设置中手动允许），随后在手机本地查询 `UsageStatsManager.queryEvents(0, now)`。**不硬编码最近 7 天/30 天**，直接读取 Android 当前还保存的全部可访问事件；Android 官方只保证事件保留“数天”，vivo 的实际可读时间范围需以手机返回的首尾时间戳为准。启动时进入睡眠页会自动扫描；也可以随时点击「扫描并补全」。

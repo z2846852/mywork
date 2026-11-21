@@ -52,6 +52,9 @@ public final class MainActivity extends Activity {
     private volatile boolean awaitingApkInstallerPermission=false;
     private volatile boolean awaitingPhoneUsagePermission=false;
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
+    private static final int VOICE_LAB_MIC_PERMISSION_REQUEST=7206;
+    private VoiceLabController voiceLab;
+    private String pendingVoiceLabMode="";
     private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
     private static final int EXPORT_SLEEP_AUDIO_REQUEST=7205;
     private String pendingSleepExportId="";
@@ -110,6 +113,7 @@ public final class MainActivity extends Activity {
         vault = new SecureStore(getApplicationContext());
         plain = new JsonStore(getApplicationContext());
         apkUpdates=new ApkUpdateManager(this);
+        voiceLab=new VoiceLabController(this,this::reply);
         try {
             uiBundles=new UiBundleManager(this);
             uiBundles.prepareBoot();
@@ -691,6 +695,18 @@ public final class MainActivity extends Activity {
     }
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grants){
         super.onRequestPermissionsResult(requestCode,permissions,grants);
+        if(requestCode==VOICE_LAB_MIC_PERMISSION_REQUEST){
+            String requested=pendingVoiceLabMode;
+            pendingVoiceLabMode="";
+            if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==
+                    PackageManager.PERMISSION_GRANTED)
+                voiceLab.start(requested);
+            else try{
+                reply(message("voice_lab").put("state","error")
+                    .put("message","麦克风权限被拒绝，实时声音实验未启动"));
+            }catch(Exception ignored){}
+            return;
+        }
         if(requestCode!=SLEEP_AUDIO_PERMISSION_REQUEST)return;
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)
             startSleepCapture();
@@ -1837,6 +1853,36 @@ public final class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public void voiceLabStart(String requestedMode){
+            runOnUiThread(()->{
+                if(!("pitch".equals(requestedMode)||"vowel".equals(requestedMode)||
+                      "fricative".equals(requestedMode))){
+                    error("无效的实时声音模式");return;
+                }
+                if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=
+                        PackageManager.PERMISSION_GRANTED){
+                    pendingVoiceLabMode=requestedMode;
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
+                        VOICE_LAB_MIC_PERMISSION_REQUEST);
+                }else voiceLab.start(requestedMode);
+            });
+        }
+        @JavascriptInterface public void voiceLabStop(){
+            runOnUiThread(()->voiceLab.stop(true));
+        }
+        @JavascriptInterface public void voiceLabCapabilities(){
+            runOnUiThread(()->{
+                try{
+                    reply(message("voice_lab").put("state","capabilities")
+                        .put("raw_pcm",true).put("pitch_yin",true)
+                        .put("acoustic_vowel_probe",true)
+                        .put("acoustic_fricative_probe",true)
+                        .put("trained_phone_model",false)
+                        .put("recognition_uses_asr",false));
+                }catch(Exception ignored){}
+            });
+        }
+
         @JavascriptInterface public void sleepStatus(){
             worker.execute(MainActivity.this::sendSleepStatus);
         }
@@ -2115,7 +2161,13 @@ public final class MainActivity extends Activity {
         }
     }
 
+    @Override protected void onPause() {
+        if(voiceLab!=null&&voiceLab.isRunning())voiceLab.stop(true);
+        super.onPause();
+    }
+
     @Override protected void onDestroy() {
+        if(voiceLab!=null)voiceLab.stop(false);
         unregisterReceiver(sleepAnalysisReceiver);
         stopSleepPlayback();
         sleepHandler.removeCallbacksAndMessages(null);
