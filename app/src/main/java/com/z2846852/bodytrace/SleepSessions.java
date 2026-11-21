@@ -165,6 +165,11 @@ final class SleepSessions {
                 if(shortLevels!=null&&
                         shortLevels.length()==doc.getJSONArray("levels_dbfs").length())
                     doc.put("short_levels_dbfs",shortLevels);
+                JSONArray ai=envelope.optJSONArray("ai_snore_scores");
+                if(ai!=null&&ai.length()==doc.getJSONArray("levels_dbfs").length()){
+                    doc.put("ai_snore_scores",ai);
+                    doc.put("ai_model",envelope.optString("ai_model",""));
+                }
             }else{
                 // Lost cache: original audio can still be decoded again.
                 doc.remove("levels_cached");
@@ -194,16 +199,23 @@ final class SleepSessions {
         JSONArray levels=metadata.optJSONArray("levels_dbfs");
         JSONArray peaks=metadata.optJSONArray("peak_levels_dbfs");
         JSONArray shortLevels=metadata.optJSONArray("short_levels_dbfs");
+        JSONArray aiScores=metadata.optJSONArray("ai_snore_scores");
         if(levels!=null&&peaks!=null&&levels.length()==peaks.length()){
             JSONObject envelope=new JSONObject()
                 .put("id",id).put("schema_version",2)
                 .put("levels_dbfs",levels).put("peak_levels_dbfs",peaks);
             if(shortLevels!=null&&shortLevels.length()==levels.length())
                 envelope.put("short_levels_dbfs",shortLevels);
+            if(aiScores!=null&&aiScores.length()==levels.length()){
+                envelope.put("ai_snore_scores",aiScores);
+                envelope.put("ai_model",metadata.optString("ai_model",""));
+            }
             writeJson(envelopeFile(context,id),envelope);
             metadata.remove("levels_dbfs");
             metadata.remove("peak_levels_dbfs");
             metadata.remove("short_levels_dbfs");
+            metadata.remove("ai_snore_scores");
+            metadata.remove("ai_model");
             metadata.put("levels_cached",true);
             metadata.put("envelope_seconds",levels.length());
         }

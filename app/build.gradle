@@ -41,8 +41,14 @@ android {
             }
         }
     }
+    androidResources { noCompress += 'tflite' }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    // Stable TensorFlow Lite Java interpreter for the pinned offline YAMNet model.
+    implementation 'org.tensorflow:tensorflow-lite:2.14.0'
 }

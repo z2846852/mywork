@@ -929,3 +929,12 @@ body.workout-edit-open{overflow:hidden}
  .sleep-threshold-controls{grid-template-columns:31px minmax(0,1fr) 31px 47px}
  #sleepQuickSummary{font-size:10px}
 }
+
+/* Snoring model controls. An AI score is not a dB value or probability. */
+.sleep-detector-row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:8px 0}
+.sleep-detector-row label{font-size:12px;font-weight:700;white-space:nowrap}
+.sleep-detector-row select{max-width:74%;padding:8px 10px;border-radius:9px}
+.sleep-ai-controls{padding:12px;border:1px solid #385c55;border-radius:12px;background:#182c2b;margin:8px 0}
+.sleep-ai-controls label{display:flex;justify-content:space-between;font-weight:700;font-size:12px}
+.sleep-ai-controls input{width:100%;accent-color:#ea667d;margin:10px 0}
+#sleepAiControls[hidden],#sleepThresholdWorkbench[hidden]{display:none!important}

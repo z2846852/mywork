@@ -44,6 +44,7 @@ final class SleepAudioAnalyzer {
             throw new IllegalArgumentException("录音文件不存在或为空");
         MediaExtractor extractor=new MediaExtractor();
         MediaCodec decoder=null;
+        SleepYamnetClassifier classifier=null;
         ArrayList<Double> levels=new ArrayList<>();
         ArrayList<Double> peaks=new ArrayList<>();
         ArrayList<Double> shortLevels=new ArrayList<>();
@@ -66,6 +67,7 @@ final class SleepAudioAnalyzer {
             decoder.start();
             int sampleRate=format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
             int channels=format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
+            if(context!=null)classifier=new SleepYamnetClassifier(context,sampleRate,channels);
             int encoding=AudioFormat.ENCODING_PCM_16BIT;
             long windowSamples=Math.max(1L,(long)sampleRate*channels);
             long shortWindowSamples=Math.max(1L,windowSamples/5L);
@@ -125,6 +127,7 @@ final class SleepAudioAnalyzer {
                         throw new IllegalStateException("设备解码器不支持的PCM采样格式");
                     windowSamples=Math.max(1L,(long)sampleRate*channels);
                     shortWindowSamples=Math.max(1L,windowSamples/5L);
+                    if(classifier!=null)classifier.setFormat(sampleRate,channels);
                     lastProgress=SystemClock.elapsedRealtime();
                 }else if(out>=0){
                     if(info.size>0){
@@ -147,6 +150,7 @@ final class SleepAudioAnalyzer {
                                     float sample=floatBlock[k];
                                     int value=Float.isFinite(sample)?(int)Math.round(
                                         Math.min(1.0,Math.max(-1.0,sample))*32767):0;
+                                    if(classifier!=null)classifier.addSample(value);
                                     long power=(long)value*value;
                                     squares+=power;
                                     shortSquares+=power;
@@ -176,6 +180,7 @@ final class SleepAudioAnalyzer {
                                 samples.get(pcmBlock,0,n);
                                 for(int k=0;k<n;k++){
                                     int value=pcmBlock[k];
+                                    if(classifier!=null)classifier.addSample(value);
                                     long power=(long)value*value;
                                     squares+=power;
                                     shortSquares+=power;
@@ -217,10 +222,16 @@ final class SleepAudioAnalyzer {
                 rms.put(levels.get(i));pk.put(peaks.get(i));
                 shortRms.put(shortLevels.get(i));
             }
-            if(progress!=null)progress.accept(100);
-            return new JSONObject().put("rms_dbfs",rms).put("peak_dbfs",pk)
+            JSONObject envelope=new JSONObject().put("rms_dbfs",rms).put("peak_dbfs",pk)
                 .put("short_rms_dbfs",shortRms).put("duration_seconds",levels.size());
+            if(classifier!=null){
+                envelope.put("ai_snore_scores",classifier.result(levels.size()));
+                envelope.put("ai_model",SleepYamnetClassifier.MODEL_NAME);
+            }
+            if(progress!=null)progress.accept(100);
+            return envelope;
         }finally{
+            if(classifier!=null)classifier.close();
             if(decoder!=null){try{decoder.stop();}catch(Exception ignored){}decoder.release();}
             extractor.release();
         }

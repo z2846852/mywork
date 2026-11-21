@@ -16,6 +16,13 @@
  let playbackActive=false;
  const noiseBySession=new Map();
  const thresholdBySession=new Map();
+ const snoreThresholdBySession=new Map();
+ const AI_DEFAULT_SCORE=0.15;
+ function aiAvailable(){
+  return Array.isArray(analysis?.ai_snore_scores)&&
+   analysis.ai_snore_scores.length===analysis.levels_dbfs?.length;
+ }
+ function aiActive(){return aiAvailable()&&$("sleepDetectionMode").value==="ai";}
  const DEFAULT_ABOVE_BACKGROUND=2.0;
  const clampDb=value=>Math.max(-90,Math.min(-5,Math.round(value*10)/10));
  function estimateNoiseFloor(levels){
@@ -76,6 +83,39 @@
   }
   return result;
  }
+ // Merge model-positive one-second windows; scores are NOT calibrated probabilities.
+ function detectSnoreEvents(scores,threshold,minimum,maxGap){
+  if(!Array.isArray(scores)||!Number.isFinite(threshold)||threshold<0||threshold>1||
+   !Number.isInteger(minimum)||minimum<1||minimum>120||
+   !Number.isInteger(maxGap)||maxGap<0||maxGap>5)return [];
+  const found=[];
+  let start=-1,lastHigh=-1,active=0,maxScore=0;
+  for(let t=0;t<=scores.length;t++){
+   const score=t<scores.length?Number(scores[t]):0;
+   const loud=t<scores.length&&Number.isFinite(score)&&score>=threshold;
+   if(loud){
+    if(start<0)start=t;
+    lastHigh=t;active++;maxScore=Math.max(maxScore,score);
+   }else if(start>=0&&(t===scores.length||t-lastHigh>maxGap)){
+    if(active>=minimum)found.push({
+     start_sec:start,end_sec:lastHigh+1,active_sec:active,
+     ai_score:Math.round(maxScore*1000)/1000
+    });
+    start=-1;lastHigh=-1;active=0;maxScore=0;
+   }
+  }
+  return found;
+ }
+ function updateDetectorControls(){
+  const active=aiActive();
+  $("sleepAiControls").hidden=!active;
+  $("sleepThresholdWorkbench").hidden=active;
+  $("sleepDetectionMode").disabled=!aiAvailable();
+  $("sleepDetectorNote").textContent=aiAvailable()?
+   active?"AI 模型得分未校准；筛选与音量无关，需逐段回听验证。":
+   "当前为传统响度候选模式，不代表实际鼾声。":
+   "当前录音尚未进行 AI 分类；点击下方按钮可对原音频执行离线 YAMNet 分析。";
+ }
  function applyLiveFilters(updateUi=true){
   if(!analysis||!Array.isArray(analysis.levels_dbfs))return false;
   const threshold=Number($("sleepThreshold").value);
@@ -87,15 +127,22 @@
   analysis.threshold_dbfs=threshold;
   analysis.minimum_seconds=minimum;
   analysis.gap_seconds=gap;
-  analysis.events=detectCandidates(analysis.levels_dbfs,
-   analysis.peak_levels_dbfs,threshold,minimum,gap,analysis.short_levels_dbfs);
+  const scoreThreshold=Number($("sleepSnoreThreshold").value);
+  analysis.detection_mode=aiActive()?"ai":"level";
+  analysis.ai_score_threshold=scoreThreshold;
+  analysis.events=aiActive()?
+   detectSnoreEvents(analysis.ai_snore_scores,scoreThreshold,minimum,gap):
+   detectCandidates(analysis.levels_dbfs,
+    analysis.peak_levels_dbfs,threshold,minimum,gap,analysis.short_levels_dbfs);
+  updateDetectorControls();
   if(updateUi){
    renderEvents();
    window.BodyTraceSleepVisual?.refreshFilters?.();
   }
   return true;
  }
- window.BodyTraceAudioFilter={detect:detectCandidates,estimateNoiseFloor};
+ window.BodyTraceAudioFilter={detect:detectCandidates,
+  detectSnoreEvents,estimateNoiseFloor};
  function updateAnalysisProgress(percent,updatedMs){
   const raw=Number(percent);
   const pct=Number.isFinite(raw)?Math.max(0,Math.min(100,Math.floor(raw))):0;
@@ -171,13 +218,11 @@
   const chosen=current();
   $("sleepAnalyze").disabled=!chosen||recording||busy||!!loadingCachedId||
    !(chosen.status==="completed"||chosen.status==="interrupted");
-  const enhanced=analysis?.id===selectedId&&
-    Array.isArray(analysis.short_levels_dbfs)&&
-    analysis.short_levels_dbfs.length===analysis.levels_dbfs?.length;
-   $("sleepAnalyze").textContent=loadingCachedId?"正在加载波形缓存…":busy?"正在后台分析，请查看进度":
-    chosen?.levels_cached?(enhanced?"✓ 已生成波形（增强）· 可直接调阈值":"升级旧录音：提取200ms短时响度"):
-    "首次分析并生成波形";
-   $("sleepAnalyze").hidden=!!chosen?.levels_cached&&enhanced&&!busy&&!loadingCachedId;
+  const ready=analysis?.id===selectedId&&aiAvailable();
+   $("sleepAnalyze").textContent=loadingCachedId?"正在加载波形缓存…":busy?"正在后台 AI 分析，请查看进度":
+    chosen?.levels_cached?(ready?"✓ 已生成波形 · AI 已完成":"✓ 已生成波形 · 运行 AI 鼾声识别"):
+    "首次分析：响度 + AI 鼾声识别";
+   $("sleepAnalyze").hidden=!!chosen?.levels_cached&&ready&&!busy&&!loadingCachedId;
   const select=$("sleepSessionSelect");
   select.replaceChildren();
   const empty=document.createElement("option");empty.value="";empty.textContent="选择录音";
@@ -262,7 +307,8 @@
   const head=document.createElement("p");head.className="sleep-analysis-summary";
   const events=Array.isArray(analysis.events)?analysis.events:[];
   const total=events.reduce((sum,e)=>sum+(Number(e.active_sec)||0),0);
-  head.textContent="符合规则 "+events.length+" 段 · 有效超阈值累计 "+
+  const mode=analysis.detection_mode==="ai"?"AI 鼾声候选":"响度候选";
+  head.textContent=mode+"：符合规则 "+events.length+" 段 · 有效累计 "+
    duration(total)+" · 最短 "+analysis.minimum_seconds+" 秒，允许空隙 "+
    analysis.gap_seconds+" 秒（不等于确诊鼾声）";
   root.append(head);
@@ -281,8 +327,11 @@
    name.textContent="声音片段 "+(i+1)+" · "+
     label(event.start_sec)+"—"+label(event.end_sec);
    const meta=document.createElement("small");
-   meta.textContent="超阈值 "+event.active_sec+" 秒 · 峰值 "+
-    Number(event.peak_dbfs).toFixed(1)+" dBFS";
+   meta.textContent=analysis.detection_mode==="ai"?
+    "模型命中 "+event.active_sec+" 秒 · 最高得分 "+
+      Number(event.ai_score).toFixed(3)+"（非概率）":
+    "超阈值 "+event.active_sec+" 秒 · 峰值 "+
+      Number(event.peak_dbfs).toFixed(1)+" dBFS";
    info.append(name,meta);
    const play=document.createElement("button");
    play.type="button";play.className="mini secondary";
@@ -313,10 +362,8 @@
     !Number.isInteger(gap)||gap<0||gap>5){
    toast("最短持续时间限制1–120秒，间断时间限制0–5秒",true);return;
   }
-  const enhanced=analysis?.id===selectedId&&
-   Array.isArray(analysis.short_levels_dbfs)&&
-   analysis.short_levels_dbfs.length===analysis.levels_dbfs?.length;
-  if(current()?.levels_cached&&enhanced&&bridge()?.sleepReadCached){
+  const ready=analysis?.id===selectedId&&aiAvailable();
+  if(current()?.levels_cached&&ready&&bridge()?.sleepReadCached){
     // Enhanced cache already exists: only a quick rescan is needed.
    busy=true;loadingCachedId=selectedId;
    $("sleepAnalyze").disabled=true;
@@ -338,6 +385,13 @@
  // Filtering is immediate: no second native decode or long-running task.
  $("sleepThreshold").addEventListener("input",()=>{
   setThreshold(Number($("sleepThreshold").value));
+ });
+ $("sleepDetectionMode").addEventListener("change",onFilterChanged);
+ $("sleepSnoreThreshold").addEventListener("input",()=>{
+  $("sleepSnoreThresholdText").textContent=Number($("sleepSnoreThreshold").value).toFixed(2);
+  if(selectedId)snoreThresholdBySession.set(selectedId,
+   Number($("sleepSnoreThreshold").value));
+  onFilterChanged();
  });
  for(const field of ["sleepMinSeconds","sleepGapSeconds"]){
   $(field).addEventListener("input",onFilterChanged);
@@ -424,6 +478,11 @@
    completedAnalysisId=evt.id||selectedId;
    clearAnalysisProgress();
    selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
+   const hasAi=aiAvailable();
+   $("sleepDetectionMode").value=hasAi?"ai":"level";
+   const knownScore=snoreThresholdBySession.get(selectedId)??AI_DEFAULT_SCORE;
+   $("sleepSnoreThreshold").value=knownScore.toFixed(2);
+   $("sleepSnoreThresholdText").textContent=knownScore.toFixed(2);
    if(!noiseBySession.has(selectedId)){
     const floor=estimateNoiseFloor(evt.levels_dbfs);
     if(floor!==null)noiseBySession.set(selectedId,floor);

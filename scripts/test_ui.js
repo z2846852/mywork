@@ -87,6 +87,23 @@ const sleepAnalysisService=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/SleepAnalysisService.java"),"utf8");
 const sleepStore=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/SleepSessions.java"),"utf8");
+const yamnet=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/SleepYamnetClassifier.java"),"utf8");
+const appGradle=fs.readFileSync(path.join(root,"app/build.gradle"),"utf8");
+const fetchModel=fs.readFileSync(path.join(root,"scripts/fetch_yamnet.sh"),"utf8");
+assert.ok(yamnet.includes("SNORING=38, SNORT=41"));
+assert.ok(yamnet.includes("Interpreter")&&yamnet.includes("float[][] output"));
+assert.ok(yamnet.includes("STRIDE=16000")&&yamnet.includes("WINDOW=15600"));
+assert.ok(sleepAnalyzer.includes("classifier.addSample(value)"));
+assert.ok(sleepAnalyzer.includes("ai_snore_scores"));
+assert.ok(sleepAnalysisService.includes("aiScores==null"));
+assert.ok(sleepStore.includes('envelope.put("ai_snore_scores",aiScores)'));
+assert.ok(native.includes('answer.put("ai_snore_scores",aiScores)'));
+assert.ok(appGradle.includes("tensorflow-lite:2.14.0"));
+assert.ok(fetchModel.includes("10c95ea3eb9a7bb4cb8bddf6feb023250381008177ac162ce169694d05c317de"));
+assert.ok(workflow.includes("Fetch and SHA256-verify offline YAMNet model"));
+assert.ok(html.includes('id="sleepDetectionMode"'));
+assert.ok(html.includes('id="sleepSnoreThreshold"'));
 for(const field of ["page-sleep","sleepStart","sleepStop","sleepStatus",
  "sleepHistory","sleepAnalyze","sleepThreshold","sleepMinSeconds",
  "sleepGapSeconds","sleepAnalysis","sleepStopPlayback"]){
@@ -961,7 +978,8 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   const results={type:"sleep_analysis",id:input.id,started_ms:1795090000000,
     total_seconds:2,threshold_dbfs:-40,minimum_seconds:5,
     events:[],levels_dbfs:[-50,-20],peak_levels_dbfs:[-43,-10],
-    short_levels_dbfs:[-49,-19]};
+    short_levels_dbfs:[-49,-19],ai_snore_scores:[0.02,0.88],
+    ai_model:"yamnet-classification-v1"};
   sleepWindow.bodyTraceReceive(results);
   assert.equal(el("sleepThreshold").value,"-48.0",
    "P20(-50 dBFS)+2 dB should be the adaptive default");
@@ -978,6 +996,13 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.equal(el("sleepThreshold").value,"-48.0");
   assert.equal(el("sleepAnalysisProgress").hidden,true);
   assert.match(el("sleepAnalyze").textContent,/已生成波形/);
+  assert.equal(el("sleepDetectionMode").value,"ai",
+   "AI scores should switch to the actual sound model by default");
+  el("sleepMinSeconds").value="1";
+  el("sleepMinSeconds").handlers.input();
+  assert.equal(sleepWindow.BodyTraceAudioFilter.detectSnoreEvents(
+   [0.02,0.88],0.15,1,3).length,1);
+  el("sleepMinSeconds").value="5";
   el("sleepAnalyze").onclick();
   assert.equal(calls.cached.length,2,"Refilter must reuse the local envelope");
   assert.equal(calls.decode.length,1);
@@ -1024,6 +1049,11 @@ assert.ok(sleepJS.includes('evt.type==="sleep_playback_position"'));
   assert.equal(detect(values,peaks,-40,4,0).length,0);
   assert.equal(detect(values,peaks,-40,2,0).length,3);
   assert.equal(detect(values,peaks,-20,1,5).length,0);
+  const ai=vm.runInNewContext(sleepJS.slice(begin,finish)+"\ndetectSnoreEvents");
+  const recovered=ai([0.01,0.32,0.03,0.41,0.01],0.15,2,3);
+  assert.equal(recovered.length,1,"Repeated snore class scores should merge");
+  assert.equal(recovered[0].active_sec,2);
+  assert.equal(ai([0.01,0.02,0.01,0.04],0.15,1,3).length,0);
   // High sample peaks alone must NOT produce events. Short (200ms) RMS
   // recovers intermittent snore-like bursts that 1s averages conceal.
   const quiet=[-45,-45,-45,-45,-45,-45],impulses=quiet.map(()=>-2);

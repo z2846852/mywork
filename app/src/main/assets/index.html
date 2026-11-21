@@ -233,9 +233,24 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   <div id="sleepSelected" class="sleep-selected">请从下方选择一个已完成的录音</div>
   <div class="sleep-visualization" id="sleepVisualization" hidden>
    <div class="sleep-visual-head">
-    <h3>全夜响度 · 相对背景 dB</h3>
+    <h3>全夜声音 · AI 鼾声候选</h3>
     <span class="sub">双指缩放 · 单指移动</span>
    </div>
+   <div class="sleep-detector-row">
+    <label for="sleepDetectionMode">筛选方式</label>
+    <select id="sleepDetectionMode" aria-label="筛选模式">
+     <option value="ai">AI 鼾声模型（YAMNet）</option>
+     <option value="level">响度阈值（旧版）</option>
+    </select>
+   </div>
+   <div id="sleepAiControls" class="sleep-ai-controls" hidden>
+    <label for="sleepSnoreThreshold">AI 最低得分
+     <strong id="sleepSnoreThresholdText">0.15</strong></label>
+    <input id="sleepSnoreThreshold" type="range" min="0.01" max="0.9"
+     step="0.01" value="0.15" aria-label="AI 鼾声模型最低得分">
+    <p class="sub">模型输出是未校准分数，不是鼾声概率；降低阈值增加召回，也可能增加误报。</p>
+   </div>
+   <p id="sleepDetectorNote" class="sub">等待本地 AI 声音分类。</p>
    <div class="sleep-wave-controls" role="group" aria-label="声波缩放">
     <button type="button" class="mini secondary" data-sleep-zoom="all">整晚</button>
     <button type="button" class="mini secondary" data-sleep-zoom="3600">1小时</button>
@@ -249,7 +264,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
      aria-label="相对录音背景响度，纵轴以dB表示并保持固定；红线为阈值。双指水平缩放和上下双指移动纵轴"></canvas>
    </div>
    <p id="sleepWaveSelection" class="sub">点击选时间 · 单指平移 · 双指缩放（上下同向移动纵轴）</p>
-   <div class="sleep-threshold-workbench">
+   <div class="sleep-threshold-workbench" id="sleepThresholdWorkbench">
     <div class="sleep-threshold-header">
      <span>红线阈值</span>
      <strong id="sleepThresholdText">-40.0 dBFS</strong>
@@ -270,7 +285,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <span id="sleepQuickSummary" aria-live="polite">暂无候选片段</span>
    </div>
    <p id="sleepNoiseHint" class="sleep-noise-warning" hidden></p>
-    <p class="sub">默认累计2秒、允许3秒间隔。短时RMS仅筛选候选声音，不能单凭响度确诊鼾声。</p>
+    <p class="sub">默认累计2秒、允许3秒间隔。AI 模型独立于 dB 筛选；不是鼾声医学诊断。</p>
    <div class="sleep-transport">
     <label class="sleep-skip-option" for="sleepSkipQuiet">
      <input type="checkbox" id="sleepSkipQuiet"><span>跳过不达标的安静段</span>
@@ -291,13 +306,13 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
      <span class="sleep-wave-key peak">瞬时峰值（仅参考）</span>
       <span class="sleep-wave-key rms">整秒 RMS</span>
       <span class="sleep-wave-key short">200ms短时 RMS（用于筛选）</span>
-     <span class="sleep-wave-key event">有效片段</span>
+     <span class="sleep-wave-key event">当前模式候选片段</span>
      <span class="sleep-wave-key threshold">红色阈值</span>
     </div>
     <button type="button" class="secondary mini" id="sleepFocusSelection" disabled>放大游标位置</button>
     <h3>逐小时声音分布</h3>
     <div id="sleepHourlyActivity" class="sleep-hourly-activity"></div>
-    <p id="sleepVisualCaveat" class="sub">仅对相对音量进行分析，不是声压计，也不能诊断鼾声或睡眠疾病。</p>
+    <p id="sleepVisualCaveat" class="sub">YAMNet 依据音频内容分类；得分不是实际概率，未经个人录音验证。dB 仅用于辅助波形，不是声压计。</p>
    </details>
   </div>
   <button type="button" class="secondary" id="sleepAnalyze" disabled>首次分析并生成波形</button>

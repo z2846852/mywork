@@ -1,5 +1,15 @@
 # 体迹 · BodyTrace
 
+## 睡眠音频：离线 YAMNet 声音分类（2026-11-21）
+
+- 睡眠页支持 **AI 鼾声候选（默认）/传统响度候选** 两种模式。AI 模式基于 YAMNet/classification TFLite，按约每秒一个 0.975 秒窗口对本地 PCM 分类；Snoring 类索引 38、Snort 类索引 41，取二者最高得分。模型得分**不是校准后的概率**，不能诊断鼾声、睡眠呼吸暂停或其他疾病。
+- 解码流程：MediaExtractor/MediaCodec 逐块读取原 M4A，在 Java 侧转为 16 kHz 单声道 float32；只保留约 0.975 秒的环形音频缓冲区，支持长达 24 小时的文件而不把 PCM 全部放进 RAM。原录音不会上传服务器。
+- 事件筛选可调：AI 模型分数阈值默认 **0.15**（无个人数据校准）、有效累计 2 秒、允许空隙 3 秒；旧 dB 阈值不参与 AI 分类。图表底部显示模型分数短柱，红色候选区域来自当前筛选模式。可以回听验证误报、漏报。
+- 会在 App 私有目录的会话缓存中新增 ai_snore_scores（每秒得分数组）及 ai_model: yamnet-classification-v1，老音频缓存保留；点“运行 AI 鼾声识别”对旧 M4A 重新解码一次即可升级，后续修改阈值无需重复推理。外部文件如果已被删除或 SAF 授权失效，则无法重新分析。
+- Android APK **自带模型、运行时离线**。为了避免把二进制模型直接上传公开 GitHub，GitHub Actions 在每次 Release 编译前运行 bash scripts/fetch_yamnet.sh，从固定的 Hugging Face revision 下载 Google 的 Apache-2.0 YAMNet/classification TFLite 镜像并强制校验 SHA256（10c95ea3eb9a7bb4cb8bddf6feb023250381008177ac162ce169694d05c317de）。本地 Gradle 编译前也需要先运行此脚本。模型来源：<https://www.kaggle.com/models/google/yamnet/tfLite/classification-tflite/1>。
+- 这是**未经过真实枕边录音标定的候选声音筛选器**。建议分别在已人工回听标注的鼾声与非鼾声时段评估事件级召回率和误报率。模型或阈值不能从 dB 高低推出准确率。
+
+
 Android 个人健康与训练记录实验应用：**本地优先，GitHub 按需同步**。未来逐步扩展饮食、体重、围度和力量趋势。参考 [better](https://github.com/z2846852/better) 的 Java + Gradle + GitHub Actions 自动构建方式。
 
 **[下载最新固定签名 Release APK](https://github.com/z2846852/mywork/releases/latest/download/BodyTrace-release.apk)** · [Actions 构建状态](https://github.com/z2846852/mywork/actions) · [全部版本](https://github.com/z2846852/mywork/releases)

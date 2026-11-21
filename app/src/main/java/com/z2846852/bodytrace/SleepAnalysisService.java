@@ -174,16 +174,22 @@ public final class SleepAnalysisService extends Service {
             JSONArray levels=session.optJSONArray("levels_dbfs");
             JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
             JSONArray shortLevels=session.optJSONArray("short_levels_dbfs");
+            JSONArray aiScores=session.optJSONArray("ai_snore_scores");
             if(levels==null||peaks==null||peaks.length()!=levels.length()||
-                    shortLevels==null||shortLevels.length()!=levels.length()){
+                    shortLevels==null||shortLevels.length()!=levels.length()||
+                    aiScores==null||aiScores.length()!=levels.length()||
+                    !SleepYamnetClassifier.MODEL_NAME.equals(session.optString("ai_model"))){
                 JSONObject envelope=SleepAudioAnalyzer.decodeEnvelope(
                     this,session,pct->publishProgress(id,pct));
                 levels=envelope.getJSONArray("rms_dbfs");
                 peaks=envelope.getJSONArray("peak_dbfs");
                 shortLevels=envelope.getJSONArray("short_rms_dbfs");
+                aiScores=envelope.getJSONArray("ai_snore_scores");
                 session.put("levels_dbfs",levels);
                 session.put("peak_levels_dbfs",peaks);
                 session.put("short_levels_dbfs",shortLevels);
+                session.put("ai_snore_scores",aiScores);
+                session.put("ai_model",SleepYamnetClassifier.MODEL_NAME);
                 session.put("duration_ms",(long)levels.length()*1000L);
                 // Cache even if the Activity has been closed or the device locked.
                 SleepSessions.write(this,session);

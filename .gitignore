@@ -8,3 +8,7 @@ local.properties
 *.keystore
 *.p12
 *.pem
+
+# Binary model is reproducibly downloaded and hash-verified during CI.
+app/src/main/assets/yamnet.tflite
+app/src/main/assets/yamnet.tflite.tmp

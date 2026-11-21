@@ -55,6 +55,9 @@
  const shortRms=()=>Array.isArray(result?.short_levels_dbfs)&&
   result.short_levels_dbfs.length===rms().length?result.short_levels_dbfs:rms();
  const events=()=>Array.isArray(result?.events)?result.events:[];
+ const aiMode=()=>result?.detection_mode==="ai"&&
+  Array.isArray(result?.ai_snore_scores)&&result.ai_snore_scores.length===total();
+ const aiScores=()=>aiMode()?result.ai_snore_scores:[];
  function stamp(sec){
   if(!result||result.date_basis==="imported_at")return "+"+relative(sec);
   return new Date(Number(result.started_ms)+sec*1000).toLocaleTimeString(
@@ -86,7 +89,8 @@
   }
   context.setTransform(dpr,0,0,dpr,0,0);
   const ctx=context,{left,right,top,bottom,plotWidth}=plotSize();
-  const plotHeight=bottom-top,levels=rms(),pks=peaks(),shortLevels=shortRms();
+  const plotHeight=bottom-top,levels=rms(),pks=peaks(),shortLevels=shortRms(),
+   scores=aiScores();
   ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,width,height);
   const yAt=db=>clamp(top+
    (axisMax-(Number(db)-backgroundDb))/(axisMax-axisMin)*plotHeight,top,bottom);
@@ -130,9 +134,10 @@
    const a=Math.max(0,Math.floor(windowStart+px/plotWidth*windowSpan));
    const b=Math.min(total(),Math.max(a+1,
     Math.ceil(windowStart+(px+1)/plotWidth*windowSpan)));
-   let maxRms=-96,maxPeak=-96,maxShort=-96;
+   let maxRms=-96,maxPeak=-96,maxShort=-96,maxScore=0;
    for(let i=a;i<b;i++){
     const v=Number(levels[i]),pk=Number(pks[i]),sv=Number(shortLevels[i]);
+    if(scores.length)maxScore=Math.max(maxScore,Number(scores[i])||0);
     if(Number.isFinite(v))maxRms=Math.max(maxRms,v);
     if(Number.isFinite(pk))maxPeak=Math.max(maxPeak,pk);
     if(Number.isFinite(sv))maxShort=Math.max(maxShort,sv);
@@ -145,11 +150,20 @@
    ctx.fillRect(x,py,1,Math.max(1,ry-py));
    ctx.globalAlpha=1;
    // Short RMS is the detector; peak is a faint diagnostic channel.
-   ctx.fillStyle=maxShort>=threshold?COLORS.threshold:"#e8b66f";
+   ctx.fillStyle=aiMode()?"#e8b66f":
+    maxShort>=threshold?COLORS.threshold:"#e8b66f";
    ctx.fillRect(x,sy,1,Math.max(2,ry-sy));
+   if(scores.length){
+    // Small normalized model-score strip at chart bottom; NOT a dB axis.
+    const barHeight=Math.round(clamp(maxScore,0,1)*24);
+    ctx.fillStyle=maxScore>=Number(result.ai_score_threshold)?
+     COLORS.threshold:"#607d85";
+    ctx.fillRect(x,bottom-barHeight,1,barHeight);
+   }
   }
   // A high-contrast horizontal RED reference, moving synchronously with slider.
   const thresholdY=yAt(threshold);
+  if(!aiMode()){
   ctx.save();
   ctx.strokeStyle=COLORS.threshold;ctx.lineWidth=2;
   ctx.setLineDash([7,4]);ctx.beginPath();
@@ -165,6 +179,7 @@
   ctx.fillStyle="#ffbdc7";ctx.textBaseline="middle";
   ctx.fillText(label,labelX+5,labelY+8);
   ctx.restore();
+  }
   // Vertical grid / axes. Reduce labels on narrow phones to avoid collisions.
   const ticks=width<400?2:3;
   ctx.textBaseline="alphabetic";ctx.font="10px system-ui,sans-serif";
@@ -237,7 +252,9 @@
     " · 短时背景"+(delta>=0?"+":"")+delta.toFixed(1)+" dB"+
     " · 短时"+(Number.isFinite(detector)?detector.toFixed(1):"未知")+
     " dBFS · 整秒"+(Number.isFinite(value)?value.toFixed(1):"未知")+
-    " dBFS · "+(eligible?"位于候选片段":"未选中");
+    " dBFS · "+(aiMode()?
+     "YAMNet得分 "+Number(aiScores()[cursor]).toFixed(3)+"（非概率） · ":"")+
+    (eligible?"位于候选片段":"未选中");
   $("sleepPlaySelection").disabled=false;
   $("sleepFocusSelection").disabled=false;
   schedule();
@@ -247,11 +264,14 @@
   if(!levels.length)return;
   // The P20 reference was computed once on file load by sleep.js.
   // Slider changes must not sort tens of thousands of samples again.
-  const active=shortRms().filter(v=>v>=result.threshold_dbfs).length;
+  const isAI=aiMode();
+  const active=isAI?aiScores().filter(v=>v>=Number(result.ai_score_threshold)).length:
+   shortRms().filter(v=>v>=result.threshold_dbfs).length;
   const max=events().reduce((n,e)=>Math.max(n,Number(e.end_sec)-Number(e.start_sec)),0);
   const cells=[
    ["合格片段",events().length+" 段"],
-   ["超阈值比例",(100*active/levels.length).toFixed(1)+"%"],
+   [isAI?"AI 命中时间":"超响度阈值比例",
+    (100*active/levels.length).toFixed(1)+"%"],
    ["最长片段",relative(max)],
    ["本晚背景 P20",backgroundDb.toFixed(1)+" dBFS"]
   ];
@@ -263,14 +283,15 @@
    item.append(label,strong);root.append(item);
   }
   const warning=$("sleepNoiseWarning");
-  warning.hidden=active/levels.length<.90;
+  warning.hidden=isAI||active/levels.length<.90;
   if(!warning.hidden)warning.textContent=
    "阈值过低：整晚至少90%的短时RMS都超过红线；建议调高阈值。";
   const compact=$("sleepNoiseHint");
   compact.hidden=warning.hidden;
   if(!compact.hidden)compact.textContent="阈值过低，几乎整晚都超标，请调高红线";
   $("sleepQuickSummary").textContent=
-   events().length+" 段 · "+(active/levels.length*100).toFixed(1)+"% 超阈值";
+   events().length+" 段 · "+(active/levels.length*100).toFixed(1)+
+   (isAI?"% AI命中（非概率）":"% 超响度阈值");
  }
  function plotHourBars(){
   const root=$("sleepHourlyActivity");root.replaceChildren();
@@ -279,7 +300,8 @@
   for(let h=0;h<hours;h++){
    let count=0;
    for(let t=h*3600;t<Math.min(seconds,(h+1)*3600);t++){
-    if(shortRms()[t]>=result.threshold_dbfs)count++;
+    if(aiMode()?Number(aiScores()[t])>=Number(result.ai_score_threshold):
+     shortRms()[t]>=result.threshold_dbfs)count++;
    }
    high.push(count);
   }
@@ -322,9 +344,11 @@
    windowSpan=clamp(windowSpan,5,total());
    windowStart=clamp(windowStart,0,Math.max(0,total()-windowSpan));
   }
-  $("sleepVisualCaveat").textContent=evt.date_basis==="imported_at"?
-   "纵轴是相对于本晚背景估计的dB，不是声压dB SPL。+HH:MM:SS是相对时间，不能诊断鼾声。":
-   "纵轴dB相对本晚背景，非校准声压dB SPL；只能筛选候选声音，不能确诊鼾声。";
+  $("sleepVisualCaveat").textContent=aiMode()?
+    "AI YAMNet 对每秒音频进行本地分类；底部短柱表示未经校准的模型分数，不等于鼾声概率或诊断。":
+    evt.date_basis==="imported_at"?
+    "纵轴是相对背景dB，不是校准声压；+HH:MM:SS 为录音相对时间。":
+    "纵轴dB相对本晚背景，非校准声压dB SPL；仅为响度候选筛选。";
   refreshFilters();
  }
  function playFromCursor(){
