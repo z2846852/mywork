@@ -1200,3 +1200,86 @@ body.workout-edit-open{overflow:hidden}
  #apkUpdatePanel .apk-update-heading-actions{gap:4px}
  #apkUpdatePanel .apk-update-heading-actions>.sub{font-size:9px}
 }
+
+/* Sound Lab V2: isolated tab and two non-overlapping workflows.
+   SVG pitch plot replaces the WebView canvas that could render blank on device. */
+.tabs:has(button[data-page="voice"]) button{min-width:0;padding:5px 4px}
+.tabs:has(button[data-page="voice"]) button .ico{font-size:18px}
+#page-voice{padding:0 0 84px}
+#page-voice .voice-page-head{padding:9px 2px 8px}
+#page-voice .voice-page-head .eyebrow{font-size:9px;letter-spacing:.13em}
+#page-voice .voice-page-head h2{font-size:19px;margin:0}
+#page-voice .voice-page-head .sub{font-size:11px}
+#page-voice .voice-switch{display:grid;grid-template-columns:1fr 1fr;gap:7px;
+ margin:10px 0 9px;padding:4px;border-radius:12px;background:#1a3029;
+ border:1px solid #355b4a}
+#page-voice .voice-switch button{border:0;background:transparent;border-radius:9px;
+ color:#9fb8a9;min-height:40px;font-size:12px;font-weight:700;
+ padding:8px}
+#page-voice .voice-switch button.active{background:#35705a;color:#e4ffef}
+#page-voice .voice-view[hidden]{display:none!important}
+#page-voice .voice-card{margin:0;padding:12px;border-radius:13px;
+ border-color:#365e4b;background:#152721}
+#page-voice .voice-title-row{display:flex;justify-content:space-between;
+ align-items:center;gap:8px;margin-bottom:9px}
+#page-voice .voice-title-row h3{margin:0;font-size:14px;color:#e6f8ec}
+#page-voice .voice-state{color:#b3dcc8;font-size:10px;white-space:nowrap;
+ border:1px solid #426a56;border-radius:15px;padding:4px 8px}
+#page-voice .voice-pitch-actions{display:grid;grid-template-columns:1.4fr .9fr .7fr;gap:6px}
+#page-voice .voice-pitch-actions button{width:100%;height:38px;min-height:38px;
+ margin:0;padding:6px 5px;font-size:11px;border-radius:9px}
+#page-voice .voice-pitch-actions button:disabled{opacity:.4}
+#page-voice .voice-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:6px;margin:10px 0}
+#page-voice .voice-values>div{display:flex;min-width:0;flex-direction:column;
+ gap:4px;padding:9px 6px;border-radius:8px;background:#1e3930}
+#page-voice .voice-values span{font-size:10px;color:#99b5a6}
+#page-voice .voice-values strong{font-size:16px;color:#c8f2d9;
+ font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#page-voice .voice-chart-frame{width:100%;border:1px solid #315b49;
+ border-radius:10px;overflow:hidden;background:#122820;max-height:280px}
+#page-voice #voicePitchChart{display:block;width:100%;height:auto;
+ max-height:280px;background:#122820;aspect-ratio:360/230}
+#page-voice #voicePitchStatus{font-size:10px;line-height:1.5;
+ color:#b5cdbb;margin:8px 0 0}
+#page-voice .voice-hold-button{display:block;width:100%;min-height:95px;
+ margin:12px 0 9px;background:#2f6b53;color:#dbfce9;border:1px solid #4d9774;
+ border-radius:17px;font-weight:800;font-size:19px;touch-action:none;
+ user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#page-voice .voice-hold-button.holding{background:#a24d4d;color:#fff0f0;
+ border-color:#d07a78}
+#page-voice .voice-hold-button:disabled{opacity:.78;cursor:default}
+#page-voice #voicePhonemeStatus{margin:7px 0;font-size:11px}
+#page-voice .voice-phoneme-report{margin-top:11px;padding:11px;
+ border-radius:12px;background:#1b3429;border:1px solid #365949}
+#page-voice .voice-phoneme-heading{display:flex;align-items:center;
+ gap:8px;font-size:12px;color:#b7daca;font-weight:700}
+#page-voice #voicePhonemeDuration{font-size:10px;color:#9eb9aa;font-weight:400}
+#page-voice .voice-phoneme-sequence{display:flex;flex-wrap:wrap;
+ gap:7px;min-height:55px;align-items:center;padding:10px 0}
+#page-voice .voice-phoneme-chip{display:inline-flex;align-items:center;
+ justify-content:center;min-width:50px;padding:10px 12px;font-size:19px;
+ color:#bcf4d3;background:#234a37;border:1px solid #428a65;
+ border-radius:9px}
+#page-voice .voice-empty{font-size:12px;color:#9ab9a7}
+#page-voice .voice-phoneme-reference{display:grid;
+ grid-template-columns:1fr 1fr;gap:7px}
+#page-voice .voice-phoneme-reference>div{min-width:0;
+ background:#203d31;padding:9px;border-radius:8px;
+ display:flex;flex-direction:column;gap:5px}
+#page-voice .voice-phoneme-reference span{font-size:10px;color:#9fbfae}
+#page-voice .voice-phoneme-reference strong{font-size:12px;color:#d6ecde;
+ overflow-wrap:anywhere;line-height:1.5}
+#page-voice #voicePhonemeLimit{font-size:10px;margin:8px 0 0;line-height:1.6}
+#page-voice .voice-explain{margin-top:12px;padding-top:7px;
+ border-top:1px solid #315344}
+#page-voice .voice-explain>summary{cursor:pointer;font-size:11px;
+ color:#9ecdb5;padding:4px 0}
+#page-voice .voice-explain p{font-size:11px;color:#b5cbbc;
+ line-height:1.65;margin:7px 0}
+@media(max-width:359px){
+ #page-voice .voice-pitch-actions{grid-template-columns:1.2fr .8fr .7fr;gap:4px}
+ #page-voice .voice-pitch-actions button{font-size:10px}
+ #page-voice .voice-values strong{font-size:13px}
+ #page-voice .voice-phoneme-reference{grid-template-columns:1fr}
+}

@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,"..");
 const read=name=>fs.readFileSync(path.join(root,"app/src/main/assets",name),"utf8");
 let html=read("index.html");
 html=html.replace("</head>","<style>"+read("features.css")+"</style></head>");
-html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"\n"+read("git_log.js")+"\n"+read("sleep.js")+"\n"+read("sleep_visualization.js")+"</script></body>");
+html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")+"\n"+read("exercise_catalog.js")+"\n"+read("git_log.js")+"\n"+read("sleep.js")+"\n"+read("sleep_visualization.js")+"\n"+read("voice_lab.js")+"</script></body>");
 (async()=>{
  const browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
  try{
@@ -703,46 +703,102 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    throw Error("Phone report should show actual system event coverage");
   if(!(await page.locator(".phone-sleep-night").first().innerText()).includes("不等于睡眠时长"))
    throw Error("Phone idle interval must never be mislabeled as actual sleep");
+  // Independent Sound tab: old Sleep page must not contain the live mic UI.
+  await page.locator('.tabs button[data-page="voice"]').click();
+  if(!await page.locator("#page-voice").isVisible()||
+     await page.locator("#page-sleep").isVisible())
+   throw Error("Voice Lab must have its own bottom tab");
   await page.evaluate(()=>{
-    window.__labMock={started:[],stopped:0};
+    window.__labMock={started:[],stopped:0,finished:0};
     window.BodyTraceNative.voiceLabStart=mode=>window.__labMock.started.push(mode);
     window.BodyTraceNative.voiceLabStop=()=>window.__labMock.stopped++;
+    window.BodyTraceNative.voiceLabFinishPhoneme=()=>window.__labMock.finished++;
   });
-  await page.locator("#voiceLabStart").click();
+  const chart=page.locator("#voicePitchChart");
+  const dims=await chart.evaluate(e=>({
+    width:e.getBoundingClientRect().width,
+    height:e.getBoundingClientRect().height,
+    color:getComputedStyle(e).backgroundColor
+  }));
+  if(dims.width<250||dims.height<100||dims.height>300||
+      dims.color==="rgb(255, 255, 255)")
+   throw Error("Pitch chart must be a compact dark SVG, not a blank white canvas: "+
+    JSON.stringify(dims));
+  await page.locator("#voicePitchStart").click();
   if((await page.evaluate(()=>window.__labMock.started[0]))!=="pitch")
-   throw Error("Live pitch must start in native microphone bridge");
+   throw Error("Pitch must start native PCM capture");
   await page.evaluate(()=>window.bodyTraceReceive({
-   type:"voice_lab",state:"running",mode:"pitch",message:"正在采集PCM"
+    type:"voice_lab",state:"running",mode:"pitch",message:"started"
   }));
+  await page.evaluate(()=>{
+    for(const [note,midi,hz] of [["C4",60,261.63],["D4",62,293.66],["E4",64,329.63]]){
+      for(let i=0;i<6;i++){
+        const actualMidi=midi+Math.sin(i*2.4)*.12;
+        window.bodyTraceReceive({
+          type:"voice_lab",state:"pitch_sample",mode:"pitch",
+          pitch_hz:hz,note,midi:actualMidi,cents:(actualMidi-midi)*100
+        });
+      }
+    }
+  });
+  if(await page.locator("#voicePitchTraces path").count()<3)
+   throw Error("Do-Re-Mi should form three separate pitched trace segments");
+  if((await page.locator("#voicePitchNote").innerText())!=="E4")
+   throw Error("Last note must remain E4");
+  const before=await page.evaluate(()=>window.BodyTraceVoiceLab.state());
   await page.evaluate(()=>window.bodyTraceReceive({
-   type:"voice_lab",state:"sample",mode:"pitch",
-   pitch_hz:440.0,note:"A4",cents:0.0,rms_dbfs:-18,clarity:0.98
+    type:"voice_lab",state:"pitch_sample",mode:"pitch",
+    pitch_hz:0,note:"—",midi:0,cents:0
   }));
-  if(!(await page.locator("#voiceLabNote").innerText()).includes("A4")||
-     !(await page.locator("#voiceLabHz").innerText()).includes("440.0"))
-   throw Error("Live pitch readouts missing native audio sample");
-  await page.locator("#voiceLabMode").selectOption("vowel");
-  // Native stop on mode switch is asynchronous. Emulate its status callback
-  // so the Start control can enable again before the next experiment.
+  const after=await page.evaluate(()=>window.BodyTraceVoiceLab.state());
+  if(before.pitchPoints!==after.pitchPoints||after.latestNote!=="E4"||
+     (await page.locator("#voicePitchNote").innerText())!=="E4")
+   throw Error("Pitch history must FREEZE across silence; never erase last note");
+  await page.locator("#voicePitchStop").click();
   await page.evaluate(()=>window.bodyTraceReceive({
-   type:"voice_lab",state:"stopped",mode:"pitch",message:"已停止"
+    type:"voice_lab",state:"stopped",mode:"pitch",message:"已停止"
   }));
-  await page.locator("#voiceLabStart").click();
-  if((await page.evaluate(()=>window.__labMock.started.at(-1)))!=="vowel")
-   throw Error("Native vowel acoustic probe was not selected");
+  if((await page.locator("#voicePitchNote").innerText())!=="E4")
+   throw Error("Stopping pitch capture must preserve last detected note");
+  await page.screenshot({path:"bodytrace-voice-pitch-preview.png",fullPage:false});
+
+  await page.locator("#voicePhonemeTab").click();
+  if(!await page.locator("#voicePhonemeView").isVisible()||
+     await page.locator("#voicePitchView").isVisible())
+   throw Error("Pitch and phoneme must be separate subpanels");
+  const hold=page.locator("#voicePhonemeHold");
+  await hold.dispatchEvent("pointerdown",{pointerId:7});
+  if((await page.evaluate(()=>window.__labMock.started.at(-1)))!=="phoneme")
+   throw Error("Holding button should START whole-utterance PCM recording");
+  if((await page.locator("#voicePhonemeState").innerText())!=="录音中")
+   throw Error("Phoneme mode should not run continuous classifications");
+  await hold.dispatchEvent("pointerup",{pointerId:7});
+  if((await page.evaluate(()=>window.__labMock.finished))!==1)
+   throw Error("Releasing button must finalize and analyse recorded utterance");
   await page.evaluate(()=>window.bodyTraceReceive({
-   type:"voice_lab",state:"sample",mode:"vowel",
-   pitch_hz:170,note:"F3",cents:8,rms_dbfs:-21,
-   ipa:"/æ/",english_words:"cat、bad、man",
-   pinyin_examples:"a：mā (妈)、dà (大)",
-   f1_hz:800,f2_hz:1700,
-   warning:"声学近邻，非已训练的音素模型"
+    type:"voice_lab",state:"phoneme_result",mode:"phoneme",duration_ms:610,
+    message:"本次音素声学线索分析完成",
+    candidates:[
+      {ipa:"/ɪ/",english_words:"sit、ship、bit",
+       pinyin_examples:"i：yī (衣)、nǐ (你)"},
+      {ipa:"/s/ 类",english_words:"see、sit、sun",
+       pinyin_examples:"s：sī (思)、sān (三)"}
+    ],warning:"尚未完成 think 的真正声学音素转录"
   }));
-  if(!(await page.locator("#voiceLabIpa").innerText()).includes("/æ/")||
-     !(await page.locator("#voiceLabWords").innerText()).includes("cat")||
-     !(await page.locator("#voiceLabPinyin").innerText()).includes("妈"))
-   throw Error("PCM acoustic candidate must display IPA and example words/pinyin");
-  await page.screenshot({path:"bodytrace-voice-lab-preview.png",fullPage:false});
+  const held=await page.locator("#voicePhonemeSequence").innerText();
+  if(!held.includes("/ɪ/")||!held.includes("/s/")||
+     !(await page.locator("#voicePhonemeEnglish").innerText()).includes("sit"))
+   throw Error("Completed utterance must display retained acoustic candidates");
+  await page.evaluate(()=>window.bodyTraceReceive({
+    type:"voice_lab",state:"stopped",mode:"phoneme",message:"已停止"
+  }));
+  if((await page.locator("#voicePhonemeSequence").innerText())!==held||
+     !(await page.locator("#voicePhonemeState").innerText()).includes("已完成"))
+   throw Error("A phoneme result must survive mic shutdown after release");
+  await page.screenshot({path:"bodytrace-voice-phoneme-preview.png",fullPage:false});
+  await page.locator('.tabs button[data-page="sleep"]').click();
+  if((await page.locator("#voicePhonemeSequence").innerText())!==held)
+   throw Error("Last analysis must survive navigation");
   await page.screenshot({path:"bodytrace-phone-sleep-report-preview.png",fullPage:false});
   await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
   // Historical daily drill-down: all sets per date and max 10 past dates

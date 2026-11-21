@@ -145,7 +145,7 @@ public final class MainActivity extends Activity {
             // The APK remains fully functional offline and without any patch.
             String css = readUiAsset("features.css");
             String js = readUiAsset("wheel.js") + "\n" + readUiAsset("features.js") +
-                    "\n" + readUiAsset("exercise_catalog.js") + "\n" + readUiAsset("git_log.js") + "\n" + readUiAsset("sleep.js") + "\n" + readUiAsset("sleep_visualization.js");
+                    "\n" + readUiAsset("exercise_catalog.js") + "\n" + readUiAsset("git_log.js") + "\n" + readUiAsset("sleep.js") + "\n" + readUiAsset("sleep_visualization.js") + "\n" + readUiAsset("voice_lab.js");
             html = html.replace("</head>", "<style>" + css + "</style></head>");
             // The friendly cartoon avatar is a local SVG; no heavy GLB or
             // third-party scripts are loaded in the 2D release.

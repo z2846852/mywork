@@ -165,35 +165,70 @@ const vowelSource=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/VowelSpectrum.java"),"utf8");
 const labNative=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/VoiceLabController.java"),"utf8");
-for(const id of ["voiceLabPanel","voiceLabStart","voiceLabStop",
- "voiceLabMode","voiceLabNote","voiceLabHz","voiceLabCents",
- "voiceLabCanvas","voiceLabIpa","voiceLabWords","voiceLabPinyin",
- "voiceLabWarning","voiceLabPhonetics"]){
- assert.ok(html.includes('id="'+id+'"'),"Live voice lab missing "+id);
+const voiceLabJS=fs.readFileSync(path.join(root,
+ "app/src/main/assets/voice_lab.js"),"utf8");
+new vm.Script(voiceLabJS,{filename:"voice_lab.js"});
+const voicePage=html.indexOf('id="page-voice"');
+const sleepPage=html.indexOf('id="page-sleep"');
+const settingsPage=html.indexOf('id="page-settings"');
+assert.ok(sleepPage>=0&&voicePage>sleepPage&&settingsPage>voicePage,
+ "Sound Lab must be a separate top-level tab, not nested in Sleep");
+assert.ok(html.includes('data-page="voice"'),"Voice bottom tab missing");
+assert.ok(!html.slice(sleepPage,voicePage).includes('id="voicePitchStart"'),
+ "No microphone lab controls should remain inside the Sleep page");
+for(const id of ["voicePitchView","voicePhonemeView","voicePitchTab",
+ "voicePhonemeTab","voicePitchStart","voicePitchStop","voicePitchNote",
+ "voicePitchHz","voicePitchCents","voicePitchChart","voicePitchGrid",
+ "voicePitchTraces","voicePhonemeHold","voicePhonemeReport",
+ "voicePhonemeSequence","voicePhonemeEnglish","voicePhonemePinyin"]){
+ assert.ok(html.includes('id="'+id+'"'),"Sound lab control missing: "+id);
 }
-assert.ok(native.includes("voiceLabStart(String requestedMode)") &&
- native.includes("voiceLabStop()") &&
- native.includes("VOICE_LAB_MIC_PERMISSION_REQUEST") &&
- native.includes("new VoiceLabController(this,this::reply)"));
-assert.ok(labNative.includes("new AudioRecord(")&&
- labNative.includes("AudioRecord.READ_BLOCKING")&&
- labNative.includes("PitchDetector.analyze(window,RATE)")&&
- labNative.includes("PhonemeProbe.analyze(window,RATE,pitch)"));
-assert.ok(!labNative.includes("SpeechRecognizer")&&
- !labNative.includes("RecognizerIntent")&&
- !labNative.includes("MediaMetadataRetriever")&&
- !labNative.includes("String transcript"));
-assert.ok(labNative.includes("is_trained_phoneme_model") &&
+assert.ok(html.includes('role="tablist"')&&html.includes('role="tabpanel"'),
+ "Pitch and phoneme features must be separate, accessible panels");
+assert.ok(!html.includes('id="voiceLabCanvas"'),
+ "Remove the blank white WebView Canvas; use a vector SVG instead");
+assert.ok(native.includes('voiceLabStart(String requestedMode)')&&
+ native.includes('voiceLabStop()')&&
+ native.includes('voiceLabFinishPhoneme()')&&
+ native.includes('VOICE_LAB_MIC_PERMISSION_REQUEST')&&
+ native.includes('new VoiceLabController(this,this::reply)'));
+assert.ok(labNative.includes('new AudioRecord(')&&
+ labNative.includes('AudioRecord.READ_BLOCKING')&&
+ labNative.includes('PitchDetector.analyze(window,RATE)')&&
+ labNative.includes('PhonemeProbe.analyze(window,RATE,pitch)'));
+assert.ok(labNative.includes('"pitch_sample"')&&
+ labNative.includes('"phoneme_result"')&&
+ labNative.includes('finishPhoneme()')&&
+ labNative.includes('session.phraseLength')&&
+ labNative.includes('LIMIT_SAMPLES=RATE*5'));
+assert.ok(labNative.includes('result.hz>0&&result.rmsDb>=-40'),
+ "Silence must not emit new pitch points or reset the last pitch");
+assert.ok(!labNative.includes('SpeechRecognizer')&&
+ !labNative.includes('RecognizerIntent')&&
+ !labNative.includes('String transcript'));
+assert.ok(labNative.includes('is_trained_phoneme_model')&&
  labNative.includes('false'));
-assert.ok(pitchSource.includes("YIN_THRESHOLD")&&
- pitchSource.includes("Math.log(hz/440.0)"));
+assert.ok(pitchSource.includes('YIN_THRESHOLD')&&
+ pitchSource.includes('Math.log(hz/440.0)'));
 assert.ok(vowelSource.includes('"/i/"')&&vowelSource.includes('"/æ/"'));
 assert.ok(phonemeSource.includes('"vowel_formants"')&&
- phonemeSource.includes('"fricative_spectral"')&&
- phonemeSource.includes('"/s/ 类"'));
-assert.ok(sleepJS.includes('if(evt.type==="voice_lab"){liveRender(evt);return;}')&&
- sleepJS.includes('bridge().voiceLabStart(mode)')&&
- sleepJS.includes('bridge()?.voiceLabStop?.()'));
+ phonemeSource.includes('"fricative_spectral"'));
+assert.ok(voiceLabJS.includes('if(!(hz>0)||!Number.isFinite(midi)||!pitchOn)return'),
+ "Pitch must freeze when no voiced sample is detected");
+assert.ok(voiceLabJS.includes('hold.addEventListener("pointerdown",down)')&&
+ voiceLabJS.includes('hold.addEventListener("pointerup",up)')&&
+ voiceLabJS.includes('bridge()?.voiceLabFinishPhoneme?.()'),
+ "Phoneme recording must analyse on hold release");
+assert.ok(voiceLabJS.includes('window.BodyTraceVoiceLab='));
+assert.ok(!sleepJS.includes('liveRender(evt)'),
+ "Sleep module must no longer contain voice lab UI code");
+const uiBundler=fs.readFileSync(path.join(root,"scripts/build_ui_bundle.py"),"utf8");
+const uiManager=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/UiBundleManager.java"),"utf8");
+assert.ok(uiBundler.includes('"voice_lab.js"')&&
+ uiManager.includes('"voice_lab.js"')&&
+ native.includes('readUiAsset("voice_lab.js")'),
+ "Bundled UI must include the separated Voice module");
 assert.ok(workflow.includes('VoiceLabDspTest.java'));
 
 const sleepRecorder=fs.readFileSync(path.join(root,

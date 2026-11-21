@@ -382,45 +382,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   </div>
 
  </div>
- <div class="panel voice-lab-panel" id="voiceLabPanel">
-  <div class="voice-lab-head">
-   <div><div class="eyebrow">LIVE PCM / SOUND LAB</div><h3>实时声音实验室</h3></div>
-   <span id="voiceLabLive" class="voice-lab-state">未启动</span>
-  </div>
-  <div class="voice-lab-toolbar">
-   <label for="voiceLabMode" class="sr-only">实时声音实验模式</label>
-   <select id="voiceLabMode" aria-label="实时实验模式">
-    <option value="pitch">音高 · YIN</option>
-    <option value="vowel">元音候选 · F1/F2</option>
-    <option value="fricative">擦音候选 · 频谱</option>
-   </select>
-   <button type="button" class="primary mini" id="voiceLabStart">▶ 开始</button>
-   <button type="button" class="secondary mini" id="voiceLabStop" disabled>■ 停止</button>
-  </div>
-  <div class="voice-lab-stats">
-   <div><span>当前音高</span><strong id="voiceLabNote">—</strong></div>
-   <div><span>基频</span><strong id="voiceLabHz">— Hz</strong></div>
-   <div><span>偏差</span><strong id="voiceLabCents">— cents</strong></div>
-   <div><span>电平</span><strong id="voiceLabRms">— dBFS</strong></div>
-  </div>
-  <canvas id="voiceLabCanvas" height="132" aria-label="实时音高趋势曲线"></canvas>
-  <div class="voice-lab-phonetics" id="voiceLabPhonetics" hidden>
-   <div class="voice-lab-ipa"><span>候选 IPA（声学实验）</span><strong id="voiceLabIpa">—</strong></div>
-   <div class="voice-lab-examples">
-    <div><span>相似英语音例</span><strong id="voiceLabWords">—</strong></div>
-    <div><span>相似拼音音例</span><strong id="voiceLabPinyin">—</strong></div>
-   </div>
-   <div class="voice-lab-formants" id="voiceLabFormants">F1 / F2：—</div>
-   <p class="sub" id="voiceLabWarning">未加载训练音素模型；这里只做原始声音声学特征匹配。</p>
-  </div>
-  <p id="voiceLabStatus" class="sub" role="status" aria-live="polite">点开始后实时采集麦克风；退出页面即关闭。不保存或上传原始声音。</p>
-  <details class="voice-lab-help">
-   <summary>! 结果原理 / 对照开源模型</summary>
-   <p>音高：独立 YIN 基频检测。IPA：仅由共振峰和擦音频谱判断的候选音素，不使用 ASR、文字转音标或发音打分；不能准确识别整句话、辅音全集或普通话四声。</p>
-   <p>GitHub 参考：Allosaurus（真正从音频直接推断音素，PyTorch，未移植到本 APK）；voicesu（实时 LPC/F1/F2 与校准思路）；PhoneticXeus（多语言 IPA 声学模型，尚未移植）。</p>
-   <p>本版提供两个可切换的无训练声学探针。不同口音、麦克风、音高下可能严重误判。练习时试着持续发单个元音或 /s/、/sh/ 类擦音，比说完整句子更容易看到变化。</p>
-  </details>
- </div>
  <div class="panel phone-sleep-panel" id="phoneSleepPanel">
   <div class="phone-sleep-head">
    <div><h3>手机行为 · 睡眠报告</h3><span class="sub">本机历史 · 非医学睡眠测量</span></div>
@@ -495,6 +456,69 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 <div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从本机每日 JSON 直接读取身体指标；更新后无需重新生成图表文件。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div><div class="panel"><h2>身体指标趋势</h2><p class="sub">仅使用已报告的日期与数值；未校正测量设备、时间或条件差异。</p><div id="bodyTrends" style="margin-top:12px"></div></div>
 
+</section>
+
+<section class="page" id="page-voice">
+  <div class="voice-page-head">
+    <div class="eyebrow">SOUND LAB · PCM 实验</div>
+    <h2>声音实验室</h2>
+    <p class="sub">原始声音分析，不将语音识别文字转换成音标。</p>
+  </div>
+  <div class="voice-switch" role="tablist" aria-label="声音实验功能">
+    <button type="button" id="voicePitchTab" class="active" data-voice-view="pitch" role="tab" aria-selected="true">音高 / 唱歌</button>
+    <button type="button" id="voicePhonemeTab" data-voice-view="phoneme" role="tab" aria-selected="false">音素 / 口音</button>
+  </div>
+  <section id="voicePitchView" class="voice-view active" role="tabpanel">
+    <div class="panel voice-card">
+      <div class="voice-title-row"><h3>音高轨迹</h3><span id="voicePitchState" class="voice-state">未开始</span></div>
+      <div class="voice-pitch-actions">
+        <button id="voicePitchStart" type="button" class="primary">▶ 开始演唱</button>
+        <button id="voicePitchStop" type="button" class="secondary" disabled>■ 结束</button>
+        <button id="voicePitchClear" type="button" class="secondary">清空</button>
+      </div>
+      <div class="voice-values">
+        <div><span>最后音符</span><strong id="voicePitchNote">—</strong></div>
+        <div><span>频率</span><strong id="voicePitchHz">—</strong></div>
+        <div><span>偏差</span><strong id="voicePitchCents">—</strong></div>
+      </div>
+      <div class="voice-chart-frame">
+        <svg id="voicePitchChart" viewBox="0 0 360 230" role="img"
+          aria-label="按有效声音推进的音高轨迹，纵轴为音符，显示微小音高波动">
+          <rect x="0" y="0" width="360" height="230" rx="9" fill="#122820"></rect>
+          <g id="voicePitchGrid"></g>
+          <g id="voicePitchTraces"></g>
+          <text x="348" y="223" text-anchor="end" fill="#91b5a5" font-size="10">横轴：有效发声样本（停声冻结）</text>
+        </svg>
+      </div>
+      <p id="voicePitchStatus" class="sub" role="status">只要没有可检测的音高，音符和曲线就保持原样，不移动时间轴。</p>
+      <details class="voice-explain">
+        <summary>! 音高图说明</summary>
+        <p>有效声音每约 0.1 秒增加一个数据点；无声、低于检测阈值或音高不稳定时不增加点。纵轴以十二平均律半音标记；不同音符形成不同高度的音段，同一音符内的微小抖动仍可见。这个横轴不是自然时间，不能反映两个音之间停顿了多久。</p>
+      </details>
+    </div>
+  </section>
+  <section id="voicePhonemeView" class="voice-view" role="tabpanel" hidden>
+    <div class="panel voice-card">
+      <div class="voice-title-row"><h3>按住发音 → 松开分析</h3><span id="voicePhonemeState" class="voice-state">待发音</span></div>
+      <p class="sub">按住下方按钮，说一个音或单词，松开后分析整段声音。结果保留，直到下一次分析。</p>
+      <button type="button" id="voicePhonemeHold" class="voice-hold-button">按住说话</button>
+      <p id="voicePhonemeStatus" class="sub" role="status">支持约 0.3–5 秒的短音频；不保存录音文件。</p>
+      <div id="voicePhonemeReport" class="voice-phoneme-report">
+        <div class="voice-phoneme-heading">本次候选音素 <span id="voicePhonemeDuration">—</span></div>
+        <div id="voicePhonemeSequence" class="voice-phoneme-sequence"><span class="voice-empty">尚无分析结果</span></div>
+        <div class="voice-phoneme-reference">
+          <div><span>相似的英语例词</span><strong id="voicePhonemeEnglish">—</strong></div>
+          <div><span>相似的拼音示例</span><strong id="voicePhonemePinyin">—</strong></div>
+        </div>
+        <p id="voicePhonemeLimit" class="sub">当前为 F1/F2 和擦音的初级声学探针，不能可靠识别整句或判断普通话声调。尤其无法完整识别 think 的 /θɪŋk/。</p>
+      </div>
+      <details class="voice-explain">
+        <summary>! 模型能力与开源参考</summary>
+        <p>当前采集真实 PCM，松开后分帧分析并聚合整个录音的候选音素；不使用文字或语音识别反推 IPA。F1/F2 和擦音谱只是实验性线索，没有训练的完整音素识别网络，结果不能作为发音评分。</p>
+        <p>开源参考：Allosaurus、ZIPA（语音到音素模型）和 voicesu（元音共振峰与个人校准）；本 APK 尚未集成这些模型。</p>
+      </details>
+    </div>
+  </section>
 </section>
 
 <section class="page" id="page-settings">
@@ -618,6 +642,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <button data-page="nutrition"><span class="ico">▤</span>饮食</button>
 <button data-page="analytics"><span class="ico">▥</span>趋势</button>
 <button data-page="sleep"><span class="ico">☾</span>睡眠</button>
+<button data-page="voice"><span class="ico">♫</span>声音</button>
 <button data-page="body"><span class="ico">◉</span>身体</button>
 <button data-page="settings"><span class="ico">≡</span>日志</button>
 </nav><div id="toast" role="status"></div>

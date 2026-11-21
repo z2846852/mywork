@@ -39,7 +39,7 @@ final class UiBundleManager {
     private static final int FILE_LIMIT=1024*1024;
     private static final String[] NAMES={
         "index.html","features.css","wheel.js","features.js",
-        "exercise_catalog.js","git_log.js","sleep.js","sleep_visualization.js"
+        "exercise_catalog.js","git_log.js","sleep.js","sleep_visualization.js","voice_lab.js"
     };
     private static final Set<String> ACCEPTED=Collections.unmodifiableSet(
         new HashSet<>(Arrays.asList(NAMES)));
