@@ -518,8 +518,8 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
         <div class="voice-models-language">
           <label for="voicePhoneDisplay">发音参考</label>
           <select id="voicePhoneDisplay">
-            <option value="en">英语 · IPA / 英文例词</option>
-            <option value="zh">普通话 · IPA / 拼音音例（非拼音识别）</option>
+            <option value="en">英语 · IPA → 整词反查 / 中文释义</option>
+            <option value="zh">普通话 · 原始 IPA（声调不可靠）</option>
           </select>
         </div>
       </div>
@@ -528,16 +528,28 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
       <div id="voicePhonemeReport" class="voice-phoneme-report">
         <div class="voice-phoneme-heading">本次候选音素 <span id="voicePhonemeDuration">—</span> <span id="voicePhonemeUsedEngine">—</span></div>
         <div id="voicePhonemeSequence" class="voice-phoneme-sequence"><span class="voice-empty">尚无分析结果</span></div>
-        <div class="voice-phoneme-reference">
-          <div id="voicePhonemeEnglishBox"><span>相似英语音例（非识别单词）</span><strong id="voicePhonemeEnglish">—</strong></div>
-          <div id="voicePhonemePinyinBox" hidden><span>普通话拼音音例（非实际识别的拼音/声调）</span><strong id="voicePhonemePinyin">—</strong></div>
+        <div class="voice-phoneme-dictionary">
+          <div id="voicePhonemeEnglishBox">
+            <div class="voice-dictionary-title">
+              <span>整段音素的英语词典匹配</span>
+              <strong id="voicePhonemeEnglish">尚未查询</strong>
+            </div>
+            <div id="voiceWordMatches" class="voice-word-matches" aria-live="polite">
+              <p class="voice-empty">读一个英语单词后，显示最相近的单词、IPA 和中文释义。</p>
+            </div>
+            <p id="voiceDictionaryNotice" class="sub">音素距离只是词典相似度，不是识别置信度或口音分数。</p>
+          </div>
+          <div id="voicePhonemePinyinBox" hidden>
+            <span class="voice-mandarin-title">普通话：原始 IPA 音段</span>
+            <strong id="voicePhonemePinyin">不依据孤立音素臆测汉字、拼音或声调。</strong>
+          </div>
         </div>
         <p id="voicePhonemeLimit" class="sub">当前为 F1/F2 和擦音的初级声学探针，不能可靠识别整句或判断普通话声调。尤其无法完整识别 think 的 /θɪŋk/。</p>
       </div>
       <details class="voice-explain">
         <summary>! 模型能力与开源参考</summary>
-        <p>当前采集真实 PCM，松开后分帧分析并聚合整个录音的候选音素；不使用文字或语音识别反推 IPA。F1/F2 和擦音谱只是实验性线索，没有训练的完整音素识别网络，结果不能作为发音评分。</p>
-        <p>开源参考：Allosaurus、ZIPA（语音到音素模型）和 voicesu（元音共振峰与个人校准）；本 APK 尚未集成这些模型。</p>
+        <p>安装 ZIPA 后，模型从真实 PCM 直接产生 IPA 音素。英语模式再利用独立的本地发音/英汉词典，对整个 IPA 序列反向检索单词；不先通过 ASR 猜单词。结果的百分比只表示音素序列匹配程度，不衡量你的口音好坏。</p>
+        <p>词典源：open-dict-data/ipa-dict（美式 IPA）及 skywind3000/ECDICT（英汉释义与词频），MIT；构建时生成紧凑离线词库。普通话模式仅保留模型输出的 IPA，不把单音素映射成错误的示例汉字或虚假的声调。</p>
       </details>
     </div>
   </section>

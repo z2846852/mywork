@@ -230,6 +230,37 @@ assert.ok(uiBundler.includes('"voice_lab.js"')&&
  native.includes('readUiAsset("voice_lab.js")'),
  "Bundled UI must include the separated Voice module");
 assert.ok(workflow.includes('VoiceLabDspTest.java'));
+
+const dictionary=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/PhoneticLexicon.java"),"utf8");
+const dictionaryBuild=fs.readFileSync(path.join(root,
+ "scripts/build_pronunciation_lexicon.py"),"utf8");
+assert.ok(native.includes('voiceLabSetLanguage(String language)'));
+assert.ok(labNative.includes('PhoneticLexicon.load(in)')&&
+ labNative.includes('source.find(Arrays.asList(phones),7)')&&
+ labNative.includes('result.put("word_matches",matches)'));
+assert.ok(labNative.includes('.put("ipa",phone)')&&
+ !labNative.includes('PhoneReferenceExamples.english(phone)'),
+ "Neural phone observations must not be annotated with unrelated single-phone English words");
+assert.ok(dictionary.includes('static String[] fromZipa')&&
+ dictionary.includes('static double editDistance')&&
+ dictionary.includes('class Match'));
+assert.ok(dictionaryBuild.includes('open-dict-data/ipa-dict')&&
+ dictionaryBuild.includes('skywind3000/ECDICT')&&
+ dictionaryBuild.includes('en_US.txt')&&
+ dictionaryBuild.includes('ecdict.csv'));
+assert.ok(workflow.includes('test_pronunciation_lexicon.py')&&
+ workflow.includes('build_pronunciation_lexicon.py')&&
+ workflow.includes('PhoneticLexiconTest.java'));
+for(const id of ["voiceWordMatches","voiceDictionaryNotice","voicePhonemeEnglishBox"]){
+ assert.ok(html.includes('id="'+id+'"'),"Whole-word bilingual dictionary UI missing "+id);
+}
+assert.ok(voiceLabJS.includes('evt.word_matches')&&
+ voiceLabJS.includes('match.zh')&&
+ voiceLabJS.includes('bridge()?.voiceLabSetLanguage?.(lang)'));
+assert.ok(!voiceLabJS.includes('candidate.english_words'),
+ "Do not concatenate per-phone example words");
+
 const modelPacks=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/PhoneModelPacks.java"),"utf8");
 const neuralBridge=fs.readFileSync(path.join(root,

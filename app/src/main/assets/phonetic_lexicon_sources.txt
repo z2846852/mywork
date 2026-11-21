@@ -1,0 +1,22 @@
+BodyTrace offline English IPA / English-Chinese dictionary attribution
+Generated from the following sources; original model ZIPA output is NOT
+translated or changed by these dictionaries.
+
+1. US IPA pronunciation list:
+   open-dict-data/ipa-dict, https://github.com/open-dict-data/ipa-dict
+   Pinned git commit 972cd67dd5f96bc5660e28070cde26e3928abcd7
+   en_US dataset is CMU Pronouncing Dictionary derived.
+   Repository MIT, original data attribution as described in README.
+
+2. Word meanings / word frequencies:
+   skywind3000/ECDICT, https://github.com/skywind3000/ECDICT
+   Pinned git commit 39cfb9672c0906b63569e0453c2e6abfb9ab182a
+   Repository MIT license; follow ECDICT's source and attribution notices.
+
+Processing:
+   scripts/build_pronunciation_lexicon.py
+   Retain a subset of frequently used words, their published English US IPA,
+   and a short Chinese meaning; use weighted IPA phone edit distance.
+   Percentage in the app is PHONE-SEQUENCE similarity to dictionary entries,
+   NOT ZIPA confidence and NOT a pronunciation/accent accuracy score.
+   Mandarin tone/pinyin/characters are not inferred from an English dictionary.

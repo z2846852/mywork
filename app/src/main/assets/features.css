@@ -1310,3 +1310,29 @@ body.workout-edit-open{overflow:hidden}
 #page-voice #voicePhonemeEnglishBox[hidden],
 #page-voice #voicePhonemePinyinBox[hidden]{display:none!important}
 #page-voice .voice-phoneme-reference{grid-template-columns:1fr}
+
+/* Whole-utterance English pronunciation lookup. No individual-phoneme word spam. */
+#page-voice .voice-phoneme-dictionary{margin-top:8px}
+#page-voice .voice-dictionary-title{display:flex;justify-content:space-between;
+ align-items:center;gap:8px;font-size:12px;font-weight:700;color:#baddcd;margin:8px 0}
+#page-voice .voice-dictionary-title strong{font-size:10px;white-space:nowrap;
+ color:#93c8ae;font-weight:600}
+#page-voice .voice-word-matches{display:grid;gap:6px}
+#page-voice .voice-word-match{background:#213c31;border:1px solid #385e4c;
+ border-radius:9px;padding:9px 10px;min-width:0}
+#page-voice .voice-word-match:first-child{background:#254a38;border-color:#539e76}
+#page-voice .voice-word-match-title{display:flex;align-items:baseline;
+ gap:7px;flex-wrap:wrap}
+#page-voice .voice-word-match-title strong{font-size:17px;color:#c3f5d8}
+#page-voice .voice-word-match-title>span:nth-child(2){font-size:13px;color:#abcdbc}
+#page-voice .voice-word-match-score{font-size:10px!important;color:#9ac4af!important;
+ margin-left:auto}
+#page-voice .voice-word-match p{margin:5px 0 0;font-size:12px;
+ color:#e2efe8;line-height:1.55;overflow-wrap:anywhere}
+#page-voice #voiceDictionaryNotice{margin:8px 0 0;font-size:10px;color:#a2bdad}
+#page-voice #voicePhonemePinyinBox{padding:10px;border-radius:9px;
+ background:#233d31;color:#cadfce;line-height:1.6;font-size:12px}
+#page-voice #voicePhonemePinyinBox[hidden],
+#page-voice #voicePhonemeEnglishBox[hidden]{display:none!important}
+#page-voice .voice-mandarin-title{display:block;margin-bottom:5px;font-weight:700}
+#page-voice #voicePhonemePinyin{font-size:12px;font-weight:450}

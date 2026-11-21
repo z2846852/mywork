@@ -73,8 +73,33 @@ jobs:
             scripts/java_tests/com/z2846852/bodytrace/VoiceLabDspTest.java
           java -cp "$RUNNER_TEMP/bodytrace-voice-lab" \
             com.z2846852.bodytrace.VoiceLabDspTest
+      - name: Validate English IPA-to-word and Chinese meaning lookup (offline fixtures)
+        run: |
+          set -euo pipefail
+          python3 scripts/test_pronunciation_lexicon.py
+          mkdir -p "$RUNNER_TEMP/bodytrace-lexicon"
+          javac -d "$RUNNER_TEMP/bodytrace-lexicon" \
+            app/src/main/java/com/z2846852/bodytrace/PhoneticLexicon.java \
+            scripts/java_tests/com/z2846852/bodytrace/PhoneticLexiconTest.java
+          java -cp "$RUNNER_TEMP/bodytrace-lexicon" \
+            com.z2846852.bodytrace.PhoneticLexiconTest
       - name: Validate cartoon body page, JSON UI and avatar persistence
         run: node scripts/test_ui.js
+      - name: Build pinned offline American IPA and English-Chinese dictionary
+        run: |
+          set -euo pipefail
+          python3 scripts/build_pronunciation_lexicon.py
+          test -s app/src/main/assets/en_pronunciation_zh.tsv.gz
+          python3 - <<'PY'
+          import gzip,pathlib
+          f=pathlib.Path("app/src/main/assets/en_pronunciation_zh.tsv.gz")
+          with gzip.open(f,"rt",encoding="utf-8") as source:
+              lines=source.read().splitlines()
+          assert len(lines)>10000, f"Unusually small lexicon: {len(lines)}"
+          words={s.split("\t",1)[0] for s in lines}
+          assert {"think","can't","ship","hello"}.issubset(words)
+          print("Verified embedded bilingual IPA lexicon",len(lines),"entries",f.stat().st_size,"bytes")
+          PY
       - name: Fetch and SHA256-verify offline YAMNet model
         run: bash scripts/fetch_yamnet.sh
       - name: Inspect bundled YAMNet TFLite tensor shapes

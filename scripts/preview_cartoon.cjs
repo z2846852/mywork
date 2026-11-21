@@ -776,19 +776,26 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if((await page.evaluate(()=>window.__labMock.finished))!==1)
    throw Error("Releasing button must finalize and analyse recorded utterance");
   await page.evaluate(()=>window.bodyTraceReceive({
-    type:"voice_lab",state:"phoneme_result",mode:"phoneme",duration_ms:610,
-    message:"本次音素声学线索分析完成",
-    candidates:[
-      {ipa:"/ɪ/",english_words:"sit、ship、bit",
-       pinyin_examples:"i：yī (衣)、nǐ (你)"},
-      {ipa:"/s/ 类",english_words:"see、sit、sun",
-       pinyin_examples:"s：sī (思)、sān (三)"}
-    ],warning:"尚未完成 think 的真正声学音素转录"
+    type:"voice_lab",state:"phoneme_result",mode:"phoneme",
+    duration_ms:610,engine_kind:"neural_ctc",language:"en",
+    engine_id:"zipa-cr-small-500k",dictionary_entries:45000,
+    message:"ZIPA 声学音素已识别，英汉词典已匹配整段 IPA",
+    candidates:[{ipa:"θ"},{ipa:"ɪ"},{ipa:"ŋ"},{ipa:"k"}],
+    word_matches:[
+      {word:"think",ipa:"θɪŋk",zh:"认为；思考",exact:true,phone_similarity:100},
+      {word:"thing",ipa:"θɪŋ",zh:"事物；事情",exact:false,phone_similarity:75}
+    ],warning:"词典匹配不是发音评分"
   }));
   const held=await page.locator("#voicePhonemeSequence").textContent();
-  if(!held.includes("/ɪ/")||!held.includes("/s/")||
-     !(await page.locator("#voicePhonemeEnglish").innerText()).includes("sit"))
-   throw Error("Completed utterance must display retained acoustic candidates");
+  if(held.replace(/\s+/g,"")!=="θɪŋk")
+   throw Error("Keep the original ZIPA IPA phones, without English ASR");
+  const first=page.locator("#voiceWordMatches .voice-word-match").first();
+  if(!(await first.innerText()).includes("think")||
+     !(await first.innerText()).includes("思考")||
+     !(await first.innerText()).includes("完整音素匹配"))
+   throw Error("Reverse whole-utterance IPA lookup must show think + its Chinese meaning");
+  if((await page.locator("#voiceWordMatches").innerText()).includes("sit、ship"))
+   throw Error("Single-phone example spam must not appear in dictionary results");
   await page.evaluate(()=>window.bodyTraceReceive({
     type:"voice_lab",state:"stopped",mode:"phoneme",message:"已停止"
   }));
@@ -796,6 +803,22 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
      !(await page.locator("#voicePhonemeState").innerText()).includes("已完成"))
    throw Error("A phoneme result must survive mic shutdown after release");
   await page.screenshot({path:"bodytrace-voice-phoneme-preview.png",fullPage:false});
+  await page.locator("#voicePhoneDisplay").selectOption("zh");
+  await page.evaluate(()=>window.bodyTraceReceive({
+    type:"voice_lab",state:"phoneme_result",mode:"phoneme",
+    duration_ms:1580,engine_kind:"neural_ctc",language:"zh",
+    engine_id:"zipa-cr-small-ns-700k",
+    candidates:[{ipa:"n"},{ipa:"i"},{ipa:"x"},{ipa:"ɑ"},{ipa:"ʊ"}],
+    word_matches:[],
+    mandarin_note:"仅 IPA：不依据单音素臆测汉字或声调"
+  }));
+  if(!(await page.locator("#voicePhonemeEnglishBox").isHidden())||
+      await page.locator("#voicePhonemePinyinBox").isHidden())
+   throw Error("Mandarin mode must not reuse English lexicon results");
+  if((await page.locator("#voicePhonemePinyin").innerText()).includes("你")||
+      (await page.locator("#voicePhonemePinyin").innerText()).includes("妈"))
+   throw Error("Mandarin mode must not invent example Chinese words or tones");
+  await page.locator("#voicePhoneDisplay").selectOption("en");
   await page.locator('.tabs button[data-page="sleep"]').click();
   // innerText() is empty for a hidden page; textContent persists in DOM.
   if((await page.locator("#voicePhonemeSequence").textContent())!==held)

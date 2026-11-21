@@ -82,16 +82,28 @@
  });
  $("voiceModelsRefresh").addEventListener("click",()=>bridge()?.voiceModelsStatus?.());
  function displayPhoneExamples(){
-  const isZh=$("voicePhoneDisplay").value==="zh";
+  const lang=$("voicePhoneDisplay").value;
+  const isZh=lang==="zh";
   $("voicePhonemeEnglishBox").hidden=isZh;
   $("voicePhonemePinyinBox").hidden=!isZh;
-  if(isZh)safeText("voicePhonemeLimit",
-    "普通话模式只展示 IPA 音素与相近拼音音例；当前模型不能可靠还原完整拼音音节或声调。");
-  else if(lastPhonemeEvent)safeText("voicePhonemeLimit",
-    lastPhonemeEvent.warning||"神经音素输出也不能直接证明口音正确");
+  bridge()?.voiceLabSetLanguage?.(lang);
+  if(lastPhonemeEvent&&lastPhonemeEvent.language&&
+     lastPhonemeEvent.language!==lang){
+   safeText("voicePhonemeLimit","语言模式已切换。上方 IPA 是上一次的声学结果，"+
+    "请重新按住说话；不会把原有音素直接当成另一种语言的单词。");
+  }else if(isZh){
+   safeText("voicePhonemePinyin",
+    "保留上方 IPA 音段；不能由无声调音素可靠反推汉字或带调拼音。");
+   safeText("voicePhonemeLimit",
+    "普通话当前显示 ZIPA 的声学 IPA，不把单个音素映射成“你、衣、妈”等臆测词语。");
+  }else if(lastPhonemeEvent){
+   safeText("voicePhonemeLimit",
+    lastPhonemeEvent.warning||"词典的音素相似度不代表发音准确度");
+  }
  }
  $("voicePhoneDisplay").addEventListener("change",displayPhoneExamples);
  displayPhoneExamples();
+
  // Installed models are private app data, queried once when the Voice page opens.
  document.querySelector('.tabs button[data-page="voice"]')?.addEventListener("click",
   ()=>bridge()?.voiceModelsStatus?.());
@@ -220,7 +232,6 @@
   const target=$("voicePhonemeSequence");
   target.replaceChildren();
   const candidates=Array.isArray(evt.candidates)?evt.candidates:[];
-  const uniqueEnglish=new Set(),uniquePinyin=new Set();
   if(!candidates.length){
    const empty=document.createElement("span");empty.className="voice-empty";
    empty.textContent="没有稳定的可归类音素（不是未发音）";
@@ -231,11 +242,49 @@
    chip.className="voice-phoneme-chip";
    chip.textContent=String(candidate.ipa||"未分类");
    target.appendChild(chip);
-   if(candidate.english_words)uniqueEnglish.add(candidate.english_words);
-   if(candidate.pinyin_examples)uniquePinyin.add(candidate.pinyin_examples);
   }
-  safeText("voicePhonemeEnglish",[...uniqueEnglish].slice(0,4).join("；")||"—");
-  safeText("voicePhonemePinyin",[...uniquePinyin].slice(0,4).join("；")||"—");
+  const matches=Array.isArray(evt.word_matches)?evt.word_matches:[];
+  const results=$("voiceWordMatches");
+  results.replaceChildren();
+  const neural=evt.engine_kind==="neural_ctc";
+  const english=evt.language==="en";
+  if(neural&&english&&matches.length){
+   safeText("voicePhonemeEnglish",matches.length+" 个候选");
+   for(const [i,match] of matches.entries()){
+    const card=document.createElement("div");
+    card.className="voice-word-match";
+    const title=document.createElement("div");
+    title.className="voice-word-match-title";
+    const word=document.createElement("strong");
+    word.textContent=String(match.word||"");
+    const ipa=document.createElement("span");
+    ipa.textContent="/"+String(match.ipa||"").replace(/^[\/]+|[\/]+$/g,"")+"/";
+    const grade=document.createElement("span");
+    grade.className="voice-word-match-score";
+    grade.textContent=match.exact?"完整音素匹配":
+      "音素相似 "+Number(match.phone_similarity||0)+"%";
+    title.append(word,ipa,grade);
+    const translation=document.createElement("p");
+    translation.textContent=String(match.zh||"无中文释义");
+    card.append(title,translation);
+    results.appendChild(card);
+   }
+  }else{
+   safeText("voicePhonemeEnglish","无完整词典匹配");
+   const empty=document.createElement("p");
+   empty.className="voice-empty";
+   empty.textContent=evt.dictionary_error||(
+    !neural?"当前基础声学探针不能可靠查整词；请选用 ZIPA 神经音素模型。":
+    !english?"请切换英语模式并重新发音，才进行英汉整词反查。":
+    "没有找到足够接近的英语词条；保留上方音素原样。");
+   results.appendChild(empty);
+  }
+  safeText("voiceDictionaryNotice",neural&&english?
+   "离线词典 "+(Number(evt.dictionary_entries)||0).toLocaleString("zh-CN")+
+   " 词条 · 词典相似度≠模型置信度，更不是口音评分。":
+   "词典匹配只有在英语模式使用 ZIPA 声学音素模型时才运行。");
+  safeText("voicePhonemePinyin",evt.mandarin_note||
+   "原始 IPA 已保留；当前不能可靠识别普通话汉字或声调。");
   safeText("voicePhonemeLimit",evt.warning||
    "声学候选不能直接代表完整音素转录或发音准确率。");
   displayPhoneExamples();

@@ -1873,6 +1873,9 @@ public final class MainActivity extends Activity {
                 }else voiceLab.start(requestedMode);
             });
         }
+        @JavascriptInterface public void voiceLabSetLanguage(String language){
+            voiceLab.setLanguage(language);
+        }
         @JavascriptInterface public void voiceLabStop(){
             runOnUiThread(()->voiceLab.cancel(true));
         }

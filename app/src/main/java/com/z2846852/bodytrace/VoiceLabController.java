@@ -8,6 +8,9 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.SystemClock;
 import java.io.File;
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.zip.GZIPInputStream;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -37,6 +40,8 @@ final class VoiceLabController {
     private final Activity activity;
     private final Sink sink;
     private final PhoneModelPacks modelPacks;
+    private volatile PhoneticLexicon dictionary;
+    private volatile String requestedLanguage="en";
     private volatile Session active;
     private int nextToken=0;
 
@@ -45,13 +50,14 @@ final class VoiceLabController {
         final String mode;
         final int token;
         final String modelId;
+        final String language;
         volatile boolean stopRequested=false;
         volatile boolean analyzeOnFinish=false;
         final short[] phrase;
         int phraseLength=0;
-        Session(AudioRecord input,String mode,int token,String modelId){
+        Session(AudioRecord input,String mode,int token,String modelId,String language){
             this.input=input;this.mode=mode;this.token=token;
-            this.modelId=modelId;
+            this.modelId=modelId;this.language=language;
             this.phrase="phoneme".equals(mode)?new short[LIMIT_SAMPLES]:null;
         }
     }
@@ -60,6 +66,21 @@ final class VoiceLabController {
         this.activity=activity;this.sink=sink;this.modelPacks=packs;
     }
     boolean isRunning(){return active!=null;}
+    void setLanguage(String language){
+        if("en".equals(language)||"zh".equals(language))
+            requestedLanguage=language;
+    }
+    private synchronized PhoneticLexicon lexicon()throws Exception{
+        if(dictionary==null){
+            try(InputStream in=new GZIPInputStream(
+                    activity.getAssets().open("en_pronunciation_zh.tsv.gz"))){
+                dictionary=PhoneticLexicon.load(in);
+            }
+            if(dictionary.size()<1000)
+                throw new IllegalStateException("离线发音字典数据不完整");
+        }
+        return dictionary;
+    }
     private void status(String mode,String state,String message){
         try{sink.onEvent(new JSONObject()
             .put("type","voice_lab").put("mode",mode)
@@ -94,7 +115,7 @@ final class VoiceLabController {
                 throw new IllegalStateException("音频采集器初始化失败");
             input.startRecording();
             Session session=new Session(input,requestedMode,++nextToken,
-                modelPacks.selected());
+                modelPacks.selected(),requestedLanguage);
             active=session;
             Thread worker=new Thread(()->capture(session),"bodytrace-voice-capture");
             worker.setDaemon(true);
@@ -292,24 +313,54 @@ final class VoiceLabController {
             for(String phone:phones){
                 if(phone==null||phone.trim().isEmpty()||resultPhones.length()>=96)
                     continue;
-                resultPhones.put(new JSONObject()
-                    .put("ipa",phone)
-                    .put("english_words",PhoneReferenceExamples.english(phone))
-                    .put("pinyin_examples",PhoneReferenceExamples.mandarin(phone)));
+                // Only acoustic phone labels. Do not attach independent
+                // one-phone word/pinyin examples: that is NOT whole-word matching.
+                resultPhones.put(new JSONObject().put("ipa",phone));
             }
             JSONObject result=new JSONObject()
                 .put("type","voice_lab").put("state","phoneme_result")
                 .put("mode","phoneme").put("engine_id",id)
                 .put("engine_kind","neural_ctc")
                 .put("is_trained_phoneme_model",true)
+                .put("language",session.language)
                 .put("duration_ms",Math.round(count*1000.0/RATE))
                 .put("inference_ms",inferenceMs)
                 .put("candidates",resultPhones)
                 .put("message",resultPhones.length()>0?
-                    "ZIPA 神经音素识别完成 · 耗时 "+inferenceMs+"ms":
-                    "ZIPA 未输出稳定音素：可能是静音、短音或模型局限")
-                .put("warning","这些是声学模型直接输出的 IPA 候选，绝非识别出的单词；"+
-                    "相似例词只是参考。模型可能把非标准发音归一化，也不提供可靠的普通话拼音与声调评分。");
+                    "ZIPA 声学音素识别完成 · 耗时 "+inferenceMs+"ms":
+                    "ZIPA 未输出稳定音素；可能是静音、短音或模型局限")
+                .put("warning",
+                    "ZIPA 输出音素，不是已确认的文字或口音准确率。 "+
+                    "英语词典只做完整音素序列匹配；普通话声调及汉字不由该模型识别。");
+            result.put("word_matches",new JSONArray());
+            if("en".equals(session.language)&&phones.length>0){
+                try{
+                    PhoneticLexicon source=lexicon();
+                    JSONArray matches=new JSONArray();
+                    for(PhoneticLexicon.Match match:
+                            source.find(Arrays.asList(phones),7)){
+                        matches.put(new JSONObject()
+                            .put("word",match.word)
+                            .put("ipa",match.ipa)
+                            .put("zh",match.zh)
+                            .put("exact",match.exact)
+                            .put("phone_similarity",match.phoneSimilarityPercent)
+                            .put("edit_distance",match.phoneEditDistance));
+                    }
+                    result.put("word_matches",matches)
+                        .put("dictionary_entries",source.size());
+                }catch(Exception dictionaryFailure){
+                    // Lexicon problems must not make the neural recognition
+                    // fail or encourage fallbacks to fake single-phone words.
+                    result.put("dictionary_error",
+                        "英汉发音词典未就绪："+dictionaryFailure.getClass().getSimpleName());
+                }
+            }
+            if("zh".equals(session.language)){
+                result.put("mandarin_note",
+                    "普通话：仅显示真实 IPA 音段。音素不等于汉字或拼音音节，"+
+                    "当前未提供可信的声调与拼音反向识别。");
+            }
             if(active==session)sink.onEvent(result);
         }catch(Exception|LinkageError failure){
             if(active!=session)return;
