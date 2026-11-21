@@ -789,10 +789,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const held=await page.locator("#voicePhonemeSequence").textContent();
   if(held.replace(/\s+/g,"")!=="θɪŋk")
    throw Error("Keep the original ZIPA IPA phones, without English ASR");
-  const first=page.locator("#voiceWordMatches .voice-word-match").first();
-  if(!(await first.innerText()).includes("think")||
-     !(await first.innerText()).includes("思考")||
-     !(await first.innerText()).includes("完整音素匹配"))
+  const firstWordMatch=page.locator("#voiceWordMatches .voice-word-match").first();
+  if(!(await firstWordMatch.innerText()).includes("think")||
+     !(await firstWordMatch.innerText()).includes("思考")||
+     !(await firstWordMatch.innerText()).includes("完整音素匹配"))
    throw Error("Reverse whole-utterance IPA lookup must show think + its Chinese meaning");
   if((await page.locator("#voiceWordMatches").innerText()).includes("sit、ship"))
    throw Error("Single-phone example spam must not appear in dictionary results");
