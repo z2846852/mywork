@@ -529,8 +529,24 @@ assert.ok(sleepJS.includes('if(!analysisStarting&&!loadingCachedId)') ||
   sleepJS.includes('!analysisStarting&&!loadingCachedId'),
  "Do not unlock Analyze button while loading cached envelope");
 assert.ok(sleepJS.includes('移出列表（保留原文件）'));
-assert.ok(html.includes('音频不复制；首次离线 AI 分析') &&
- html.includes('文件媒体日期'),"Local audio and timestamp caveat must be visible");
+assert.ok(html.includes('id="sleepHelp"')&&
+ html.includes('首次选择后在手机本地自动运行 AI')&&
+ html.includes('文件名和媒体日期'),
+ "Fixed instructions must be accessible behind the compact help control");
+assert.ok(html.includes('<details id="sleepEditStartRow"') &&
+ html.includes('<details class="sleep-import-time"'),
+ "Infrequent time editors must collapse until needed");
+assert.ok(html.includes('class="sleep-view-modes"')&&
+ html.includes('id="sleepDetectionMode"')&&html.includes('id="sleepTimeMode"'),
+ "Detector mode and clock mode must share a compact toolbar");
+assert.ok(!html.includes('跨午夜会自动显示凌晨时间') &&
+ !html.includes('默认累计2秒、允许3秒间隔'),
+ "Static explanatory paragraphs must not occupy the workbench");
+assert.ok(html.includes('id="sleepAiPresetHint" hidden') &&
+ html.includes('id="sleepAnalyzeHint" class="sub" hidden'));
+assert.ok(sleepJS.includes('$("sleepDetectorNote").hidden=aiAvailable()') &&
+ sleepVisualization.includes('$("sleepTimeModeHint").hidden=!warning'),
+ "Only dynamic warnings should stay visible during normal use");
 assert.ok(sleepStore.includes('static File importedAudio('));
 assert.ok(sleepStore.includes('"audio_extension"'));
 assert.ok(sleepStore.includes('"original_name","duration_ms"'));
@@ -1060,7 +1076,7 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.equal(el("sleepThreshold").value,"-48.0",
    "P20(-50 dBFS)+2 dB should be the adaptive default");
   assert.equal(sleepWindow.BodyTraceAudioFilter.estimateNoiseFloor([-45,-45,-45,-20,-5]),-45);
-  assert.match(el("sleepBaselineLabel").textContent,/本晚背景估计 -50.0 dBFS/);
+  assert.match(el("sleepBaselineLabel").textContent,/背景 -50.0 dBFS/);
   el("sleepThresholdUp").onclick();
   assert.equal(el("sleepThreshold").value,"-47.9");
   el("sleepThresholdDown").onclick();
@@ -1071,7 +1087,9 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   el("sleepThresholdReset").onclick();
   assert.equal(el("sleepThreshold").value,"-48.0");
   assert.equal(el("sleepAnalysisProgress").hidden,true);
-  assert.match(el("sleepAnalyze").textContent,/AI 已缓存/);
+  assert.match(el("sleepAnalyze").textContent,/已缓存/);
+  assert.equal(el("sleepAnalyzeHint").hidden,true,
+   "No duplicate help text when cached results are available");
   assert.equal(el("sleepEditStartRow").hidden,false);
   assert.match(el("sleepTimeSourceHint").textContent,/没有可信的起始时间/);
   el("sleepEditStart").value="2026-11-21T23:00";

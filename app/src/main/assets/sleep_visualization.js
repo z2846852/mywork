@@ -74,17 +74,16 @@
  }
  function updateTimeModeLabel(){
   $("sleepTimeMode").value=timeAxisMode;
-  $("sleepTimeModeHint").textContent=!hasRecordingStart()?
-   "文件未提供可靠录制起点，请在顶部指定时间后使用真实时间轴。":
-   timeAxisMode==="clock"?
-   result.date_basis==="media_date_unverified"?
-    "当前按文件媒体日期显示；它可能是录音结束时间，请核对。":
-   result.date_basis==="filename_media_end_match"?
-    "文件名推断录音起点，媒体日期与预计结束时间吻合 · 可手动修正":
-   result.date_basis==="filename_inferred"?
-    "文件名推断录音起点（按北京时间） · 可手动修正":
-    "真实钟表时间 · 跨午夜自动显示次日凌晨时间":
-   "从录音开始计时 · +00:00:00 为文件起点";
+  const basis=result?.date_basis;
+  const warning=!hasRecordingStart()?
+   "录制起点未知 · 可展开校正时间":
+   timeAxisMode==="clock"&&basis==="media_date_unverified"?
+    "媒体日期可能是结束时间":
+   timeAxisMode==="clock"&&basis==="filename_inferred"?
+    "开始时间由文件名推断":
+   "";
+  $("sleepTimeModeHint").textContent=warning;
+  $("sleepTimeModeHint").hidden=!warning;
  }
  function setTimeMode(mode){
   if(mode==="clock"&&!hasRecordingStart()){
@@ -298,12 +297,10 @@
     new Date(Number(result.started_ms)+cursor*1000).toLocaleDateString(
      "zh-CN",{timeZone:"Asia/Shanghai",month:"2-digit",day:"2-digit"})+" ":"";
    $("sleepWaveSelection").textContent=datePrefix+stamp(cursor)+
-    " · 短时背景"+(delta>=0?"+":"")+delta.toFixed(1)+" dB"+
-    " · 短时"+(Number.isFinite(detector)?detector.toFixed(1):"未知")+
-    " dBFS · 整秒"+(Number.isFinite(value)?value.toFixed(1):"未知")+
-    " dBFS · "+(aiMode()?
-     "YAMNet得分 "+Number(aiScores()[cursor]).toFixed(3)+"（非概率） · ":"")+
-    (eligible?"位于候选片段":"未选中");
+    (aiMode()?" · AI "+Number(aiScores()[cursor]).toFixed(3):
+     " · "+(Number.isFinite(detector)?detector.toFixed(1):"未知")+" dBFS")+
+    " · "+(eligible?"候选":"未命中")+
+    (aiMode()?" · "+(Number.isFinite(detector)?detector.toFixed(1):"未知")+" dBFS":"");
   $("sleepPlaySelection").disabled=false;
   $("sleepFocusSelection").disabled=false;
   schedule();

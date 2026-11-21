@@ -114,10 +114,8 @@
   $("sleepAiControls").hidden=!active;
   $("sleepThresholdWorkbench").hidden=active;
   $("sleepDetectionMode").disabled=!aiAvailable();
-  $("sleepDetectorNote").textContent=aiAvailable()?
-   active?"AI 模型分数未校准；可用「高召回测试」检查漏检（也可能增加误报）。":
-   "当前为传统响度候选模式，不代表实际鼾声。":
-   "当前录音尚未进行 AI 分类；点击下方按钮可对原音频执行离线 YAMNet 分析。";
+  $("sleepDetectorNote").textContent=aiAvailable()?"":"AI 结果未生成";
+  $("sleepDetectorNote").hidden=aiAvailable();
  }
  function applyLiveFilters(updateUi=true){
   if(!analysis||!Array.isArray(analysis.levels_dbfs))return false;
@@ -157,7 +155,7 @@
    {timeZone:"Asia/Shanghai",hour12:false});
   $("sleepAnalysisStage").textContent="最后更新 "+label+
    " · "+(pct===0?"正在初始化解码器或读取音频":"已解码约 "+pct+"%")+
-   " · 可以锁屏，通知栏继续提示进度";
+   "";
  }
  function clearAnalysisProgress(){
   $("sleepAnalysisProgress").hidden=true;
@@ -183,9 +181,8 @@
   $("sleepThresholdText").textContent=raw.toFixed(1)+" dBFS";
   $("sleepThresholdRelative").textContent=floor===null?
    "等待背景估算":((raw-floor)>=0?"+":"")+(raw-floor).toFixed(1)+" dB / 背景";
-  $("sleepBaselineLabel").textContent=floor===null?
-   "首次分析后估算背景，默认高于背景 2.0 dB":
-   "本晚背景估计 "+floor.toFixed(1)+" dBFS（P20）；按「基线」恢复背景 +2.0 dB。不是环境 dB SPL。";
+  $("sleepBaselineLabel").textContent=floor===null?"":
+   "背景 "+floor.toFixed(1)+" dBFS (P20)";
  }
  function current(){
   return sessions.find(s=>s.id===selectedId)||null;
@@ -220,29 +217,23 @@
  }
  function render(){
   $("sleepStatus").textContent=recording?
-   "正在录制 · 可锁屏，麦克风前台服务持续工作（通知栏可以停止）":
-   "当前没有正在进行的录音";
+   "● 录音中":"未录音";
   $("sleepStatus").classList.toggle("sleep-live",recording);
   $("sleepStart").disabled=recording||busy;
   $("sleepStop").disabled=!recording;
   $("sleepImport").disabled=importing||busy;
-  $("sleepImport").textContent=importing?"正在读取文件信息…":"选择本机音频（不复制原文件）";
+  $("sleepImport").textContent=importing?"读取中…":"导入音频";
   const chosen=current();
   $("sleepAnalyze").disabled=!chosen||recording||busy||!!loadingCachedId||
    !(chosen.status==="completed"||chosen.status==="interrupted");
   const ready=analysis?.id===selectedId&&aiAvailable();
-  $("sleepAnalyze").textContent=loadingCachedId?"正在加载缓存…":
-   busy?"正在后台 AI 分析，请查看进度":
-   ready?"AI 已缓存":
-   chosen?.levels_cached?"补充缺失的 AI 模型结果":
-   "手动重试 AI 分析";
+  $("sleepAnalyze").textContent=loadingCachedId?"读取缓存…":
+   busy?"AI 分析中":ready?"已缓存":
+   chosen?.levels_cached?"补充 AI":"重试 AI";
   $("sleepAnalyze").hidden=!chosen||ready&&!busy&&!loadingCachedId;
-  $("sleepAnalyzeHint").textContent=busy?
-   "正在分析并保存结果；下次选中直接读取本机缓存。":
-   ready?"✓ 波形与 AI 识别结果已缓存，下次选中无需重复推理。":
-   chosen?.levels_cached?"已有波形，正在检查 AI 缓存。":
-   chosen?"首次选择后自动分析；失败时可以手动重试。":
-   "选择录音后自动分析，无须点击底部按钮。";
+  $("sleepAnalyzeHint").textContent=chosen?.levels_cached?
+   "AI 缓存待升级":"AI 待分析";
+  $("sleepAnalyzeHint").hidden=!chosen||ready||busy||!!loadingCachedId;
   const select=$("sleepSessionSelect");
   select.replaceChildren();
   const empty=document.createElement("option");empty.value="";empty.textContent="选择录音";
@@ -276,12 +267,10 @@
     "媒体日期（可能是录制结束时间）":
    knownTime?"APP 实际录制时间":"录音开始时间未知";
   $("sleepSelectedFile").textContent=chosen?
-   "本机 · "+(chosen.external_file?"引用原音频":"APP 私有录音")+
-   " · "+(chosenBytes>0?(chosenBytes/1048576).toFixed(2)+" MB":"大小未确定")+
-   " · "+duration(chosenDuration/1000)+
-   " · "+timeSource+
-   (chosen.levels_cached?" · 已缓存":" · 待分析"):
-   "这里显示所选录音的文件大小、时长和缓存状态";
+   (chosenBytes>0?(chosenBytes/1048576).toFixed(2)+" MB":"大小未知")+
+   " · "+duration(chosenDuration/1000)+" · "+timeSource+
+   (chosen.levels_cached?" · ✓ 已缓存":" · 未分析"):
+   "";
   $("sleepEditStartRow").hidden=!chosen?.external_file;
   if(chosen?.external_file){
    if(startEditorSessionId!==selectedId){
@@ -496,7 +485,7 @@
   if(recording||busy||importing){toast("请先完成当前录音或分析",true);return;}
   if(!bridge()?.sleepImport){toast("请安装支持导入录音的新版 APK",true);return;}
   importing=true;
-  $("sleepImportStatus").textContent="请选择原始 M4A；仅授权读取，不会复制、移动或删除原文件。";
+  $("sleepImportStatus").textContent="等待选择本机音频…";
   render();
   bridge().sleepImport($("sleepImportStarted").value||"");
  };

@@ -223,7 +223,22 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <div class="panel sleep-workbench">
   <div class="sleep-workbench-head">
    <div><div class="eyebrow">LOCAL AUDIO / WORKBENCH</div><h2>声音浏览器</h2></div>
-   <span class="sleep-workbench-badge">仅在本机</span>
+   <div class="sleep-head-actions">
+     <span class="sleep-workbench-badge">仅在本机</span>
+     <details class="sleep-help" id="sleepHelp">
+      <summary aria-label="睡眠页使用说明" title="查看说明">!</summary>
+      <div class="sleep-help-content">
+       <strong>录音和缓存</strong>
+       <p>首次选择后在手机本地自动运行 AI；之后直接读取缓存，不重复解码。APP 自录音可导出 M4A，导入的原文件不复制。</p>
+       <strong>识别和筛选</strong>
+       <p>标准：模型得分 ≥0.15、累计命中 2 秒；高召回：≥0.05、累计 1 秒。模型分数未经校准，不是概率或医学诊断，降低阈值可能增加误报。</p>
+       <strong>波形手势</strong>
+       <p>点击查看时间和模型分数；单指平移、双指横向缩放；双指纵向同向滑动或开合可调 dB 纵轴。红色短线表示候选声音片段。</p>
+       <strong>录制和时间</strong>
+       <p>默认显示北京时间，可切换从 00:00 计时。文件名和媒体日期可能不是录音开始时间，可展开“校正时间”修改，不会重算 AI。锁屏录音或分析需允许后台活动。</p>
+      </div>
+     </details>
+    </div>
   </div>
   <div class="sleep-active-row">
    <label for="sleepSessionSelect" class="sr-only">选择录音</label>
@@ -232,58 +247,56 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   </div>
   <div id="sleepSelected" class="sleep-selected">请从下方选择一个已完成的录音</div>
   <p id="sleepSelectedFile" class="sub">录音大小和缓存状态将显示在这里</p>
-  <div id="sleepEditStartRow" class="sleep-time-edit" hidden>
-   <label for="sleepEditStart">录音实际开始时间（北京时间，可校正文件日期）</label>
+  <details id="sleepEditStartRow" class="sleep-time-edit" hidden>
+    <summary>校正录制时间</summary>
+   <label for="sleepEditStart">录音开始时间 · 北京时间</label>
    <div class="row wrap">
     <input type="datetime-local" id="sleepEditStart" step="1">
-    <button type="button" class="secondary mini" id="sleepSaveStart">保存时间（不重算 AI）</button>
+    <button type="button" class="secondary mini" id="sleepSaveStart">保存</button>
    </div>
-   <p id="sleepTimeSourceHint" class="sub">文件媒体日期可能是修改时间；不确定时请手动核对。</p>
-  </div>
+   <p id="sleepTimeSourceHint" class="sub"></p>
+   </details>
   <div class="sleep-analysis-launch">
-   <p id="sleepAnalyzeHint" class="sub">首次选择自动 AI 分析；再次选择直接加载本机缓存。</p>
-   <button type="button" class="secondary" id="sleepAnalyze" disabled>手动重试 AI 分析</button>
+   <p id="sleepAnalyzeHint" class="sub" hidden></p>
+   <button type="button" class="secondary" id="sleepAnalyze" disabled>重试 AI</button>
    <div id="sleepAnalysisProgress" class="sleep-analysis-progress" hidden role="status" aria-live="off">
     <div class="sleep-progress-header">
      <span><i class="sleep-progress-pulse" aria-hidden="true"></i> 正在后台解析音频</span>
      <strong id="sleepAnalysisPercent">0%</strong>
     </div>
     <progress id="sleepAnalysisTrack" max="100" value="0" aria-label="整晚录音分析进度"></progress>
-    <p class="sub" id="sleepAnalysisStage">可以锁屏或切换 APP；通知栏持续显示进度。</p>
+    <p class="sub" id="sleepAnalysisStage"></p>
    </div>
   </div>
   <div class="sleep-visualization" id="sleepVisualization" hidden>
-   <div class="sleep-visual-head">
-    <h3>全夜声音 · AI 鼾声候选</h3>
-    <span class="sub">双指缩放 · 单指移动</span>
-   </div>
-   <div class="sleep-detector-row">
-    <label for="sleepDetectionMode">筛选方式</label>
-    <select id="sleepDetectionMode" aria-label="筛选模式">
-     <option value="ai">AI 鼾声模型（YAMNet）</option>
-     <option value="level">响度阈值（旧版）</option>
-    </select>
+   <div class="sleep-visual-head"><h3>声音时间线</h3></div>
+   <div class="sleep-view-modes">
+    <label for="sleepDetectionMode">识别
+     <select id="sleepDetectionMode" aria-label="筛选模式">
+      <option value="ai">AI 鼾声</option>
+      <option value="level">响度</option>
+     </select>
+    </label>
+    <label for="sleepTimeMode">时间
+     <select id="sleepTimeMode">
+      <option value="clock">钟表时间</option>
+      <option value="relative">从 00:00 起</option>
+     </select>
+    </label>
    </div>
    <div id="sleepAiControls" class="sleep-ai-controls" hidden>
-    <label for="sleepSnoreThreshold">AI 最低得分
+    <label for="sleepSnoreThreshold">AI 得分 ≥
      <strong id="sleepSnoreThresholdText">0.15</strong></label>
     <input id="sleepSnoreThreshold" type="range" min="0.01" max="0.9"
      step="0.01" value="0.15" aria-label="AI 鼾声模型最低得分">
     <div class="row wrap sleep-ai-presets">
-     <button type="button" class="secondary mini" id="sleepAiStandard">标准筛选</button>
-     <button type="button" class="secondary mini" id="sleepAiHighRecall">高召回测试</button>
+     <button type="button" class="secondary mini" id="sleepAiStandard">标准</button>
+     <button type="button" class="secondary mini" id="sleepAiHighRecall">高召回</button>
     </div>
-    <p class="sub" id="sleepAiPresetHint">标准：得分 ≥0.15、累计2秒；高召回：≥0.05、累计1秒。仅更改筛选，不重新解码。可能增加误报。</p>
+    <p class="sub" id="sleepAiPresetHint" hidden>标准 0.15/2 秒；高召回 0.05/1 秒；仅重新筛选缓存。</p>
    </div>
-   <p id="sleepDetectorNote" class="sub">等待本地 AI 声音分类。</p>
-   <div class="sleep-time-axis-row">
-    <label for="sleepTimeMode">横轴时间</label>
-    <select id="sleepTimeMode">
-     <option value="clock">实际钟表时间（默认）</option>
-     <option value="relative">录音从 00:00 起</option>
-    </select>
-    <span id="sleepTimeModeHint" class="sub">跨午夜会自动显示凌晨时间</span>
-   </div>
+   <p id="sleepDetectorNote" class="sub" hidden></p>
+   <span id="sleepTimeModeHint" class="sub sleep-time-warning" hidden></span>
    <div class="sleep-wave-controls" role="group" aria-label="声波缩放">
     <button type="button" class="mini secondary" data-sleep-zoom="all">整晚</button>
     <button type="button" class="mini secondary" data-sleep-zoom="3600">1小时</button>
@@ -296,7 +309,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <canvas id="sleepWaveCanvas" height="208" role="img"
      aria-label="相对录音背景响度，纵轴以dB表示并保持固定；红线为阈值。双指水平缩放和上下双指移动纵轴"></canvas>
    </div>
-   <p id="sleepWaveSelection" class="sub">点击选时间 · 单指平移 · 双指缩放（上下同向移动纵轴）</p>
+   <p id="sleepWaveSelection" class="sub"></p>
    <div class="sleep-threshold-workbench" id="sleepThresholdWorkbench">
     <div class="sleep-threshold-header">
      <span>红线阈值</span>
@@ -310,7 +323,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
      <button type="button" id="sleepThresholdUp" class="secondary mini" aria-label="阈值加0.1分贝">＋</button>
      <button type="button" id="sleepThresholdReset" class="secondary mini">基线</button>
     </div>
-    <p id="sleepBaselineLabel" class="sub">读取波形后自动估算背景噪音，默认在背景基础上提高 2.0 dB。</p>
+    <p id="sleepBaselineLabel" class="sub"></p>
    </div>
    <div class="sleep-quick-constraints">
     <label>持续 <input id="sleepMinSeconds" type="number" inputmode="numeric" min="1" max="120" step="1" value="2"> 秒</label>
@@ -318,21 +331,21 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <span id="sleepQuickSummary" aria-live="polite">暂无候选片段</span>
    </div>
    <p id="sleepNoiseHint" class="sleep-noise-warning" hidden></p>
-    <p class="sub">默认累计2秒、允许3秒间隔。AI 模型独立于 dB 筛选；不是鼾声医学诊断。</p>
+    
    <div class="sleep-transport">
     <label class="sleep-skip-option" for="sleepSkipQuiet">
-     <input type="checkbox" id="sleepSkipQuiet"><span>跳过不达标的安静段</span>
+     <input type="checkbox" id="sleepSkipQuiet"><span>跳过安静段</span>
     </label>
     <div class="sleep-playbar">
-     <button type="button" class="secondary mini" id="sleepPreviousEvent" aria-label="上一候选片段">◀ 上一段</button>
-     <button type="button" class="primary" id="sleepPlaySelection" disabled>▶ 从此处播放</button>
-     <button type="button" class="secondary mini" id="sleepNextEvent" aria-label="下一候选片段">下一段 ▶</button>
-     <button type="button" id="sleepStopPlayback" class="secondary mini">■ 停止</button>
+     <button type="button" class="secondary mini" id="sleepPreviousEvent" aria-label="上一候选片段">◀ 上段</button>
+     <button type="button" class="primary" id="sleepPlaySelection" disabled>▶ 播放</button>
+     <button type="button" class="secondary mini" id="sleepNextEvent" aria-label="下一候选片段">下段 ▶</button>
+     <button type="button" id="sleepStopPlayback" class="secondary mini">■ 停</button>
     </div>
-    <p id="sleepPlaybackStatus" class="sub" role="status">尚未播放</p>
+    <p id="sleepPlaybackStatus" class="sub" role="status"></p>
    </div>
    <details class="sleep-extras">
-    <summary>详细统计、时间分布和显示说明</summary>
+    <summary>详细统计与分布</summary>
     <div id="sleepSoundStats" class="sleep-sound-stats"></div>
     <p id="sleepNoiseWarning" class="sleep-noise-warning" hidden></p>
     <div class="sleep-wave-legend">
@@ -354,23 +367,25 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   <summary>录音管理 / 导入 <span id="sleepLibraryCount">0 条记录</span></summary>
   <div class="panel sleep-recording-panel">
    <div class="sleep-status" id="sleepStatus" role="status">正在读取本地录音状态…</div>
-   <p id="sleepRecordingResult" class="sub" role="status">APP 内录音保存在手机私有目录，列表显示文件大小；可单独导出 M4A。</p>
+   <p id="sleepRecordingResult" class="sub" role="status"></p>
    <div class="row wrap sleep-actions">
-    <button type="button" class="primary" id="sleepStart">开始睡眠录音</button>
-    <button type="button" class="secondary" id="sleepStop" disabled>停止并保存</button>
+    <button type="button" class="primary" id="sleepStart">● 录音</button>
+    <button type="button" class="secondary" id="sleepStop" disabled>■ 保存</button>
    </div>
    <div class="sleep-import-actions">
-    <button type="button" class="secondary" id="sleepImport">选择本机音频（不复制原文件）</button>
-    <label class="sub" for="sleepImportStarted">原始录音开始时间（可选，可覆盖文件日期）</label>
-    <input type="datetime-local" id="sleepImportStarted" step="1">
-    <p class="sub">尝试读取 M4A 内嵌日期（可能是创建或修改时间，需核对）；没有可靠时间时用相对轴，可在选中后手动设置。音频不复制；首次离线 AI 分析，之后直接读取缓存。</p>
+    <button type="button" class="secondary" id="sleepImport">导入音频</button>
+    <details class="sleep-import-time">
+     <summary>可选：指定录音开始时间</summary>
+     <label class="sub" for="sleepImportStarted">北京时间</label>
+     <input type="datetime-local" id="sleepImportStarted" step="1">
+    </details>
     <p id="sleepImportStatus" class="sub" role="status"></p>
    </div>
-   <p class="sub">录音需要麦克风授权；锁屏期间由前台服务录制，部分手机需要允许后台活动。</p>
+   
   </div>
   <div class="panel">
    <h3>音频与波形库</h3>
-   <p class="sub">移出外部录音只清除本 App 的引用与缓存，不会删除原 M4A。自己录制或旧版复制的 App 内音频则可从此删除。</p>
+   
    <div id="sleepHistory" class="sleep-history"></div>
   </div>
  </details>
