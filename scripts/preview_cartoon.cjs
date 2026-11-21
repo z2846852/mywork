@@ -714,16 +714,16 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     window.BodyTraceNative.voiceLabStop=()=>window.__labMock.stopped++;
     window.BodyTraceNative.voiceLabFinishPhoneme=()=>window.__labMock.finished++;
   });
-  const chart=page.locator("#voicePitchChart");
-  const dims=await chart.evaluate(e=>({
+  const voicePitchSvg=page.locator("#voicePitchChart");
+  const voicePitchBounds=await voicePitchSvg.evaluate(e=>({
     width:e.getBoundingClientRect().width,
     height:e.getBoundingClientRect().height,
     color:getComputedStyle(e).backgroundColor
   }));
-  if(dims.width<250||dims.height<100||dims.height>300||
-      dims.color==="rgb(255, 255, 255)")
+  if(voicePitchBounds.width<250||voicePitchBounds.height<100||
+      voicePitchBounds.height>300||voicePitchBounds.color==="rgb(255, 255, 255)")
    throw Error("Pitch chart must be a compact dark SVG, not a blank white canvas: "+
-    JSON.stringify(dims));
+    JSON.stringify(voicePitchBounds));
   await page.locator("#voicePitchStart").click();
   if((await page.evaluate(()=>window.__labMock.started[0]))!=="pitch")
    throw Error("Pitch must start native PCM capture");

@@ -699,9 +699,14 @@ public final class MainActivity extends Activity {
             String requested=pendingVoiceLabMode;
             pendingVoiceLabMode="";
             if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==
-                    PackageManager.PERMISSION_GRANTED)
-                voiceLab.start(requested);
-            else try{
+                    PackageManager.PERMISSION_GRANTED){
+                if("phoneme".equals(requested)){
+                    try{reply(message("voice_lab").put("mode","phoneme")
+                        .put("state","permission_ready")
+                        .put("message","麦克风权限已开启，请再次按住录音按钮"));}
+                    catch(Exception ignored){}
+                }else voiceLab.start(requested);
+            }else try{
                 reply(message("voice_lab").put("state","error")
                     .put("message","麦克风权限被拒绝，实时声音实验未启动"));
             }catch(Exception ignored){}
@@ -1855,8 +1860,7 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface public void voiceLabStart(String requestedMode){
             runOnUiThread(()->{
-                if(!("pitch".equals(requestedMode)||"vowel".equals(requestedMode)||
-                      "fricative".equals(requestedMode))){
+                if(!("pitch".equals(requestedMode)||"phoneme".equals(requestedMode))){
                     error("无效的实时声音模式");return;
                 }
                 if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=
@@ -1868,7 +1872,10 @@ public final class MainActivity extends Activity {
             });
         }
         @JavascriptInterface public void voiceLabStop(){
-            runOnUiThread(()->voiceLab.stop(true));
+            runOnUiThread(()->voiceLab.cancel(true));
+        }
+        @JavascriptInterface public void voiceLabFinishPhoneme(){
+            runOnUiThread(()->voiceLab.finishPhoneme());
         }
         @JavascriptInterface public void voiceLabCapabilities(){
             runOnUiThread(()->{
@@ -1877,6 +1884,7 @@ public final class MainActivity extends Activity {
                         .put("raw_pcm",true).put("pitch_yin",true)
                         .put("acoustic_vowel_probe",true)
                         .put("acoustic_fricative_probe",true)
+                        .put("segment_on_release",true)
                         .put("trained_phone_model",false)
                         .put("recognition_uses_asr",false));
                 }catch(Exception ignored){}
@@ -2162,12 +2170,12 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onPause() {
-        if(voiceLab!=null&&voiceLab.isRunning())voiceLab.stop(true);
+        if(voiceLab!=null&&voiceLab.isRunning())voiceLab.cancel(true);
         super.onPause();
     }
 
     @Override protected void onDestroy() {
-        if(voiceLab!=null)voiceLab.stop(false);
+        if(voiceLab!=null)voiceLab.cancel(false);
         unregisterReceiver(sleepAnalysisReceiver);
         stopSleepPlayback();
         sleepHandler.removeCallbacksAndMessages(null);
