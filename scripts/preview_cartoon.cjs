@@ -792,7 +792,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.evaluate(()=>window.bodyTraceReceive({
     type:"voice_lab",state:"stopped",mode:"phoneme",message:"已停止"
   }));
-  if((await page.locator("#voicePhonemeSequence").innerText())!==held||
+  if((await page.locator("#voicePhonemeSequence").textContent())!==held||
      !(await page.locator("#voicePhonemeState").innerText()).includes("已完成"))
    throw Error("A phoneme result must survive mic shutdown after release");
   await page.screenshot({path:"bodytrace-voice-phoneme-preview.png",fullPage:false});
