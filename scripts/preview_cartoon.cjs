@@ -601,6 +601,9 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator("#sleepThresholdDown").click();
   if((await page.evaluate(()=>window.__sleepBridge.analysis.length))!==decodeCount)
    throw Error("Changing threshold must not decode the original M4A again");
+  // The optional start time is intentionally collapsed in the compact UI.
+  // Expand it explicitly before typing; do not force the field visible.
+  await page.locator(".sleep-import-time > summary").click();
   await page.fill("#sleepImportStarted","2026-11-18T23:00");
   await page.evaluate(()=>window.BodyTraceNative.sleepImport=value=>{
    window.__importStarted=value;
