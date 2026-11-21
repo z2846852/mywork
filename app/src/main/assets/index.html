@@ -235,7 +235,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   <div id="sleepEditStartRow" class="sleep-time-edit" hidden>
    <label for="sleepEditStart">录音实际开始时间（北京时间，可校正文件日期）</label>
    <div class="row wrap">
-    <input type="datetime-local" id="sleepEditStart">
+    <input type="datetime-local" id="sleepEditStart" step="1">
     <button type="button" class="secondary mini" id="sleepSaveStart">保存时间（不重算 AI）</button>
    </div>
    <p id="sleepTimeSourceHint" class="sub">文件媒体日期可能是修改时间；不确定时请手动核对。</p>
@@ -362,7 +362,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
    <div class="sleep-import-actions">
     <button type="button" class="secondary" id="sleepImport">选择本机音频（不复制原文件）</button>
     <label class="sub" for="sleepImportStarted">原始录音开始时间（可选，可覆盖文件日期）</label>
-    <input type="datetime-local" id="sleepImportStarted">
+    <input type="datetime-local" id="sleepImportStarted" step="1">
     <p class="sub">尝试读取 M4A 内嵌日期（可能是创建或修改时间，需核对）；没有可靠时间时用相对轴，可在选中后手动设置。音频不复制；首次离线 AI 分析，之后直接读取缓存。</p>
     <p id="sleepImportStatus" class="sub" role="status"></p>
    </div>

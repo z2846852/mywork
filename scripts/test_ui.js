@@ -485,6 +485,9 @@ assert.ok(html.includes('id="sleepSelectedFile"') &&
  html.includes('id="sleepRecordingResult"'));
 assert.ok(html.includes('id="sleepTimeMode"')&&html.includes('id="sleepEditStart"')&&
  html.includes('id="sleepSaveStart"'));
+assert.ok(html.includes('id="sleepEditStart" step="1"') &&
+ html.includes('id="sleepImportStarted" step="1"'),
+ "Recording time editors must preserve seconds in YYYYMMDD_HHMMSS filenames");
 assert.ok(native.includes('sleepSetStartTime(String sessionId,String localStart)'));
 assert.ok(native.includes('MediaMetadataRetriever.METADATA_KEY_DATE'));
 assert.ok(native.includes('parseEmbeddedMediaDate('));

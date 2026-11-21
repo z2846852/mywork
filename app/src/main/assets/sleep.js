@@ -287,7 +287,7 @@
    if(startEditorSessionId!==selectedId){
     const ms=knownTime?Number(chosen.started_ms):0;
     $("sleepEditStart").value=ms?
-     new Date(ms+8*60*60*1000).toISOString().slice(0,16):"";
+     new Date(ms+8*60*60*1000).toISOString().slice(0,19):"";
     startEditorSessionId=selectedId;
    }
    $("sleepTimeSourceHint").textContent=chosen.date_basis==="filename_media_end_match"?
