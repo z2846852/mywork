@@ -161,6 +161,48 @@ for(const field of ["page-sleep","sleepStart","sleepStop","sleepStatus",
  assert.ok(html.includes('id="'+field+'"'),"Missing sleep field "+field);
 }
 assert.ok(html.includes('data-page="sleep"'),"Sleep tab should be selectable");
+assert.ok(html.includes('id="sleepAudioToolbar"') &&
+ html.includes('id="phoneSleepPanel"') &&
+ html.includes('id="phoneSleepHistory"') &&
+ html.includes('id="phoneSleepGrant"'),
+ "Phone reports and one-line audio toolbar must exist");
+const start=html.indexOf('id="sleepAudioToolbar"');
+const end=html.indexOf('id="sleepSelected"',start);
+assert.ok(start>0&&end>start);
+for(const id of ["sleepSessionSelect","sleepStart","sleepStop","sleepImport","sleepCollectionDetails"])
+ assert.ok(html.slice(start,end).includes('id="'+id+'"'),
+  "Audio browser action must appear on the same top row: "+id);
+assert.equal((html.match(/id="sleepStart"/g)||[]).length,1,
+ "No duplicate recording actions at bottom");
+assert.ok(html.indexOf('id="phoneSleepPanel"')>
+ html.indexOf('id="sleepVisualization"') &&
+ html.indexOf('id="phoneSleepPanel"')<
+ html.indexOf('id="vivoSleepPanel"'));
+const usageHistory=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/PhoneSleepHistory.java"),"utf8");
+const sleepInference=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/PhoneSleepInference.java"),"utf8");
+assert.ok(manifest.includes('android.permission.PACKAGE_USAGE_STATS'));
+assert.ok(native.includes('requestPhoneUsageAccess()') &&
+ native.includes('phoneSleepReports()') &&
+ native.includes('sendPhoneSleepReports()') &&
+ native.includes('ACTION_USAGE_ACCESS_SETTINGS'));
+assert.ok(usageHistory.includes('manager.queryEvents(0L,now+1L)'),
+ "Must query all Android-retained events, not a rolling seven-day range");
+assert.ok(!usageHistory.includes('now-7*86400000'));
+assert.ok(usageHistory.includes('mergeStored(readStore())') &&
+ usageHistory.includes('if(!records.containsKey(night.day))') &&
+ usageHistory.includes('saveStore(records)'),
+ "Persist old reports and only generate missing days");
+assert.ok(usageHistory.includes('MAX_SCANNED')&&usageHistory.includes('truncated'),
+ "A very large device event history must be bounded and disclosed");
+assert.ok(sleepInference.includes('不等于真实睡眠') &&
+ sleepInference.includes('SHUTDOWN')&&sleepInference.includes('MIN_GAP'));
+assert.ok(sleepJS.includes('if(evt.type==="phone_sleep"){renderPhoneSleep(evt);return;}') &&
+ sleepJS.includes('bridge().requestPhoneUsageAccess()') &&
+ sleepJS.includes('bridge().phoneSleepReports()'));
+assert.ok(workflow.includes('PhoneSleepInferenceTest.java'));
+
 
 const vivoProbe=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/VivoSleepProbe.java"),"utf8");

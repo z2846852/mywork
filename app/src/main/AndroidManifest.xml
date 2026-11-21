@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Explicit user-granted Usage Access special permission; no screen recorder. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"/>
     <!-- vivo Health private-provider diagnostic. Usually signature|privileged;
          not a runtime permission and never requested with a UI permission dialog. -->
     <uses-permission android:name="com.vivo.health.widget.permission"/>

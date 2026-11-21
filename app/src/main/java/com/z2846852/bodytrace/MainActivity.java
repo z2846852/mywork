@@ -50,6 +50,7 @@ public final class MainActivity extends Activity {
     private UiBundleManager uiBundles;
     private ApkUpdateManager apkUpdates;
     private volatile boolean awaitingApkInstallerPermission=false;
+    private volatile boolean awaitingPhoneUsagePermission=false;
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
     private static final int EXPORT_SLEEP_AUDIO_REQUEST=7205;
@@ -653,6 +654,15 @@ public final class MainActivity extends Activity {
         }catch(Exception e){error("睡眠录音分析结果读取失败："+safeMessage(e));}
     }
 
+    private void sendPhoneSleepReports(){
+        try{reply(new PhoneSleepHistory(this).scanAllRetainedEvents());}
+        catch(Exception failure){
+            try{reply(message("phone_sleep").put("state","error")
+                .put("message","手机行为报告生成失败："+safeMessage(failure)));}
+            catch(Exception ignored){}
+        }
+    }
+
     private void sendSleepStatus() {
         try {
             JSONObject result=message("sleep_status");
@@ -689,6 +699,10 @@ public final class MainActivity extends Activity {
     @Override protected void onResume(){
         super.onResume();
         if(uiReady)worker.execute(this::sendSleepStatus);
+        if(awaitingPhoneUsagePermission){
+            awaitingPhoneUsagePermission=false;
+            worker.execute(this::sendPhoneSleepReports);
+        }
         if(awaitingApkInstallerPermission&&apkUpdates!=null&&
             apkUpdates.hasPendingInstall()&&
             (Build.VERSION.SDK_INT<26||
@@ -1765,6 +1779,27 @@ public final class MainActivity extends Activity {
                     choose.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     startActivityForResult(choose,PICK_SLEEP_AUDIO_REQUEST);
                 }catch(Exception ex){error("无法打开录音选择器："+safeMessage(ex));}
+            });
+        }
+
+        @JavascriptInterface public void phoneSleepReports(){
+            worker.execute(MainActivity.this::sendPhoneSleepReports);
+        }
+        @JavascriptInterface public void requestPhoneUsageAccess(){
+            runOnUiThread(()->{
+                try{
+                    if(new PhoneSleepHistory(MainActivity.this).hasUsageAccess()){
+                        worker.execute(MainActivity.this::sendPhoneSleepReports);
+                        return;
+                    }
+                    awaitingPhoneUsagePermission=true;
+                    Intent settings=new Intent(
+                        android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                    startActivity(settings);
+                }catch(Exception e){
+                    awaitingPhoneUsagePermission=false;
+                    error("无法打开手机使用情况权限设置："+safeMessage(e));
+                }
             });
         }
 

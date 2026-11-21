@@ -53,6 +53,15 @@ jobs:
             scripts/java_tests/com/z2846852/bodytrace/ApkDeltaPatchTest.java
           java -cp "$RUNNER_TEMP/bodytrace-delta-test" \
             com.z2846852.bodytrace.ApkDeltaPatchTest
+      - name: Validate phone activity sleep inference (all retained event dates)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bodytrace-phone-sleep"
+          javac -d "$RUNNER_TEMP/bodytrace-phone-sleep" \
+            app/src/main/java/com/z2846852/bodytrace/PhoneSleepInference.java \
+            scripts/java_tests/com/z2846852/bodytrace/PhoneSleepInferenceTest.java
+          java -cp "$RUNNER_TEMP/bodytrace-phone-sleep" \
+            com.z2846852.bodytrace.PhoneSleepInferenceTest
       - name: Validate cartoon body page, JSON UI and avatar persistence
         run: node scripts/test_ui.js
       - name: Fetch and SHA256-verify offline YAMNet model

@@ -519,7 +519,12 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    throw Error("Recording selector must show the current file");
   if(await page.locator("#sleepVisualization").isVisible())
    throw Error("Waveform should stay hidden until its local envelope exists");
-  await page.locator("#sleepCollectionDetails > summary").click();
+  // Main audio/record/import actions now live in the same top browser row.
+  // The drop-down is for management and optional settings only.
+  if(await page.locator("#sleepAudioToolbar #sleepStart").count()!==1||
+     await page.locator("#sleepAudioToolbar #sleepImport").count()!==1||
+     await page.locator("#sleepAudioToolbar #sleepCollectionDetails").count()!==1)
+   throw Error("Browser controls must share one top toolbar");
   await page.locator("#sleepStart").click();
   if((await page.evaluate(()=>window.__sleepBridge.started))!==1)
    throw Error("Recording start did not reach the native bridge");
@@ -603,6 +608,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    throw Error("Changing threshold must not decode the original M4A again");
   // The optional start time is intentionally collapsed in the compact UI.
   // Expand it explicitly before typing; do not force the field visible.
+  await page.locator("#sleepCollectionDetails > summary").click();
   await page.locator(".sleep-import-time > summary").click();
   await page.fill("#sleepImportStarted","2026-11-18T23:00");
   await page.evaluate(()=>window.BodyTraceNative.sleepImport=value=>{
@@ -612,6 +618,48 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if((await page.evaluate(()=>window.__importStarted))!=="2026-11-18T23:00")
    throw Error("Import should preserve the supplied recording date");
   await page.screenshot({path:"bodytrace-sleep-waveform-import-preview.png",fullPage:false});
+  // Emulate the user granting Usage Access and receiving two-night reports.
+  await page.evaluate(()=>{
+    window.__phoneSleepProbeCalls=0;
+    window.BodyTraceNative.phoneSleepReports=()=>window.__phoneSleepProbeCalls++;
+    window.BodyTraceNative.requestPhoneUsageAccess=()=>window.__phoneSleepPermission=true;
+  });
+  await page.locator("#phoneSleepRefresh").click();
+  if((await page.evaluate(()=>window.__phoneSleepProbeCalls))!==1)
+   throw Error("Phone sleep scan not routed to native bridge");
+  await page.evaluate(()=>window.bodyTraceReceive({
+    type:"phone_sleep",state:"permission_required",
+    message:"需要一次性开启使用情况访问权限"
+  }));
+  if(await page.locator("#phoneSleepGrant").isHidden())
+   throw Error("Usage access special permission button must be visible");
+  await page.locator("#phoneSleepGrant").click();
+  if(!(await page.evaluate(()=>window.__phoneSleepPermission)))
+   throw Error("Permission button does not launch Android settings");
+  await page.evaluate(()=>{
+    const start=Date.UTC(2026,10,21,15,30,0);
+    window.bodyTraceReceive({
+      type:"phone_sleep",state:"ready",events_scanned:150,
+      first_event_ms:Date.UTC(2026,10,20,10),
+      last_event_ms:Date.UTC(2026,10,22,2),
+      total_count:2,created_count:1,
+      history:[
+       {day:"2026-11-22",screen_off_ms:start,
+        next_screen_on_ms:Date.UTC(2026,10,21,23,30),
+        inactive_window_ms:8*3600000,screen_on_events:1,unlock_events:1},
+       {day:"2026-11-21",screen_off_ms:start-86400000,
+        next_screen_on_ms:start-86400000+7*3600000,
+        inactive_window_ms:7*3600000,screen_on_events:1,unlock_events:1}],
+      insufficient:[{day:"2026-11-20",message:"事件不足"}]
+    });
+  });
+  if(await page.locator(".phone-sleep-night").count()!==2)
+   throw Error("Phone report should preserve all scanned / cached days");
+  if(!(await page.locator("#phoneSleepCoverage").innerText()).includes("已扫描 150"))
+   throw Error("Phone report should show actual system event coverage");
+  if(!(await page.locator(".phone-sleep-night").first().innerText()).includes("不等于睡眠时长"))
+   throw Error("Phone idle interval must never be mislabeled as actual sleep");
+  await page.screenshot({path:"bodytrace-phone-sleep-report-preview.png",fullPage:false});
   await page.screenshot({path:"bodytrace-sleep-detection-preview.png",fullPage:true});
   // Historical daily drill-down: all sets per date and max 10 past dates
   // for each of today's four actions, without mixing other exercise IDs.

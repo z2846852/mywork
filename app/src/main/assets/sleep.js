@@ -219,10 +219,12 @@
   $("sleepStatus").textContent=recording?
    "● 录音中":"未录音";
   $("sleepStatus").classList.toggle("sleep-live",recording);
+  $("sleepStatus").hidden=!recording;
   $("sleepStart").disabled=recording||busy;
   $("sleepStop").disabled=!recording;
   $("sleepImport").disabled=importing||busy;
-  $("sleepImport").textContent=importing?"读取中…":"导入音频";
+  $("sleepImport").textContent=importing?"…":"＋";
+  $("sleepImport").title=importing?"读取音频信息…":"导入本机音频";
   const chosen=current();
   $("sleepAnalyze").disabled=!chosen||recording||busy||!!loadingCachedId||
    !(chosen.status==="completed"||chosen.status==="interrupted");
@@ -519,8 +521,97 @@
   bridge()?.sleepStopPlayback?.();
   $("sleepPlaybackStatus").textContent="正在停止播放…";
  };
+ // Android UsageStatsManager decides retention; NEVER assume a fixed 7-day period.
+ // Only persisted candidate reports are shown as such. Phone inactivity is NOT
+ // a measured sleep duration, even if the user listens to an audiobook asleep.
+ const phoneStamp=ms=>new Date(Number(ms)).toLocaleString("zh-CN",{
+  timeZone:"Asia/Shanghai",month:"2-digit",day:"2-digit",
+  hour:"2-digit",minute:"2-digit",hour12:false
+ });
+ const phoneDuration=ms=>{
+  const minutes=Math.floor(Math.max(0,Number(ms)||0)/60000);
+  return Math.floor(minutes/60)+"小时"+String(minutes%60).padStart(2,"0")+"分";
+ };
+ function renderPhoneSleep(evt){
+  $("phoneSleepRefresh").disabled=false;
+  const state=evt.state||"error";
+  $("phoneSleepStatus").textContent=evt.message||"无法获取系统使用记录";
+  $("phoneSleepGrant").hidden=state!=="permission_required";
+  const history=$("phoneSleepHistory");
+  history.replaceChildren();
+  if(state!=="ready"){
+   $("phoneSleepCoverage").hidden=true;
+   return;
+  }
+  const first=Number(evt.first_event_ms),last=Number(evt.last_event_ms);
+  $("phoneSleepCoverage").hidden=false;
+  $("phoneSleepCoverage").textContent=
+   "系统实际可读："+phoneStamp(first)+" — "+phoneStamp(last)+
+   " · 已扫描 "+(Number(evt.events_scanned)||0)+" 条事件"+
+   " · 已有 "+(Number(evt.total_count)||0)+" 晚"+
+   " · 本次新增 "+(Number(evt.created_count)||0)+" 晚"+
+   (evt.truncated?" · ! 事件过多，本次读取已截断":"");
+  const reports=Array.isArray(evt.history)?evt.history:[];
+  for(const [index,report] of reports.entries()){
+   const wrapper=document.createElement("details");
+   wrapper.className="phone-sleep-night";
+   // The newest one is open so the user can compare with vivo Health.
+   wrapper.open=index===0;
+   const title=document.createElement("summary");
+   title.textContent=report.day+"  ·  连续熄屏 "+
+    phoneDuration(report.inactive_window_ms);
+   const times=document.createElement("div");
+   times.className="phone-sleep-interval";
+   times.textContent="熄屏 "+phoneStamp(report.screen_off_ms)+
+    "  →  首次亮屏 "+phoneStamp(report.next_screen_on_ms);
+   const evidence=document.createElement("p");
+   evidence.className="sub";
+   evidence.textContent="这只是手机未亮屏的候选休息窗口，不等于睡眠时长。"+
+    "夜间亮屏 "+(Number(report.screen_on_events)||0)+
+    " 次，解锁 "+(Number(report.unlock_events)||0)+" 次。";
+   wrapper.append(title,times,evidence);
+   history.appendChild(wrapper);
+  }
+  const insufficient=Array.isArray(evt.insufficient)?evt.insufficient:[];
+  if(insufficient.length){
+   const missing=document.createElement("details");
+   missing.className="phone-sleep-unresolved";
+   const label=document.createElement("summary");
+   label.textContent="! "+insufficient.length+" 个日期事件不足，未生成睡眠时长";
+   missing.appendChild(label);
+   for(const item of insufficient){
+    const line=document.createElement("p");
+    line.className="sub";
+    line.textContent=item.day+" · "+item.message;
+    missing.appendChild(line);
+   }
+   history.appendChild(missing);
+  }
+  if(!reports.length&&!insufficient.length){
+   const note=document.createElement("p");
+   note.className="sub";
+   note.textContent="系统返回了事件，但不足以生成任何一晚的候选休息窗口。";
+   history.appendChild(note);
+  }
+ }
+ $("phoneSleepRefresh").onclick=()=>{
+  if(!bridge()?.phoneSleepReports){
+   $("phoneSleepStatus").textContent="请完整安装支持手机行为报告的新版 APK";
+   return;
+  }
+  $("phoneSleepRefresh").disabled=true;
+  $("phoneSleepStatus").textContent="正在扫描 Android 当前保留的全部历史事件…";
+  bridge().phoneSleepReports();
+ };
+ $("phoneSleepGrant").onclick=()=>{
+  if(!bridge()?.requestPhoneUsageAccess){
+   toast("请安装新版 APK 才能打开权限设置",true);return;
+  }
+  bridge().requestPhoneUsageAccess();
+ };
  document.querySelector('.tabs button[data-page="sleep"]')?.addEventListener("click",()=>{
   bridge()?.sleepStatus?.();
+  if(bridge()?.phoneSleepReports)$("phoneSleepRefresh").onclick();
  });
  $("vivoSleepRead").onclick=()=>{
   if(!bridge()?.vivoSleepProbe){
@@ -574,6 +665,7 @@
  window.bodyTraceReceive=function(evt){
   if(typeof receiver==="function")receiver(evt);
   if(!evt||!evt.type)return;
+  if(evt.type==="phone_sleep"){renderPhoneSleep(evt);return;}
   if(evt.type==="vivo_sleep"){renderVivoSleep(evt);return;}
   if(evt.type==="sleep_status"){
    recording=!!evt.recording;

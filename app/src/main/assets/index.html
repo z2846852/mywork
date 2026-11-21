@@ -240,11 +240,30 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
      </details>
     </div>
   </div>
-  <div class="sleep-active-row">
+  <div class="sleep-active-row" id="sleepAudioToolbar">
    <label for="sleepSessionSelect" class="sr-only">选择录音</label>
    <select id="sleepSessionSelect" aria-label="当前录音"><option value="">请选择录音</option></select>
-   <button type="button" id="sleepRefresh" class="secondary mini" aria-label="刷新录音列表">刷新</button>
+   <button type="button" class="secondary mini" id="sleepStart" aria-label="开始录音" title="开始录音">●</button>
+   <button type="button" class="secondary mini" id="sleepStop" aria-label="停止并保存录音" title="停止并保存录音" disabled>■</button>
+   <button type="button" class="secondary mini" id="sleepImport" aria-label="导入音频" title="导入音频">＋</button>
+   <details class="sleep-collection sleep-library-menu" id="sleepCollectionDetails">
+    <summary aria-label="录音管理" title="录音管理">⋯</summary>
+    <div class="sleep-library-dropdown">
+     <div class="sleep-library-head"><strong>录音文件</strong><span id="sleepLibraryCount">0 条记录</span>
+      <button type="button" class="secondary mini" id="sleepRefresh">刷新</button>
+     </div>
+     <details class="sleep-import-time">
+      <summary>导入时可指定原始录制时间</summary>
+      <label class="sub" for="sleepImportStarted">北京时间</label>
+      <input type="datetime-local" id="sleepImportStarted" step="1">
+     </details>
+     <div id="sleepHistory" class="sleep-history"></div>
+    </div>
+   </details>
   </div>
+  <div id="sleepStatus" class="sleep-status sleep-top-status" role="status"></div>
+  <p id="sleepRecordingResult" class="sub sleep-top-feedback" role="status"></p>
+  <p id="sleepImportStatus" class="sub sleep-top-feedback" role="status"></p>
   <div id="sleepSelected" class="sleep-selected">请从下方选择一个已完成的录音</div>
   <p id="sleepSelectedFile" class="sub">录音大小和缓存状态将显示在这里</p>
   <details id="sleepEditStartRow" class="sleep-time-edit" hidden>
@@ -363,6 +382,22 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   </div>
 
  </div>
+ <div class="panel phone-sleep-panel" id="phoneSleepPanel">
+  <div class="phone-sleep-head">
+   <div><h3>手机行为 · 睡眠报告</h3><span class="sub">本机历史 · 非医学睡眠测量</span></div>
+   <button type="button" class="secondary mini" id="phoneSleepRefresh">扫描并补全</button>
+  </div>
+  <p id="phoneSleepStatus" class="sub" role="status">首次进入时将检查系统可用的使用记录。</p>
+  <button type="button" class="secondary mini" id="phoneSleepGrant" hidden>开启使用情况访问权限</button>
+  <p id="phoneSleepCoverage" class="sub" hidden></p>
+  <div id="phoneSleepHistory" class="phone-sleep-history"></div>
+  <details class="phone-sleep-help">
+   <summary>! 数据来源和判读规则</summary>
+   <p>读取系统仍保留的全部亮屏、熄屏、解锁及开关机事件，不指定最近 7 天。Android 不保证保留特定天数，超出系统可用历史的空白日期不会自动补齐。</p>
+   <p>仅当找到夜间熄屏到早晨亮屏的连续间隔时才生成候选休息窗口；这不是实际入睡时间，也不是睡眠时长。锁屏听小说的时间包含在内，亮屏也可能只是看闹钟。可与 vivo 健康手环结果人工对照。</p>
+   <p>已有候选报告存本机，后续扫描只补充缺少的夜晚；没有足够证据就显示数据不足，不编造报告。不会上传应用使用记录到 GitHub。</p>
+  </details>
+ </div>
  <details class="sleep-watch-probe" id="vivoSleepPanel">
   <summary>vivo WATCH 5 · 睡眠数据 <span id="vivoSleepBadge">未检测</span></summary>
   <div class="sleep-watch-content">
@@ -376,32 +411,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <code>adb shell pm grant com.z2846852.bodytrace com.vivo.health.widget.permission</code>
     <p>执行后再点检测。部分 ROM 会拒绝这条命令；以 APP 实际权限结果为准。安装新 APK 后也可能需要再次授权。</p>
    </details>
-  </div>
- </details>
- <details class="sleep-collection" id="sleepCollectionDetails">
-  <summary>录音管理 / 导入 <span id="sleepLibraryCount">0 条记录</span></summary>
-  <div class="panel sleep-recording-panel">
-   <div class="sleep-status" id="sleepStatus" role="status">正在读取本地录音状态…</div>
-   <p id="sleepRecordingResult" class="sub" role="status"></p>
-   <div class="row wrap sleep-actions">
-    <button type="button" class="primary" id="sleepStart">● 录音</button>
-    <button type="button" class="secondary" id="sleepStop" disabled>■ 保存</button>
-   </div>
-   <div class="sleep-import-actions">
-    <button type="button" class="secondary" id="sleepImport">导入音频</button>
-    <details class="sleep-import-time">
-     <summary>可选：指定录音开始时间</summary>
-     <label class="sub" for="sleepImportStarted">北京时间</label>
-     <input type="datetime-local" id="sleepImportStarted" step="1">
-    </details>
-    <p id="sleepImportStatus" class="sub" role="status"></p>
-   </div>
-   
-  </div>
-  <div class="panel">
-   <h3>音频与波形库</h3>
-   
-   <div id="sleepHistory" class="sleep-history"></div>
   </div>
  </details>
  <details class="sleep-events-details">
