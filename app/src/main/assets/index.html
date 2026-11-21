@@ -382,45 +382,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   </div>
 
  </div>
- <div class="panel voice-lab-panel" id="voiceLabPanel">
-  <div class="voice-lab-head">
-   <div><div class="eyebrow">LIVE PCM / SOUND LAB</div><h3>实时声音实验室</h3></div>
-   <span id="voiceLabLive" class="voice-lab-state">未启动</span>
-  </div>
-  <div class="voice-lab-toolbar">
-   <label for="voiceLabMode" class="sr-only">实时声音实验模式</label>
-   <select id="voiceLabMode" aria-label="实时实验模式">
-    <option value="pitch">音高 · YIN</option>
-    <option value="vowel">元音候选 · F1/F2</option>
-    <option value="fricative">擦音候选 · 频谱</option>
-   </select>
-   <button type="button" class="primary mini" id="voiceLabStart">▶ 开始</button>
-   <button type="button" class="secondary mini" id="voiceLabStop" disabled>■ 停止</button>
-  </div>
-  <div class="voice-lab-stats">
-   <div><span>当前音高</span><strong id="voiceLabNote">—</strong></div>
-   <div><span>基频</span><strong id="voiceLabHz">— Hz</strong></div>
-   <div><span>偏差</span><strong id="voiceLabCents">— cents</strong></div>
-   <div><span>电平</span><strong id="voiceLabRms">— dBFS</strong></div>
-  </div>
-  <canvas id="voiceLabCanvas" height="132" aria-label="实时音高趋势曲线"></canvas>
-  <div class="voice-lab-phonetics" id="voiceLabPhonetics" hidden>
-   <div class="voice-lab-ipa"><span>候选 IPA（声学实验）</span><strong id="voiceLabIpa">—</strong></div>
-   <div class="voice-lab-examples">
-    <div><span>相似英语音例</span><strong id="voiceLabWords">—</strong></div>
-    <div><span>相似拼音音例</span><strong id="voiceLabPinyin">—</strong></div>
-   </div>
-   <div class="voice-lab-formants" id="voiceLabFormants">F1 / F2：—</div>
-   <p class="sub" id="voiceLabWarning">未加载训练音素模型；这里只做原始声音声学特征匹配。</p>
-  </div>
-  <p id="voiceLabStatus" class="sub" role="status" aria-live="polite">点开始后实时采集麦克风；退出页面即关闭。不保存或上传原始声音。</p>
-  <details class="voice-lab-help">
-   <summary>! 结果原理 / 对照开源模型</summary>
-   <p>音高：独立 YIN 基频检测。IPA：仅由共振峰和擦音频谱判断的候选音素，不使用 ASR、文字转音标或发音打分；不能准确识别整句话、辅音全集或普通话四声。</p>
-   <p>GitHub 参考：Allosaurus（真正从音频直接推断音素，PyTorch，未移植到本 APK）；voicesu（实时 LPC/F1/F2 与校准思路）；PhoneticXeus（多语言 IPA 声学模型，尚未移植）。</p>
-   <p>本版提供两个可切换的无训练声学探针。不同口音、麦克风、音高下可能严重误判。练习时试着持续发单个元音或 /s/、/sh/ 类擦音，比说完整句子更容易看到变化。</p>
-  </details>
- </div>
  <div class="panel phone-sleep-panel" id="phoneSleepPanel">
   <div class="phone-sleep-head">
    <div><h3>手机行为 · 睡眠报告</h3><span class="sub">本机历史 · 非医学睡眠测量</span></div>
@@ -503,7 +464,26 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <span class="sub">同步本机记录与私有仓库最新数据</span>
 </div>
 <div class="panel" id="apkUpdatePanel">
- <div class="row"><h2>APP 版本更新</h2><span class="sub">自动查询 GitHub</span></div>
+ <div class="row apk-update-heading">
+  <h2>APP 版本更新</h2>
+  <div class="apk-update-heading-actions">
+   <span class="sub">自动查询 GitHub</span>
+   <details class="apk-update-help">
+    <summary aria-label="高级：仅界面更新" title="仅界面更新 · 高级">!</summary>
+    <div class="apk-update-help-popup" id="uiUpdatePanel">
+     <h3>仅界面更新 <span class="sub">高级功能</span></h3>
+     <p class="sub">只替换 HTML/CSS/JS，不更新 Java、权限或 YAMNet；需要原生指纹兼容。</p>
+     <p id="uiUpdateStatus" class="sub" role="status">当前界面版本读取中…</p>
+     <div class="apk-ui-update-actions">
+      <button type="button" class="secondary mini" id="checkUiUpdates">下载界面更新</button>
+      <button type="button" class="secondary mini" id="restartUiAfterUpdate" disabled>重新加载</button>
+      <button type="button" class="secondary mini" id="rollbackUiUpdate">恢复内置界面</button>
+     </div>
+     <p class="sub">日常推荐直接用下方 APK 升级；原生代码、权限或模型变更时，此处无法代替完整安装。</p>
+    </div>
+   </details>
+  </div>
+ </div>
  <div class="apk-version-row">
   <div class="apk-version-info">
    <span>本机 <strong id="apkInstalledVersion">读取中…</strong></span>
@@ -512,18 +492,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   <button type="button" class="primary" id="checkApkUpdate">检查并升级</button>
  </div>
  <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">进入设置后自动检查版本，不下载 APK。</p>
-</div>
-<div class="panel" id="uiUpdatePanel">
- <div class="eyebrow">SMALL UPDATES / ON-DEMAND · V1</div>
- <h2>仅界面更新（高级）</h2>
- <p class="sub">仅下载官方 GitHub Release 的 HTML / CSS / JS，小包更新不包含 YAMNet、Java 或安卓运行时。只有原生版本兼容时才应用；离线仍可使用。</p>
- <p id="uiUpdateStatus" class="sub" role="status">当前界面版本读取中…</p>
- <div class="row wrap" style="margin-top:12px">
-  <button type="button" class="secondary mini" id="checkUiUpdates">检查并下载界面更新</button>
-  <button type="button" class="secondary mini" id="restartUiAfterUpdate" disabled>重新加载界面</button>
-  <button type="button" class="secondary mini" id="rollbackUiUpdate">恢复 APK 内置界面</button>
- </div>
- <p class="sub">首次需安装支持小包更新的新 APK；之后仅界面改动通常只需下载很小的压缩包。原生代码、AI 模型或权限发生变化时，仍需完整 APK，不能绕过系统签名安装。</p>
 </div>
 <div class="panel" id="gitHistoryPanel">
  <div class="row wrap"><div><h2>Git log · 最近10次提交</h2>

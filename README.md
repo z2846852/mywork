@@ -38,6 +38,10 @@
 - 权限属于 vivo 私有 `signature|privileged`，正常第三方安装后不能通过运行时授权弹窗得到。Windows PowerShell 只读检测：`powershell -ExecutionPolicy Bypass -File scripts/probe_vivo_health.ps1`。若你**主动选择**尝试 ADB 授权，则加 `-Grant` 参数；系统可能拒绝，此时确认为 `NOT_GRANTED`，不尝试 Root、Shizuku 或绕过厂商限制。每次完整 APK 覆盖安装后授权可能失效，需重新检查。
 - 该试验是按需查询，不代表已接入 WATCH 5 的全部睡眠历史。验证成功之后才能规划长期本地缓存、睡眠音频/手机行为融合与日期选择。
 
+## 低频界面更新入口收纳（2026-11-22）
+
+「设置 → APP 版本更新」右上角的 **「!」** 展开低频「仅界面更新」功能。其原有三个操作（下载小型 UI 包 / 重新加载 / 恢复 APK 内置界面）、版本状态、原生兼容性验证与自动回退逻辑均保留，不再单独占一个设置页区块。日常使用者仍只看到“本机版本 / GitHub 最新版本 / 检查并升级”主流程。
+
 ## 设置页面自动检查版本（2026-11-22）
 
 不再设计“检查版本”和“检查并下载”两个按钮。每次进入「设置」时自动调用 Android PackageManager 获取本机安装 `versionCode`，并仅请求 GitHub `releases/latest` 元数据获取最新正式版。左侧直接显示“本机 v0.2.NNN / 最新 v0.2.MMM”；这是**只读轻量请求，不下载 APK、补丁或 UI 更新包**，没有安装行为。

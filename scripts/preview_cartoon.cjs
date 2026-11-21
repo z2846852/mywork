@@ -377,6 +377,21 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator("#syncSettings").click();
   if(await page.evaluate(()=>window.__syncClicks)!==1)
    throw Error("Quick GitHub sync did not invoke native sync exactly once");
+  // UI-only update is deliberately hidden behind the APK card's help (!).
+  if(await page.locator("#uiUpdatePanel").isVisible())
+   throw Error("Advanced UI-only updater should be collapsed on Settings entry");
+  if(await page.locator("#apkUpdatePanel .apk-update-help>summary").count()!==1)
+   throw Error("APP update card must expose a single ! help disclosure");
+  await page.locator("#apkUpdatePanel .apk-update-help>summary").click();
+  if(!(await page.locator("#uiUpdatePanel").isVisible()))
+   throw Error("Opening ! must expose advanced UI-only updater");
+  const advancedVisible=await page.locator("#uiUpdatePanel").locator("button").count();
+  if(advancedVisible!==3)
+   throw Error("Advanced UI updater must retain all three operational controls");
+  await page.screenshot({path:"bodytrace-settings-update-help-preview.png",fullPage:false});
+  await page.locator("#apkUpdatePanel .apk-update-help>summary").click();
+  if(await page.locator("#uiUpdatePanel").isVisible())
+   throw Error("Closing ! must collapse advanced update controls");
   if(await page.locator("#gitLogList details").count())
    throw Error("Git diffs must be visible without an expand action");
   if(await page.locator("#gitLogList .git-diff-added").count()!==2||

@@ -107,6 +107,20 @@ assert.ok(html.includes('id="checkApkUpdate"')&&
  html.includes('id="apkInstalledVersion"')&&
  html.includes('id="apkLatestVersion"')&&
  html.includes('case "apk_update":'));
+assert.ok(html.includes('class="apk-update-help"')&&
+ html.includes('aria-label="高级：仅界面更新"')&&
+ html.includes('class="apk-update-help-popup" id="uiUpdatePanel"'),
+ "UI-only updates must live inside the APK panel help disclosure");
+const uiHelpStart=html.indexOf('class="apk-update-help"');
+const uiHelpEnd=html.indexOf('class="apk-version-row"',uiHelpStart);
+assert.ok(uiHelpStart>0&&uiHelpEnd>uiHelpStart);
+for(const action of ["checkUiUpdates","restartUiAfterUpdate","rollbackUiUpdate"])
+ assert.ok(html.slice(uiHelpStart,uiHelpEnd).includes('id="'+action+'"'),
+  "Advanced UI-only action must remain functional inside !: "+action);
+assert.ok(!html.includes('<div class="panel" id="uiUpdatePanel">'),
+ "UI-only updates must not occupy a standalone Settings panel");
+assert.equal((html.match(/id="uiUpdatePanel"/g)||[]).length,1);
+
 assert.ok(!html.includes('id="installPendingApk"'),
  "Only one APK update action should be displayed");
 assert.ok(html.includes('function checkVersionOnSettingsEntry()') &&
