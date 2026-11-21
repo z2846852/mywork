@@ -58,6 +58,8 @@ public final class MainActivity extends Activity {
     private int playbackIndex=0;
     private String playbackSessionId="";
     private boolean playbackSkipping=false;
+    // Actual decoder clock, rather than a JS timer, drives the red waveform playhead.
+    private static final long PLAYBACK_POSITION_POLL_MS=220L;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private SecureStore vault;
     private JsonStore plain;
@@ -515,6 +517,23 @@ public final class MainActivity extends Activity {
             msg.put("id",playbackSessionId);
             msg.put("playing",playing);
             msg.put("start_sec",startSec);
+            msg.put("position_ms",Math.max(0,startSec)*1000L);
+            msg.put("segment_index",playbackIndex+1);
+            msg.put("total_segments",playbackRanges.size());
+            msg.put("skip",playbackSkipping);
+            reply(msg);
+        }catch(Exception ignored){}
+    }
+
+    /** Poll the actual MediaPlayer clock. Android's media seek may be
+     * approximate; never synthesize playback progress with wall time. */
+    private void playbackPosition(int positionMs){
+        if(playbackSessionId.isEmpty())return;
+        try{
+            JSONObject msg=message("sleep_playback_position");
+            msg.put("id",playbackSessionId);
+            msg.put("playing",true);
+            msg.put("position_ms",Math.max(0,positionMs));
             msg.put("segment_index",playbackIndex+1);
             msg.put("total_segments",playbackRanges.size());
             msg.put("skip",playbackSkipping);
@@ -573,13 +592,28 @@ public final class MainActivity extends Activity {
             int[] segment=playbackRanges.get(playbackIndex);
             m.start();
             playbackEvent(true,segment[0]);
-            stopPlayback=()->{
-                if(sleepPlayer!=m)return;
-                if(m.isPlaying())m.pause();
-                playbackIndex++;
-                playNextRange(m);
+            stopPlayback=new Runnable(){
+                @Override public void run(){
+                    if(sleepPlayer!=m||playbackIndex>=playbackRanges.size())return;
+                    try{
+                        int actualPosition=m.getCurrentPosition();
+                        // Stop at the requested end based on PLAYBACK position,
+                        // not a wall-time delay that drifts after a slow seek.
+                        if(actualPosition>=segment[1]*1000L||!m.isPlaying()){
+                            if(m.isPlaying())m.pause();
+                            playbackIndex++;
+                            playNextRange(m);
+                            return;
+                        }
+                        playbackPosition(actualPosition);
+                        sleepHandler.postDelayed(this,PLAYBACK_POSITION_POLL_MS);
+                    }catch(IllegalStateException badState){
+                        stopSleepPlayback();
+                        error("录音播放状态异常："+safeMessage(badState));
+                    }
+                }
             };
-            sleepHandler.postDelayed(stopPlayback,(long)(segment[1]-segment[0])*1000L);
+            sleepHandler.post(stopPlayback);
         });
         player.prepareAsync();
     }

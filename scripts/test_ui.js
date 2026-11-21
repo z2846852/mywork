@@ -989,6 +989,16 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
 }
 
 
+
+// Source-level safety: the media callback must publish the player's actual clock,
+// and playback must stop/seek at range ends without a JS wall-clock estimate.
+assert.ok(native.includes('m.getCurrentPosition()'));
+assert.ok(native.includes('PLAYBACK_POSITION_POLL_MS=220L'));
+assert.ok(native.includes('playbackPosition(actualPosition)'));
+assert.ok(native.includes('actualPosition>=segment[1]*1000L'));
+assert.ok(native.includes('sleep_playback_position'));
+assert.ok(sleepJS.includes('evt.type==="sleep_playback_position"'));
+
 // Exact per-second filter and waveform gesture/skip-play regression.
 {
   const begin=sleepJS.indexOf(" function detectCandidates(");
@@ -1008,11 +1018,19 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.equal(detect(values,peaks,-20,1,5).length,0);
 
   const nodes=new Map(),eventsByName={},calls=[],redLines=[];
+  const candidateMarks=[],playheadLines=[];
   const fakeCtx={
-    setTransform(){},save(){},restore(){},fillRect(){},beginPath(){},moveTo(){},lineTo(){},
+    setTransform(){},save(){},restore(){},
+    fillRect(x,y,w,h){
+      if(this.fillStyle==="#ff6e81")candidateMarks.push({x,y,w,h});
+    },
+    beginPath(){},moveTo(){},lineTo(){},
     arc(){},fill(){},fillText(){},setLineDash(){},
     measureText(v){return {width:v.length*6}},
-    stroke(){if(this.strokeStyle==="#ff536d")redLines.push(true)}
+    stroke(){
+      if(this.strokeStyle==="#ff536d")redLines.push(true);
+      if(this.strokeStyle==="#ff3557")playheadLines.push(true);
+    }
   };
   function node(tag="div"){
     return {tagName:tag,hidden:false,disabled:false,checked:false,value:"",
@@ -1054,7 +1072,30 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
     levels_dbfs:levels,peak_levels_dbfs:levelPeaks,threshold_dbfs:-40,
     minimum_seconds:5,gap_seconds:1,events:segments});
   assert.ok(redLines.length>0,"Red reference must be drawn on the actual canvas");
+  assert.ok(candidateMarks.length>=2);
+  assert.ok(candidateMarks.every(m=>m.w>=4),
+    "Short candidate regions need >=4px visibility even when zoomed out");
   assert.equal(fakeWindow.BodyTraceSleepVisual.state().span,600);
+  fakeWindow.bodyTraceReceive({type:"sleep_playback",id:"night1",playing:true,
+    start_sec:20,position_ms:20000,segment_index:1,total_segments:2,skip:true});
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().playheadSeconds,20);
+  fakeWindow.bodyTraceReceive({type:"sleep_playback_position",id:"night1",
+    playing:true,position_ms:24420,segment_index:1,total_segments:2,skip:true});
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().playheadSeconds,24.42);
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().playheadActive,true);
+  assert.ok(playheadLines.length>=2,
+    "Live native playhead needs a visible saturated red vertical stroke");
+  fakeWindow.bodyTraceReceive({type:"sleep_playback_position",id:"other",
+    playing:true,position_ms:30200});
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().playheadSeconds,24.42,
+    "Packets from other recordings must not move the cursor");
+  const countBeforeZoom=candidateMarks.length;
+  fakeWindow.bodyTraceReceive({type:"sleep_playback_position",id:"night1",
+    playing:true,position_ms:202000,segment_index:2,total_segments:2,skip:true});
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().playheadSeconds,202,
+    "Skipping should visibly jump to the actual next candidate timestamp");
+  assert.ok(candidateMarks.length>countBeforeZoom,
+    "Candidate highlights should be redrawn with live playback updates");
   // Tap positions cursor, whereas a pointer drag pans without triggering a tap.
   function pointer(kind,id,x,y=100){
     eventsByName[kind]({pointerId:id,clientX:x,clientY:y});
@@ -1070,6 +1111,7 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
     "Horizontal gestures MUST NOT rescale the vertical dB axis");
   assert.equal(fakeWindow.BodyTraceSleepVisual.state().axisMax,beforeHorizontal.axisMax);
   pointer("pointerup",2,115);pointer("pointerup",3,280);
+  assert.ok(candidateMarks.some(m=>m.w>=4),"Pinch zoom must preserve region markers");
   pointer("pointerdown",4,160);pointer("pointermove",4,90);pointer("pointerup",4,90);
   assert.ok(fakeWindow.BodyTraceSleepVisual.state().start>0,
     "One-finger drag must pan a zoomed waveform");
@@ -1089,6 +1131,10 @@ console.log("BodyTrace UI tests passed: catalog recent/region sorting, add/hide/
   assert.equal(calls[0][2],true);
   assert.deepEqual(JSON.parse(calls[0][1]),[[20,30],[200,220]],
     "Skip mode must play only candidates passing threshold+duration+gap");
+  fakeWindow.bodyTraceReceive({type:"sleep_playback",id:"night1",
+    playing:false,position_ms:202000});
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().playheadActive,false,
+    "Stopping playback must freeze the playhead, not fake further movement");
   get("sleepSkipQuiet").checked=false;
   fakeWindow.BodyTraceSleepVisual.playFromCursor();
   assert.deepEqual(JSON.parse(calls[1][1]),[[0,600]],

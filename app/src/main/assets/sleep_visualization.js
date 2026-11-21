@@ -16,6 +16,7 @@
   return pad(Math.floor(t/3600))+":"+pad(Math.floor(t%3600/60))+":"+pad(t%60);
  };
  let result=null,windowStart=0,windowSpan=0,cursor=-1,paintPending=false;
+ let playheadSeconds=-1,playheadActive=false,followPlayback=true;
  const axisById=new Map();
  let axisMin=-10,axisMax=25,backgroundDb=-40;
  function quantile(values,p){
@@ -99,13 +100,27 @@
    ctx.fillStyle=COLORS.text;
    ctx.fillText((delta>0?"+":"")+delta,4,y);
   }
-  // Highlight valid duration+gap candidates FIRST; no semantic assumption
-  // that these events are confirmed snoring.
-  ctx.fillStyle=COLORS.event;ctx.globalAlpha=.14;
+  // Strong candidate highlights: for full-night charts, a 5–20 second
+  // interval may be <1 physical pixel wide. Expand the VISUAL marker to
+  // at least 4 CSS px without changing actual event duration or hit-testing.
+  // The top cap and edge distinguish qualified events from raw RMS spikes.
   for(const event of events()){
    const a=Math.max(windowStart,Number(event.start_sec));
    const b=Math.min(windowStart+windowSpan,Number(event.end_sec));
-   if(b>a)ctx.fillRect(xAt(a),top,Math.max(1,xAt(b)-xAt(a)),plotHeight);
+   if(b<=a)continue;
+   const xa=xAt(a),xb=xAt(b),actualWidth=xb-xa;
+   const markWidth=Math.min(plotWidth,Math.max(4,actualWidth));
+   const center=clamp((xa+xb)/2,left+markWidth/2,right-markWidth/2);
+   const x=center-markWidth/2;
+   ctx.fillStyle="#eb536b";ctx.globalAlpha=.40;
+   ctx.fillRect(x,top,markWidth,plotHeight);
+   ctx.fillStyle="#ff6e81";ctx.globalAlpha=.94;
+   ctx.fillRect(x,top,markWidth,4);
+   if(actualWidth>=5){
+    ctx.fillStyle="#ff8c98";ctx.globalAlpha=.72;
+    ctx.fillRect(x,top,1.5,plotHeight);
+    ctx.fillRect(x+markWidth-1.5,top,1.5,plotHeight);
+   }
   }
   ctx.globalAlpha=1;
   const threshold=Number(result.threshold_dbfs);
@@ -161,9 +176,22 @@
   ctx.textAlign="left";
   if(cursor>=windowStart&&cursor<=windowStart+windowSpan){
    const x=xAt(cursor);
-   ctx.strokeStyle="#ffe7b2";ctx.lineWidth=1.5;
+   ctx.strokeStyle="#ffe7b2";ctx.lineWidth=1.4;
    ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
    ctx.fillStyle="#ffe7b2";ctx.beginPath();ctx.arc(x,top+4,3.5,0,Math.PI*2);ctx.fill();
+  }
+  // Playback playhead has its own vivid red vertical cursor. Never move
+  // the manual selection cursor to simulate time; native MediaPlayer owns it.
+  if(playheadSeconds>=windowStart&&playheadSeconds<=windowStart+windowSpan){
+   const x=xAt(playheadSeconds);
+   ctx.save();ctx.globalAlpha=playheadActive?1:.70;
+   ctx.strokeStyle="#0d1820";ctx.lineWidth=5;
+   ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
+   ctx.strokeStyle="#ff3557";ctx.lineWidth=2.8;
+   ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
+   ctx.fillStyle="#ff3557";ctx.beginPath();ctx.arc(x,top+5,5,0,Math.PI*2);ctx.fill();
+   ctx.fillStyle="#fff4f4";ctx.beginPath();ctx.arc(x,top+5,1.8,0,Math.PI*2);ctx.fill();
+   ctx.restore();
   }
   updateZoomButtons();
  }
@@ -178,12 +206,14 @@
  function setSpan(seconds,focus){
   if(!total())return;
   const oldSpan=windowSpan;
-  const anchor=Number.isFinite(focus)?focus:windowStart+oldSpan/2;
+  const anchor=Number.isFinite(focus)?focus:
+   (playheadSeconds>=0&&playheadActive?playheadSeconds:windowStart+oldSpan/2);
   windowSpan=clamp(Number(seconds),5,total());
   windowStart=clamp(anchor-windowSpan/2,0,Math.max(0,total()-windowSpan));
   schedule();
  }
  function moveSpan(direction){
+  if(playheadActive)followPlayback=false;
   windowStart=clamp(windowStart+direction*windowSpan*.75,0,
    Math.max(0,total()-windowSpan));
   schedule();
@@ -278,7 +308,8 @@
   result=evt;panel.hidden=false;
   if(!same){
    initializeAxis(evt);
-   cursor=-1;windowStart=0;windowSpan=total();
+   cursor=-1;playheadSeconds=-1;playheadActive=false;followPlayback=true;
+   windowStart=0;windowSpan=total();
   }
   else{
    windowSpan=clamp(windowSpan,5,total());
@@ -296,7 +327,7 @@
   let ranges;
   if(skip){
    ranges=events().filter(e=>Number(e.end_sec)>now)
-    .map(e=>[Math.floor(e.start_sec),Math.ceil(e.end_sec)]);
+    .map(e=>[Math.floor(Math.max(Number(e.start_sec),now)),Math.ceil(e.end_sec)]);
    if(!ranges.length){
     $("sleepPlaybackStatus").textContent="当前游标之后没有满足筛选条件的片段";
     return;
@@ -309,12 +340,17 @@
   }
   $("sleepPlaybackStatus").textContent=skip?"正在准备有效片段连续播放…":
    "正在从 "+stamp(now)+" 播放…";
+  followPlayback=true;
+  playheadSeconds=now;
+  schedule();
   window.BodyTraceNative.sleepPlaySequence(result.id,JSON.stringify(ranges),skip);
  }
  function playEvent(index){
   const event=events()[index];
   if(!result||!event)return;
   showCursor(event.start_sec);
+  followPlayback=true;
+  playheadSeconds=Number(event.start_sec);
   setSpan(Math.min(windowSpan,600),event.start_sec);
   if(window.BodyTraceNative?.sleepPlaySequence){
    window.BodyTraceNative.sleepPlaySequence(result.id,
@@ -424,6 +460,7 @@
    const dx=p.x-gesture.x;
    if(Math.abs(dx)>=6)gesture.moved=true;
    if(gesture.moved){
+    if(playheadActive)followPlayback=false;
     windowStart=clamp(gesture.start-dx/plotSize().plotWidth*windowSpan,
      0,Math.max(0,total()-windowSpan));
     schedule();
@@ -472,16 +509,30 @@
   playFromCursor,playEvent,
   state:()=>({id:result?.id||"",seconds:total(),start:windowStart,
    span:windowSpan,cursor,events:events().length,
-   axisMin,axisMax,backgroundDb})
+   axisMin,axisMax,backgroundDb,playheadSeconds,playheadActive,followPlayback})
  };
  const priorReceive=window.bodyTraceReceive;
  window.bodyTraceReceive=function(evt){
   if(typeof priorReceive==="function")priorReceive(evt);
   if(evt?.type==="sleep_analysis")update(evt);
-  else if(evt?.type==="sleep_playback"){
-   if(evt.playing&&evt.id===result?.id&&Number.isFinite(Number(evt.start_sec))){
-    showCursor(Number(evt.start_sec));
+  else if(evt?.type==="sleep_playback"||evt?.type==="sleep_playback_position"){
+   if(!result||evt.id!==result.id)return;
+   if(evt.playing){
+    const reported=Number(evt.position_ms);
+    // The native player sends its REAL decoded position at ~220ms intervals.
+    // Ignore stale packets and reject invalid positions from other sessions.
+    if(!Number.isFinite(reported)||reported<0)return;
+    playheadSeconds=clamp(reported/1000,0,total());
+    playheadActive=true;
+    if(followPlayback&&
+       (playheadSeconds<windowStart||playheadSeconds>windowStart+windowSpan)){
+     windowStart=clamp(playheadSeconds-windowSpan*.22,0,
+      Math.max(0,total()-windowSpan));
+    }
+   }else if(evt.type==="sleep_playback"){
+    playheadActive=false;
    }
+   schedule();
   }else if(evt?.type==="sleep_status"&&!Array.isArray(evt?.sessions))update(null);
  };
  if(typeof ResizeObserver==="function")new ResizeObserver(schedule).observe(canvas);
