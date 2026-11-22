@@ -57,3 +57,61 @@ dependencies {
     implementation files('libs/sherpa-onnx-2.0.1.aar')
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.25'
 }
+
+ 
+// Generated IPA/ECDICT lexicon is intentionally not committed to the repository.
+// Force it into EVERY APK asset merge; never ship an APK without its dictionary.
+def offlineLexiconFile = file('src/main/assets/en_pronunciation_zh.tsv.gz')
+tasks.register('ensureOfflineLexicon') {
+    inputs.file(rootProject.file('scripts/build_pronunciation_lexicon.py'))
+    outputs.file(offlineLexiconFile)
+    doLast {
+        if (!offlineLexiconFile.isFile() || offlineLexiconFile.length() < 4096) {
+            def process = new ProcessBuilder('python3',
+                    'scripts/build_pronunciation_lexicon.py')
+                    .directory(rootProject.projectDir).inheritIO().start()
+            if (process.waitFor() != 0) {
+                throw new GradleException(
+                    'Offline dictionary generation failed; refusing to build APK.')
+            }
+        }
+        if (!offlineLexiconFile.isFile()) {
+            throw new GradleException('Offline pronunciation dictionary is missing.')
+        }
+        int rows = 0
+        def required = ['think', "can't", 'ship', 'hello'] as Set
+        def found = [] as Set
+        try {
+            new java.util.zip.GZIPInputStream(
+                new java.io.FileInputStream(offlineLexiconFile)).withCloseable { zipped ->
+                new java.io.BufferedReader(
+                    new java.io.InputStreamReader(zipped, 'UTF-8')).withCloseable { reader ->
+                    String line
+                    while ((line = reader.readLine()) != null) {
+                        def columns = line.split('\\t', 4)
+                        if (columns.length != 4) {
+                            throw new GradleException('Invalid pronunciation lexicon row.')
+                        }
+                        if (required.contains(columns[0])) found.add(columns[0])
+                        rows++
+                        if (rows > 100000) {
+                            throw new GradleException('Pronunciation lexicon is too large.')
+                        }
+                    }
+                }
+            }
+        } catch (java.io.IOException io) {
+            throw new GradleException('Corrupted offline pronunciation dictionary.', io)
+        }
+        if (rows < 10000 || !found.containsAll(required)) {
+            throw new GradleException('Incomplete pronunciation dictionary: ' +
+                rows + ' entries; essential words=' + found)
+        }
+        println "Offline pronunciation dictionary verified: ${rows} entries"
+    }
+}
+// Gradle task scheduling can run mergeAssets concurrently with preBuild.
+// Give mergeAssets its own strict prerequisite to avoid that race.
+tasks.matching { it.name.startsWith('merge') && it.name.endsWith('Assets') }
+     .configureEach { dependsOn('ensureOfflineLexicon') }
+tasks.named('preBuild').configure { dependsOn('ensureOfflineLexicon') }
