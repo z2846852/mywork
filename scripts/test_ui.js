@@ -202,9 +202,9 @@ assert.ok(native.includes('syncOnceOnFirstOpenToday()')&&
  native.includes('LocalDate.now(BEIJING).toString()')&&
  native.includes('p.edit().putString("last_attempt_date",today).commit()'),
  "Sync should be attempted only on the first startup of each Beijing date");
-assert.equal((native.match(/drainPending\\(token\\)/g)||[]).length,1,
+assert.equal((native.match(/drainPending\(token\)/g)||[]).length,1,
  "Saving local workouts, measurements, meals and Raw must not upload immediately");
-assert.equal((native.match(/syncExerciseCatalog\\(token\\)/g)||[]).length,1,
+assert.equal((native.match(/syncExerciseCatalog\(token\)/g)||[]).length,1,
  "Exercise catalog changes must remain local until scheduled/manual sync");
 const localOnlySaveBridge=native.slice(native.indexOf('saveCatalog(String catalogJson)'),
  native.indexOf('@JavascriptInterface public void sleepImport('));
