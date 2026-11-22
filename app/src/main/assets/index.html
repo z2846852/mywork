@@ -804,7 +804,7 @@ const today=todayShanghai();$("recordDate").value=today;state.selected=today;
 function toast(msg,bad=false){let e=$("toast");e.textContent=msg;e.className=bad?"warn":"";e.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.style.display="none",4300)}
 let lastApkVersionCheck=0,apkUpdating=false,apkReady=false;
 function checkVersionOnSettingsEntry(){
- if(apkUpdating||apkReady||Date.now()-lastApkVersionCheck<20000)return;
+ if(apkUpdating||apkReady||Date.now()-lastApkVersionCheck<600000)return;
  lastApkVersionCheck=Date.now();
  $("apkLatestVersion").textContent="查询中…";
  $("apkUpdateStatus").textContent="正在检查 GitHub 最新版本，不下载文件…";
@@ -843,7 +843,7 @@ function navigate(name,fromUser=true){
  currentMainPage=name;
  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+name));
  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
- if(name==="settings")checkVersionOnSettingsEntry();
+ if(name==="settings"&&fromUser)checkVersionOnSettingsEntry();
  if(fromUser){navigationTouched=true;saveUiNavigation();window.scrollTo(0,0)}
 }
 $("overviewSummaryTab").onclick=()=>chooseOverviewMode("summary");

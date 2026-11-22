@@ -374,7 +374,11 @@ final class GitHubApi {
             if (status < 200 || status >= 300) {
                 // Never echo API response or bearer token into the WebView.
                 String label = status == 401 ? "HTTP 401：令牌无效、被撤销或已过期"
-                        : status == 403 ? "HTTP 403：权限不足或达到 GitHub API 限制"
+                        : status == 403 ? ("0".equals(connection.getHeaderField("X-RateLimit-Remaining"))
+                            ? "HTTP 403：GitHub API 请求额度耗尽，请稍后再同步"
+                            : connection.getHeaderField("Retry-After")!=null
+                                ? "HTTP 403：GitHub 暂时限流，请停止重复同步并稍后再试"
+                                : "HTTP 403：私有仓库访问被拒绝，可能是 PAT 权限或 GitHub 限流")
                         : status == 404 ? "HTTP 404：私有仓库/资源对当前令牌不可见"
                         : status == 409 ? "GitHub 写入冲突"
                         : status == 422 ? "事件已存在或请求不符合 GitHub 规则"

@@ -101,8 +101,20 @@ final class ApkUpdateManager {
         connection.setInstanceFollowRedirects(true);
         if(connection.getResponseCode()!=200){
             int code=connection.getResponseCode();
+            String failure="GitHub 下载失败 HTTP "+code;
+            if(code==403||code==429){
+                String remaining=connection.getHeaderField("X-RateLimit-Remaining");
+                String retry=connection.getHeaderField("Retry-After");
+                if("0".equals(remaining)){
+                    failure="GitHub HTTP "+code+"：公共 API 请求额度耗尽，稍后重试";
+                }else if(retry!=null&&retry.matches("[0-9]{1,6}")){
+                    failure="GitHub HTTP "+code+"：访问被限流，"+retry+" 秒后再试";
+                }else{
+                    failure="GitHub HTTP "+code+"：请求被拒绝；可能是限流、网络代理或访问策略";
+                }
+            }
             connection.disconnect();
-            throw new IllegalStateException("GitHub 下载失败 HTTP "+code);
+            throw new IllegalStateException(failure);
         }
         if(!allowedUrl(connection.getURL())){
             connection.disconnect();

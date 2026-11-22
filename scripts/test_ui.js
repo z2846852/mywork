@@ -124,8 +124,18 @@ assert.equal((html.match(/id="uiUpdatePanel"/g)||[]).length,1);
 assert.ok(!html.includes('id="installPendingApk"'),
  "Only one APK update action should be displayed");
 assert.ok(html.includes('function checkVersionOnSettingsEntry()') &&
- html.includes('if(name==="settings")checkVersionOnSettingsEntry()'),
+ html.includes('if(name==="settings"&&fromUser)checkVersionOnSettingsEntry()'),
  "Entering Settings must automatically query the installed/latest versions");
+assert.ok(html.includes('Date.now()-lastApkVersionCheck<600000'),
+ "Do not repeatedly query public release API when switching settings tabs");
+assert.ok(html.includes('if(!navigationTouched)'),
+ "Native preference restore should not override a manual navigation");
+assert.ok(apkUpdate.includes('X-RateLimit-Remaining')&&
+ apkUpdate.includes('Retry-After'),"APK updater must distinguish GitHub rate limiting");
+assert.ok(fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/UiBundleManager.java"),"utf8")
+ .includes('X-RateLimit-Remaining'),"UI updater must distinguish GitHub rate limiting");
+assert.ok(fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8")
+ .includes('GitHub API 请求额度耗尽'),"Private sync should distinguish quota exhaustion");
 assert.ok(html.includes('BodyTraceNative.checkApkVersion()')&&
  html.includes('BodyTraceNative.checkApkUpdate()')&&
  html.includes('BodyTraceNative.installPendingApk()'));

@@ -153,8 +153,21 @@ final class UiBundleManager {
         connection.setRequestProperty("Accept","application/vnd.github+json");
         connection.setInstanceFollowRedirects(true);
         try{
-            if(connection.getResponseCode()!=200)
-                throw new IllegalStateException("GitHub HTTP "+connection.getResponseCode());
+            int code=connection.getResponseCode();
+            if(code!=200){
+                String failure="GitHub HTTP "+code;
+                if(code==403||code==429){
+                    String remaining=connection.getHeaderField("X-RateLimit-Remaining");
+                    String retry=connection.getHeaderField("Retry-After");
+                    if("0".equals(remaining))
+                        failure+="：公共 API 请求额度耗尽，稍后重试";
+                    else if(retry!=null&&retry.matches("[0-9]{1,6}"))
+                        failure+="：访问被限流，"+retry+" 秒后再试";
+                    else
+                        failure+="：请求被拒绝；可能是限流、网络代理或访问策略";
+                }
+                throw new IllegalStateException(failure);
+            }
             if(!"https".equalsIgnoreCase(connection.getURL().getProtocol()))
                 throw new IllegalStateException("不安全的更新重定向");
             try(InputStream in=connection.getInputStream()){
