@@ -7,6 +7,8 @@ on:
       - 'scripts/test_ui.js'
       - 'scripts/build_ui_bundle.py'
       - 'scripts/apk_delta.py'
+      - 'scripts/build_release_history.py'
+      - 'scripts/test_release_history.py'
       - 'scripts/test_apk_delta.py'
       - 'scripts/java_tests/**'
       - 'app/src/main/assets/avatar_cartoon.svg'
@@ -28,6 +30,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -157,6 +161,12 @@ jobs:
           assert {"think", "can't", "ship", "hello"} <= words, "Required entries absent"
           print(f"Verified signed APK contains offline dictionary: {len(rows)} entries")
           PY
+      - name: Build genuine per-release changelog
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          python3 scripts/build_release_history.py --version "$GITHUB_RUN_NUMBER" --commit "$GITHUB_SHA"
+          python3 scripts/test_release_history.py --version "$GITHUB_RUN_NUMBER"
       - name: Build direct APK patches from recent 10 signed Releases
         env:
           GH_TOKEN: ${{ github.token }}
@@ -182,9 +192,10 @@ jobs:
             "BodyTrace-release.apk#Fixed-signature Android APK" \
             "BodyTrace-ui.zip#Optional small UI-only update" \
             "release-updates/BodyTrace-updates.json#Cross-version APK delta manifest" \
+            "BodyTrace-changelog.json#Every published version and its Git commits" \
             "${patch_assets[@]}" \
             --target "$GITHUB_SHA" \
             --title "BodyTrace $tag (Release)" \
-            --notes "Signed APK + optional UI ZIP + direct APK delta updates for up to 10 prior versions. Update in-app; Android confirms installation." \
+            --notes-file build/release-notes.md \
             --latest
           echo "https://github.com/$GH_REPO/releases/latest/download/BodyTrace-release.apk"
