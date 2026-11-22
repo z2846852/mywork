@@ -51,11 +51,12 @@ FILES={
     "z.mp3": ("39377ec8568484c71cfc03d7270e284313fdc1c9", 16552),
     "zh.mp3": ("4a7286a6666ef3f56f282f0939bd2f7f94df1236", 18015),
 }
+# Wikimedia Commons links are checked as genuine Ogg audio. These files are
+# individually attributed; unlike the Schwa Git blobs, Commons bytes may be
+# updated upstream, so we do NOT pretend that they have a known pinned SHA.
 EXTRAS={
-  "retroflex_sh.ogg":("Voiceless_retroflex_sibilant.ogg",
-                     "8b775fdd4978f26e7432967796470ab5d18867ed",123097),
-  "central_i.ogg":("Close_central_unrounded_vowel.ogg",
-                   "5e23853e720b111185a855b5a72275e97144986d",12961),
+  "retroflex_sh.ogg":"Voiceless_retroflex_sibilant.ogg",
+  "central_i.ogg":"Close_central_unrounded_vowel.ogg",
 }
 
 def get(url):
@@ -71,7 +72,7 @@ def get(url):
             time.sleep(2**attempt)
 
 def git_sha1(content):
-    return hashlib.sha1(b"blob "+str(len(content)).encode()+b"\\0"+content).hexdigest()
+    return hashlib.sha1(b"blob "+str(len(content)).encode()+b"\0"+content).hexdigest()
 
 def main():
     OUT.mkdir(parents=True,exist_ok=True)
@@ -81,14 +82,14 @@ def main():
         raw=get(BASE+urllib.parse.quote(name))
         if len(raw)!=size or git_sha1(raw)!=digest:raise RuntimeError(f"Pin mismatch {name}")
         path.write_bytes(raw)
-    for dest,(source,digest,size) in EXTRAS.items():
+    for dest,source in EXTRAS.items():
         path=OUT/dest
-        if path.is_file() and hashlib.sha1(path.read_bytes()).hexdigest()==digest:continue
-        md5=hashlib.md5(source.encode()).hexdigest()
-        url="https://upload.wikimedia.org/wikipedia/commons/"+md5[:1]+"/"+md5[:2]+"/"+source
+        if path.is_file() and 4000<path.stat().st_size<250000 and path.read_bytes().startswith(b"OggS"):
+            continue
+        url="https://commons.wikimedia.org/wiki/Special:Redirect/file/"+urllib.parse.quote(source)
         raw=get(url)
-        if len(raw)!=size or hashlib.sha1(raw).hexdigest()!=digest:
-            raise RuntimeError(f"Commons sample changed: {source}")
+        if not 4000<len(raw)<250000 or not raw.startswith(b"OggS"):
+            raise RuntimeError(f"Invalid Commons recording: {source}")
         path.write_bytes(raw)
     assert len(list(OUT.glob("*.mp3")))==len(FILES)
     assert len(list(OUT.glob("*.ogg")))==len(EXTRAS)
