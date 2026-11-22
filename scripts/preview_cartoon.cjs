@@ -238,7 +238,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.evaluate(()=>{
     state.rows.push({id:"demo-leg-two-styles",exercise_id:"abductor",
      session_date:"2026-11-17",load_kg:28,reps:10});
-    renderRegionDashboard();
+    window.BodyTraceRenderFeatures();
   });
   const legPairs=await page.locator("#regionTrendGrid .combined-trend-line[data-region='腿']")
    .evaluateAll(nodes=>nodes.map(n=>({
@@ -254,7 +254,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     JSON.stringify({legPairs,symbols}));
   await page.evaluate(()=>{
     state.rows=state.rows.filter(r=>r.id!=="demo-leg-two-styles");
-    renderRegionDashboard();
+    window.BodyTraceRenderFeatures();
   });
 
   // Time controls must permit exact dates without adding invented no-workout data.
