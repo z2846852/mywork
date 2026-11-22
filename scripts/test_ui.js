@@ -1950,7 +1950,8 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
  get("voicePitchTarget").value="60";
  for(const cb of get("voicePitchTarget").handlers.change||[])cb();
  const staffLines=get("voicePitchGrid").children
-  .filter(x=>x.tag==="line").map(x=>Number(x.attrs.y1));
+  .filter(x=>x.tag==="line"&&x.attrs.stroke==="#8daf9e")
+  .map(x=>Number(x.attrs.y1));
  assert.deepEqual(staffLines,[177,151,125,99,73],
   "All five staff lines must be physically equally spaced");
  const graphics=get("voicePitchTraces").children;
