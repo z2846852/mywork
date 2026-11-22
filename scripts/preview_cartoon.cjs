@@ -879,7 +879,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    }
    window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
    state.calendarBrowsing=true;state.selected="2026-11-20";renderHeat();renderDay();
-   navigate("home");
+   navigate("home");chooseOverviewMode("summary");
   });
   const hips=page.locator('#dayDetails .exercise[data-exercise-id="hip_thrust"]');
   const hipDates=hips.locator(".exercise-history-date");
@@ -937,7 +937,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.evaluate(()=>{
    window.__editPayloads=[];
    window.BodyTraceNative.editWorkout=raw=>window.__editPayloads.push(JSON.parse(raw));
-   navigate("home");
+   navigate("home");chooseOverviewMode("trends");
   });
   const hipChart=page.locator('#strengthList [data-exercise-id="hip_thrust"]');
   const hipRecent=hipChart.locator(".strength-recent-set");
