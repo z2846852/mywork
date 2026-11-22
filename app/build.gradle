@@ -60,8 +60,9 @@ dependencies {
 
  
 // Generated IPA/ECDICT lexicon is intentionally not committed to the repository.
+// Use .gzdata rather than .gz: Android aapt strips/decompresses .gz assets.
 // Force it into EVERY APK asset merge; never ship an APK without its dictionary.
-def offlineLexiconFile = file('src/main/assets/en_pronunciation_zh.tsv.gz')
+def offlineLexiconFile = file('src/main/assets/en_pronunciation_zh.tsv.gzdata')
 tasks.register('ensureOfflineLexicon') {
     inputs.file(rootProject.file('scripts/build_pronunciation_lexicon.py'))
     outputs.file(offlineLexiconFile)

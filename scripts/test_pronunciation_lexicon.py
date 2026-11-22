@@ -16,7 +16,7 @@ def test():
         p=pathlib.Path(temp)
         e=p/"ecdict.csv"
         i=p/"en_US.txt"
-        out=p/"en_pronunciation_zh.tsv.gz"
+        out=p/"en_pronunciation_zh.tsv.gzdata"
         words={
             "think":("θɪŋk","认为；思考"),
             "can't":("kænt","不能"),

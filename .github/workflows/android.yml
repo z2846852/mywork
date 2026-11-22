@@ -89,10 +89,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/build_pronunciation_lexicon.py
-          test -s app/src/main/assets/en_pronunciation_zh.tsv.gz
+          test -s app/src/main/assets/en_pronunciation_zh.tsv.gzdata
           python3 - <<'PY'
           import gzip,pathlib
-          f=pathlib.Path("app/src/main/assets/en_pronunciation_zh.tsv.gz")
+          f=pathlib.Path("app/src/main/assets/en_pronunciation_zh.tsv.gzdata")
           with gzip.open(f,"rt",encoding="utf-8") as source:
               lines=source.read().splitlines()
           assert len(lines)>10000, f"Unusually small lexicon: {len(lines)}"
@@ -146,7 +146,7 @@ jobs:
           python3 - <<'PY'
           import gzip, io, zipfile
           apk = "app/build/outputs/apk/release/app-release.apk"
-          asset = "assets/en_pronunciation_zh.tsv.gz"
+          asset = "assets/en_pronunciation_zh.tsv.gzdata"
           with zipfile.ZipFile(apk) as package:
               assert asset in package.namelist(), (
                   f"Missing {asset} from built APK; refusing to publish broken release")

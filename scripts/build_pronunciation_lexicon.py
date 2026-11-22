@@ -129,7 +129,7 @@ def main():
     p.add_argument("--ecdict",type=pathlib.Path)
     p.add_argument("--ipa",type=pathlib.Path)
     p.add_argument("--output",type=pathlib.Path,
-                   default=pathlib.Path("app/src/main/assets/en_pronunciation_zh.tsv.gz"))
+                   default=pathlib.Path("app/src/main/assets/en_pronunciation_zh.tsv.gzdata"))
     args=p.parse_args()
     with tempfile.TemporaryDirectory() as tmp:
         parent=pathlib.Path(tmp)

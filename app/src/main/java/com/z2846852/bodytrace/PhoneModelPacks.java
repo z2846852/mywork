@@ -113,7 +113,7 @@ final class PhoneModelPacks {
         if(lexiconCount>=0)return lexiconCount;
         int rows=0;
         try(BufferedReader in=new BufferedReader(new InputStreamReader(
-                new GZIPInputStream(context.getAssets().open("en_pronunciation_zh.tsv.gz")),
+                new GZIPInputStream(context.getAssets().open("en_pronunciation_zh.tsv.gzdata")),
                 StandardCharsets.UTF_8))){
             String line;
             while((line=in.readLine())!=null&&rows<=100000){

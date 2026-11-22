@@ -73,7 +73,7 @@ final class VoiceLabController {
     private synchronized PhoneticLexicon lexicon()throws Exception{
         if(dictionary==null){
             try(InputStream in=new GZIPInputStream(
-                    activity.getAssets().open("en_pronunciation_zh.tsv.gz"))){
+                    activity.getAssets().open("en_pronunciation_zh.tsv.gzdata"))){
                 dictionary=PhoneticLexicon.load(in);
             }catch(java.io.FileNotFoundException missing){
                 throw new IllegalStateException(

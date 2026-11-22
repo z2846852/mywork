@@ -257,7 +257,7 @@ assert.ok(androidGradle.includes("ensureOfflineLexicon")&&
  androidGradle.includes("scripts/build_pronunciation_lexicon.py")&&
  androidGradle.includes("dependsOn('ensureOfflineLexicon')")&&
  workflow.includes('Verify signed APK embeds the bilingual pronunciation dictionary')&&
- workflow.includes("assets/en_pronunciation_zh.tsv.gz")&&
+ workflow.includes("assets/en_pronunciation_zh.tsv.gzdata")&&
  labNative.includes("APK 缺少英汉发音词典文件"),
  "Fail build if the generated bilingual pronunciation dictionary is missing");
 for(const id of ["voiceWordMatches","voiceDictionaryNotice","voicePhonemeEnglishBox"]){

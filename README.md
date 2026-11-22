@@ -21,10 +21,12 @@
 
 ## 离线音素 → 英汉词典反查（2026-11-22）
 
+**Android 资源打包修复：** 压缩词典文件使用 `.tsv.gzdata` 扩展名而不是 `.gz`，防止 AAPT 自动去掉 `.gz` 后导致 `AssetManager.open()` 找不到文件；内容仍为 gzip 流，Java 继续使用 `GZIPInputStream` 解压。CI 在 APK 签名后检查包内实际资源路径和 gzip 内容，不再只检查源码目录文件。
+
 **不要混淆三个量**：ZIPA 从真实 PCM 声音解码出的 IPA 音素（声学模型的预测）、音素到词典 IPA 的编辑距离（词典字词匹配）、以及人类发音标准度（尚未衡量）。本功能不使用 ASR 把声音直接变成文字，不使用已知目标词强制修正 ZIPA 输出，也**不把词典相似度当作口音评分**。
 
 - 英语模式：在原始 ZIPA IPA 序列下独立显示“整段音素的英语词典匹配”。每项包含英语词形、词典美式 IPA、ECDICT 中文释义，以及“完整音素匹配”或“音素相似 x%”。候选匹配采用整个音素序列的可容错编辑距离，再以 BNC/COCA/牛津等词频数据做低权重排序；允许一定替音、少音。示例：ZIPA `θ ɪ ŋ k` → `think /θɪŋk/：认为；思考`，而不会列出随机的 `thin、sit、ship、cat` 等各音素示例词作为识别结果。
-- 常见单词与中文释义从两份现成、MIT 来源词典在 GitHub Actions APK 构建期间自动生成：`open-dict-data/ipa-dict` 的美式 IPA（CMU 派生），`skywind3000/ECDICT` 的 `ecdict.csv` 英汉释义、词频。生成器 `scripts/build_pronunciation_lexicon.py` 指定固定上游 commit，选取至多约 55,000 个常见有翻译词条，压缩为 `app/src/main/assets/en_pronunciation_zh.tsv.gz`；构建时生成并嵌入 APK，**无需用户每天下载，也不需要 GitHub token**。新 APK 会比之前稍大。原大词典不会提交或保存到项目 Git 历史。
+- 常见单词与中文释义从两份现成、MIT 来源词典在 GitHub Actions APK 构建期间自动生成：`open-dict-data/ipa-dict` 的美式 IPA（CMU 派生），`skywind3000/ECDICT` 的 `ecdict.csv` 英汉释义、词频。生成器 `scripts/build_pronunciation_lexicon.py` 指定固定上游 commit，选取至多约 55,000 个常见有翻译词条，压缩为 `app/src/main/assets/en_pronunciation_zh.tsv.gzdata`；构建时生成并嵌入 APK，**无需用户每天下载，也不需要 GitHub token**。新 APK 会比之前稍大。原大词典不会提交或保存到项目 Git 历史。
 - 词典检索实现在 `PhoneticLexicon.java`，在首次使用英语 ZIPA 后离线读取并缓存，普通话音频**不进入英语词典**。如果字典不在 APK 中、加载失败或没有合理候选，保留原始 ZIPA 音素并显示失败原因，不使用旧的单音素例词映射伪造结果。
 - 普通话模式：只展示模型实际 IPA 预测；**停止把各个音素错误地映射成“你、衣、妈”等独立示例字**。IPA `x` 与拼音 `x` 不是同一套符号，可能更接近普通话拼音 `h`；当前模型没有可靠的声调/声母韵母解码，不据此假定“你好”的汉字或声调。
 - 数据与许可说明见 `app/src/main/assets/phonetic_lexicon_sources.txt`；自动化测试分别验证词典构建、英汉词义、 `think` 全音素匹配、`can't` 中撇号、替音容错、没有 IPA 时不编造单词，以及 UI 整体展示。
