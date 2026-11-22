@@ -140,6 +140,23 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging \
             app/build/outputs/apk/release/app-release.apk | head -n 3
           cp app/build/outputs/apk/release/app-release.apk BodyTrace-release.apk
+      - name: Verify signed APK embeds the bilingual pronunciation dictionary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import gzip, io, zipfile
+          apk = "app/build/outputs/apk/release/app-release.apk"
+          asset = "assets/en_pronunciation_zh.tsv.gz"
+          with zipfile.ZipFile(apk) as package:
+              assert asset in package.namelist(), (
+                  f"Missing {asset} from built APK; refusing to publish broken release")
+              with gzip.open(io.BytesIO(package.read(asset)), "rt", encoding="utf-8") as source:
+                  rows = source.read().splitlines()
+          assert len(rows) >= 10000, f"Incomplete APK dictionary: {len(rows)} entries"
+          words = {line.partition(chr(9))[0] for line in rows}
+          assert {"think", "can't", "ship", "hello"} <= words, "Required entries absent"
+          print(f"Verified signed APK contains offline dictionary: {len(rows)} entries")
+          PY
       - name: Build direct APK patches from recent 10 signed Releases
         env:
           GH_TOKEN: ${{ github.token }}
