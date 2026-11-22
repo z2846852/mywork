@@ -75,12 +75,14 @@ final class GitHubReleaseCache {
         return new String(out.toByteArray(),StandardCharsets.UTF_8);
     }
 
-    synchronized Snapshot get() throws Exception {
+    synchronized Snapshot get() throws Exception {return get(false);}
+
+    synchronized Snapshot get(boolean force) throws Exception {
         long now=System.currentTimeMillis();
         JSONObject local=cached(now);
         long freshAt=prefs.getLong("fetched_at",0);
         long blocked=prefs.getLong("blocked_until",0);
-        if(local!=null&&now-freshAt<FRESH_MS)
+        if(!force&&local!=null&&now-freshAt<FRESH_MS)
             return new Snapshot(local,false,blocked);
         if(now<blocked){
             if(local!=null)return new Snapshot(local,true,blocked);
