@@ -1993,9 +1993,12 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   querySelector:()=>new LabNode("button"),
   querySelectorAll:q=>q==="#voiceIpaGroups button"?groups:[]
  };
- const spoken=[];
+ const spoken=[],samples=[],lookups=[];
  const native={voiceLabSetLanguage(){},voiceLabStart(){},voiceLabStop(){},
-  voiceLabFinishPhoneme(){},voiceLabSpeakExample:word=>spoken.push(word)};
+  voiceLabFinishPhoneme(){},voiceLabSpeakExample:word=>spoken.push(word),
+  voiceLabPlayPhoneme:ipa=>samples.push(ipa),
+  voiceLabLookupWord:word=>lookups.push(word),
+  voiceLabSpeakReference(){}};
  const window={BodyTraceNative:native,addEventListener(){}};
  vm.runInNewContext(voiceLabJS,{document:doc,window});
  assert.equal(window.BodyTraceVoiceLab.state().axis,null,
@@ -2084,6 +2087,33 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   x.tag==="text"&&x.attrs.class==="pitch-sample-label"&&
   x.textContent==="C♯4"&&x.attrs.fill==="#f17f86"),
   "An explicit C4 target must turn C-sharp red even at 100-cent tolerance");
+ get("voiceWordInput").value="thinking";
+ get("voiceWordSet").click();
+ assert.deepEqual(lookups,["thinking"]);
+ window.bodyTraceReceive({type:"voice_word_target",query:"thinking",
+  state:"ready",word:"thinking",zh:"正在思考",ipa:"ˈθɪŋkɪŋ",
+  variants:["ˈθɪŋkɪŋ"]});
+ assert.equal(get("voiceWordReference").children[1].children.length,6);
+ get("voiceWordReference").children[1].children[0].click();
+ assert.equal(samples.at(-1),"θ");
+ get("voicePhonemeHold").handlers.pointerdown[0]({preventDefault(){}});
+ window.bodyTraceReceive({type:"voice_lab",state:"phoneme_result",
+  engine_kind:"neural_ctc",language:"en",
+  candidates:["ʂ","ɨ","p","i","k","i","ŋ"].map(ipa=>({ipa})),
+  word_matches:[]});
+ assert.equal(get("voiceWordCompare").hidden,false);
+ assert.ok(get("voiceWordAlignment").children.some(c=>
+  c.className.includes("substitute")));
+ assert.ok(get("voiceWordAlignment").children.some(c=>
+  c.className.includes("insert")));
+ get("voicePhonemeSequence").children[0].click();
+ assert.equal(samples.at(-1),"ʂ");
+ assert.ok(get("voicePhoneExamples").children.some(c=>
+  c.children.some(t=>String(t.textContent).includes("书"))));
+ get("voicePhonemeSequence").children[1].click();
+ assert.equal(samples.at(-1),"ɨ");
+ assert.ok(get("voicePhoneExamples").children.some(c=>
+  c.children.some(t=>String(t.textContent).includes("în"))));
  const sizes=[];
  for(const group of groups){
   group.click();sizes.push(get("voiceIpaGrid").children.length);
