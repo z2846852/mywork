@@ -2112,6 +2112,8 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   c.children.some(t=>String(t.textContent).includes("书"))));
  get("voicePhonemeSequence").children[1].click();
  assert.equal(samples.at(-1),"ɨ");
+ assert.ok(get("voiceWordCompareStatus").textContent.includes("待核实"),
+  "Acoustic mismatches must not be asserted as confirmed pronunciation errors");
  assert.ok(get("voicePhoneExamples").children.some(c=>
   c.children.some(t=>String(t.textContent).includes("în"))));
  const sizes=[];
