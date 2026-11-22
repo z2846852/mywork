@@ -327,20 +327,35 @@ const trendColorShades={
  背:["#83C7FF","#50A7E9","#B0DEFF","#6B94DC","#6FBBD6","#9BA9F0"],
  腿:["#C7A6FF","#A78CE2","#E0C4FF","#9270D0","#D9A0E5","#B59ACD","#AE80EF","#E1B5D6"]
 };
-let trendSelectedPeriod="90",trendStart="",trendEnd="",trendAssistBase=70;
-const trendExcluded=new Set();
+let trendSelectedPeriod="30",trendStart="",trendEnd="",trendAssistBase=70;
+let trendFocusKey=null;
+// These are visual lanes, NOT a claim that all leg exercises exceed all others.
+const trendDisplayRegions=["腿","背","胸","肩"];
+const trendRegionLanes={腿:95,背:220,胸:345,肩:470};
+const trendDashStyles=["","10 6","3 6","15 5 3 5","2 3","11 4 2 4"];
+const trendMarkerStyles=["circle","square","diamond","triangle","cross","hexagon"];
+function trendRelativeOffset(value,reference,assisted){
+ const floor=Math.max(assisted?20:5,reference*.42);
+ const ratio=(Math.max(0,value)+floor)/(Math.max(0,reference)+floor);
+ // Same formula on every series, symmetric for improvements and setbacks.
+ return Math.tanh(Math.log(ratio)*2.2)*49;
+}
+function trendRecordedRange(series){
+ const dates=series.flatMap(s=>s.points.map(p=>p.date)).sort();
+ return {first:dates[0]||"",last:dates[dates.length-1]||""};
+}
 const validTrendDate=x=>/^\d{4}-\d{2}-\d{2}$/.test(x||"")&&
  !Number.isNaN(Date.parse(x+"T12:00:00Z"));
 const trendMillis=x=>Date.parse(x+"T12:00:00Z");
 function trendRange(){
  const end=validTrendDate(trendEnd)?trendEnd:today;
- const from=validTrendDate(trendStart)?trendStart:plus(end,-89);
+ const from=validTrendDate(trendStart)?trendStart:plus(end,-29);
  return {from,end,valid:trendMillis(from)<=trendMillis(end)};
 }
 function trendInitialDates(period){
  const known=state.rows.map(r=>r.session_date).filter(validTrendDate).sort();
  const end=today;
- return {from:period==="all"?(known[0]||plus(end,-89)):
+ return {from:period==="all"?(known[0]||plus(end,-29)):
   plus(end,-(Number(period)||90)+1),end};
 }
 function trendData(rows,from,end,bodyWeight=70){
@@ -393,7 +408,9 @@ function trendData(rows,from,end,bodyWeight=70){
   const index=counts[group.region]++;
   const palette=trendColorShades[group.region];
   group.color=palette[index%palette.length];
-  group.dash=Math.floor(index/palette.length)%2?"7 5":"";
+  group.dash=trendDashStyles[index%trendDashStyles.length];
+  group.marker=trendMarkerStyles[index%trendMarkerStyles.length];
+  group.styleIndex=index;
  }
  return {series,ignored};
 }
@@ -415,147 +432,259 @@ function renderRegionDashboard(){
  if(!valid){root.textContent="起始日期不能晚于结束日期";return}
  const dataset=trendData(state.rows,from,end,trendAssistBase);
  const all=dataset.series;
- const enabled=all.filter(s=>!trendExcluded.has(s.key));
- const nonEmpty=enabled.flatMap(s=>s.points);
- const summaryLine=document.createElement("div");
- summaryLine.className="combined-trend-status";
- summaryLine.textContent=from+" — "+end+" · "+all.length+" 条动作曲线 · "+
-   new Set(nonEmpty.map(p=>p.date)).size+" 个有效训练日";
- root.append(summaryLine);
- if(!nonEmpty.length){
-  const empty=document.createElement("p");empty.className="note";
-  empty.textContent=all.length?"所有曲线已隐藏，点击下方图例重新显示":
-   "所选日期内没有可计算的 1RM 记录。需有1–15次成功完成组、明确负重和动作分类。";
-  root.append(empty);
- }
- const NS="http://www.w3.org/2000/svg";
+ // A reference is established from the first recorded session for THIS
+ // exercise, regardless of the currently selected viewing window.
+ const history=trendData(state.rows,"1900-01-01",end,trendAssistBase).series;
+ const reference=new Map(history.map(group=>[group.key,group.points[0]?.value??0]));
+ if(trendFocusKey&&!all.some(group=>group.key===trendFocusKey))trendFocusKey=null;
+ const ns="http://www.w3.org/2000/svg";
  const el=(tag,attrs={})=>{
-  const node=document.createElementNS(NS,tag);
+  const node=document.createElementNS(ns,tag);
   for(const [key,val] of Object.entries(attrs))node.setAttribute(key,String(val));
   return node;
  };
- const chartBox=document.createElement("div");chartBox.className="combined-trend-scroll";
- if(nonEmpty.length){
-  const svg=el("svg",{viewBox:"0 0 800 384",role:"img",
-   "aria-label":"所有部位动作最近训练日估算1RM，多条共用纵轴的折线"});
-  // Transparent chart-wide hit surface avoids overlapping touch circles
-  // swallowing one another when many daily measurements are close together.
-  svg.append(el("rect",{x:0,y:0,width:800,height:384,
-   fill:"transparent","pointer-events":"all"}));
-  const xmin=trendMillis(from),xmax=trendMillis(end),xSpan=Math.max(86400000,xmax-xmin);
-  const x=day=>56+(trendMillis(day)-xmin)/xSpan*724;
-  const rawMin=Math.min(...nonEmpty.map(p=>p.value));
-  const rawMax=Math.max(...nonEmpty.map(p=>p.value));
-  const spread=Math.max(12,rawMax-rawMin);
-  // One shared linear axis; never normalize each exercise separately.
-  const low=Math.max(0,Math.floor((rawMin-spread*.13)/10)*10);
-  const high=Math.max(low+10,Math.ceil((rawMax+spread*.14)/10)*10);
-  const y=value=>325-(value-low)/(high-low)*289;
-  for(let i=0;i<=4;i++){
-   const val=low+(high-low)*i/4,py=y(val);
-   svg.append(el("line",{x1:55,y1:py,x2:782,y2:py,
-    stroke:"#39554f","stroke-width":"1",opacity:".78"}));
-   const text=el("text",{x:48,y:py+5,"text-anchor":"end",fill:"#a5c3b6",
-    "font-size":"16"});text.textContent=round1(val);svg.append(text);
+ const svgMarker=(kind,cx,cy,color,size=6)=>{
+  let node;
+  if(kind==="square"){
+   node=el("rect",{x:cx-size,y:cy-size,width:size*2,height:size*2,rx:1.4});
+  }else if(kind==="diamond"){
+   node=el("polygon",{points:[cx,cy-size*1.25,cx+size*1.1,cy,
+    cx,cy+size*1.25,cx-size*1.1,cy].join(",")});
+  }else if(kind==="triangle"){
+   node=el("polygon",{points:[cx,cy-size*1.35,cx+size*1.25,cy+size,
+    cx-size*1.25,cy+size].join(",")});
+  }else if(kind==="cross"){
+   node=el("path",{d:"M "+(cx-size)+" "+cy+" L "+(cx+size)+" "+cy+
+    " M "+cx+" "+(cy-size)+" L "+cx+" "+(cy+size),fill:"none",
+    stroke:color,"stroke-width":"3.8","stroke-linecap":"round"});
+  }else if(kind==="hexagon"){
+   node=el("polygon",{points:Array.from({length:6},(_,i)=>{
+    const a=(i/3)*Math.PI;
+    return (cx+Math.cos(a)*size)+","+(cy+Math.sin(a)*size);
+   }).join(" ")});
+  }else node=el("circle",{cx,cy,r:size});
+  if(kind!=="cross"){
+   node.setAttribute("fill",color);
+   node.setAttribute("stroke","#14241e");
+   node.setAttribute("stroke-width","1.5");
   }
-  const totalDays=Math.max(1,Math.round(xSpan/86400000));
-  for(let i=0;i<=4;i++){
-   const day=plus(from,Math.round(totalDays*i/4));
+  node.setAttribute("class","combined-trend-marker");
+  node.setAttribute("pointer-events","none");
+  node.setAttribute("data-marker",kind);
+  return node;
+ };
+ const recorded=trendRecordedRange(all);
+ const status=document.createElement("div");status.className="combined-trend-status";
+ status.textContent=from+" — "+end+" · "+all.length+" 条动作曲线"+
+  (recorded.last?" · 最新记录 "+recorded.last:" · 当前没有有效记录");
+ root.append(status);
+ if(!all.length){
+  const empty=document.createElement("p");empty.className="note";
+  empty.textContent="所选日期内没有可用的力量表现记录，可尝试「全部」查看历史。";
+  root.append(empty);return;
+ }
+ const section=document.createElement("div");section.className="combined-trend-scroll";
+ const W=800,H=594;
+ const svg=el("svg",{viewBox:"0 0 "+W+" "+H,role:"img",
+  "aria-label":"胸肩背腿四个色系的相对力量变化；一张图完整显示，不需要左右滚动"});
+ svg.append(el("rect",{x:0,y:0,width:W,height:H,
+  fill:"transparent","pointer-events":"all"}));
+ for(let i=0;i<trendDisplayRegions.length;i++){
+  const region=trendDisplayRegions[i],cy=trendRegionLanes[region];
+  const band=el("g",{class:"combined-trend-band","data-region":region,
+   "data-center":cy});
+  band.append(el("rect",{x:0,y:cy-60,width:W,height:120,
+   fill:regionThemeColors[region],opacity:".035"}));
+  band.append(el("line",{x1:67,y1:cy,x2:788,y2:cy,
+   stroke:regionThemeColors[region],"stroke-width":1,"stroke-dasharray":"3 7",
+   opacity:".35"}));
+  const label=el("text",{x:12,y:cy+6,fill:regionThemeColors[region],
+   "font-size":19,"font-weight":"bold"});
+  label.textContent=region;band.append(label);
+  svg.append(band);
+ }
+ const span=Math.max(0,trendMillis(recorded.last)-trendMillis(recorded.first));
+ // Date filters choose which observations exist, not a huge invisible 90d canvas.
+ // Last recorded observation always sits at the visible chart's right edge.
+ const x=day=>span===0?775:73+
+  (trendMillis(day)-trendMillis(recorded.first))/span*702;
+ const datespan=Math.round(span/86400000);
+ if(datespan>0){
+  const ticks=Math.min(4,datespan);
+  for(let i=0;i<=ticks;i++){
+   const day=plus(recorded.first,Math.round(datespan*i/ticks));
    const px=x(day);
-   svg.append(el("line",{x1:px,y1:34,x2:px,y2:326,stroke:"#314b46",
-    "stroke-width":"0.8","stroke-dasharray":"2 7"}));
-   const text=el("text",{x:px,y:353,"text-anchor":i===0?"start":i===4?"end":"middle",
-    fill:"#a8c7b9","font-size":"16"});
-   text.textContent=day.slice(5);svg.append(text);
+   svg.append(el("line",{x1:px,y1:30,x2:px,y2:536,
+    stroke:"#3d5b50","stroke-width":"1","stroke-dasharray":"2 9"}));
+   const label=el("text",{x:px,y:571,
+    "text-anchor":i===0?"start":i===ticks?"end":"middle",
+    fill:"#adc9b9","font-size":"17"});
+   label.textContent=day.slice(5);svg.append(label);
   }
-  const selected=document.createElement("div");selected.className="combined-trend-selection";
-  selected.setAttribute("role","status");
-  selected.textContent="点击折线上的点，查看当日该动作的重量、次数与估算 1RM";
-  const chartPoints=[];
-  for(const group of enabled){
-   const line=el("polyline",{points:group.points.map(p=>x(p.date)+","+y(p.value)).join(" "),
-    fill:"none",stroke:group.color,"stroke-width":"3.1",
-    "stroke-linejoin":"round","stroke-linecap":"round",opacity:".90"});
-   if(group.dash)line.setAttribute("stroke-dasharray",group.dash);
-   svg.append(line);
-   for(const point of group.points){
-    const cx=x(point.date),cy=y(point.value);
-    const dot=el("circle",{cx,cy,r:4.1,fill:group.color,stroke:"#14251f","stroke-width":"1.5"});
-    const hit=el("circle",{cx,cy,r:13,fill:"transparent",class:"combined-trend-point",
-     "pointer-events":"none",tabindex:0,role:"button",
-     "aria-label":group.name+" "+point.date+" 估算1RM "+round1(point.value)+"公斤"});
-    const title=el("title");
-    title.textContent=group.name+" · "+point.date+" · "+
-     round1(point.value)+"kg e1RM";hit.append(title);
-    const select=()=>{
-     selected.textContent=group.name+" · "+point.date+" · "+
-       round1(point.load)+" kg"+(group.assisted?"辅助量":
-        group.basis==="per_side"?"（每侧）":"")+" × "+point.reps+
-       "次 → e1RM "+round1(point.value)+" kg"+
-       (group.assisted?"（基准体重 "+round1(point.bodyWeight)+" kg）":"");
-    };
-    chartPoints.push({cx,cy,select});
-    hit.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){
-      e.preventDefault();select();
-    }});
-    svg.append(dot,hit);
+ }else{
+  const label=el("text",{x:776,y:571,"text-anchor":"end",
+   fill:"#adc9b9","font-size":"17"});
+  label.textContent=recorded.last.slice(5);svg.append(label);
+ }
+ const details=document.createElement("div");details.className="combined-trend-selection";
+ details.setAttribute("role","status");
+ const curves=[];
+ for(const group of all){
+  const base=reference.get(group.key)??group.points[0].value;
+  const center=trendRegionLanes[group.region];
+  const pts=group.points.map(point=>({
+   x:x(point.date),y:center-trendRelativeOffset(point.value,base,group.assisted),
+   point
+  }));
+  curves.push({group,pts,base});
+ }
+ const showPoint=(curve,pt)=>{
+  const {group,base}=curve,point=pt.point;
+  const difference=point.value-base;
+  const change=difference>0.05?"较起点提高":difference<-.05?"较起点下降":"与起点接近";
+  details.textContent=group.name+" · "+point.date+" · "+
+   round1(point.load)+" kg"+(group.assisted?"辅助":"")+
+   " × "+point.reps+"次 · 表现估算 "+round1(point.value)+" kg"+
+   "（"+change+" "+round1(Math.abs(difference))+" kg）";
+ };
+ const setFocus=(key,pt)=>{
+  trendFocusKey=trendFocusKey===key&&!pt?null:key;
+  renderRegionDashboard();
+  // Preserve the picked observation after rebuilding.
+  if(key&&pt&&trendFocusKey===key){
+   const name=all.find(g=>g.key===key);
+   const referenceValue=reference.get(key)??0;
+   const difference=pt.value-referenceValue;
+   const change=difference>0.05?"较起点提高":difference<-.05?"较起点下降":"与起点接近";
+   const detailsNode=root.querySelector(".combined-trend-selection");
+   if(detailsNode)detailsNode.textContent=name.name+" · "+pt.date+" · "+
+    round1(pt.load)+" kg"+(name.assisted?"辅助":"")+" × "+pt.reps+
+    "次 · 表现估算 "+round1(pt.value)+" kg（"+change+" "+
+    round1(Math.abs(difference))+" kg）";
+  }
+ };
+ const selection=trendFocusKey?all.find(s=>s.key===trendFocusKey):null;
+ if(selection){
+  const latest=selection.points[selection.points.length-1];
+  const old=reference.get(selection.key)??latest.value;
+  const delta=latest.value-old;
+  details.textContent="已选 "+selection.name+" · 最近 "+latest.date+" · "+
+   (delta>0.05?"进步":delta<-.05?"下降":"基本持平")+" "+
+   round1(Math.abs(delta))+" kg（相对历史首条记录）";
+ }else details.textContent="点击某条曲线或下方动作名称：突出该动作，其他曲线变淡；再次点击恢复全部";
+ for(const curve of curves){
+  const {group,pts}=curve;
+  const focused=trendFocusKey===group.key;
+  const dimmed=!!trendFocusKey&&!focused;
+  const line=el("polyline",{
+   class:"combined-trend-line"+(focused?" selected":"")+(dimmed?" muted":""),
+   "data-key":group.key,"data-region":group.region,
+   points:pts.map(p=>p.x+","+p.y).join(" "),
+   fill:"none",stroke:group.color,
+   "stroke-width":focused?5.2:3.1,
+   "stroke-linejoin":"round","stroke-linecap":"round",
+   opacity:dimmed?".16":"1"});
+  if(group.dash)line.setAttribute("stroke-dasharray",group.dash);
+  line.setAttribute("pointer-events","none");
+  svg.append(line);
+  for(const pt of pts){
+   const marker=svgMarker(group.marker,pt.x,pt.y,group.color,focused?8:6);
+   if(dimmed)marker.setAttribute("opacity",".16");
+   svg.append(marker);
+   // Accessible named points; pointer activation is handled on SVG itself
+   // so that overlapping touch targets never steal clicks.
+   const hit=el("circle",{class:"combined-trend-point",cx:pt.x,cy:pt.y,
+    r:11,fill:"transparent","pointer-events":"none",tabindex:0,
+    role:"button","aria-label":group.name+" "+pt.point.date+
+    " 估算1RM "+round1(pt.point.value)+"公斤"});
+   hit.addEventListener("keydown",e=>{
+    if(e.key==="Enter"||e.key===" "){e.preventDefault();setFocus(group.key,pt.point);}
+   });
+   svg.append(hit);
+  }
+ }
+ // Select the NEAREST VISIBLE CURVE SEGMENT, rather than toggling/hiding lines.
+ svg.addEventListener("click",e=>{
+  const rect=svg.getBoundingClientRect();
+  if(!rect.width||!rect.height)return;
+  const px=(e.clientX-rect.left)/rect.width*W;
+  const py=(e.clientY-rect.top)/rect.height*H;
+  let chosen=null,best=Infinity;
+  for(const curve of curves){
+   for(let i=0;i<curve.pts.length;i++){
+    const p=curve.pts[i];
+    const dx=p.x-px,dy=p.y-py;
+    const pointDistance=dx*dx+dy*dy;
+    if(pointDistance<best){best=pointDistance;chosen={curve,pt:p};}
+    if(i===0)continue;
+    const a=curve.pts[i-1],vx=p.x-a.x,vy=p.y-a.y;
+    const t=Math.max(0,Math.min(1,
+     ((px-a.x)*vx+(py-a.y)*vy)/Math.max(1e-8,vx*vx+vy*vy)));
+    const cx=a.x+t*vx,cy=a.y+t*vy;
+    const dist=(px-cx)**2+(py-cy)**2;
+    if(dist<best){
+     best=dist;
+     chosen={curve,pt:t<.5?a:p};
+    }
    }
   }
-  svg.addEventListener("click",e=>{
-   const rect=svg.getBoundingClientRect();
-   if(!rect.width||!rect.height)return;
-   const px=(e.clientX-rect.left)/rect.width*800;
-   const py=(e.clientY-rect.top)/rect.height*384;
-   let best=null,dist=Infinity;
-   for(const point of chartPoints){
-    const d=(point.cx-px)**2+(point.cy-py)**2;
-    if(d<dist){dist=d;best=point;}
-   }
-   // Approximately 15-20 CSS pixels on a normal phone screen.
-   if(best&&dist<=36*36)best.select();
-  });
-  chartBox.append(svg);
-  root.append(chartBox,selected);
- }else root.append(chartBox);
+  if(chosen&&best<35*35)
+   setFocus(chosen.curve.group.key,chosen.pt.point);
+ });
+ section.append(svg);
+ root.append(section,details);
+ if(trendFocusKey){
+  const clear=document.createElement("button");clear.type="button";
+  clear.className="secondary mini combined-trend-clear";
+  clear.textContent="显示全部曲线";
+  clear.onclick=()=>setFocus(trendFocusKey,null);
+  root.append(clear);
+ }
  const legend=document.createElement("div");legend.className="combined-trend-legend";
- for(const region of dashboardRegions){
-  const regionSeries=all.filter(s=>s.region===region);
-  if(!regionSeries.length)continue;
-  const line=document.createElement("div");line.className="combined-trend-legend-region";
+ for(const region of ["胸","肩","背","腿"]){
+  const part=all.filter(s=>s.region===region);
+  if(!part.length)continue;
+  const wrapper=document.createElement("div");
+  wrapper.className="combined-trend-legend-region";
   const title=document.createElement("strong");
-  title.textContent=region+" · "+regionSeries.length+"项";
-  title.style.color=regionThemeColors[region];line.append(title);
-  const list=document.createElement("div");list.className="combined-trend-legend-items";
-  for(const group of regionSeries){
-   const button=document.createElement("button");button.type="button";
-   button.className="combined-trend-legend-item";
-   const active=!trendExcluded.has(group.key);
-   button.classList.toggle("inactive",!active);
-   button.setAttribute("aria-pressed",String(active));
-   button.setAttribute("title",(group.muscle?group.muscle+" · ":"")+group.name+
-    (group.basis==="per_side"?"（每侧）":""));
-   const sample=document.createElement("i");sample.style.background=group.color;
-   if(group.dash)sample.classList.add("dashed");
-   const label=document.createElement("span");
-   label.textContent=group.name.split("（")[0]+(group.basis==="per_side"?"·每侧":"");
-   button.append(sample,label);
-   button.onclick=()=>{if(active)trendExcluded.add(group.key);else trendExcluded.delete(group.key);
-    renderRegionDashboard();};
-   list.append(button);
+  title.textContent=region+" · "+part.length+"项";
+  title.style.color=regionThemeColors[region];wrapper.append(title);
+  const items=document.createElement("div");
+  items.className="combined-trend-legend-items";
+  for(const group of part){
+   const button=document.createElement("button");
+   button.type="button";button.className="combined-trend-legend-item";
+   const chosen=trendFocusKey===group.key;
+   button.classList.toggle("selected",chosen);
+   button.classList.toggle("muted",!!trendFocusKey&&!chosen);
+   button.setAttribute("aria-pressed",String(chosen));
+   button.setAttribute("title","查看 "+group.name+"；再次点击恢复所有曲线");
+   const key=el("svg",{viewBox:"0 0 48 20",width:46,height:20,
+    "aria-hidden":"true",class:"combined-trend-legend-symbol"});
+   const sample=el("line",{x1:2,y1:10,x2:46,y2:10,
+    stroke:group.color,"stroke-width":3});
+   if(group.dash)sample.setAttribute("stroke-dasharray",group.dash);
+   key.append(sample,svgMarker(group.marker,24,10,group.color,5));
+   const name=document.createElement("span");
+   name.textContent=group.name.split("（")[0]+
+    (group.basis==="per_side"?"·每侧":"");
+   button.append(key,name);
+   button.onclick=()=>setFocus(group.key,null);
+   items.append(button);
   }
-  line.append(list);legend.append(line);
+  wrapper.append(items);legend.append(wrapper);
  }
  root.append(legend);
- const note=document.createElement("p");note.className="note combined-trend-note";
- note.textContent="全部动作默认显示；点击图例可隐藏曲线。每个动作每天只取最高有效 e1RM，"+
-  "未训练日不补点；不同器械的绝对数值不能等同于肌肉力量。辅助动作采用"+
-  round1(trendAssistBase)+" kg体重基准减去标称辅助重量，结果仅作趋势参考。"+
-  (dataset.ignored.highReps?" 超过15次的记录未参与估算。":"");
+ const note=document.createElement("p");
+ note.className="note combined-trend-note";
+ note.textContent="相对表现：各动作以首次有效记录为起点。腿、背、胸、肩固定分层便于阅读；"+
+  "上下层级不代表跨动作的绝对力量大小。折线允许真实下降，未训练日不生成新点。"+
+  "辅助动作仍按 "+round1(trendAssistBase)+" kg 体重基准估算。";
  root.append(note);
 }
 function updateTrendPreference(){
  const from=$("trendStartDate").value,to=$("trendEndDate").value;
- if(!validTrendDate(from)||!validTrendDate(to)){return}
+ if(!validTrendDate(from)||!validTrendDate(to))return;
  trendStart=from;trendEnd=to;
  const weight=Number($("trendAssistWeight").value);
  if(!Number.isFinite(weight)||weight<30||weight>250){
@@ -567,24 +696,20 @@ function updateTrendPreference(){
 }
 for(const button of document.querySelectorAll("#trendPeriodToolbar .trend-period")){
  button.onclick=()=>{
-  const selected=button.dataset.period;
-  trendSelectedPeriod=selected;
-  if(selected!=="custom"){
-   const dates=trendInitialDates(selected);
-   trendStart=dates.from;trendEnd=dates.end;
-   $("trendStartDate").value=trendStart;$("trendEndDate").value=trendEnd;
+  trendSelectedPeriod=button.dataset.period;
+  if(trendSelectedPeriod!=="custom"){
+   const range=trendInitialDates(trendSelectedPeriod);
+   trendStart=range.from;trendEnd=range.end;
+   $("trendStartDate").value=trendStart;
+   $("trendEndDate").value=trendEnd;
   }
   updateTrendPreference();
  };
 }
-for(const field of ["trendStartDate","trendEndDate"]){
- $(field).onchange=()=>{
-  trendSelectedPeriod="custom";
-  updateTrendPreference();
- };
-}
+for(const name of ["trendStartDate","trendEndDate"])
+ $(name).onchange=()=>{trendSelectedPeriod="custom";updateTrendPreference();};
 $("trendAssistWeight").onchange=updateTrendPreference;
-({from:trendStart,end:trendEnd}=trendInitialDates("90"));
+({from:trendStart,end:trendEnd}=trendInitialDates("30"));
 $("trendStartDate").value=trendStart;
 $("trendEndDate").value=trendEnd;
 function renderRegionSummary(){

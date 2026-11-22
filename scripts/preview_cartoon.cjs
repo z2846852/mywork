@@ -193,7 +193,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     !day.workouts?.some(w=>String(w.id).startsWith("demo-shoulder-")||String(w.id).startsWith("demo-same-day-")));
    window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
   });
-  // The demo includes one April workout, outside the default 90-day window.
+  if(await page.evaluate(()=>trendSelectedPeriod)!=="30")
+   throw Error("Default chart period must be recent 30 days");
   await page.locator('.trend-period[data-period="365"]').click();
   const multi=page.locator("#regionTrendGrid .combined-trend-scroll svg");
   if(await multi.count()!==1)throw Error("Expected one shared multi-exercise chart");
@@ -207,6 +208,55 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const lineColors=await page.locator("#regionTrendGrid polyline").evaluateAll(
    nodes=>nodes.map(n=>n.getAttribute("stroke")));
   if(new Set(lineColors).size!==4)throw Error("Four regional colors were not unique");
+  const fit=await page.locator("#regionTrendGrid .combined-trend-scroll").evaluate(node=>{
+   const svg=node.querySelector(":scope > svg");
+   return {client:node.clientWidth,scroll:node.scrollWidth,
+    svg:svg.getBoundingClientRect().width,
+    lastX:Math.max(...[...svg.querySelectorAll(".combined-trend-point")]
+       .map(n=>Number(n.getAttribute("cx")))),
+    viewWidth:svg.viewBox.baseVal.width};
+  });
+  if(fit.scroll>fit.client+2||fit.svg>fit.client+2||
+     fit.lastX<fit.viewWidth*.85)
+   throw Error("Chart must fit one screen and keep latest point at the right edge: "+JSON.stringify(fit));
+  const orderedBands=await page.locator("#regionTrendGrid .combined-trend-band")
+   .evaluateAll(nodes=>nodes.map(n=>n.getAttribute("data-region")));
+  if(JSON.stringify(orderedBands)!==JSON.stringify(["腿","背","胸","肩"]))
+   throw Error("Four visual lanes not ordered as expected: "+orderedBands);
+  // Legend selection is a focus action, not a hide toggle.
+  await page.locator("#regionTrendGrid .combined-trend-legend-item").first().click();
+  if(await page.locator("#regionTrendGrid .combined-trend-line.selected").count()!==1||
+     await page.locator("#regionTrendGrid .combined-trend-line.muted").count()!==3)
+   throw Error("Click legend should focus one line, dim three others, and hide none");
+  if(await page.locator("#regionTrendGrid polyline").count()!==4)
+   throw Error("Focusing must not remove any chart series");
+  await page.locator("#regionTrendGrid .combined-trend-legend-item.selected").click();
+  if(await page.locator("#regionTrendGrid .combined-trend-line.muted").count())
+   throw Error("Click selected legend again should restore all lines");
+  // Add a second leg exercise in the visual fixture; line styles and markers
+  // must still differ even if shades are difficult to distinguish.
+  await page.evaluate(()=>{
+    state.rows.push({id:"demo-leg-two-styles",exercise_id:"abductor",
+     session_date:"2026-11-17",load_kg:28,reps:10});
+    renderRegionDashboard();
+  });
+  const legPairs=await page.locator("#regionTrendGrid .combined-trend-line[data-region='腿']")
+   .evaluateAll(nodes=>nodes.map(n=>({
+    dash:n.getAttribute("stroke-dasharray")||"",
+    key:n.getAttribute("data-key")
+   })));
+  const symbols=await page.locator("#regionTrendGrid .combined-trend-legend-region")
+   .last().locator(".combined-trend-legend-symbol .combined-trend-marker")
+   .evaluateAll(nodes=>nodes.map(n=>n.getAttribute("data-marker")));
+  if(legPairs.length!==2||new Set(legPairs.map(p=>p.dash)).size!==2||
+     new Set(symbols).size!==2)
+   throw Error("Leg lines must differ by dash and point shape: "+
+    JSON.stringify({legPairs,symbols}));
+  await page.evaluate(()=>{
+    state.rows=state.rows.filter(r=>r.id!=="demo-leg-two-styles");
+    renderRegionDashboard();
+  });
+
   // Time controls must permit exact dates without adding invented no-workout data.
   await page.locator('.trend-period[data-period="30"]').click();
   if((await page.locator("#trendEndDate").inputValue())!==(await page.evaluate(()=>today)))
@@ -233,11 +283,11 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
      Number(a.getAttribute("cx"))-Number(b.getAttribute("cx")))[0];
    return {cx:Number(node.getAttribute("cx")),cy:Number(node.getAttribute("cy"))};
   });
-  const svgBounds=await page.locator("#regionTrendGrid svg").evaluate(svg=>{
+  const svgBounds=await page.locator("#regionTrendGrid .combined-trend-scroll > svg").evaluate(svg=>{
    const box=svg.getBoundingClientRect(),v=svg.viewBox.baseVal;
    return {width:box.width,height:box.height,vw:v.width,vh:v.height};
   });
-  await page.locator("#regionTrendGrid svg").click({position:{
+  await page.locator("#regionTrendGrid .combined-trend-scroll > svg").click({position:{
    x:leftPoint.cx*svgBounds.width/svgBounds.vw,
    y:leftPoint.cy*svgBounds.height/svgBounds.vh
   }});
