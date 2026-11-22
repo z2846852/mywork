@@ -682,6 +682,7 @@ assert.ok(features.includes('document.querySelector(\'.tabs button[data-page="bo
  "Body tab must initialize the four-grid calendar viewport");
 assert.ok(features.includes('renderIntakeCheckin();navigate("body");'),
  "Saving nutrition must stay on Body, not navigate to a deleted tab");
+const ergonomicCss=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 // Ergonomic overview must show either history or trends, never both stacked.
 assert.ok(overviewSection.includes('id="overviewModeSwitch"'));
 assert.ok(overviewSection.includes('id="overviewSummary"'));
@@ -701,8 +702,8 @@ assert.ok(native.includes('setDomStorageEnabled(false)')&&
 assert.ok(native.includes('.putString("last_main_page",mainPage)')&&
  native.includes('.putString("overview_view",overviewMode).commit()'));
 assert.ok(native.includes('event.put("overview_view",p.getString("overview_view","summary"))'));
-assert.ok(featureStyles.includes('#page-home .overview-switch{position:sticky'));
-assert.ok(featureStyles.includes('#page-home .overview-view[hidden]{display:none!important}'));
+assert.ok(ergonomicCss.includes('#page-home .overview-switch{position:sticky'));
+assert.ok(ergonomicCss.includes('#page-home .overview-view[hidden]{display:none!important}'));
 // Intake should be the FIRST card in Body, not below muscle charts.
 assert.ok(bodySection.indexOf('id="bodyNutritionSection"')<
  bodySection.indexOf('class="panel panel-avatar"'));
@@ -712,7 +713,7 @@ assert.ok(bodySection.indexOf('id="intakeCalendar"')<
 assert.ok(bodySection.indexOf('id="intakeDate"')<
  bodySection.indexOf('id="saveIntakeCheck"'));
 assert.equal((bodySection.match(/class="panel nutrition-checkin-panel"/g)||[]).length,1);
-assert.ok(featureStyles.includes('#page-body .intake-quick-controls{display:grid;'));
+assert.ok(ergonomicCss.includes('#page-body .intake-quick-controls{display:grid;'));
 // Four daily subjective intake flags are independent from food calories and
 // from muscle-region training activity. The latest save wins for each date.
 for(const id of ["intakeDate","intakeCreatine","intakeProtein","intakeCarbs",
