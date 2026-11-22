@@ -1848,3 +1848,43 @@ pitchSettings.tolerance="50";
 assert.equal(music.gradePitch(70).off,true);
 assert.ok(voiceLabJS.includes('"stroke-dasharray":solid?"":"3 5"'));
 console.log("Voice staff/key signature and pitch tolerance regression passed.");
+
+
+// Exercise history rendering without a browser: 12-item paging and literal text.
+{
+ const begin=script.indexOf("let releaseHistoryRows="),end=script.indexOf("function checkVersionOnSettingsEntry()",begin);
+ assert.ok(begin>0&&end>begin,"Release-history renderer must be in settings code");
+ const fake={};
+ function element(id){
+  if(!fake[id])fake[id]={textContent:"",disabled:false,hidden:false,children:[],
+   append(...children){this.children.push(...children)},
+   replaceChildren(...children){this.children=[...children]}};
+  return fake[id];
+ }
+ const sample=vm.runInNewContext(
+  "(()=>{const $=element;const document={createElement:()=>({"+
+   "className:'',textContent:'',children:[],open:false,"+
+   "append(...children){this.children.push(...children)}})};"+
+   script.slice(begin,end)+
+   "return {showReleaseHistory,renderReleaseHistoryBatch};})()",
+  {element});
+ const rows=Array.from({length:25},(_,i)=>({
+  tag:"v0.2."+(230-i),version:230-i,base:"v0.2."+(229-i),
+  date:"2026-11-22T00:00:00Z",
+  changes:i===0?["<script>alert('not executable')</script>"]:["Fix regression"],
+  more_commits:0
+ }));
+ sample.showReleaseHistory({state:"loaded",message:"历史读取完成",releases:rows});
+ assert.equal(element("releaseHistoryList").children.length,12);
+ assert.equal(element("moreReleaseHistory").hidden,false);
+ const newest=element("releaseHistoryList").children[0];
+ assert.equal(newest.children[0].textContent,"v0.2.230 · 1 条提交");
+ assert.equal(newest.children[2].children[0].textContent,
+  "<script>alert('not executable')</script>","Commit titles must be plain text");
+ sample.renderReleaseHistoryBatch();
+ assert.equal(element("releaseHistoryList").children.length,24);
+ sample.renderReleaseHistoryBatch();
+ assert.equal(element("releaseHistoryList").children.length,25);
+ assert.equal(element("moreReleaseHistory").hidden,true);
+ console.log("Release-history rendering/paging regression passed");
+}
