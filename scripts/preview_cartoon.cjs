@@ -215,8 +215,14 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator("#trendStartDate").dispatchEvent("change");
   if(!(await page.locator('.trend-period[data-period="custom"]').getAttribute("class")).includes("active"))
    throw Error("Manual date edit must activate Custom");
-  if(await page.locator("#regionTrendGrid polyline").count()!==2)
-   throw Error("Date filter should drop earlier lines without losing the source data");
+  const filteredCount=await page.locator("#regionTrendGrid polyline").count();
+  if(filteredCount>=curves||filteredCount<1)
+   throw Error("Date filter must hide pre-range series, without removing current ones: "+
+    filteredCount+" of "+curves);
+  const filteredLabels=await page.locator("#regionTrendGrid .combined-trend-point").evaluateAll(
+   nodes=>nodes.map(n=>n.getAttribute("aria-label")||""));
+  if(filteredLabels.some(label=>label.includes("2026-11-14")||label.includes("2026-04-15")))
+   throw Error("Out-of-range training dots leaked into the shared timeline");
   await page.locator('.trend-period[data-period="365"]').click();
   const markers=page.locator("#regionTrendGrid .combined-trend-point");
   if(await markers.count()<4)throw Error("Combined chart needs clickable raw-data points");
