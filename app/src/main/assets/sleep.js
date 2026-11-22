@@ -19,13 +19,24 @@
  const noiseBySession=new Map();
  const thresholdBySession=new Map();
  const snoreThresholdBySession=new Map();
+ const speechThresholdBySession=new Map();
+ const detectorModeBySession=new Map();
+ const SPEECH_DEFAULT_SCORE=0.20;
  const AI_DEFAULT_SCORE=0.15;
  const AI_HIGH_RECALL_SCORE=0.05;
  function aiAvailable(){
   return Array.isArray(analysis?.ai_snore_scores)&&
    analysis.ai_snore_scores.length===analysis.levels_dbfs?.length;
  }
+ function speechAvailable(){
+  return Array.isArray(analysis?.ai_speech_scores)&&
+   analysis.ai_speech_scores.length===analysis.levels_dbfs?.length;
+ }
  function aiActive(){return aiAvailable()&&$("sleepDetectionMode").value==="ai";}
+ function speechActive(){return speechAvailable()&&$("sleepDetectionMode").value==="speech";}
+ function selectedAiScores(){return speechActive()?analysis.ai_speech_scores:
+  aiActive()?analysis.ai_snore_scores:null;}
+ function selectedAiActive(){return aiActive()||speechActive();}
  const DEFAULT_ABOVE_BACKGROUND=2.0;
  const clampDb=value=>Math.max(-90,Math.min(-5,Math.round(value*10)/10));
  function estimateNoiseFloor(levels){
@@ -110,12 +121,21 @@
   return found;
  }
  function updateDetectorControls(){
-  const active=aiActive();
+  const mode=$("sleepDetectionMode").value;
+  const active=selectedAiActive();
   $("sleepAiControls").hidden=!active;
-  $("sleepThresholdWorkbench").hidden=active;
-  $("sleepDetectionMode").disabled=!aiAvailable();
-  $("sleepDetectorNote").textContent=aiAvailable()?"":"AI 结果未生成";
-  $("sleepDetectorNote").hidden=aiAvailable();
+  $("sleepThresholdWorkbench").hidden=mode!=="level";
+  $("sleepDetectionMode").disabled=!aiAvailable()&&!speechAvailable();
+  const missing=mode==="speech"&&!speechAvailable();
+  $("sleepDetectorNote").textContent=missing?
+   "旧录音缺少人声标签；不会自动重新解码。点击补充后可以反复筛选。检测到人声不一定是在说梦话。":
+   aiAvailable()||speechAvailable()?"":"AI 结果未生成";
+  $("sleepDetectorNote").hidden=!(missing||(!aiAvailable()&&!speechAvailable()));
+  $("sleepSpeechUpgrade").hidden=!analysis?.id||speechAvailable()||!aiAvailable();
+  $("sleepSpeechUpgrade").disabled=busy||recording;
+  $("sleepAiPresetHint").textContent=mode==="speech"?
+   "人声模型得分不是概率；标准 0.20/2 秒，高召回 0.05/1 秒；不自动转写。":
+   "标准 0.15/2 秒；高召回 0.05/1 秒；仅重新筛选缓存。";
  }
  function applyLiveFilters(updateUi=true){
   if(!analysis||!Array.isArray(analysis.levels_dbfs))return false;
@@ -129,10 +149,14 @@
   analysis.minimum_seconds=minimum;
   analysis.gap_seconds=gap;
   const scoreThreshold=Number($("sleepSnoreThreshold").value);
-  analysis.detection_mode=aiActive()?"ai":"level";
+  analysis.detection_mode=$("sleepDetectionMode").value;
+  if(!["ai","speech","level"].includes(analysis.detection_mode))
+   analysis.detection_mode="level";
   analysis.ai_score_threshold=scoreThreshold;
-  analysis.events=aiActive()?
-   detectSnoreEvents(analysis.ai_snore_scores,scoreThreshold,minimum,gap):
+  const scores=selectedAiScores();
+  analysis.events=analysis.detection_mode==="speech"&&!speechAvailable()?[]:
+   scores?detectSnoreEvents(scores,scoreThreshold,minimum,gap):
+   analysis.detection_mode==="ai"?[]:
    detectCandidates(analysis.levels_dbfs,
     analysis.peak_levels_dbfs,threshold,minimum,gap,analysis.short_levels_dbfs);
   updateDetectorControls();
@@ -373,10 +397,11 @@
   const head=document.createElement("p");head.className="sleep-analysis-summary";
   const events=Array.isArray(analysis.events)?analysis.events:[];
   const total=events.reduce((sum,e)=>sum+(Number(e.active_sec)||0),0);
-  const mode=analysis.detection_mode==="ai"?"AI 鼾声候选":"响度候选";
+  const mode=analysis.detection_mode==="speech"?"疑似梦话（人声候选）":
+   analysis.detection_mode==="ai"?"AI 鼾声候选":"响度候选";
   head.textContent=mode+"：符合规则 "+events.length+" 段 · 有效累计 "+
    duration(total)+" · 最短 "+analysis.minimum_seconds+" 秒，允许空隙 "+
-   analysis.gap_seconds+" 秒（不等于确诊鼾声）";
+   analysis.gap_seconds+" 秒（仅为声音候选，需人工回听确认）";
   root.append(head);
   $("sleepEventCount").textContent=events.length+" 段";
   if(!events.length){
@@ -394,7 +419,7 @@
    name.textContent="声音片段 "+(i+1)+" · "+
     label(event.start_sec)+"—"+label(event.end_sec);
    const meta=document.createElement("small");
-   meta.textContent=analysis.detection_mode==="ai"?
+   meta.textContent=["ai","speech"].includes(analysis.detection_mode)?
     "模型命中 "+event.active_sec+" 秒 · 最高得分 "+
       Number(event.ai_score).toFixed(3)+"（非概率）":
     "超阈值 "+event.active_sec+" 秒 · 峰值 "+
@@ -455,22 +480,44 @@
  $("sleepThreshold").addEventListener("input",()=>{
   setThreshold(Number($("sleepThreshold").value));
  });
- $("sleepDetectionMode").addEventListener("change",onFilterChanged);
+ $("sleepDetectionMode").addEventListener("change",()=>{
+  const mode=$("sleepDetectionMode").value;
+  if(selectedId)detectorModeBySession.set(selectedId,mode);
+  const val=mode==="speech"?
+   speechThresholdBySession.get(selectedId)??SPEECH_DEFAULT_SCORE:
+   snoreThresholdBySession.get(selectedId)??AI_DEFAULT_SCORE;
+  $("sleepSnoreThreshold").value=val.toFixed(2);
+  $("sleepSnoreThresholdText").textContent=val.toFixed(2);
+  onFilterChanged();
+ });
+ $("sleepSpeechUpgrade").onclick=()=>{
+  if(!bridge()?.sleepAnalyzeSpeech||!analysis?.id||busy||recording)return;
+  const seconds=Number($("sleepMinSeconds").value),gap=Number($("sleepGapSeconds").value);
+  if(!Number.isInteger(seconds)||seconds<1||seconds>120||
+     !Number.isInteger(gap)||gap<0||gap>5){toast("持续/空隙参数不合法",true);return;}
+  busy=true;loadingCachedId="";analysisStarting=true;completedAnalysisId="";
+  runningAnalysisId=selectedId;updateAnalysisProgress(0,Date.now());render();
+  bridge().sleepAnalyzeSpeech(selectedId,Number($("sleepThreshold").value),seconds,gap);
+ };
  // Presets only refilter cached AI scores; they never restart native decoding.
  function setAiPreset(score,minimum){
-  $("sleepDetectionMode").value="ai";
-  $("sleepSnoreThreshold").value=score.toFixed(2);
-  $("sleepSnoreThresholdText").textContent=score.toFixed(2);
+  const mode=$("sleepDetectionMode").value==="speech"?"speech":"ai";
+  $("sleepDetectionMode").value=mode;
+  const chosen=mode==="speech"&&score===AI_DEFAULT_SCORE?SPEECH_DEFAULT_SCORE:score;
+  $("sleepSnoreThreshold").value=chosen.toFixed(2);
+  $("sleepSnoreThresholdText").textContent=chosen.toFixed(2);
   $("sleepMinSeconds").value=String(minimum);
   $("sleepGapSeconds").value="3";
-  if(selectedId)snoreThresholdBySession.set(selectedId,score);
+  if(selectedId)(mode==="speech"?speechThresholdBySession:snoreThresholdBySession)
+   .set(selectedId,Number($("sleepSnoreThreshold").value));
   onFilterChanged();
  }
  $("sleepAiStandard").onclick=()=>setAiPreset(AI_DEFAULT_SCORE,2);
  $("sleepAiHighRecall").onclick=()=>setAiPreset(AI_HIGH_RECALL_SCORE,1);
  $("sleepSnoreThreshold").addEventListener("input",()=>{
   $("sleepSnoreThresholdText").textContent=Number($("sleepSnoreThreshold").value).toFixed(2);
-  if(selectedId)snoreThresholdBySession.set(selectedId,
+  if(selectedId)($("sleepDetectionMode").value==="speech"?
+   speechThresholdBySession:snoreThresholdBySession).set(selectedId,
    Number($("sleepSnoreThreshold").value));
   onFilterChanged();
  });
@@ -717,8 +764,10 @@
    clearAnalysisProgress();
    selectedId=evt.id||selectedId;analysis=evt;eventLimit=80;
    const hasAi=aiAvailable();
-   $("sleepDetectionMode").value=hasAi?"ai":"level";
-   const knownScore=snoreThresholdBySession.get(selectedId)??AI_DEFAULT_SCORE;
+   $("sleepDetectionMode").value=detectorModeBySession.get(selectedId)||(hasAi?"ai":"level");
+   const knownScore=$("sleepDetectionMode").value==="speech"?
+    speechThresholdBySession.get(selectedId)??SPEECH_DEFAULT_SCORE:
+    snoreThresholdBySession.get(selectedId)??AI_DEFAULT_SCORE;
    $("sleepSnoreThreshold").value=knownScore.toFixed(2);
    $("sleepSnoreThresholdText").textContent=knownScore.toFixed(2);
    if(!noiseBySession.has(selectedId)){

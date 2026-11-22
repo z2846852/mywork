@@ -59,9 +59,13 @@
  const shortRms=()=>Array.isArray(result?.short_levels_dbfs)&&
   result.short_levels_dbfs.length===rms().length?result.short_levels_dbfs:rms();
  const events=()=>Array.isArray(result?.events)?result.events:[];
- const aiMode=()=>result?.detection_mode==="ai"&&
-  Array.isArray(result?.ai_snore_scores)&&result.ai_snore_scores.length===total();
- const aiScores=()=>aiMode()?result.ai_snore_scores:[];
+ const aiMode=()=>{
+  const scores=result?.detection_mode==="speech"?
+   result?.ai_speech_scores:result?.detection_mode==="ai"?result?.ai_snore_scores:null;
+  return Array.isArray(scores)&&scores.length===total();
+ };
+ const aiScores=()=>!aiMode()?[]:result.detection_mode==="speech"?
+  result.ai_speech_scores:result.ai_snore_scores;
  function hasRecordingStart(){
   return !!result&&result.date_basis!=="imported_at"&&
    Number.isFinite(Number(result.started_ms))&&Number(result.started_ms)>0;
@@ -183,7 +187,7 @@
    const referenceY=yAt(topLevel);
    const baselineY=yAt(backgroundDb);
    // A narrow cap remains visible at full-night scale; NO top-to-bottom blocks.
-   ctx.fillStyle="#ff6e81";ctx.globalAlpha=.94;
+   ctx.fillStyle=result.detection_mode==="speech"?"#b9a9dd":"#ff6e81";ctx.globalAlpha=.94;
    ctx.fillRect(x,clamp(referenceY-1,top,bottom-2),markWidth,2);
    for(let px=Math.floor(x);px<Math.ceil(x+markWidth);px++){
     if(px<left||px>=right)continue;
@@ -199,9 +203,9 @@
     const sy=yAt(shortMax);
     const bandTop=Math.min(sy,baselineY);
     const bandHeight=Math.max(2,Math.abs(sy-baselineY));
-    ctx.fillStyle="#f05c79";ctx.globalAlpha=.20;
+    ctx.fillStyle=result.detection_mode==="speech"?"#b9a9dd":"#f05c79";ctx.globalAlpha=.20;
     ctx.fillRect(px,bandTop,1,bandHeight);
-    ctx.fillStyle="#ff6e81";ctx.globalAlpha=.96;
+    ctx.fillStyle=result.detection_mode==="speech"?"#b9a9dd":"#ff6e81";ctx.globalAlpha=.96;
     ctx.fillRect(px,clamp(sy-1,top,bottom-2),1,2);
    }
   }
@@ -397,7 +401,9 @@
   }
   updateTimeModeLabel();
   $("sleepVisualCaveat").textContent=aiMode()?
-    "AI YAMNet 对每秒音频离线分类；模型得分可在点击时间点后查看，既不是概率也不是医学诊断。":
+    result.detection_mode==="speech"?
+     "疑似梦话仅表示检测到人声；不能确认说话者在睡眠中，也不上传音频或自动转写。":
+     "AI YAMNet 对每秒音频离线分类；模型得分不是概率，也不是医学诊断。":
     "纵轴是相对本晚背景的 dB，而非校准声压 dB SPL；横轴可切换录制时钟或相对时长。";
   refreshFilters();
  }

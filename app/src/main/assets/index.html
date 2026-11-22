@@ -228,6 +228,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <label for="sleepDetectionMode">识别
      <select id="sleepDetectionMode" aria-label="筛选模式">
       <option value="ai">AI 鼾声</option>
+      <option value="speech">疑似梦话</option>
       <option value="level">响度</option>
      </select>
     </label>
@@ -250,6 +251,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <p class="sub" id="sleepAiPresetHint" hidden>标准 0.15/2 秒；高召回 0.05/1 秒；仅重新筛选缓存。</p>
    </div>
    <p id="sleepDetectorNote" class="sub" hidden></p>
+   <button type="button" class="secondary mini" id="sleepSpeechUpgrade" hidden>补充疑似梦话标签（旧录音需重新分析一次）</button>
    <span id="sleepTimeModeHint" class="sub sleep-time-warning" hidden></span>
    <div class="sleep-wave-controls" role="group" aria-label="声波缩放">
     <button type="button" class="mini secondary" data-sleep-zoom="all">整晚</button>
