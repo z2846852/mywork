@@ -2,6 +2,9 @@
 
 ## 免费离线音素引擎扩展包（2026-11-22）
 
+**资源安装简化：** 进入「声音 → 音素 / 口音」后自动核验本地 3 个 ZIPA 模型文件（SHA256）和 APK 内置的英汉发音词典，显示完整数量。点击一次「下载缺失资源（全部模型）」会跳过完整模型，顺序下载缺失/损坏的模型；默认启用 CC BY 4.0 的 500k 模型。切换和删除留在高级设置，模型文件仍保留在 App 私有目录。**词典已内置 APK，不需要额外联网下载**；若词典缺失则需要安装修复后的 APK。模型 Release 不可用、推理错误或缺乏词典匹配时，界面必须提示实际错误，不应伪造单词。当前尚未通过 Android 真机对模型加载、识别与完整词典匹配做端到端验收。
+
+
 **不使用收费 API，不转写文字后反推音标。** APK 只内置开源 sherpa-onnx Android JNI 推理运行时（官方 v2.0.1 AAR SHA256 固定；仅 arm64），ZIPA 音素模型权重和 tokens.txt 完全不放在 APK。用户在「声音 → 音素 / 口音 → 免费离线音素引擎」按需选择下载，保存在 Android 私有 `files/voice_models`，正常覆盖升级 APK、跨版本二进制差分升级或 UI-only ZIP 更新均无需重新下载。可切换、删除每个模型。删除后不改变 APK，亦不会触发外部付费接口。
 
 独立 GitHub Release `voice-models-v1` 由 `.github/workflows/voice-models.yml` 在 CI 中从原始 Hugging Face 仓库下载、打包、计算 SHA256，并发布模型 ZIP。它不是最新 APK Release，也不会增加 APK 差分体积。APP 通过 GitHub Release API 提供的 `sha256:` 摘要校验 ZIP，再校验 ZIP 中的 `pack.json` 所记录的每个权重、词表的 SHA256。拒绝不可信 URL、任意 ZIP 路径和超大文件；只在校验通过后原子迁移目录。联网仅在首次下载/更新模型时需要，实际音素推理完全离线。**不要把 ZIPA 的模型授权与项目源码 MIT 混淆。**
