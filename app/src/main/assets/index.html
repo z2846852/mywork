@@ -494,7 +494,11 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
         <button id="voicePitchStop" type="button" class="secondary" disabled>■ 结束</button>
         <button id="voicePitchClear" type="button" class="secondary">清空</button>
       </div>
-      <div class="voice-pitch-config">
+      <div class="voice-pitch-mode" role="group" aria-label="音高显示模式">
+        <button type="button" id="voicePitchModeCurve" class="active" aria-pressed="true">连续频率</button>
+        <button type="button" id="voicePitchModeStaff" aria-pressed="false">五线谱练习</button>
+      </div>
+      <div class="voice-pitch-config" id="voicePitchConfig" hidden>
         <label>调号
           <select id="voicePitchKey" aria-label="演唱调号">
             <option value="C" selected>C 大调 / a 小调</option>
@@ -521,7 +525,12 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
             <option value="treble">高音谱表</option>
           </select>
         </label>
-        <label class="voice-tolerance">音准容差
+        <label>目标音
+          <select id="voicePitchTarget" aria-label="五线谱练习目标音">
+            <option value="" selected>不设目标 · 只记谱</option>
+          </select>
+        </label>
+        <label class="voice-tolerance">目标音容差
           <output id="voicePitchToleranceValue" for="voicePitchTolerance">50 cents</output>
           <input id="voicePitchTolerance" type="range" min="10" max="100"
             step="5" value="50" aria-label="音准容差（音分）">
@@ -533,19 +542,24 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
         <div><span>偏差</span><strong id="voicePitchCents">—</strong></div>
       </div>
       <p id="voicePitchQuality" class="voice-pitch-quality" role="status">等待有效音高</p>
+      <div class="voice-axis-actions" id="voicePitchAxisActions">
+        <span class="sub">频率轴固定（对数刻度）</span>
+        <button type="button" id="voicePitchAxisLower" class="secondary mini">↓ 低半个八度</button>
+        <button type="button" id="voicePitchAxisUpper" class="secondary mini">↑ 高半个八度</button>
+      </div>
       <div class="voice-chart-frame">
         <svg id="voicePitchChart" viewBox="0 0 360 230" role="img"
-          aria-label="五条谱线为实线，谱外参考线为虚线，偏离调内音超出容差时显示红色">
+          aria-label="连续频率轨迹或等间距五线谱练习图，可切换">
           <rect x="0" y="0" width="360" height="230" rx="9" fill="#122820"></rect>
           <g id="voicePitchGrid"></g>
           <g id="voicePitchTraces"></g>
-          <text x="348" y="223" text-anchor="end" fill="#91b5a5" font-size="10">横轴：有效发声样本（停声冻结）</text>
+          <text id="voicePitchAxisCaption" x="348" y="223" text-anchor="end" fill="#91b5a5" font-size="10">横轴：有效发声样本（停声冻结）</text>
         </svg>
       </div>
-      <p id="voicePitchStatus" class="sub" role="status">只要没有可检测的音高，音符和曲线就保持原样，不移动时间轴。</p>
+      <p id="voicePitchStatus" class="sub" role="status">连续频率：使用固定纵轴和单色曲线，不因音不在调内而标红。停声时冻结。</p>
       <details class="voice-explain">
         <summary>! 音高图说明</summary>
-        <p>有效声音每约 0.1 秒增加一个数据点；静音或音高不稳定时冻结。五条谱线用实线，谱外参考线用虚线；音符按调号显示升降号（如 C♯4、B♭3）。默认 C 大调 / a 小调。容差以 cents（音分）计，100 cents 等于一个半音；与最近调内音的距离超过容差才标红。改变调号与容差会立即重判已有曲线。红色不代表唱错某首歌的旋律；歌曲旋律准确度需要目标旋律。横轴为有效声音样本，不代表实际经过时间。</p>
+        <p>连续频率：以 MIDI 半音的对数纵轴显示实际频率（Hz），自第一次有效发声锁定纵轴；用上下按钮整体平移纵轴。曲线不因唱到调外音而变红。五线谱：五条线严格等距，按音名字母的级进排列，超出谱表使用局部加线；相同稳定音连续采样合并为一个音符，不推断真实乐谱时值。选择目标音后，才根据相对目标音的音分误差和容差标红；不设目标时只记谱，不判断对错。停声时数据保持，横轴为有效发声样本而非真实时间；对完整旋律评分尚需导入目标旋律。</p>
       </details>
     </div>
   </section>
@@ -579,11 +593,38 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
           </select>
         </div>
       </div>
+      <section class="voice-ipa-practice" id="voiceIpaPractice" aria-label="英语音标专项训练">
+        <div class="voice-ipa-header">
+          <div><strong>IPA 音标专项训练</strong><p class="sub">44 个传统英式英语参考音标 · 点选后练习例词</p></div>
+        </div>
+        <div id="voiceIpaGroups" class="voice-ipa-groups" role="group" aria-label="音标分类">
+          <button type="button" class="active" data-ipa-group="vowel">单元音</button>
+          <button type="button" data-ipa-group="diphthong">双元音</button>
+          <button type="button" data-ipa-group="consonant">辅音</button>
+        </div>
+        <div id="voiceIpaGrid" class="voice-ipa-grid" aria-label="可选音标表"></div>
+        <div class="voice-ipa-detail">
+          <div class="voice-ipa-ident">
+            <strong id="voiceIpaSymbol">/ɪ/</strong>
+            <div><span id="voiceIpaName">短元音</span><p id="voiceIpaTip" class="sub">选择音标查看发音方法。</p></div>
+          </div>
+          <p class="voice-ipa-reference">例词 <b id="voiceIpaWord">sit</b> <span id="voiceIpaWordIpa">/sɪt/</span> · <span id="voiceIpaMeaning">坐</span></p>
+          <div class="voice-ipa-actions">
+            <button id="voiceIpaSpeak" type="button" class="secondary mini">▶ 听例词</button>
+            <button id="voiceIpaCompare" type="button" class="secondary mini">切换易混音</button>
+            <button id="voiceIpaSpeakContrast" type="button" class="secondary mini">▶ 听对比词</button>
+          </div>
+          <p id="voiceIpaContrast" class="sub">按住下方录音键朗读例词，松开后比对模型识别的音素。</p>
+          <p id="voiceIpaVoiceStatus" class="sub" role="status"></p>
+        </div>
+        <p class="sub voice-ipa-disclaimer">示范音由 Android 英式英语 TTS 朗读整个例词，而非合成单个 IPA 音。ZIPA 会误识别短音；专项反馈只是候选音素比对，不是专业发音打分。不同口音的 IPA 写法会有差异。</p>
+      </section>
       <button type="button" id="voicePhonemeHold" class="voice-hold-button">按住说话</button>
       <p id="voicePhonemeStatus" class="sub" role="status">支持约 0.3–5 秒的短音频；不保存录音文件。</p>
       <div id="voicePhonemeReport" class="voice-phoneme-report">
         <div class="voice-phoneme-heading">本次候选音素 <span id="voicePhonemeDuration">—</span> <span id="voicePhonemeUsedEngine">—</span></div>
         <div id="voicePhonemeSequence" class="voice-phoneme-sequence"><span class="voice-empty">尚无分析结果</span></div>
+        <div id="voiceIpaAttempt" class="voice-ipa-attempt" role="status">请选择上方音标与例词练习，按住说话后在这里查看模型候选。</div>
         <div class="voice-phoneme-dictionary">
           <div id="voicePhonemeEnglishBox">
             <div class="voice-dictionary-title">
@@ -605,7 +646,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
       <details class="voice-explain">
         <summary>! 模型能力与开源参考</summary>
         <p>安装 ZIPA 后，模型从真实 PCM 直接产生 IPA 音素。英语模式再利用独立的本地发音/英汉词典，对整个 IPA 序列反向检索单词；不先通过 ASR 猜单词。结果的百分比只表示音素序列匹配程度，不衡量你的口音好坏。</p>
-        <p>词典源：open-dict-data/ipa-dict（美式 IPA）及 skywind3000/ECDICT（英汉释义与词频），MIT；构建时生成紧凑离线词库。普通话模式仅保留模型输出的 IPA，不把单音素映射成错误的示例汉字或虚假的声调。</p>
+        <p>词典源：open-dict-data/ipa-dict（美式 IPA）及 skywind3000/ECDICT（英汉释义与词频）；构建时生成紧凑离线词库。专项练习的 44 音标使用传统英式 IPA 分类，示例词由系统英式 TTS 发声；此分类和本机美式词典、ZIPA 的音素标记并非完全一致。可参考 GitHub Nico-Sanchez/schwa 的交互设计，但没有复制其音频或代码。普通话模式仅保留模型输出的 IPA。</p>
       </details>
     </div>
   </section>
