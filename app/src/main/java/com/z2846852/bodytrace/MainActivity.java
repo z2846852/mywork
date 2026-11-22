@@ -1043,6 +1043,7 @@ public final class MainActivity extends Activity {
             rawHistory.put("notes", localRawNotes());
             reply(rawHistory);
             sendCatalog(plain.getCatalog());
+            sendSyncHistory("history"); // Local-only metadata, zero network calls.
             // Offline-first local restore; daily GitHub sync starts only after the UI is ready.
         } catch (Exception e) {
             error("本机 JSON 读取或旧版本迁移失败，可先在 GitHub 检查备份。");
@@ -1075,6 +1076,34 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /** Sync metadata never leaves the device; separate last attempt and last success.
+     * A partially failed sync must NOT advance last_success_ms. */
+    private void sendSyncHistory(String state){
+        try{
+            android.content.SharedPreferences p=getSharedPreferences(
+                "bodytrace_daily_sync",MODE_PRIVATE);
+            reply(message("sync_status").put("state",state)
+                .put("last_attempt_ms",p.getLong("last_attempt_ms",0))
+                .put("last_success_ms",p.getLong("last_success_ms",0))
+                .put("last_result",p.getString("last_result","never")));
+        }catch(Exception e){error("读取同步时间失败："+safeMessage(e));}
+    }
+
+    private boolean syncWithHistory(String token){
+        android.content.SharedPreferences p=getSharedPreferences(
+            "bodytrace_daily_sync",MODE_PRIVATE);
+        p.edit().putLong("last_attempt_ms",System.currentTimeMillis())
+            .putString("last_result","started").commit();
+        sendSyncHistory("started");
+        boolean success=syncInternal(token);
+        android.content.SharedPreferences.Editor edit=p.edit()
+            .putString("last_result",success?"complete":"partial");
+        if(success)edit.putLong("last_success_ms",System.currentTimeMillis());
+        edit.commit();
+        sendSyncHistory(success?"complete":"partial");
+        return success;
+    }
+
     /** App startup triggers a single network attempt per Beijing calendar day.
      * Persist the attempt BEFORE networking: failures never cause retry storms.
      * The user can always retry explicitly via either Sync button. */
@@ -1088,10 +1117,7 @@ public final class MainActivity extends Activity {
             if(today.equals(p.getString("last_attempt_date","")))return;
             if(!p.edit().putString("last_attempt_date",today).commit())
                 throw new IllegalStateException("无法保存每日同步状态");
-            reply(message("sync_status").put("state","started").put("date",today));
-            boolean complete=syncInternal(token);
-            reply(message("sync_status").put("state",complete?"complete":"partial")
-                .put("date",today));
+            syncWithHistory(token);
         }catch(Exception e){
             error("每日同步未能完成，本机记录保留；可手动同步：" + safeMessage(e));
         }
@@ -1662,8 +1688,10 @@ public final class MainActivity extends Activity {
                 try {
                     ensureMigrated();
                     String token = vault.read("token");
-                    if (token == null) { error("请先连接 GitHub"); return; }
-                    syncInternal(token);
+                    if (token == null || token.isEmpty()) {
+                        error("请先连接 GitHub"); return;
+                    }
+                    syncWithHistory(token);
                 } catch (Exception e) { error(safeMessage(e)); }
             });
         }

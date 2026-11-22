@@ -197,6 +197,17 @@ assert.ok(apkUpdate.includes('private JSONObject checkedRelease;')&&
 assert.ok(html.includes('apkKnownNewer=evt.state==="update_available"')&&
  html.includes('apkKnownNewer?"更新":"检查并更新"'),
  "Right button shows direct Update when a newer release is already known");
+assert.ok(native.includes('sendSyncHistory("history")')&&
+ native.includes('last_success_ms')&&
+ native.includes('last_attempt_ms')&&
+ native.includes('syncWithHistory(token)')&&
+ native.includes('if(success)edit.putLong("last_success_ms",System.currentTimeMillis())'),
+ "Last successful GitHub data sync must persist across App restarts");
+assert.ok(html.includes('id="lastSyncSettings"')&&
+ html.includes('id="lastSyncHome"')&&
+ html.includes('timeZone:"Asia/Shanghai"')&&
+ html.includes('renderSyncHistory(evt);'),
+ "Local UI must display accurate Beijing-time sync metadata");
 assert.ok(native.includes('syncOnceOnFirstOpenToday()')&&
  native.includes('"last_attempt_date"')&&
  native.includes('LocalDate.now(BEIJING).toString()')&&
