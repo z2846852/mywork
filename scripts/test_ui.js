@@ -929,7 +929,7 @@ assert.ok(!html.includes('跨午夜会自动显示凌晨时间') &&
  "Static explanatory paragraphs must not occupy the workbench");
 assert.ok(html.includes('id="sleepAiPresetHint" hidden') &&
  html.includes('id="sleepAnalyzeHint" class="sub" hidden'));
-assert.ok(sleepJS.includes('$("sleepDetectorNote").hidden=aiAvailable()') &&
+assert.ok(sleepJS.includes('$("sleepDetectorNote").hidden=!(missing||') &&
  sleepVisualization.includes('$("sleepTimeModeHint").hidden=!warning'),
  "Only dynamic warnings should stay visible during normal use");
 assert.ok(sleepStore.includes('static File importedAudio('));
