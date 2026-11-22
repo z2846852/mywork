@@ -75,6 +75,9 @@ final class VoiceLabController {
             try(InputStream in=new GZIPInputStream(
                     activity.getAssets().open("en_pronunciation_zh.tsv.gz"))){
                 dictionary=PhoneticLexicon.load(in);
+            }catch(java.io.FileNotFoundException missing){
+                throw new IllegalStateException(
+                    "APK 缺少英汉发音词典文件；请安装最新完整 APK",missing);
             }
             if(dictionary.size()<1000)
                 throw new IllegalStateException("离线发音字典数据不完整");
@@ -353,7 +356,8 @@ final class VoiceLabController {
                     // Lexicon problems must not make the neural recognition
                     // fail or encourage fallbacks to fake single-phone words.
                     result.put("dictionary_error",
-                        "英汉发音词典未就绪："+dictionaryFailure.getClass().getSimpleName());
+                        "英汉发音词典未就绪："+String.valueOf(
+                            dictionaryFailure.getMessage()));
                 }
             }
             if("zh".equals(session.language)){
