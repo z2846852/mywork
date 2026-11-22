@@ -17,6 +17,8 @@
     <queries>
         <package android:name="com.vivo.health"/>
         <provider android:authorities="com.vivo.health.provider"/>
+        <!-- Android 11+ visibility for the on-device example-word TTS engine. -->
+        <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>
     </queries>
     <application
         android:label="体迹 · BodyTrace"
