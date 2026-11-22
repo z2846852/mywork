@@ -53,7 +53,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(dates!==2)throw Error("Body measurement history failed: "+dates);
   if(await page.locator("#avatarPicture").count())throw Error("Old cartoon still visible");
   await page.screenshot({path:"bodytrace-cartoon-preview.png",fullPage:true});
-  await page.evaluate(()=>navigate("analytics"));
+  await page.evaluate(()=>navigate("home"));
   const ordered=await page.locator("#strengthList .strength-exercise-card").evaluateAll(
    cards=>cards.map(card=>card.dataset.exerciseId));
   const wanted=["adductor","lateral_raise","chest_press","row"];
@@ -406,7 +406,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.screenshot({path:"bodytrace-git-diff-preview.png",fullPage:true});
   // Nutrition check-in: four semantic quadrants, saved snapshots and GitHub
   // native bridge payload. Synthetic samples only, never personal nutrition.
-  await page.locator('.tabs button[data-page="nutrition"]').click();
+  await page.locator('.tabs button[data-page="body"]').click();
   if(await page.locator("#intakeCalendar .intake-cell").count()!==364)
    throw Error("Nutrition 52-week calendar should render 364 day cells");
   const scrollState=await page.locator("#intakeCalendarScroll").evaluate(node=>
@@ -467,11 +467,17 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    nodes=>nodes.map(el=>el.dataset.kind));
   if(JSON.stringify(remaining)!==JSON.stringify(["intake_protein_powder","intake_sugar_oil"]))
    throw Error("Latest snapshot did not win over older saved flags: "+remaining);
-  await page.fill("#foodDate","2026-11-17");
-  const foodTotal=await page.locator("#foodDayTotals").innerText();
+  if(!(await page.locator("#nutritionLegacy").isHidden()))
+   throw Error("Legacy calorie form must remain hidden in the merged Body page");
+  // Hidden legacy fields still retain working calculations for future restore.
+  await page.locator("#foodDate").evaluate(input=>{
+   input.value="2026-11-17";
+   input.dispatchEvent(new Event("change",{bubbles:true}));
+  });
+  const foodTotal=await page.locator("#foodDayTotals").textContent();
   if(!foodTotal.includes("240 kcal"))
    throw Error("Intake checkbox snapshots must not affect food calories: "+foodTotal);
-  const foodCount=await page.locator("#foodRecordCount").innerText();
+  const foodCount=await page.locator("#foodRecordCount").textContent();
   if(foodCount!=="1条")throw Error("Qualitative check-ins inflated food count: "+foodCount);
   await page.locator('#intakeCalendar .intake-cell[title^="2026-11-16"]').click();
   for(const id of ["intakeCreatine","intakeProtein","intakeCarbs","intakeSugarOil"]){
@@ -911,7 +917,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.evaluate(()=>{
    window.__editPayloads=[];
    window.BodyTraceNative.editWorkout=raw=>window.__editPayloads.push(JSON.parse(raw));
-   navigate("analytics");
+   navigate("home");
   });
   const hipChart=page.locator('#strengthList [data-exercise-id="hip_thrust"]');
   const hipRecent=hipChart.locator(".strength-recent-set");
