@@ -118,6 +118,180 @@
 
 
 
+ // Traditional 44-item British-English learner chart, curated original tips/words.
+ // The model and the bundled dictionary may use American IPA variants.
+ // Each example uses phoneme tokens for diagnostic comparison, not forced ASR.
+ const IPA_DATA=[
+  ["ɪ","vowel","短前元音","嘴角自然、舌位略低于 /iː/；不要拉得过长。","sit","s ɪ t","坐","iː"],
+  ["e","vowel","中前元音","嘴稍张开，舌前部比 /ɪ/ 更低；接近 bed 的元音。","bed","b e d","床","ɪ"],
+  ["æ","vowel","开前元音","张口比 /e/ 大，舌前部降低。","cat","k æ t","猫","e"],
+  ["ɒ","vowel","英式短后圆唇元音","短促、口形圆；美式 hot 通常用 /ɑ/，不能硬判为错误。","hot","h ɒ t","热的","ɔː"],
+  ["ʌ","vowel","短央元音","下巴放松，舌头自然，不要读成 /ɑː/。","cup","k ʌ p","杯子","ɑː"],
+  ["ʊ","vowel","短后圆唇元音","嘴唇略圆，舌后部略抬，不要拉成 /uː/。","book","b ʊ k","书","uː"],
+  ["ə","vowel","弱读央元音 schwa","弱读、短促、放松；常见于非重读音节。","about","ə b aʊ t","关于","ʌ"],
+  ["iː","vowel","长前闭元音","舌位偏高、嘴角略展开；区别于短促 /ɪ/。","see","s iː","看见","ɪ"],
+  ["ɑː","vowel","长开后元音","张口、舌后部偏低；别混同 /ʌ/。","father","f ɑː ð ə","父亲","ʌ"],
+  ["ɔː","vowel","长后圆唇元音","嘴唇圆、声音较长；不同英语口音有合并现象。","law","l ɔː","法律","ɒ"],
+  ["uː","vowel","长后闭元音","嘴唇向前收圆，舌位较高；与 /ʊ/ 区分。","blue","b l uː","蓝色","ʊ"],
+  ["ɜː","vowel","英式长央元音","舌头放松略抬；美式 bird 常用带卷舌的 /ɝ/。","bird","b ɜː d","鸟","ə"],
+  ["eɪ","diphthong","双元音","从 /e/ 过渡向较高的前元音。","day","d eɪ","一天","aɪ"],
+  ["əʊ","diphthong","英式双元音","从较央的位置滑向圆唇后元音；美式常写 /oʊ/。","go","ɡ əʊ","去","aʊ"],
+  ["aɪ","diphthong","双元音","嘴先张开，再收窄到前高位置。","my","m aɪ","我的","eɪ"],
+  ["aʊ","diphthong","双元音","从张口向圆唇 /ʊ/ 过渡。","now","n aʊ","现在","əʊ"],
+  ["ɔɪ","diphthong","双元音","从后圆唇向 /ɪ/ 过渡。","boy","b ɔɪ","男孩","aɪ"],
+  ["ɪə","diphthong","传统英式双元音","从 /ɪ/ 滑向弱读央元音；现代英式可能已合并。","near","n ɪə","近的","eə"],
+  ["eə","diphthong","传统英式双元音","从 /e/ 向央元音滑动；美式 hair 有 /r/。","hair","h eə","头发","ɪə"],
+  ["ʊə","diphthong","传统英式双元音","从 /ʊ/ 滑向央元音；现代英式已有大量合并。","pure","p j ʊə","纯净的","ɔː"],
+  ["p","consonant","清双唇塞音","双唇闭合再爆破，不振动声带。","pin","p ɪ n","别针","b"],
+  ["b","consonant","浊双唇塞音","与 /p/ 相似但带声带振动。","bin","b ɪ n","箱","p"],
+  ["t","consonant","清齿龈塞音","舌尖触上齿龈再释放气流。","ten","t e n","十","d"],
+  ["d","consonant","浊齿龈塞音","舌尖触上齿龈，声带振动。","den","d e n","窝","t"],
+  ["k","consonant","清软腭塞音","舌后部贴软腭，短暂阻气后释放。","key","k iː","钥匙","ɡ"],
+  ["ɡ","consonant","浊软腭塞音","/k/ 的有声对应音。","go","ɡ əʊ","去","k"],
+  ["f","consonant","清唇齿擦音","上牙轻触下唇、气流摩擦，不振动声带。","fan","f æ n","风扇","v"],
+  ["v","consonant","浊唇齿擦音","与 /f/ 位置相同，需有声带振动。","van","v æ n","货车","f"],
+  ["θ","consonant","清齿擦音","舌尖轻靠上下牙之间，让气流持续摩擦；不是 /s/。","thin","θ ɪ n","薄的","s"],
+  ["ð","consonant","浊齿擦音","舌尖轻靠齿间，保持声带振动。","this","ð ɪ s","这个","z"],
+  ["s","consonant","清齿龈擦音","舌尖靠近上齿龈形成细窄气流；不要伸舌。","sip","s ɪ p","小口喝","θ"],
+  ["z","consonant","浊齿龈擦音","与 /s/ 口形相似，但声带振动。","zip","z ɪ p","拉链","ð"],
+  ["ʃ","consonant","清后齿龈擦音","舌位比 /s/ 更靠后，嘴唇略向前。","ship","ʃ ɪ p","船","s"],
+  ["ʒ","consonant","浊后齿龈擦音","/ʃ/ 的有声版本，常见于 vision 中。","vision","v ɪ ʒ ə n","视觉","ʃ"],
+  ["h","consonant","清声门擦音","喉部放松、气流通过，避免发成汉语 x。","hat","h æ t","帽子","f"],
+  ["tʃ","consonant","清塞擦音","先短暂堵气，再以 /ʃ/ 一样的气流释放。","chin","tʃ ɪ n","下巴","dʒ"],
+  ["dʒ","consonant","浊塞擦音","/tʃ/ 的有声对应音。","gin","dʒ ɪ n","杜松子酒","tʃ"],
+  ["m","consonant","双唇鼻音","闭合双唇，空气从鼻腔通过。","man","m æ n","男人","n"],
+  ["n","consonant","齿龈鼻音","舌尖贴上齿龈，空气从鼻腔通过。","no","n əʊ","不","ŋ"],
+  ["ŋ","consonant","软腭鼻音","舌后部贴软腭，鼻腔共鸣；不要再加 /ɡ/。","sing","s ɪ ŋ","唱歌","n"],
+  ["l","consonant","齿龈边音","舌尖顶上齿龈，空气从两侧通过。","lip","l ɪ p","嘴唇","r"],
+  ["r","consonant","近音","舌尖不接触上腭；英美 /r/ 与卷舌习惯不同。","red","r e d","红色","l"],
+  ["j","consonant","硬腭近音","类似英语 yes 开头的快速滑音。","yes","j e s","是的","dʒ"],
+  ["w","consonant","双唇软腭近音","嘴唇收圆后迅速打开；不要读成 /v/。","wet","w e t","湿的","v"]
+ ];
+ const IPA_LABELS={vowel:"单元音",diphthong:"双元音",consonant:"辅音"};
+ let ipaSelected="ɪ",ipaGroup="vowel",recordedIpaTarget=null;
+ const ipaBySymbol=symbol=>IPA_DATA.find(x=>x[0]===symbol);
+ const wordsIPA=entry=>"/"+entry[5].split(" ").join("")+"/";
+ function selectIpa(symbol){
+  const item=ipaBySymbol(symbol);if(!item)return;
+  ipaSelected=symbol;ipaGroup=item[1];
+  for(const button of document.querySelectorAll("#voiceIpaGroups button")){
+   const active=button.dataset.ipaGroup===ipaGroup;
+   button.classList.toggle("active",active);
+   button.setAttribute("aria-pressed",String(active));
+  }
+  const root=$("voiceIpaGrid");root.replaceChildren();
+  for(const row of IPA_DATA.filter(x=>x[1]===ipaGroup)){
+   const b=document.createElement("button");b.type="button";
+   b.textContent=row[0];b.className=row[0]===ipaSelected?"active":"";
+   b.setAttribute("aria-label","练习音标 "+row[0]);
+   b.addEventListener("click",()=>selectIpa(row[0]));root.append(b);
+  }
+  safeText("voiceIpaSymbol","/"+item[0]+"/");
+  safeText("voiceIpaName",IPA_LABELS[item[1]]+" · "+item[2]);
+  safeText("voiceIpaTip",item[3]);
+  safeText("voiceIpaWord",item[4]);
+  safeText("voiceIpaWordIpa",wordsIPA(item));
+  safeText("voiceIpaMeaning",item[6]);
+  const other=ipaBySymbol(item[7]);
+  safeText("voiceIpaContrast",other?
+   "易混音 /"+other[0]+"/（示例词 "+other[4]+"），点击切换对比；每次录音目标按按下时的音标锁定。":
+   "可点选任意音标进行独立练习。");
+ }
+ for(const btn of document.querySelectorAll("#voiceIpaGroups button")){
+  btn.addEventListener("click",()=>{
+   const first=IPA_DATA.find(x=>x[1]===btn.dataset.ipaGroup);
+   if(first)selectIpa(first[0]);
+  });
+ }
+ $("voiceIpaCompare").addEventListener("click",()=>{
+  const row=ipaBySymbol(ipaSelected),other=row&&ipaBySymbol(row[7]);
+  if(other)selectIpa(other[0]);
+ });
+ function playIpaWord(row){
+  if(!row)return;
+  if(!bridge()?.voiceLabSpeakExample){
+   safeText("voiceIpaVoiceStatus","需要安装包含示例朗读接口的新 APK（旧版界面小包无法提供原生 TTS）。");return;
+  }
+  safeText("voiceIpaVoiceStatus","正在尝试播放英式示例词 "+row[4]+"…");
+  bridge().voiceLabSpeakExample(row[4]);
+ }
+ $("voiceIpaSpeak").addEventListener("click",()=>playIpaWord(ipaBySymbol(ipaSelected)));
+ $("voiceIpaSpeakContrast").addEventListener("click",()=>{
+  const item=ipaBySymbol(ipaSelected);playIpaWord(item&&ipaBySymbol(item[7]));
+ });
+ // ZIPA model phone tokens vary with accent and tokenizer conventions.
+ // Avoid asserting a pronunciation grade from a single mismatch.
+ function canonicalPhone(value){
+  const s=String(value||"").trim().replace(/[\/ˈˌ.]/g,"").replace(/ː/g,"");
+  const aliases={"ɛ":"e","ɹ":"r","g":"ɡ","oʊ":"əʊ","ɚ":"ə"};
+  return aliases[s]||s;
+ }
+ function normalizePhones(raw){
+  const values=raw.map(canonicalPhone).filter(Boolean),out=[];
+  for(let i=0;i<values.length;i++){
+   if((values[i]==="t"&&values[i+1]==="ʃ")||
+      (values[i]==="d"&&values[i+1]==="ʒ")){
+    out.push(values[i]+values[i+1]);i++;
+   }else out.push(values[i]);
+  }
+  return out;
+ }
+ function ipaFocusedComparison(entry,heardRaw){
+  const expected=normalizePhones(entry[5].split(" "));
+  const heard=normalizePhones(heardRaw);
+  const n=expected.length,m=heard.length;
+  const dp=Array.from({length:n+1},()=>Array(m+1).fill(0));
+  for(let i=0;i<=n;i++)dp[i][0]=i;
+  for(let j=0;j<=m;j++)dp[0][j]=j;
+  for(let i=1;i<=n;i++)for(let j=1;j<=m;j++)
+   dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,
+    dp[i-1][j-1]+(expected[i-1]===heard[j-1]?0:1));
+  const alignment=Array(n).fill(null);
+  let i=n,j=m;
+  while(i>0||j>0){
+   if(i>0&&j>0&&dp[i][j]===dp[i-1][j-1]+
+     (expected[i-1]===heard[j-1]?0:1)){
+    alignment[i-1]=heard[j-1];i--;j--;
+   }else if(i>0&&dp[i][j]===dp[i-1][j]+1){
+    alignment[i-1]=null;i--;
+   }else if(j>0)j--;
+   else break;
+  }
+  const focus=expected.indexOf(canonicalPhone(entry[0]));
+  return {expected,heard,matched:focus>=0&&alignment[focus]===expected[focus],
+   possible:focus>=0?alignment[focus]:null,editDistance:dp[n][m]};
+ }
+ function showIpaAttempt(evt){
+  const target=recordedIpaTarget;
+  const out=$("voiceIpaAttempt");out.classList.remove("off");
+  if(!target){out.textContent="这次没有指定练习目标，保留上方原始 ZIPA 识别结果。";return;}
+  if(evt.engine_kind!=="neural_ctc"){
+   out.textContent="目标 /"+target[0]+"/ · "+target[4]+
+    "：本次未得到 ZIPA 神经模型识别，无法比较音素。";return;
+  }
+  if(evt.language!=="en"){
+   out.textContent="这次使用了非英语语言模式；请切回英语后重新朗读 "+target[4]+"。";return;
+  }
+  const heard=(Array.isArray(evt.candidates)?evt.candidates:[]).map(x=>x.ipa||"");
+  if(!heard.length){
+   out.textContent="目标 "+target[4]+" "+wordsIPA(target)+
+    "：模型未识别到稳定音素。可能是音太短或模型局限，请延长发音。";return;
+  }
+  const diff=ipaFocusedComparison(target,heard);
+  const actual=diff.possible?"/"+diff.possible+"/":"未识别到对应位置";
+  const intro="练习 "+target[4]+" "+wordsIPA(target)+
+   " · 关注 /"+target[0]+"/。ZIPA 输出：/"+heard.join("")+"/。";
+  if(diff.matched){
+   out.textContent=intro+"模型在预期位置识别到目标音素；仍需多次听辨与复测，不能仅凭一次认为发音准确。";
+  }else{
+   out.classList.add("off");
+   out.textContent=intro+"对齐后目标位置候选："+actual+
+    "。可反复听例词并练习 /"+target[0]+"/ ↔ /"+target[7]+
+    "/；这是模型候选，不足以断言你真的发错了。";
+  }
+ }
+ selectIpa("ɪ");
+
  const KEY_SIGNATURES={C:[0,0],G:[7,1],D:[2,2],A:[9,3],E:[4,4],B:[11,5],
    "F#":[6,6],"C#":[1,7],F:[5,-1],Bb:[10,-2],Eb:[3,-3],
    Ab:[8,-4],Db:[1,-5],Gb:[6,-6],Cb:[11,-7]};
