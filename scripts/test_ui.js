@@ -368,7 +368,8 @@ assert.ok(html.includes('<option value="speech">疑似梦话</option>')&&
 assert.ok(sleepJS.includes('detectSnoreEvents(scores,scoreThreshold,minimum,gap)'));
 assert.ok(sleepJS.includes('speechAvailable()')&&
  sleepJS.includes('bridge().sleepAnalyzeSpeech(selectedId'));
-assert.ok(sleepVisualization.includes('result.ai_speech_scores'));
+assert.ok(fs.readFileSync(path.join(root,"app/src/main/assets/sleep_visualization.js"),"utf8")
+ .includes('result.ai_speech_scores'));
 assert.ok(sleepAnalysisService.includes("aiScores==null"));
 assert.ok(sleepStore.includes('envelope.put("ai_snore_scores",aiScores)'));
 assert.ok(native.includes('answer.put("ai_snore_scores",aiScores)'));
