@@ -193,7 +193,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     !day.workouts?.some(w=>String(w.id).startsWith("demo-shoulder-")||String(w.id).startsWith("demo-same-day-")));
    window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
   });
-  if(await page.evaluate(()=>trendSelectedPeriod)!=="30")
+  if(!(await page.locator('.trend-period[data-period="30"]').getAttribute("class")).includes("active"))
    throw Error("Default chart period must be recent 30 days");
   await page.locator('.trend-period[data-period="365"]').click();
   const multi=page.locator("#regionTrendGrid .combined-trend-scroll svg");
