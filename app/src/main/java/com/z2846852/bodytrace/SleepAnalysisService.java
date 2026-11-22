@@ -29,6 +29,7 @@ public final class SleepAnalysisService extends Service {
     static final String EXTRA_THRESHOLD="threshold";
     static final String EXTRA_MINIMUM="minimum";
     static final String EXTRA_GAP="gap";
+    static final String EXTRA_REFRESH_SPEECH="refresh_speech";
     private static final String CHANNEL="bodytrace_sleep_analysis";
     private static final int RUNNING_NOTIFICATION=4217;
     private static final int DONE_NOTIFICATION=4218;
@@ -61,6 +62,7 @@ public final class SleepAnalysisService extends Service {
         int threshold=intent.getIntExtra(EXTRA_THRESHOLD,-40);
         int minimum=intent.getIntExtra(EXTRA_MINIMUM,5);
         int gap=intent.getIntExtra(EXTRA_GAP,1);
+        boolean refreshSpeech=intent.getBooleanExtra(EXTRA_REFRESH_SPEECH,false);
         try{
             SleepSessions.verifyId(id);
             if(threshold<-90||threshold>-5||minimum<1||minimum>120||gap<0||gap>5)
@@ -84,7 +86,7 @@ public final class SleepAnalysisService extends Service {
                 startForeground(RUNNING_NOTIFICATION,initial,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
             else startForeground(RUNNING_NOTIFICATION,initial);
-            executor.execute(()->analyze(id,threshold,minimum,gap));
+            executor.execute(()->analyze(id,threshold,minimum,gap,refreshSpeech));
             return START_REDELIVER_INTENT;
         }catch(Exception e){
             activeId="";
@@ -158,7 +160,7 @@ public final class SleepAnalysisService extends Service {
             .notify(DONE_NOTIFICATION,note);
     }
 
-    private void analyze(String id,int threshold,int minimum,int gap){
+    private void analyze(String id,int threshold,int minimum,int gap,boolean refreshSpeech){
         boolean success=false;
         try{
             PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
@@ -175,9 +177,11 @@ public final class SleepAnalysisService extends Service {
             JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
             JSONArray shortLevels=session.optJSONArray("short_levels_dbfs");
             JSONArray aiScores=session.optJSONArray("ai_snore_scores");
+            JSONArray speechScores=session.optJSONArray("ai_speech_scores");
             if(levels==null||peaks==null||peaks.length()!=levels.length()||
                     shortLevels==null||shortLevels.length()!=levels.length()||
                     aiScores==null||aiScores.length()!=levels.length()||
+                    (refreshSpeech&&(speechScores==null||speechScores.length()!=levels.length()))||
                     !SleepYamnetClassifier.MODEL_NAME.equals(session.optString("ai_model"))){
                 JSONObject envelope=SleepAudioAnalyzer.decodeEnvelope(
                     this,session,pct->publishProgress(id,pct));
@@ -185,10 +189,12 @@ public final class SleepAnalysisService extends Service {
                 peaks=envelope.getJSONArray("peak_dbfs");
                 shortLevels=envelope.getJSONArray("short_rms_dbfs");
                 aiScores=envelope.getJSONArray("ai_snore_scores");
+                speechScores=envelope.getJSONArray("ai_speech_scores");
                 session.put("levels_dbfs",levels);
                 session.put("peak_levels_dbfs",peaks);
                 session.put("short_levels_dbfs",shortLevels);
                 session.put("ai_snore_scores",aiScores);
+                session.put("ai_speech_scores",speechScores);
                 session.put("ai_model",SleepYamnetClassifier.MODEL_NAME);
                 // The filename may have been corrected while this multi-hour
                 // decode was running. Merge the LATEST small metadata before

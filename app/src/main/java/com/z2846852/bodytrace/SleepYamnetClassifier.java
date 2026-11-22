@@ -18,7 +18,7 @@ import java.util.Arrays;
  *
  * Model: google/yamnet/classification/tflite/1 (Apache 2.0)
  * 16 kHz mono float32 input [15600] (or compatible [1,15600]), output [1,521].
- * Class 38=Snoring, 41=Snort. Outputs are UNCALIBRATED scores, not probabilities.
+ * Class 0=Speech, 38=Snoring, 41=Snort. Outputs are UNCALIBRATED scores, not probabilities.
  *
  * The model is bundled in the APK; microphone/file samples never leave device.
  * Memory stays bounded for multi-hour audio (only 0.975 s PCM is retained).
@@ -28,7 +28,7 @@ final class SleepYamnetClassifier implements AutoCloseable {
     private static final int RATE=16000;
     private static final int WINDOW=15600;
     private static final int STRIDE=16000;
-    private static final int SNORING=38, SNORT=41, CLASSES=521;
+    private static final int SPEECH=0, SNORING=38, SNORT=41, CLASSES=521;
 
     private final Interpreter interpreter;
     private final float[] ring=new float[WINDOW];
@@ -36,6 +36,7 @@ final class SleepYamnetClassifier implements AutoCloseable {
             .order(ByteOrder.nativeOrder());
     private final float[][] output=new float[1][CLASSES];
     private final ArrayList<Double> scores=new ArrayList<>();
+    private final ArrayList<Double> speechScores=new ArrayList<>();
     private int sourceRate,channels,channelPos;
     private float channelSum,previous;
     private long sourceFrames,outputSamples;
@@ -127,6 +128,9 @@ final class SleepYamnetClassifier implements AutoCloseable {
             float score=Math.max(Float.isFinite(snore)?snore:0,
                     Float.isFinite(snort)?snort:0);
             scores.add(Math.round(Math.max(0,Math.min(1,score))*1000)/1000.0);
+            float speech=output[0][SPEECH];
+            speechScores.add(Math.round(Math.max(0,Math.min(1,
+                Float.isFinite(speech)?speech:0))*1000)/1000.0);
         }
     }
 
@@ -134,6 +138,13 @@ final class SleepYamnetClassifier implements AutoCloseable {
         JSONArray result=new JSONArray();
         for(int i=0;i<seconds;i++)
             result.put(i<scores.size()?scores.get(i):0.0);
+        return result;
+    }
+
+    JSONArray speechResult(int seconds) throws org.json.JSONException {
+        JSONArray result=new JSONArray();
+        for(int i=0;i<seconds;i++)
+            result.put(i<speechScores.size()?speechScores.get(i):0.0);
         return result;
     }
 

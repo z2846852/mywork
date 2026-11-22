@@ -168,6 +168,9 @@ final class SleepSessions {
                 JSONArray ai=envelope.optJSONArray("ai_snore_scores");
                 if(ai!=null&&ai.length()==doc.getJSONArray("levels_dbfs").length()){
                     doc.put("ai_snore_scores",ai);
+                    JSONArray speech=envelope.optJSONArray("ai_speech_scores");
+                    if(speech!=null&&speech.length()==ai.length())
+                        doc.put("ai_speech_scores",speech);
                     doc.put("ai_model",envelope.optString("ai_model",""));
                 }
             }else{
@@ -200,6 +203,7 @@ final class SleepSessions {
         JSONArray peaks=metadata.optJSONArray("peak_levels_dbfs");
         JSONArray shortLevels=metadata.optJSONArray("short_levels_dbfs");
         JSONArray aiScores=metadata.optJSONArray("ai_snore_scores");
+        JSONArray speechScores=metadata.optJSONArray("ai_speech_scores");
         if(levels!=null&&peaks!=null&&levels.length()==peaks.length()){
             JSONObject envelope=new JSONObject()
                 .put("id",id).put("schema_version",2)
@@ -208,6 +212,8 @@ final class SleepSessions {
                 envelope.put("short_levels_dbfs",shortLevels);
             if(aiScores!=null&&aiScores.length()==levels.length()){
                 envelope.put("ai_snore_scores",aiScores);
+                if(speechScores!=null&&speechScores.length()==levels.length())
+                    envelope.put("ai_speech_scores",speechScores);
                 envelope.put("ai_model",metadata.optString("ai_model",""));
             }
             writeJson(envelopeFile(context,id),envelope);
@@ -215,6 +221,7 @@ final class SleepSessions {
             metadata.remove("peak_levels_dbfs");
             metadata.remove("short_levels_dbfs");
             metadata.remove("ai_snore_scores");
+            metadata.remove("ai_speech_scores");
             metadata.remove("ai_model");
             metadata.put("levels_cached",true);
             metadata.put("envelope_seconds",levels.length());

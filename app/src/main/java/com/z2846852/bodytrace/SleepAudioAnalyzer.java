@@ -226,6 +226,7 @@ final class SleepAudioAnalyzer {
                 .put("short_rms_dbfs",shortRms).put("duration_seconds",levels.size());
             if(classifier!=null){
                 envelope.put("ai_snore_scores",classifier.result(levels.size()));
+                envelope.put("ai_speech_scores",classifier.speechResult(levels.size()));
                 envelope.put("ai_model",SleepYamnetClassifier.MODEL_NAME);
             }
             if(progress!=null)progress.accept(100);

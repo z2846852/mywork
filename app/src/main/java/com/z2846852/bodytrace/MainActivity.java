@@ -632,10 +632,12 @@ public final class MainActivity extends Activity {
             JSONArray peaks=session.optJSONArray("peak_levels_dbfs");
             JSONArray shortLevels=session.optJSONArray("short_levels_dbfs");
             JSONArray aiScores=session.optJSONArray("ai_snore_scores");
+            JSONArray speechScores=session.optJSONArray("ai_speech_scores");
             if(levels==null||peaks==null||levels.length()!=peaks.length())
                 throw new IllegalStateException("音频分析缓存不存在，请重新分析");
             if(shortLevels!=null&&shortLevels.length()!=levels.length())shortLevels=null;
             if(aiScores!=null&&aiScores.length()!=levels.length())aiScores=null;
+            if(speechScores!=null&&speechScores.length()!=levels.length())speechScores=null;
             JSONArray events=SleepAudioAnalyzer.detect(levels,shortLevels,threshold,minimum,gap);
             JSONObject answer=message("sleep_analysis");
             answer.put("id",sessionId);
@@ -649,6 +651,7 @@ public final class MainActivity extends Activity {
             if(shortLevels!=null)answer.put("short_levels_dbfs",shortLevels);
             if(aiScores!=null){
                 answer.put("ai_snore_scores",aiScores);
+                if(speechScores!=null)answer.put("ai_speech_scores",speechScores);
                 answer.put("ai_model",session.optString("ai_model",""));
             }
             answer.put("threshold_dbfs",threshold);
@@ -2040,6 +2043,13 @@ public final class MainActivity extends Activity {
             });
         }
         @JavascriptInterface public void sleepAnalyze(String sessionId,int threshold,int seconds,int gap){
+            launchSleepAnalysis(sessionId,threshold,seconds,gap,false);
+        }
+        /** Explicit one-time YAMNet rebuild for old sleep recordings. */
+        @JavascriptInterface public void sleepAnalyzeSpeech(String sessionId,int threshold,int seconds,int gap){
+            launchSleepAnalysis(sessionId,threshold,seconds,gap,true);
+        }
+        private void launchSleepAnalysis(String sessionId,int threshold,int seconds,int gap,boolean refreshSpeech){
             // Foreground service is launched from a user action on the UI thread.
             // Never block the one worker shared by GitHub sync and local JSON.
             runOnUiThread(()->{
@@ -2061,7 +2071,8 @@ public final class MainActivity extends Activity {
                         .putExtra(SleepAnalysisService.EXTRA_ID,sessionId)
                         .putExtra(SleepAnalysisService.EXTRA_THRESHOLD,threshold)
                         .putExtra(SleepAnalysisService.EXTRA_MINIMUM,seconds)
-                        .putExtra(SleepAnalysisService.EXTRA_GAP,gap);
+                        .putExtra(SleepAnalysisService.EXTRA_GAP,gap)
+                        .putExtra(SleepAnalysisService.EXTRA_REFRESH_SPEECH,refreshSpeech);
                     startForegroundService(service);
                 }catch(Exception e){error("睡眠录音分析启动失败："+safeMessage(e));}
             });
