@@ -7,6 +7,11 @@ import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.zip.GZIPInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -46,6 +51,8 @@ final class PhoneModelPacks {
     private static final long MAX_MODEL=280L*1024*1024;
     private final Context context;
     private final File root;
+    private final Map<String,String> verifiedStamps=new HashMap<>();
+    private int lexiconCount=-1;
 
     PhoneModelPacks(Context ctx){
         context=ctx.getApplicationContext();
@@ -62,11 +69,60 @@ final class PhoneModelPacks {
     File modelDir(String id){
         return known(id)?new File(root,id):null;
     }
+    private static String stamp(File file){
+        return file.length()+":"+file.lastModified();
+    }
+    /**
+     * First check per process verifies the installed files against pack.json.
+     * Repeated checks reuse a private-file size/mtime fingerprint. The marker
+     * alone is insufficient evidence of a complete model.
+     */
     synchronized boolean installed(String id){
         File dir=modelDir(id);
-        return dir!=null&&new File(dir,".ready").isFile()&&
-            new File(dir,"model.int8.onnx").length()>10*1024*1024&&
-            new File(dir,"tokens.txt").length()>10;
+        if(dir==null)return false;
+        File ready=new File(dir,".ready");
+        File meta=new File(dir,"pack.json");
+        File model=new File(dir,"model.int8.onnx");
+        File tokens=new File(dir,"tokens.txt");
+        if(!ready.isFile()||!meta.isFile()||!model.isFile()||!tokens.isFile()||
+            model.length()<=10*1024*1024||tokens.length()<=10)return false;
+        String signature=stamp(ready)+"/"+stamp(meta)+"/"+stamp(model)+"/"+stamp(tokens);
+        if(signature.equals(verifiedStamps.get(id)))return true;
+        try{
+            if(!id.equals(new String(java.nio.file.Files.readAllBytes(
+                    ready.toPath()),StandardCharsets.UTF_8)))return false;
+            JSONObject manifest=new JSONObject(new String(java.nio.file.Files.readAllBytes(
+                    meta.toPath()),StandardCharsets.UTF_8));
+            if(manifest.optInt("schema")!=1||!id.equals(manifest.optString("id"))||
+                !"sherpa-onnx/offline-zipformer-ctc".equals(manifest.optString("runtime")))
+                return false;
+            JSONObject files=manifest.getJSONObject("files");
+            for(String name:new String[]{"model.int8.onnx","tokens.txt"}){
+                File file=new File(dir,name);
+                JSONObject entry=files.getJSONObject(name);
+                String hash=entry.optString("sha256");
+                if(!hash.matches("[0-9a-f]{64}")||
+                    file.length()!=entry.getLong("size")||!sha256(file).equals(hash))
+                    return false;
+            }
+            verifiedStamps.put(id,signature);
+            return true;
+        }catch(Exception invalid){return false;}
+    }
+    private synchronized int lexiconEntries(){
+        if(lexiconCount>=0)return lexiconCount;
+        int rows=0;
+        try(BufferedReader in=new BufferedReader(new InputStreamReader(
+                new GZIPInputStream(context.getAssets().open("en_pronunciation_zh.tsv.gz")),
+                StandardCharsets.UTF_8))){
+            String line;
+            while((line=in.readLine())!=null&&rows<=100000){
+                if(line.split("\\t",4).length!=4)
+                    throw new IllegalStateException("词典记录损坏");
+                rows++;
+            }
+        }catch(Exception invalid){return lexiconCount=0;}
+        return lexiconCount=rows>=10000&&rows<=100000?rows:0;
     }
     synchronized String selected(){
         String id=context.getSharedPreferences("voice_lab_models",0)
@@ -80,16 +136,24 @@ final class PhoneModelPacks {
             .put("weights_in_apk",false)
             .put("release_url",REPO+"/releases/tag/"+RELEASE_TAG);
         JSONArray choices=new JSONArray();
+        int complete=0;
         for(int i=0;i<IDS.length;i++){
             String id=IDS[i];File model=modelDir(id);
+            boolean valid=installed(id);
+            if(valid)complete++;
             choices.put(new JSONObject().put("id",id).put("title",LABELS[i])
                 .put("license",LICENSES[i])
-                .put("installed",installed(id))
-                .put("size_bytes",installed(id)?
+                .put("installed",valid)
+                .put("size_bytes",valid?
                     new File(model,"model.int8.onnx").length():0)
                 .put("asset",archiveFor(id)));
         }
-        status.put("models",choices);
+        int entries=lexiconEntries();
+        status.put("models",choices)
+            .put("installed_count",complete).put("total_count",IDS.length)
+            .put("complete",complete==IDS.length&&entries>0)
+            .put("dictionary_ready",entries>0)
+            .put("dictionary_entries",entries);
         return status;
     }
     synchronized void select(String id)throws Exception {
@@ -102,6 +166,7 @@ final class PhoneModelPacks {
         if(!known(id))throw new IllegalArgumentException("未知模型");
         if(selected().equals(id))select(ACOUSTIC);
         remove(modelDir(id));
+        verifiedStamps.remove(id);
     }
     private static void remove(File f){
         if(f==null||!f.exists())return;
@@ -164,9 +229,12 @@ final class PhoneModelPacks {
     }
 
     void install(String id,Reporter listener)throws Exception{
+        install(id,listener,true);
+    }
+    private void install(String id,Reporter listener,boolean emitFinal)throws Exception{
         if(!known(id))throw new IllegalArgumentException("未知模型");
         if(installed(id)){
-            listener.report(state("模型已安装，无需重复下载"));
+            if(emitFinal)listener.report(state("模型已安装，无需重复下载"));
             return;
         }
         listener.report(progress("checking","正在检查独立模型 Release…",id,0));
@@ -267,14 +335,37 @@ final class PhoneModelPacks {
             }
             File dest=modelDir(id);
             if(dest.exists())remove(dest);
+            verifiedStamps.remove(id);
             if(!tmp.renameTo(dest))
                 throw new IllegalStateException("模型目录原子安装失败");
             select(id);
             listener.report(progress("installed","已安装并启用："+id,id,100));
-            listener.report(state("模型已安装在手机本地；未来升级 APK 不需重新下载"));
+            if(emitFinal)listener.report(state("模型已安装在手机本地；未来升级 APK 不需重新下载"));
         }finally{
             if(zip.exists())zip.delete();
             if(tmp.exists())remove(tmp);
         }
+    }
+
+    /** One-tap offline setup: install every missing model without redownloading good files. */
+    void installAll(Reporter listener)throws Exception{
+        StringBuilder failures=new StringBuilder();
+        for(String id:IDS){
+            if(installed(id))continue;
+            try{
+                install(id,listener,false);
+            }catch(Exception issue){
+                if(failures.length()>0)failures.append("；");
+                failures.append(id).append("：").append(issue.getMessage());
+            }
+        }
+        // 500k is the standard CC BY model; NS 700k has noncommercial licensing.
+        if(installed(IDS[1]))select(IDS[1]);
+        else if(installed(IDS[0]))select(IDS[0]);
+        else if(installed(IDS[2]))select(IDS[2]);
+        int complete=0;
+        for(String id:IDS)if(installed(id))complete++;
+        listener.report(state("模型检查完成："+complete+"/3 已完整"+
+            (failures.length()>0?"；失败："+failures:"")));
     }
 }
