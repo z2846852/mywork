@@ -495,8 +495,8 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
         <button id="voicePitchClear" type="button" class="secondary">清空</button>
       </div>
       <div class="voice-pitch-mode" role="group" aria-label="音高显示模式">
-        <button type="button" id="voicePitchModeCurve" class="active" aria-pressed="true">连续频率</button>
-        <button type="button" id="voicePitchModeStaff" aria-pressed="false">五线谱练习</button>
+        <button type="button" id="voicePitchModeCurve" class="active" aria-pressed="true">频率 + 音名</button>
+        <button type="button" id="voicePitchModeStaff" aria-pressed="false">五线谱音高条</button>
       </div>
       <div class="voice-pitch-config" id="voicePitchConfig" hidden>
         <label>调号
@@ -537,9 +537,9 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
         </label>
       </div>
       <div class="voice-values">
-        <div><span>最后音符</span><strong id="voicePitchNote">—</strong></div>
+        <div><span>当前 / 最后音名</span><strong id="voicePitchNote">—</strong></div>
         <div><span>频率</span><strong id="voicePitchHz">—</strong></div>
-        <div><span id="voicePitchCentsLabel">相对最近音</span><strong id="voicePitchCents">—</strong></div>
+        <div><span id="voicePitchCentsLabel">相对最近音</span><strong id="voicePitchCents">—</strong><small id="voicePitchPercent">—</small></div>
       </div>
       <p id="voicePitchQuality" class="voice-pitch-quality" role="status">等待有效音高</p>
       <div class="voice-axis-actions" id="voicePitchAxisActions">
@@ -549,14 +549,14 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
       </div>
       <div class="voice-chart-frame">
         <svg id="voicePitchChart" viewBox="0 0 360 230" role="img"
-          aria-label="连续频率轨迹或等间距五线谱练习图，可切换">
+          aria-label="频率和实时音名曲线，或五线谱参照下的横向音高条">
           <rect x="0" y="0" width="360" height="230" rx="9" fill="#122820"></rect>
           <g id="voicePitchGrid"></g>
           <g id="voicePitchTraces"></g>
           <text id="voicePitchAxisCaption" x="348" y="223" text-anchor="end" fill="#91b5a5" font-size="10">横轴：有效发声样本（停声冻结）</text>
         </svg>
       </div>
-      <p id="voicePitchStatus" class="sub" role="status">连续频率：使用固定纵轴和单色曲线，不因音不在调内而标红。停声时冻结。</p>
+      <p id="voicePitchStatus" class="sub" role="status">频率图持续显示 Hz 与音名，五线谱图以横向音高条显示演唱位置；调外才标红。偏差同时显示 cents 与频率百分比；调外不等于歌曲唱错。</p>
       <details class="voice-explain">
         <summary>! 音高图说明</summary>
         <p>连续频率：以 MIDI 半音的对数纵轴显示实际频率（Hz），自第一次有效发声锁定纵轴；用上下按钮整体平移纵轴。曲线不因唱到调外音而变红。五线谱：五条线严格等距，按音名字母的级进排列，超出谱表使用局部加线；相同稳定音连续采样合并为一个音符，不推断真实乐谱时值。选择目标音后，才根据相对目标音的音分误差和容差标红；不设目标时只记谱，不判断对错。停声时数据保持，横轴为有效发声样本而非真实时间；对完整旋律评分尚需导入目标旋律。</p>

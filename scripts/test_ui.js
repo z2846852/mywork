@@ -1835,7 +1835,7 @@ const pitchSettings={key:"C",tolerance:"50"};
 const music=vm.runInNewContext("(()=>{const $=id=>({voicePitchKey:{value:settings.key},"+
  "voicePitchTolerance:{value:settings.tolerance}}[id]);"+
  voiceLabJS.slice(musicA,musicB)+
- "return {noteName,gradePitch};})()",{settings:pitchSettings});
+ "return {noteName,gradePitch,inSelectedScale,pitchDeviationPercent};})()",{settings:pitchSettings});
 assert.equal(music.noteName(60),"C4");
 assert.equal(music.noteName(61),"C♯4");
 assert.equal(music.gradePitch(69.25).off,false);
@@ -1853,16 +1853,20 @@ pitchSettings.key="C";pitchSettings.tolerance="100";
 assert.equal(music.gradePitch(70).off,false);
 pitchSettings.tolerance="50";
 assert.equal(music.gradePitch(70).off,true);
+assert.equal(music.inSelectedScale(60),true);
+assert.equal(music.inSelectedScale(61),false);
+assert.ok(Math.abs(music.pitchDeviationPercent(100)-
+  (Math.pow(2,1/12)-1)*100)<1e-8);
 assert.ok(voiceLabJS.includes('let pitchViewMode="curve"')&&
  voiceLabJS.includes('function setPitchView(mode)')&&
  voiceLabJS.includes('function defaultPitchAxis(midi)')&&
  voiceLabJS.includes('lineBottom-index*2*stepPx')&&
- voiceLabJS.includes('if(current&&current.frames>=2)groups.push(current)')&&
- voiceLabJS.includes('const target=currentTarget();'),
- "Frequency and score views must have independent scales and stable-note grouping");
+ voiceLabJS.includes('const visible=pitchPoints.slice(-150)')&&
+ voiceLabJS.includes('pitchDeviationPercent(cents)'),
+ "Both views share live samples; staff is now karaoke bars rather than noteheads");
 for(const id of ["voicePitchModeCurve","voicePitchModeStaff","voicePitchTarget",
  "voicePitchConfig","voicePitchAxisActions","voicePitchAxisLower","voicePitchAxisUpper",
- "voicePitchCentsLabel","voiceIpaPractice","voiceIpaGroups","voiceIpaGrid",
+ "voicePitchCentsLabel","voicePitchPercent","voiceIpaPractice","voiceIpaGroups","voiceIpaGrid",
  "voiceIpaSymbol","voiceIpaName","voiceIpaTip","voiceIpaSpeak",
  "voiceIpaCompare","voiceIpaSpeakContrast","voiceIpaAttempt"]){
  assert.ok(html.includes('id="'+id+'"'),"Missing pitch/IPA UI "+id);
@@ -1950,14 +1954,27 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
  assert.deepEqual(staffLines,[177,151,125,99,73],
   "All five staff lines must be physically equally spaced");
  const graphics=get("voicePitchTraces").children;
- assert.ok(graphics.filter(x=>x.tag==="ellipse").length>=2,
-  "Stable note segments must render score noteheads");
- assert.ok(graphics.some(x=>x.attrs.fill==="#f17f86"),
-  "Deviation from explicit score target should turn notehead red");
+ assert.equal(graphics.filter(x=>x.tag==="ellipse").length,0,
+  "Karaoke style staff must not render elliptic sheet noteheads");
+ assert.ok(graphics.some(x=>x.tag==="line"&&x.attrs["stroke-width"]==="7"),
+  "Voiced notes must be horizontal bar segments");
+ assert.ok(graphics.some(x=>x.tag==="line"&&x.attrs.stroke==="#f17f86"),
+  "C sharp must be red in C major, even without a song target");
+ assert.ok(graphics.some(x=>x.tag==="line"&&x.attrs.stroke!=="#f17f86"),
+  "C major scale notes must remain pastel");
+ assert.ok(get("voicePitchPercent").textContent.endsWith("%"),
+  "Staff mode must give precise frequency deviation percentage");
  get("voicePitchModeCurve").click();
  assert.equal(get("voicePitchTraces").children.filter(x=>x.tag==="path").length,1,
   "Curve mode must draw one continuous frequency trace, not fragments");
  assert.equal(window.BodyTraceVoiceLab.state().chartMode,"curve");
+ assert.equal(get("voicePitchNote").textContent,"C♯4",
+  "Frequency mode must retain current MIDI note display");
+ assert.ok(get("voicePitchGrid").children.some(x=>x.tag==="text"&&
+  /Hz/.test(x.textContent)&&/[A-G]/.test(x.textContent)),
+  "Frequency Y axis must label both note and Hertz");
+ assert.ok(get("voicePitchTraces").children.some(x=>x.tag==="text"&&
+  /C♯4/.test(x.textContent)),"Frequency graph must show live pitch name");
  const sizes=[];
  for(const group of groups){
   group.click();sizes.push(get("voiceIpaGrid").children.length);

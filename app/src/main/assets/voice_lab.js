@@ -452,6 +452,14 @@
   }
   return {target,delta,off:Math.abs(delta)>tol+1e-7};
  }
+ // Staff color is based on key membership, not a claimed melody error.
+ function inSelectedScale(midi,info=keyInfo()){
+  return info.scale.has(pc(Math.round(midi)));
+ }
+ function pitchDeviationPercent(cents){
+  return (Math.pow(2,cents/1200)-1)*100;
+ }
+ function signed(n,d=1){return (n>0?"+":"")+n.toFixed(d);}
  function chosenStaff(){
   const selected=$("voicePitchClef").value;
   if(selected==="bass"||selected==="treble")return selected;
@@ -491,55 +499,43 @@
   const delta=(midi-target)*100;
   return {target,delta,off:Math.abs(delta)>toleranceCents()};
  }
+
  function setPitchView(mode){
   pitchViewMode=mode==="staff"?"staff":"curve";
-  const inStaff=pitchViewMode==="staff";
-  $("voicePitchConfig").hidden=!inStaff;
-  $("voicePitchAxisActions").hidden=inStaff;
-  for(const [id,isActive] of [["voicePitchModeCurve",!inStaff],
-    ["voicePitchModeStaff",inStaff]]){
-   const btn=$(id);btn.classList.toggle("active",isActive);
-   btn.setAttribute("aria-pressed",String(isActive));
+  const staff=pitchViewMode==="staff";
+  $("voicePitchConfig").hidden=!staff;
+  $("voicePitchAxisActions").hidden=staff;
+  for(const [name,active] of [["voicePitchModeCurve",!staff],["voicePitchModeStaff",staff]]){
+   const b=$(name);b.classList.toggle("active",active);
+   b.setAttribute("aria-pressed",String(active));
   }
-  $("voicePitchCentsLabel").textContent=inStaff&&currentTarget()!==null?
-   "相对目标":"相对最近音";
   updatePitchFeedback();redrawPitch();
  }
  function updatePitchFeedback(){
   safeText("voicePitchToleranceValue",toleranceCents()+" cents");
+  const quality=$("voicePitchQuality");
   if(!pitchPoints.length){
-   $("voicePitchQuality").classList.remove("off");
-   safeText("voicePitchQuality",pitchViewMode==="staff"?
-    "五线谱 · 等间距谱线 · 等待发声":"频率轨迹 · 等待有效发声");
+   quality.classList.remove("off");
+   safeText("voicePitchQuality","等待有效发声");
    safeText("voicePitchNote","—");safeText("voicePitchCents","—");
-   return;
+   safeText("voicePitchPercent","—");return;
   }
   const last=pitchPoints[pitchPoints.length-1],info=keyInfo();
-  const nearest=Math.round(last.midi),chromatic=(last.midi-nearest)*100;
-  const target=pitchTargetDeviation(last.midi);
-  latestNote=noteName(nearest,info);
-  safeText("voicePitchNote",latestNote);
-  $("voicePitchQuality").classList.remove("off");
-  if(pitchViewMode==="curve"){
-   $("voicePitchCentsLabel").textContent="相对最近音";
-   safeText("voicePitchCents",(chromatic>0?"+":"")+chromatic.toFixed(1)+" cents");
-   safeText("voicePitchQuality","连续频率 · "+latestNote+
-    " · "+(chromatic>=0?"+":"")+chromatic.toFixed(0)+
-    " cents（未指定旋律，不判唱错）");
-  }else if(target.target===null){
-   $("voicePitchCentsLabel").textContent="相对最近音";
-   safeText("voicePitchCents",(chromatic>0?"+":"")+chromatic.toFixed(1)+" cents");
-   safeText("voicePitchQuality","五线谱记录 · 当前 "+latestNote+
-    " · 未设目标音，不判断对错");
-  }else{
-   $("voicePitchCentsLabel").textContent="相对目标";
-   safeText("voicePitchCents",(target.delta>0?"+":"")+
-    target.delta.toFixed(1)+" cents");
-   safeText("voicePitchQuality",(target.off?"偏离目标音":"接近目标音")+
-    " "+noteName(target.target,info)+" · "+
-    (target.delta>0?"+":"")+target.delta.toFixed(0)+" cents");
-   $("voicePitchQuality").classList.toggle("off",target.off);
-  }
+  const nearest=Math.round(last.midi),name=noteName(nearest,info);
+  const target=pitchViewMode==="staff"?currentTarget():null;
+  const cents=(last.midi-(target===null?nearest:target))*100;
+  const pct=pitchDeviationPercent(cents),inside=inSelectedScale(last.midi,info);
+  latestNote=name;
+  safeText("voicePitchNote",name);
+  safeText("voicePitchCentsLabel",target===null?"相对最近音":"相对目标音");
+  safeText("voicePitchCents",signed(cents,1)+" cents");
+  safeText("voicePitchPercent",signed(pct,2)+"%");
+  const ref=target===null?"最近音 "+name:"目标 "+noteName(target,info);
+  const over=target!==null&&Math.abs(cents)>toleranceCents();
+  safeText("voicePitchQuality",name+" · "+(inside?"调内":"调外")+
+   " · "+ref+" "+signed(cents,1)+" cents ("+signed(pct,2)+"%)"+
+   (over?" · 超出容差":""));
+  quality.classList.toggle("off",!inside||over);
  }
  const yClamp=(v,min,max)=>Math.max(min,Math.min(max,v));
  function defaultPitchAxis(midi){
@@ -560,120 +556,123 @@
   if(!m)return null;
   return (Number(m[2])+1)*7+LETTERS.indexOf(m[1]);
  }
+
+ // Both views use the SAME pitchPoints history, including fractional MIDI.
  function redrawPitch(){
   if(!grid||!traces)return;
   grid.replaceChildren();traces.replaceChildren();
-  const info=keyInfo(),x0=55,x1=350;
+  const info=keyInfo(),x0=69,x1=347;
   if(pitchViewMode==="curve"){
-   const axis=axisForPitch(),y0=20,y1=198;
+   const axis=axisForPitch(),y0=26,y1=197;
    const y=midi=>y1-(midi-axis.min)/(axis.max-axis.min)*(y1-y0);
    for(let n=axis.min;n<=axis.max;n+=6){
     const yy=y(n),hz=440*Math.pow(2,(n-69)/12);
     grid.appendChild(el("line",{x1:x0,x2:x1,y1:yy,y2:yy,
      stroke:"#426c5a","stroke-width":.8,"stroke-dasharray":"3 5"}));
-    const label=el("text",{x:5,y:yy+3,fill:"#a8c8b5","font-size":10});
-    label.textContent=Math.round(hz)+"Hz";grid.appendChild(label);
+    const label=el("text",{x:5,y:yy+3,fill:"#a8c8b5","font-size":9});
+    label.textContent=noteName(n,info)+" "+Math.round(hz)+"Hz";
+    grid.appendChild(label);
    }
-   safeText("voicePitchAxisCaption","连续音高 · 横轴：有效发声样本（停声冻结）");
+   safeText("voicePitchAxisCaption","频率/音名 · 有效发声样本（停声冻结）");
    if(!pitchPoints.length){
-    const empty=el("text",{x:202,y:105,"text-anchor":"middle",
-     fill:"#8ab3a0","font-size":12});
-    empty.textContent="开始发声后显示连续频率轨迹";
-    traces.appendChild(empty);return;
+    const hint=el("text",{x:202,y:110,"text-anchor":"middle",fill:"#8ab3a0","font-size":12});
+    hint.textContent="发声后显示连续频率和音名";traces.appendChild(hint);return;
    }
    const dx=(x1-x0)/Math.max(1,pitchPoints.length-1);
-   let d="";
-   pitchPoints.forEach((p,i)=>{
-    const yy=yClamp(y(p.midi),y0,y1);
-    d+=(i?"L":"M")+(x0+i*dx).toFixed(1)+" "+yy.toFixed(1)+" ";
-   });
-   traces.appendChild(el("path",{d,stroke:"#89ddbb","stroke-width":2.6,
+   const path=pitchPoints.map((p,i)=>(i?"L":"M")+
+    (x0+i*dx).toFixed(1)+" "+yClamp(y(p.midi),y0,y1).toFixed(1)).join(" ");
+   traces.appendChild(el("path",{d:path,stroke:"#89ddbb","stroke-width":2.6,
     "stroke-linejoin":"round","stroke-linecap":"round",fill:"none"}));
    const last=pitchPoints[pitchPoints.length-1];
-   const cx=x0+(pitchPoints.length-1)*dx,cy=yClamp(y(last.midi),y0,y1);
-   traces.appendChild(el("circle",{cx,cy,r:3.2,fill:"#eefff5"}));
-   if(y(last.midi)!==cy){
-    const note=el("text",{x:cx-2,y:cy<100?15:213,"text-anchor":"end",
-     "font-size":10,fill:"#e3ae80"});
-    note.textContent="音高超出视野";traces.appendChild(note);
+   const py=yClamp(y(last.midi),y0,y1);
+   traces.appendChild(el("circle",{cx:x1,cy:py,r:3.8,fill:"#eefff5"}));
+   const note=el("text",{x:x1,y:16,"text-anchor":"end",fill:"#d8fae6",
+    "font-size":12,"font-weight":700});
+   note.textContent=noteName(last.midi,info)+"  "+
+    signed((last.midi-Math.round(last.midi))*100,0)+"c";
+   traces.appendChild(note);
+   if(y(last.midi)!==py){
+    const warn=el("text",{x:x1,y:212,"text-anchor":"end",
+     fill:"#e5bb91","font-size":9});
+    warn.textContent="音高超出视野";traces.appendChild(warn);
    }
    return;
   }
-  // Standard staff spacing: each line represents two DIATONIC steps,
-  // so 2/3/4-semitone intervals never change visual staff-line spacing.
-  const clef=chosenStaff(),staff=STAFF[clef];
-  const base=noteDiatonicStep(staff[0],info);
-  const lineBottom=177,stepPx=13,xStaff=46;
-  const y=step=>lineBottom-(step-base)*stepPx;
+
+  // Equal-spaced five-line staff is a reference ruler, never sheet notation.
+  // Horizontal bar length represents successive voiced samples (not beat time).
+  const clef=chosenStaff(),staff=STAFF[clef],base=noteDiatonicStep(staff[0],info);
+  const lineBottom=177,stepPx=13;
+  const yForNote=n=>lineBottom-(noteDiatonicStep(n,info)-base)*stepPx;
+  const yActual=midi=>yForNote(Math.round(midi))-
+   (midi-Math.round(midi))*12;
   for(let index=0;index<5;index++){
    const yy=lineBottom-index*2*stepPx;
-   grid.appendChild(el("line",{x1:xStaff,x2:x1,y1:yy,y2:yy,
-    stroke:"#8daf9e","stroke-width":1.25}));
+   grid.appendChild(el("line",{x1:x0,x2:x1,y1:yy,y2:yy,
+    stroke:"#8daf9e","stroke-width":1.2}));
+   const label=el("text",{x:5,y:yy+3,fill:"#b8d7c7","font-size":9});
+   label.textContent=noteName(staff[index],info);grid.appendChild(label);
   }
-  const clefLabel=el("text",{x:7,y:31,"font-size":12,
-   fill:"#bbdec8","font-weight":700});
-  clefLabel.textContent=clef==="bass"?"低音谱":"高音谱";grid.appendChild(clefLabel);
-  const keyLabel=el("text",{x:348,y:30,"text-anchor":"end",
-   "font-size":11,fill:"#b2d8c2"});
-  keyLabel.textContent=$("voicePitchKey").value+" 调 · 等距谱线";grid.appendChild(keyLabel);
-  safeText("voicePitchAxisCaption","五线谱 · 稳定音符示意（未推断节拍和时值）");
-
-  function notehead(midi,x,ghost=false){
-   const step=noteDiatonicStep(midi,info);
-   if(step===null)return;
-   const yy=y(step),drawY=yClamp(yy,35,198);
-   const grade=pitchTargetDeviation(midi);
-   const color=ghost?"#b2cab7":grade.off?RED:PASTELS[pc(Math.round(midi))%PASTELS.length];
-   for(let ledger=base-2;ledger>=step;ledger-=2){
-    if(y(ledger)>202)break;
-    traces.appendChild(el("line",{x1:x-12,x2:x+13,y1:y(ledger),y2:y(ledger),
-     stroke:"#8daf9e","stroke-width":1.2}));
-   }
-   for(let ledger=base+10;ledger<=step;ledger+=2){
-    if(y(ledger)<30)break;
-    traces.appendChild(el("line",{x1:x-12,x2:x+13,y1:y(ledger),y2:y(ledger),
-     stroke:"#8daf9e","stroke-width":1.2}));
-   }
-   traces.appendChild(el("ellipse",{cx:x,cy:drawY,rx:8,ry:5.5,
-    transform:"rotate(-20 "+x+" "+drawY+")",
-    fill:ghost?"none":color,stroke:color,"stroke-width":ghost?1.8:1}));
-   if(!ghost)traces.appendChild(el("line",{x1:x+7,x2:x+7,y1:drawY,
-     y2:Math.max(23,drawY-28),stroke:color,"stroke-width":1.4}));
-   const spelling=noteName(Math.round(midi),info);
-   if(/[♯♭]/.test(spelling)){
-    const acc=el("text",{x:x-21,y:drawY+4,fill:color,"font-size":13});
-    acc.textContent=spelling.includes("♯")?"♯":"♭";traces.appendChild(acc);
-   }
-   const caption=el("text",{x,y:213,"text-anchor":"middle",
-    fill:color,"font-size":9,"font-weight":700});
-   caption.textContent=spelling;traces.appendChild(caption);
-  }
+  const clefText=el("text",{x:5,y:26,fill:"#c4dfce","font-size":10});
+  clefText.textContent=clef==="bass"?"低音谱":"高音谱";grid.appendChild(clefText);
+  safeText("voicePitchAxisCaption","K歌音高条 · 淡彩=调内 · 红色=调外");
   const target=currentTarget();
-  if(target!==null)notehead(target,63,true);
-  const groups=[];
-  let current=null;
-  for(const p of pitchPoints){
-   const n=Math.round(p.midi);
-   if(current&&current.nearest===n){
-    current.frames++;current.sum+=p.midi;
-   }else{
-    if(current&&current.frames>=2)groups.push(current);
-    current={nearest:n,frames:1,sum:p.midi};
+  if(target!==null){
+   const ty=yForNote(target);
+   if(ty>=32&&ty<=200){
+    grid.appendChild(el("line",{x1:x0,x2:x1,y1:ty,y2:ty,
+     stroke:"#e9d698","stroke-width":1,"stroke-dasharray":"5 5"}));
+    const name=el("text",{x:x0+4,y:ty-6,fill:"#e9d698","font-size":9});
+    name.textContent="目标 "+noteName(target,info);grid.appendChild(name);
    }
   }
-  if(current&&(current.frames>=2||groups.length===0))groups.push(current);
-  const last=groups.slice(-9),start=target===null?74:99;
-  if(!last.length){
-   const hint=el("text",{x:195,y:119,"text-anchor":"middle",
+  if(!pitchPoints.length){
+   const hint=el("text",{x:207,y:122,"text-anchor":"middle",
     fill:"#8ab3a0","font-size":11});
-   hint.textContent="稳定发声后，按音名字母显示音符";
+   hint.textContent="开始演唱后出现横向音高条";
    traces.appendChild(hint);return;
   }
-  const stride=(x1-start)/Math.max(last.length,1);
-  last.forEach((group,i)=>{
-   const x=start+(i+.5)*stride;
-   notehead(group.nearest,x);
-  });
+  const visible=pitchPoints.slice(-150),dx=(x1-x0)/Math.max(1,visible.length);
+  const bars=[];let run=null;
+  for(let i=0;i<visible.length;i++){
+   const p=visible[i],n=Math.round(p.midi);
+   if(run&&run.note===n){run.end=i;run.sum+=p.midi;run.count++;}
+   else{
+    if(run)bars.push(run);
+    run={note:n,start:i,end:i,sum:p.midi,count:1};
+   }
+  }
+  if(run)bars.push(run);
+  for(const b of bars){
+   const avg=b.sum/b.count;
+   const sy=yClamp(yActual(avg),34,200);
+   const bx=x0+b.start*dx,ex=x0+(b.end+1)*dx;
+   const color=inSelectedScale(b.note,info)?
+    PASTELS[pc(b.note)%PASTELS.length]:RED;
+   traces.appendChild(el("line",{x1:bx+1,x2:Math.max(bx+2,ex-1),
+    y1:sy,y2:sy,stroke:color,"stroke-width":7,"stroke-linecap":"round"}));
+   if(ex-bx>=33){
+    const label=el("text",{x:(bx+ex)/2,y:sy-9,
+     "text-anchor":"middle",fill:color,"font-size":9,"font-weight":700});
+    label.textContent=noteName(b.note,info);traces.appendChild(label);
+   }
+  }
+  const last=pitchPoints[pitchPoints.length-1],nearest=Math.round(last.midi);
+  const color=inSelectedScale(last.midi,info)?
+   PASTELS[pc(nearest)%PASTELS.length]:RED;
+  const rawY=yActual(last.midi),cy=yClamp(rawY,34,200);
+  traces.appendChild(el("circle",{cx:x1,cy,r:4.2,
+   stroke:color,"stroke-width":2,fill:"#edfff7"}));
+  const cents=(last.midi-(target===null?nearest:target))*100;
+  const reading=el("text",{x:x1,y:16,"text-anchor":"end",
+   fill:color,"font-size":11,"font-weight":750});
+  reading.textContent=noteName(last.midi,info)+" "+
+   signed(cents,0)+"c ("+signed(pitchDeviationPercent(cents),2)+"%)";
+  traces.appendChild(reading);
+  if(rawY!==cy){
+   const warn=el("text",{x:x1,y:213,"text-anchor":"end",fill:color,"font-size":10});
+   warn.textContent="当前音高超出谱表视野";traces.appendChild(warn);
+  }
  }
  function pitchSample(evt){
   const hz=Number(evt.pitch_hz),midi=Number(evt.midi);
