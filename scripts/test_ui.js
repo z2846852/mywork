@@ -2108,6 +2108,8 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   c.className.includes("insert")));
  get("voicePhonemeSequence").children[0].click();
  assert.equal(samples.at(-1),"ʂ");
+ assert.ok(get("voiceWordCompareStatus").textContent.includes("替换"),
+  "Aligned comparison must show substituted IPA phones");
  assert.ok(get("voicePhoneExamples").children.some(c=>
   c.children.some(t=>String(t.textContent).includes("书"))));
  get("voicePhonemeSequence").children[1].click();
