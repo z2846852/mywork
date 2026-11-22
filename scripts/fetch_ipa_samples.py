@@ -51,12 +51,33 @@ FILES={
     "z.mp3": ("39377ec8568484c71cfc03d7270e284313fdc1c9", 16552),
     "zh.mp3": ("4a7286a6666ef3f56f282f0939bd2f7f94df1236", 18015),
 }
-# Wikimedia Commons links are checked as genuine Ogg audio. These files are
-# individually attributed; unlike the Schwa Git blobs, Commons bytes may be
-# updated upstream, so we do NOT pretend that they have a known pinned SHA.
+# Commons samples mirrored as MP3 by eeeeaaii/langkit with per-file
+# attribution in audio/ipa/SOURCES.md. Immutable Git commit and blob hashes.
+EXTRA_PIN="b3a08c5e6a4defa272f134503f9937b930c9d2b5"
+EXTRA_BASE=f"https://raw.githubusercontent.com/eeeeaaii/langkit/{EXTRA_PIN}/audio/ipa/"
 EXTRAS={
-  "retroflex_sh.ogg":"Voiceless_retroflex_sibilant.ogg",
-  "central_i.ogg":"Close_central_unrounded_vowel.ogg",
+  "extra_0255.mp3": ("Voiceless_alveolo-palatal_sibilant.mp3","69f6cdf0363596c69d8f269be6c05ddcec6dd48a",44072),
+  "extra_0291.mp3": ("Voiced_alveolo-palatal_sibilant.mp3","377692da07a96b5abf282ba214e1d7685d865f2a",49662),
+  "retroflex_sh.ogg": ("Voiceless_retroflex_sibilant.mp3","d9b3858973ca7896efd5ea89acf55b2dcac77723",54885),
+  "extra_0290.mp3": ("Voiced_retroflex_sibilant.mp3","87697cb35d5eb08d5b9916098cb6fe0831ab62c9",56814),
+  "extra_027e.mp3": ("Alveolar_tap.mp3","1d9cc1fe60d6a8aed0431c45c15efabd42307bf0",42195),
+  "extra_0294.mp3": ("Glottal_stop.mp3","5de0478463fd40e8b01840c6ace3e4a2a90edb29",45568),
+  "extra_027d.mp3": ("Retroflex_flap.mp3","6ed2748c712c69d3bb07cbcb3305a3500de5a57a",40325),
+  "extra_027b.mp3": ("Retroflex_Approximant2.mp3","8f1de2fa63d1ca81f40936b4f8b0f3e66475ce3d",55383),
+  "central_i.ogg": ("Close_central_unrounded_vowel.mp3","0dc173ba50511752a2c7fe3bf3f5bc8e8603517e",11154),
+  "extra_0272.mp3": ("Palatal_nasal.mp3","8e3862db15baecffb2fbd4095cbfbf5250c0a76d",43791),
+  "extra_0263.mp3": ("Voiced_velar_fricative.mp3","bd6a801d95e2c3b206baa34d8fbfea5a1a7d4956",39839),
+  "extra_00e7.mp3": ("Voiceless_palatal_fricative.mp3","05f8bb54460e2b9bf443137595e7a2ca3a1405b8",37717),
+  "extra_0078.mp3": ("Voiceless_velar_fricative.mp3","6c2ccb53ec9ff898720f13b3fa22b95058ce40ae",39289),
+  "extra_026c.mp3": ("Voiceless_alveolar_lateral_fricative.mp3","f4658fbf88b9c177f628823d7979ad5a30f91690",26714),
+  "extra_028b.mp3": ("Labiodental_approximant.mp3","ab4c9278f9af37b336e176499019601dbbde0248",46840),
+  "extra_028d.mp3": ("Voiceless_labio-velar_fricative.mp3","d922d58d6f2b5c33317e72805b460866fb0dd22a",40782),
+  "extra_0289.mp3": ("Close_central_rounded_vowel.mp3","843b43cdfa227f8d5090ff1df8d5a5cf0c579b14",14487),
+  "extra_026f.mp3": ("Close_back_unrounded_vowel.mp3","b50f65d414e55d96ef73fdc5e61d13f82c74695f",10787),
+  "extra_0288.mp3": ("Voiceless_retroflex_stop.mp3","dbc4deb8a7eff2d9ae9e05cc822ba798ba35110c",33112),
+  "extra_0256.mp3": ("Voiced_retroflex_stop.mp3","f0a7e008429c25b2773c25d880f8688c969aeca7",41467),
+  "extra_0273.mp3": ("Retroflex_nasal.mp3","9d099febc136aec47233aa8397edf089e43964ef",46269),
+  "extra_025c.mp3": ("Open-mid_central_unrounded_vowel.mp3","26f605b8a49fc143cafe9009dbe9cf7d0dc40e00",11832),
 }
 
 def get(url):
@@ -82,19 +103,31 @@ def main():
         raw=get(BASE+urllib.parse.quote(name))
         if len(raw)!=size or git_sha1(raw)!=digest:raise RuntimeError(f"Pin mismatch {name}")
         path.write_bytes(raw)
-    for dest,source in EXTRAS.items():
+    for dest,(source,digest,size) in EXTRAS.items():
         path=OUT/dest
-        if path.is_file() and 4000<path.stat().st_size<250000 and path.read_bytes().startswith(b"OggS"):
+        if dest.endswith(".mp3") and path.is_file() and git_sha1(path.read_bytes())==digest:
             continue
-        md5=hashlib.md5(source.encode("utf-8")).hexdigest()
-        url=("https://upload.wikimedia.org/wikipedia/commons/"
-             +md5[0]+"/"+md5[:2]+"/"+urllib.parse.quote(source))
-        raw=get(url)
-        if not 4000<len(raw)<250000 or not raw.startswith(b"OggS"):
-            raise RuntimeError(f"Invalid Commons recording: {source}")
-        path.write_bytes(raw)
-    assert len(list(OUT.glob("*.mp3")))==len(FILES)
-    assert len(list(OUT.glob("*.ogg")))==len(EXTRAS)
-    print("Verified",len(FILES)+len(EXTRAS),"human IPA recordings, ready for offline APK")
+        # The two legacy Ogg names are required by APK package validation.
+        if dest.endswith(".ogg") and path.is_file() and path.read_bytes().startswith(b"OggS"):
+            continue
+        raw=get(EXTRA_BASE+urllib.parse.quote(source))
+        if len(raw)!=size or git_sha1(raw)!=digest:
+            raise RuntimeError(f"GitHub mirror checksum mismatch: {source}")
+        if dest.endswith(".ogg"):
+            # Genuine Vorbis content, not an MP3 mislabelled with .ogg.
+            import subprocess,tempfile
+            with tempfile.NamedTemporaryFile(dir=OUT,suffix=".mp3") as temp:
+                temp.write(raw);temp.flush()
+                subprocess.run(["ffmpeg","-hide_banner","-loglevel","error",
+                    "-nostdin","-y","-i",temp.name,"-ac","1",
+                    "-c:a","libvorbis","-q:a","4",str(path)],check=True)
+            if not path.read_bytes().startswith(b"OggS"):
+                raise RuntimeError(f"Invalid converted Ogg {dest}")
+        else:
+            path.write_bytes(raw)
+    expected_mp3=len(FILES)+sum(x.endswith(".mp3") for x in EXTRAS)
+    assert len(list(OUT.glob("*.mp3")))==expected_mp3
+    assert len(list(OUT.glob("*.ogg")))==2
+    print("Verified",len(FILES)+len(EXTRAS),"real IPA recordings, offline APK")
 
 if __name__=="__main__":main()
