@@ -593,6 +593,28 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
           </select>
         </div>
       </div>
+      <section class="voice-word-target" id="voiceWordPanel" aria-label="指定发音训练词">
+        <label for="voiceWordInput"><strong>本次想说的英文单词</strong></label>
+        <div class="voice-word-target-row">
+          <input id="voiceWordInput" type="text" inputmode="text" maxlength="40"
+            placeholder="例如 thinking / speaking" autocapitalize="none" spellcheck="false"/>
+          <button id="voiceWordSet" type="button" class="secondary">设为目标</button>
+          <button id="voiceWordListen" type="button" class="secondary mini" aria-label="辅助朗读目标单词">▶ 单词</button>
+        </div>
+        <p class="sub" id="voiceWordStatus" role="status">输入单词后从本机发音词典读取标准 IPA，不会访问 GitHub。</p>
+        <div id="voiceWordVariantRow" class="voice-word-variant" hidden>
+          <label for="voiceWordVariant">词典有多种读法，选择本次目标</label>
+          <select id="voiceWordVariant"></select>
+        </div>
+        <div id="voiceWordReference" aria-label="标准 IPA（逐音素点击试听）"></div>
+        <section id="voiceWordCompare" class="voice-word-compare" hidden>
+          <strong>标准 IPA 与 ZIPA 逐音素对齐</strong>
+          <p class="sub">每列上排是标准音标，下排是识别结果；红色表示替换、增音或漏音。点击任意音标试听真人录音。</p>
+          <div class="voice-alignment-key"><span>标准</span><span>识别</span></div>
+          <div id="voiceWordAlignment" class="voice-word-alignment" aria-label="逐音素差异"></div>
+          <p id="voiceWordCompareStatus" class="sub" role="status"></p>
+        </section>
+      </section>
       <button type="button" id="voicePhonemeHold" class="voice-hold-button">按住说话</button>
       <p id="voicePhonemeStatus" class="sub" role="status">支持约 0.3–5 秒的短音频；不保存录音文件。</p>
       <div id="voicePhonemeReport" class="voice-phoneme-report">
@@ -602,6 +624,8 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
           <div class="voice-drill-head"><strong id="voiceDrillTitle">音素纠音</strong>
             <button id="voiceDrillClear" type="button" class="secondary mini">退出专项</button></div>
           <p id="voiceDrillDescription" class="sub"></p>
+          <strong id="voicePhoneExamplesLabel" class="voice-phone-example-title">音标的词例</strong>
+          <div id="voicePhoneExamples" class="voice-phone-examples" aria-label="英语和普通话的对应词例"></div>
           <div id="voiceDrillPairs" class="voice-drill-pairs"></div>
           <p id="voiceDrillTarget" class="voice-drill-target" role="status"></p>
         </section>
@@ -625,7 +649,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
             <strong id="voicePhonemePinyin">不依据孤立音素臆测汉字、拼音或声调。</strong>
           </div>
         </div>
-        <p id="voicePhonemeLimit" class="sub">当前为 F1/F2 和擦音的初级声学探针，不能可靠识别整句或判断普通话声调。尤其无法完整识别 think 的 /θɪŋk/。</p>
+        <p id="voicePhonemeLimit" class="sub">ZIPA 是多语言候选音素识别，并非口音打分。红色差异是待核实位置；点击音标听离线真人录音，对照英语与普通话词例（有精确对应才显示）。</p>
       </div>
       <details class="voice-ipa-library"><summary>完整 44 音标参考表（可选）</summary>
       <section class="voice-ipa-practice" id="voiceIpaPractice" aria-label="英语音标专项训练">
@@ -652,7 +676,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
           <p id="voiceIpaContrast" class="sub">按住下方录音键朗读例词，松开后比对模型识别的音素。</p>
           <p id="voiceIpaVoiceStatus" class="sub" role="status"></p>
         </div>
-        <p class="sub voice-ipa-disclaimer">示范音由 Android 英式英语 TTS 朗读整个例词，而非合成单个 IPA 音。ZIPA 会误识别短音；专项反馈只是候选音素比对，不是专业发音打分。不同口音的 IPA 写法会有差异。</p>
+        <p class="sub voice-ipa-disclaimer">单独点击音标优先播放 APK 内置的真人录音，两次轻柔试听；词例的辅助朗读使用 Android 系统 TTS。某些双元音暂缺可用的独立录音，会明确提示而不伪造。ZIPA 差异不等于口音正确率。</p>
       </section>
       </details>
       <details class="voice-explain">
