@@ -349,92 +349,225 @@
  };
  function safeText(id,value){$(id).textContent=String(value);}
 
+ let pitchViewMode="curve",pitchAxis=null;
+ function currentTarget(){
+  const raw=$("voicePitchTarget").value;
+  if(raw==="")return null;
+  const number=Number(raw);
+  return Number.isInteger(number)&&number>=36&&number<=84?number:null;
+ }
+ function populateTargets(){
+  const select=$("voicePitchTarget"),old=select.value;
+  select.replaceChildren();
+  const any=document.createElement("option");
+  any.value="";any.textContent="不设目标 · 只记谱";select.append(any);
+  const info=keyInfo();
+  for(let midi=36;midi<=84;midi++){
+   const opt=document.createElement("option");opt.value=String(midi);
+   opt.textContent=noteName(midi,info);select.append(opt);
+  }
+  select.value=old;
+ }
+ function pitchTargetDeviation(midi){
+  const target=currentTarget();
+  if(target===null)return {target:null,delta:0,off:false};
+  const delta=(midi-target)*100;
+  return {target,delta,off:Math.abs(delta)>toleranceCents()};
+ }
+ function setPitchView(mode){
+  pitchViewMode=mode==="staff"?"staff":"curve";
+  const inStaff=pitchViewMode==="staff";
+  $("voicePitchConfig").hidden=!inStaff;
+  $("voicePitchAxisActions").hidden=inStaff;
+  for(const [id,isActive] of [["voicePitchModeCurve",!inStaff],
+    ["voicePitchModeStaff",inStaff]]){
+   const btn=$(id);btn.classList.toggle("active",isActive);
+   btn.setAttribute("aria-pressed",String(isActive));
+  }
+  $("voicePitchCentsLabel").textContent=inStaff&&currentTarget()!==null?
+   "相对目标":"相对最近音";
+  updatePitchFeedback();redrawPitch();
+ }
  function updatePitchFeedback(){
   safeText("voicePitchToleranceValue",toleranceCents()+" cents");
   if(!pitchPoints.length){
    $("voicePitchQuality").classList.remove("off");
-   safeText("voicePitchQuality","等待有效音高");
+   safeText("voicePitchQuality",pitchViewMode==="staff"?
+    "五线谱 · 等间距谱线 · 等待发声":"频率轨迹 · 等待有效发声");
    safeText("voicePitchNote","—");safeText("voicePitchCents","—");
    return;
   }
   const last=pitchPoints[pitchPoints.length-1],info=keyInfo();
-  const near=Math.round(last.midi),cents=(last.midi-near)*100;
-  const grade=gradePitch(last.midi,info);
-  latestNote=noteName(near,info);
+  const nearest=Math.round(last.midi),chromatic=(last.midi-nearest)*100;
+  const target=pitchTargetDeviation(last.midi);
+  latestNote=noteName(nearest,info);
   safeText("voicePitchNote",latestNote);
-  safeText("voicePitchCents",(cents>0?"+":"")+cents.toFixed(1)+" cents");
-  safeText("voicePitchQuality",(grade.off?"偏离调内音":"调内")+" · 最近 "+
-   noteName(grade.target,info)+" · "+(grade.delta>0?"+":"")+
-   grade.delta.toFixed(0)+" cents");
-  $("voicePitchQuality").classList.toggle("off",grade.off);
+  $("voicePitchQuality").classList.remove("off");
+  if(pitchViewMode==="curve"){
+   $("voicePitchCentsLabel").textContent="相对最近音";
+   safeText("voicePitchCents",(chromatic>0?"+":"")+chromatic.toFixed(1)+" cents");
+   safeText("voicePitchQuality","连续频率 · "+latestNote+
+    " · "+(chromatic>=0?"+":"")+chromatic.toFixed(0)+
+    " cents（未指定旋律，不判唱错）");
+  }else if(target.target===null){
+   $("voicePitchCentsLabel").textContent="相对最近音";
+   safeText("voicePitchCents",(chromatic>0?"+":"")+chromatic.toFixed(1)+" cents");
+   safeText("voicePitchQuality","五线谱记录 · 当前 "+latestNote+
+    " · 未设目标音，不判断对错");
+  }else{
+   $("voicePitchCentsLabel").textContent="相对目标";
+   safeText("voicePitchCents",(target.delta>0?"+":"")+
+    target.delta.toFixed(1)+" cents");
+   safeText("voicePitchQuality",(target.off?"偏离目标音":"接近目标音")+
+    " "+noteName(target.target,info)+" · "+
+    (target.delta>0?"+":"")+target.delta.toFixed(0)+" cents");
+   $("voicePitchQuality").classList.toggle("off",target.off);
+  }
+ }
+ const yClamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+ function defaultPitchAxis(midi){
+  const center=Math.round(midi/12)*12;
+  return {min:center-12,max:center+12};
+ }
+ function axisForPitch(){
+  if(!pitchAxis){
+   const source=pitchPoints.length?pitchPoints[0].midi:48;
+   pitchAxis=defaultPitchAxis(source);
+  }
+  return pitchAxis;
+ }
+ function noteDiatonicStep(midi,info){
+  const name=noteName(Math.round(midi),info);
+  const m=name.match(/^([A-G])(?:♯|♭)?(-?\\d+)$/);
+  if(!m)return null;
+  return (Number(m[2])+1)*7+LETTERS.indexOf(m[1]);
  }
  function redrawPitch(){
   if(!grid||!traces)return;
   grid.replaceChildren();traces.replaceChildren();
-  const staff=STAFF[chosenStaff()],low=staff[0],high=staff[4],info=keyInfo();
-  let min=low-4,max=high+4;
-  if(pitchPoints.length){
-   min=Math.min(min,Math.floor(Math.min(...pitchPoints.map(p=>p.midi)))-2);
-   max=Math.max(max,Math.ceil(Math.max(...pitchPoints.map(p=>p.midi)))+2);
+  const info=keyInfo(),x0=55,x1=350;
+  if(pitchViewMode==="curve"){
+   const axis=axisForPitch(),y0=20,y1=198;
+   const y=midi=>y1-(midi-axis.min)/(axis.max-axis.min)*(y1-y0);
+   for(let n=axis.min;n<=axis.max;n+=6){
+    const yy=y(n),hz=440*Math.pow(2,(n-69)/12);
+    grid.appendChild(el("line",{x1:x0,x2:x1,y1:yy,y2:yy,
+     stroke:"#426c5a","stroke-width":.8,"stroke-dasharray":"3 5"}));
+    const label=el("text",{x:5,y:yy+3,fill:"#a8c8b5","font-size":10});
+    label.textContent=Math.round(hz)+"Hz";grid.appendChild(label);
+   }
+   safeText("voicePitchAxisCaption","连续音高 · 横轴：有效发声样本（停声冻结）");
+   if(!pitchPoints.length){
+    const empty=el("text",{x:202,y:105,"text-anchor":"middle",
+     fill:"#8ab3a0","font-size":12});
+    empty.textContent="开始发声后显示连续频率轨迹";
+    traces.appendChild(empty);return;
+   }
+   const dx=(x1-x0)/Math.max(1,pitchPoints.length-1);
+   let d="";
+   pitchPoints.forEach((p,i)=>{
+    const yy=yClamp(y(p.midi),y0,y1);
+    d+=(i?"L":"M")+(x0+i*dx).toFixed(1)+" "+yy.toFixed(1)+" ";
+   });
+   traces.appendChild(el("path",{d,stroke:"#89ddbb","stroke-width":2.6,
+    "stroke-linejoin":"round","stroke-linecap":"round",fill:"none"}));
+   const last=pitchPoints[pitchPoints.length-1];
+   const cx=x0+(pitchPoints.length-1)*dx,cy=yClamp(y(last.midi),y0,y1);
+   traces.appendChild(el("circle",{cx,cy,r:3.2,fill:"#eefff5"}));
+   if(y(last.midi)!==cy){
+    const note=el("text",{x:cx-2,y:cy<100?15:213,"text-anchor":"end",
+     "font-size":10,fill:"#e3ae80"});
+    note.textContent="音高超出视野";traces.appendChild(note);
+   }
+   return;
   }
-  const x0=54,x1=352,y0=16,y1=197;
-  const y=n=>y1-(n-min)/(max-min)*(y1-y0);
-  for(let n=Math.ceil(min);n<=Math.floor(max);n++){
-   const solid=staff.includes(n),outside=n<low||n>high;
-   if(!solid&&!(outside&&NATURAL.includes(pc(n))))continue;
-   const yy=y(n);
-   grid.appendChild(el("line",{x1:x0,x2:x1,y1:yy,y2:yy,
-    stroke:solid?"#719b85":"#3a604d","stroke-width":solid?1.25:0.75,
-    "stroke-dasharray":solid?"":"3 5"}));
-   if(solid||pc(n)===0){
-    const label=el("text",{x:5,y:yy+3,fill:solid?"#b9d9c6":"#88a995","font-size":10});
-    label.textContent=noteName(n,info);grid.appendChild(label);
+  // Standard staff spacing: each line represents two DIATONIC steps,
+  // so 2/3/4-semitone intervals never change visual staff-line spacing.
+  const clef=chosenStaff(),staff=STAFF[clef];
+  const base=noteDiatonicStep(staff[0],info);
+  const lineBottom=177,stepPx=13,xStaff=46;
+  const y=step=>lineBottom-(step-base)*stepPx;
+  for(let index=0;index<5;index++){
+   const yy=lineBottom-index*2*stepPx;
+   grid.appendChild(el("line",{x1:xStaff,x2:x1,y1:yy,y2:yy,
+    stroke:"#8daf9e","stroke-width":1.25}));
+  }
+  const clefLabel=el("text",{x:7,y:31,"font-size":12,
+   fill:"#bbdec8","font-weight":700});
+  clefLabel.textContent=clef==="bass"?"低音谱":"高音谱";grid.appendChild(clefLabel);
+  const keyLabel=el("text",{x:348,y:30,"text-anchor":"end",
+   "font-size":11,fill:"#b2d8c2"});
+  keyLabel.textContent=$("voicePitchKey").value+" 调 · 等距谱线";grid.appendChild(keyLabel);
+  safeText("voicePitchAxisCaption","五线谱 · 稳定音符示意（未推断节拍和时值）");
+
+  function notehead(midi,x,ghost=false){
+   const step=noteDiatonicStep(midi,info);
+   if(step===null)return;
+   const yy=y(step),drawY=yClamp(yy,35,198);
+   const grade=pitchTargetDeviation(midi);
+   const color=ghost?"#b2cab7":grade.off?RED:PASTELS[pc(Math.round(midi))%PASTELS.length];
+   for(let ledger=base-2;ledger>=step;ledger-=2){
+    if(y(ledger)>202)break;
+    traces.appendChild(el("line",{x1:x-12,x2:x+13,y1:y(ledger),y2:y(ledger),
+     stroke:"#8daf9e","stroke-width":1.2}));
+   }
+   for(let ledger=base+10;ledger<=step;ledger+=2){
+    if(y(ledger)<30)break;
+    traces.appendChild(el("line",{x1:x-12,x2:x+13,y1:y(ledger),y2:y(ledger),
+     stroke:"#8daf9e","stroke-width":1.2}));
+   }
+   traces.appendChild(el("ellipse",{cx:x,cy:drawY,rx:8,ry:5.5,
+    transform:"rotate(-20 "+x+" "+drawY+")",
+    fill:ghost?"none":color,stroke:color,"stroke-width":ghost?1.8:1}));
+   if(!ghost)traces.appendChild(el("line",{x1:x+7,x2:x+7,y1:drawY,
+     y2:Math.max(23,drawY-28),stroke:color,"stroke-width":1.4}));
+   const spelling=noteName(Math.round(midi),info);
+   if(/[♯♭]/.test(spelling)){
+    const acc=el("text",{x:x-21,y:drawY+4,fill:color,"font-size":13});
+    acc.textContent=spelling.includes("♯")?"♯":"♭";traces.appendChild(acc);
+   }
+   const caption=el("text",{x,y:213,"text-anchor":"middle",
+    fill:color,"font-size":9,"font-weight":700});
+   caption.textContent=spelling;traces.appendChild(caption);
+  }
+  const target=currentTarget();
+  if(target!==null)notehead(target,63,true);
+  const groups=[];
+  let current=null;
+  for(const p of pitchPoints){
+   const n=Math.round(p.midi);
+   if(current&&current.nearest===n){
+    current.frames++;current.sum+=p.midi;
+   }else{
+    if(current&&current.frames>=2)groups.push(current);
+    current={nearest:n,frames:1,sum:p.midi};
    }
   }
-  if(!pitchPoints.length){
-   const empty=el("text",{x:202,y:105,"text-anchor":"middle",
-    fill:"#8ab3a0","font-size":12});
-   empty.textContent="开始哼唱后显示逐音轨迹";
-   traces.appendChild(empty);return;
+  if(current&&(current.frames>=2||groups.length===0))groups.push(current);
+  const last=groups.slice(-9),start=target===null?74:99;
+  if(!last.length){
+   const hint=el("text",{x:195,y:119,"text-anchor":"middle",
+    fill:"#8ab3a0","font-size":11});
+   hint.textContent="稳定发声后，按音名字母显示音符";
+   traces.appendChild(hint);return;
   }
-  const dx=(x1-x0)/Math.max(1,pitchPoints.length-1);
-  const grades=pitchPoints.map(p=>gradePitch(p.midi,info,toleranceCents()));
-  let from=0;
-  function segment(to){
-   if(to<=from)return;
-   const points=pitchPoints.slice(from,to),note=points[0].nearest;
-   const color=grades[from].off?RED:PASTELS[pc(note)%PASTELS.length];
-   const d=points.map((p,i)=>(i?"L":"M")+(x0+(from+i)*dx).toFixed(1)+" "+y(p.midi).toFixed(1)).join(" ");
-   if(points.length===1)traces.appendChild(el("circle",{
-    cx:x0+from*dx,cy:y(points[0].midi),r:2.7,fill:color}));
-   else traces.appendChild(el("path",{d,fill:"none",stroke:color,
-    "stroke-width":2.4,"stroke-linejoin":"round","stroke-linecap":"round"}));
-   if(points.length>=3){
-    const label=el("text",{x:x0+from*dx+2,y:Math.max(13,y(note)-7),fill:color,
-     "font-size":11,"font-weight":700});
-    label.textContent=noteName(note,info);traces.appendChild(label);
-   }
-  }
-  for(let i=1;i<pitchPoints.length;i++){
-   if(pitchPoints[i].nearest!==pitchPoints[i-1].nearest||
-      grades[i].off!==grades[i-1].off){segment(i);from=i;}
-  }
-  segment(pitchPoints.length);
-  const last=pitchPoints[pitchPoints.length-1],grade=grades[grades.length-1];
-  traces.appendChild(el("circle",{cx:x0+(pitchPoints.length-1)*dx,
-   cy:y(last.midi),r:3.1,fill:grade.off?RED:"#f5fff9",
-   stroke:"#122820","stroke-width":1}));
+  const stride=(x1-start)/Math.max(last.length,1);
+  last.forEach((group,i)=>{
+   const x=start+(i+.5)*stride;
+   notehead(group.nearest,x);
+  });
  }
  function pitchSample(evt){
   const hz=Number(evt.pitch_hz),midi=Number(evt.midi);
   if(!(hz>0)||!Number.isFinite(midi)||!pitchOn)return; // HOLD on silence.
+  if(!pitchAxis)pitchAxis=defaultPitchAxis(midi);
   pitchPoints.push({midi,nearest:Math.round(midi)});
   if(pitchPoints.length>maxPoints)pitchPoints.splice(0,pitchPoints.length-maxPoints);
   safeText("voicePitchHz",hz.toFixed(1)+" Hz");
   updatePitchFeedback();redrawPitch();
  }
  function resetPitch(){
-  pitchPoints.length=0;latestNote="";
+  pitchPoints.length=0;latestNote="";pitchAxis=null;
   safeText("voicePitchHz","—");updatePitchFeedback();redrawPitch();
  }
  function setPitchRunning(on){
@@ -517,6 +650,7 @@
   safeText("voicePhonemeLimit",evt.warning||
    "声学候选不能直接代表完整音素转录或发音准确率。");
   displayPhoneExamples();
+  showIpaAttempt(evt);
  }
  function stopAll(){
   if(pitchOn||holding||analyzing)bridge()?.voiceLabStop?.();
@@ -552,7 +686,18 @@
  $("voicePitchStart").addEventListener("click",startPitch);
  $("voicePitchStop").addEventListener("click",()=>bridge()?.voiceLabStop?.());
  $("voicePitchClear").addEventListener("click",resetPitch);
- $("voicePitchKey").addEventListener("change",()=>{updatePitchFeedback();redrawPitch();});
+ $("voicePitchKey").addEventListener("change",()=>{
+  populateTargets();updatePitchFeedback();redrawPitch();
+ });
+ $("voicePitchModeCurve").addEventListener("click",()=>setPitchView("curve"));
+ $("voicePitchModeStaff").addEventListener("click",()=>setPitchView("staff"));
+ $("voicePitchTarget").addEventListener("change",()=>{updatePitchFeedback();redrawPitch();});
+ $("voicePitchAxisLower").addEventListener("click",()=>{
+  const axis=axisForPitch();axis.min-=6;axis.max-=6;redrawPitch();
+ });
+ $("voicePitchAxisUpper").addEventListener("click",()=>{
+  const axis=axisForPitch();axis.min+=6;axis.max+=6;redrawPitch();
+ });
  $("voicePitchClef").addEventListener("change",redrawPitch);
  for(const type of ["input","change"])$("voicePitchTolerance").addEventListener(type,
   ()=>{updatePitchFeedback();redrawPitch();});
@@ -571,6 +716,8 @@
   hold.textContent="● 录音中 · 松开分析";
   setPhonemeState("录音中","正在采集完整发音，松开后开始分析。最长 5 秒。");
   if(event?.pointerId!==undefined)try{hold.setPointerCapture(event.pointerId);}catch(_){}
+  recordedIpaTarget=$("voicePhoneDisplay").value==="en"?
+   ipaBySymbol(ipaSelected):null;
   bridge().voiceLabStart("phoneme");
  }
  function up(event){
@@ -608,6 +755,9 @@
   if(typeof oldReceiver==="function")oldReceiver(evt);
   if(!evt)return;
   if(evt.type==="voice_models"){renderModels(evt);return;}
+  if(evt.type==="voice_tts"){
+   safeText("voiceIpaVoiceStatus",evt.message||"系统示例音状态未知");return;
+  }
   if(evt.type!=="voice_lab")return;
   if(evt.state==="pitch_sample"){pitchSample(evt);return;}
   if(evt.state==="phoneme_result"){showPhonemes(evt);return;}
@@ -653,11 +803,13 @@
    tab.addEventListener("click",stopAll);
  });
  window.addEventListener("pagehide",stopAll);
- updatePitchFeedback();
- redrawPitch();
+ populateTargets();
+ setPitchView("curve");
  window.BodyTraceVoiceLab={
   // Read-only regression/debug status, no raw microphone audio.
   state:()=>({pitchPoints:pitchPoints.length,latestNote,holding,analyzing,currentPanel,
-   key:$("voicePitchKey").value,tolerance:toleranceCents(),clef:chosenStaff()})
+   key:$("voicePitchKey").value,tolerance:toleranceCents(),clef:chosenStaff(),
+   chartMode:pitchViewMode,practiceIpa:ipaSelected,
+   target:currentTarget(),axis:pitchAxis})
  };
 })();
