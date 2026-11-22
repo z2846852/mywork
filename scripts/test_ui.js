@@ -1853,5 +1853,46 @@ pitchSettings.key="C";pitchSettings.tolerance="100";
 assert.equal(music.gradePitch(70).off,false);
 pitchSettings.tolerance="50";
 assert.equal(music.gradePitch(70).off,true);
-assert.ok(voiceLabJS.includes('"stroke-dasharray":solid?"":"3 5"'));
-console.log("Voice staff/key signature and pitch tolerance regression passed.");
+assert.ok(voiceLabJS.includes('let pitchViewMode="curve"')&&
+ voiceLabJS.includes('function setPitchView(mode)')&&
+ voiceLabJS.includes('function defaultPitchAxis(midi)')&&
+ voiceLabJS.includes('lineBottom-index*2*stepPx')&&
+ voiceLabJS.includes('if(current&&current.frames>=2)groups.push(current)')&&
+ voiceLabJS.includes('const target=currentTarget();'),
+ "Frequency and score views must have independent scales and stable-note grouping");
+for(const id of ["voicePitchModeCurve","voicePitchModeStaff","voicePitchTarget",
+ "voicePitchConfig","voicePitchAxisActions","voicePitchAxisLower","voicePitchAxisUpper",
+ "voicePitchCentsLabel","voiceIpaPractice","voiceIpaGroups","voiceIpaGrid",
+ "voiceIpaSymbol","voiceIpaName","voiceIpaTip","voiceIpaSpeak",
+ "voiceIpaCompare","voiceIpaSpeakContrast","voiceIpaAttempt"]){
+ assert.ok(html.includes('id="'+id+'"'),"Missing pitch/IPA UI "+id);
+}
+const catalogStart=voiceLabJS.indexOf(" const IPA_DATA=[");
+const catalogEnd=voiceLabJS.indexOf(" const IPA_LABELS=",catalogStart);
+assert.ok(catalogStart>=0&&catalogEnd>catalogStart);
+const sounds=vm.runInNewContext("(()=>{"+voiceLabJS.slice(catalogStart,catalogEnd)+
+ "return IPA_DATA.map(x=>({ipa:x[0],group:x[1],word:x[4],phones:x[5],other:x[7]}));})()");
+assert.equal(sounds.length,44,"Complete British-English learner sound inventory");
+assert.equal(sounds.filter(x=>x.group==="vowel").length,12);
+assert.equal(sounds.filter(x=>x.group==="diphthong").length,8);
+assert.equal(sounds.filter(x=>x.group==="consonant").length,24);
+assert.equal(new Set(sounds.map(x=>x.ipa)).size,44);
+for(const sound of sounds){
+ assert.ok(sound.word&&sound.phones&&sound.other,"Every sound must have a word and contrast");
+ assert.ok(sounds.some(x=>x.ipa===sound.other),"Contrast must target an existing phoneme");
+}
+assert.ok(sounds.some(x=>x.ipa==="θ"&&x.other==="s")&&
+ sounds.some(x=>x.ipa==="ɪ"&&x.other==="iː")&&
+ sounds.some(x=>x.ipa==="e"&&x.other==="ɪ"));
+assert.ok(voiceLabJS.includes('function ipaFocusedComparison(')&&
+ voiceLabJS.includes('function showIpaAttempt(evt)')&&
+ voiceLabJS.includes('recordedIpaTarget=')&&
+ voiceLabJS.includes('const diff=ipaFocusedComparison(target,heard);')&&
+ voiceLabJS.includes('evt.engine_kind!=="neural_ctc"')&&
+ voiceLabJS.includes('voiceLabSpeakExample(row[4])'));
+assert.ok(native.includes('voiceLabSpeakExample(String word)')&&
+ native.includes('android.speech.tts.TextToSpeech')&&
+ native.includes('ipaExampleTts.shutdown()'));
+assert.ok(manifest.includes('android.intent.action.TTS_SERVICE'));
+
+console.log("Independent frequency/staff and 44-IPA practice regression passed.");
