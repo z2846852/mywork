@@ -44,7 +44,8 @@ class PhonemeNeuralEngine {
                 // Do not normalize towards a presumed word/pronunciation.
                 return recognizer.getResult(stream).tokens.asSequence()
                     .map{it.trim()}
-                    .filter{it.isNotEmpty()&&it!="▁"&&it!="<blk>"&&it!="<eps>"}
+                    .filter{it.isNotEmpty()&&it!="▁"&&
+                        !it.startsWith("<")&&!it.startsWith("[")&&it!="|"&&it!="-"}
                     .take(96).toList().toTypedArray()
             }finally{stream.release()}
         }finally{recognizer.release()}

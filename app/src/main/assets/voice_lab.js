@@ -169,9 +169,10 @@
  ];
  const IPA_LABELS={vowel:"单元音",diphthong:"双元音",consonant:"辅音"};
  let ipaSelected="ɪ",ipaGroup="vowel",recordedIpaTarget=null;
+ let practiceTarget=null,currentDrillPhone=null;
  const ipaBySymbol=symbol=>IPA_DATA.find(x=>x[0]===symbol);
  const wordsIPA=entry=>"/"+entry[5].split(" ").join("")+"/";
- function selectIpa(symbol){
+ function selectIpa(symbol,choose=false){
   const item=ipaBySymbol(symbol);if(!item)return;
   ipaSelected=symbol;ipaGroup=item[1];
   for(const button of document.querySelectorAll("#voiceIpaGroups button")){
@@ -184,7 +185,7 @@
    const b=document.createElement("button");b.type="button";
    b.textContent=row[0];b.className=row[0]===ipaSelected?"active":"";
    b.setAttribute("aria-label","练习音标 "+row[0]);
-   b.addEventListener("click",()=>selectIpa(row[0]));root.append(b);
+   b.addEventListener("click",()=>selectIpa(row[0],true));root.append(b);
   }
   safeText("voiceIpaSymbol","/"+item[0]+"/");
   safeText("voiceIpaName",IPA_LABELS[item[1]]+" · "+item[2]);
@@ -192,6 +193,7 @@
   safeText("voiceIpaWord",item[4]);
   safeText("voiceIpaWordIpa",wordsIPA(item));
   safeText("voiceIpaMeaning",item[6]);
+  if(choose)openPhoneDrill(symbol);
   const other=ipaBySymbol(item[7]);
   safeText("voiceIpaContrast",other?
    "易混音 /"+other[0]+"/（示例词 "+other[4]+"），点击切换对比；每次录音目标按按下时的音标锁定。":
@@ -200,12 +202,12 @@
  for(const btn of document.querySelectorAll("#voiceIpaGroups button")){
   btn.addEventListener("click",()=>{
    const first=IPA_DATA.find(x=>x[1]===btn.dataset.ipaGroup);
-   if(first)selectIpa(first[0]);
+   if(first)selectIpa(first[0],true);
   });
  }
  $("voiceIpaCompare").addEventListener("click",()=>{
   const row=ipaBySymbol(ipaSelected),other=row&&ipaBySymbol(row[7]);
-  if(other)selectIpa(other[0]);
+  if(other)selectIpa(other[0],true);
  });
  function playIpaWord(row){
   if(!row)return;
@@ -237,7 +239,7 @@
   return out;
  }
  function ipaFocusedComparison(entry,heardRaw){
-  const expected=normalizePhones(entry[5].split(" "));
+  const expected=normalizePhones(entry.phonemes||entry[5].split(" "));
   const heard=normalizePhones(heardRaw);
   const n=expected.length,m=heard.length;
   const dp=Array.from({length:n+1},()=>Array(m+1).fill(0));
@@ -257,39 +259,152 @@
    }else if(j>0)j--;
    else break;
   }
-  const focus=expected.indexOf(canonicalPhone(entry[0]));
+  const focus=expected.indexOf(canonicalPhone(entry.symbol||entry[0]));
   return {expected,heard,matched:focus>=0&&alignment[focus]===expected[focus],
    possible:focus>=0?alignment[focus]:null,editDistance:dp[n][m]};
  }
  function showIpaAttempt(evt){
-  const target=recordedIpaTarget;
-  const out=$("voiceIpaAttempt");out.classList.remove("off");
-  if(!target){out.textContent="这次没有指定练习目标，保留上方原始 ZIPA 识别结果。";return;}
+  const target=recordedIpaTarget,out=$("voiceIpaAttempt");
+  out.classList.remove("off");
+  if(!target){out.textContent="自由识别：点击音素，选择一个例词，再按住说话复测。";return;}
   if(evt.engine_kind!=="neural_ctc"){
-   out.textContent="目标 /"+target[0]+"/ · "+target[4]+
-    "：本次未得到 ZIPA 神经模型识别，无法比较音素。";return;
+   out.textContent="目标 "+target.word+"：没有获得神经音素识别结果，无法进行比较。";return;
   }
-  if(evt.language!=="en"){
-   out.textContent="这次使用了非英语语言模式；请切回英语后重新朗读 "+target[4]+"。";return;
-  }
-  const heard=(Array.isArray(evt.candidates)?evt.candidates:[]).map(x=>x.ipa||"");
-  if(!heard.length){
-   out.textContent="目标 "+target[4]+" "+wordsIPA(target)+
-    "：模型未识别到稳定音素。可能是音太短或模型局限，请延长发音。";return;
-  }
+  if(evt.language!=="en"){out.textContent="请切换英语模式，重新朗读 "+target.word;return;}
+  const heard=(Array.isArray(evt.candidates)?evt.candidates:[])
+   .map(x=>String(x.ipa||"")).filter(x=>classifyPhone(x)!=="marker");
+  if(!heard.length){out.textContent="没有稳定的音素输出；试着完整朗读 "+target.word;return;}
   const diff=ipaFocusedComparison(target,heard);
-  const actual=diff.possible?"/"+diff.possible+"/":"未识别到对应位置";
-  const intro="练习 "+target[4]+" "+wordsIPA(target)+
-   " · 关注 /"+target[0]+"/。ZIPA 输出：/"+heard.join("")+"/。";
-  if(diff.matched){
-   out.textContent=intro+"模型在预期位置识别到目标音素；仍需多次听辨与复测，不能仅凭一次认为发音准确。";
-  }else{
+  const intro="练习 "+target.word+" /"+target.phonemes.join("")+
+   "/，目标音素 /"+target.symbol+"/。ZIPA 输出 /"+heard.join("")+"/。";
+  if(diff.matched)out.textContent=intro+
+   "模型在对应位置输出目标音素；仍不能证明发音正确，可再次复测。";
+  else{
    out.classList.add("off");
-   out.textContent=intro+"对齐后目标位置候选："+actual+
-    "。可反复听例词并练习 /"+target[0]+"/ ↔ /"+target[7]+
-    "/；这是模型候选，不足以断言你真的发错了。";
+   out.textContent=intro+"对应位置的模型候选为 "+
+    (diff.possible?"/"+diff.possible+"/":"未检测到音素")+
+    "。请听词语对比后再试；模型候选不等于错误判定。";
   }
  }
+
+ // ZIPA is multilingual. /ɕ/ is genuine IPA, but not standard English.
+ const aliasToEnglish={"i":"iː","ɛ":"e","ɹ":"r","ɚ":"ə","ɝ":"ɜː",
+  "g":"ɡ","ɑ":"ɑː","ɔ":"ɔː","oʊ":"əʊ","ɐ":"ə"};
+ const extraIpa=new Set(["ɕ","ʑ","ʂ","ʐ","ɾ","ʔ","ɽ","ɻ","ɨ",
+  "ɲ","ɣ","ç","x","ɬ","ʋ","ʍ","ʉ","ɯ","ʈ","ɖ","ɳ","ɜ"]);
+ const minimalPairs={
+  "ɪ":[["sit","s ɪ t","seat","s iː t"],["ship","ʃ ɪ p","sheep","ʃ iː p"],["bit","b ɪ t","beat","b iː t"]],
+  "iː":[["sit","s ɪ t","seat","s iː t"],["ship","ʃ ɪ p","sheep","ʃ iː p"],["bit","b ɪ t","beat","b iː t"]],
+  "θ":[["thin","θ ɪ n","sin","s ɪ n"],["think","θ ɪ ŋ k","sink","s ɪ ŋ k"],["thick","θ ɪ k","sick","s ɪ k"]],
+  "s":[["thin","θ ɪ n","sin","s ɪ n"],["think","θ ɪ ŋ k","sink","s ɪ ŋ k"],["thick","θ ɪ k","sick","s ɪ k"]],
+  "e":[["pen","p e n","pin","p ɪ n"],["bed","b e d","bid","b ɪ d"],["ten","t e n","tin","t ɪ n"]],
+  "æ":[["bad","b æ d","bed","b e d"],["pan","p æ n","pen","p e n"],["sat","s æ t","set","s e t"]],
+  "ʊ":[["full","f ʊ l","fool","f uː l"],["pull","p ʊ l","pool","p uː l"]],
+  "uː":[["full","f ʊ l","fool","f uː l"],["pull","p ʊ l","pool","p uː l"]],
+  "ʃ":[["sip","s ɪ p","ship","ʃ ɪ p"],["see","s iː","she","ʃ iː"]],
+  "l":[["right","r aɪ t","light","l aɪ t"],["road","r əʊ d","load","l əʊ d"]],
+  "r":[["right","r aɪ t","light","l aɪ t"],["road","r əʊ d","load","l əʊ d"]]
+ };
+ function englishPhone(raw){
+  const s=String(raw||"").trim().replace(/^\\/+|\\/+$/g,"");
+  const p=aliasToEnglish[s]||s;
+  return ipaBySymbol(p)?p:null;
+ }
+ function classifyPhone(raw){
+  const s=String(raw||"").trim();
+  if(!s||s.startsWith("<")||s.startsWith("[")||s==="▁"||
+     s==="|"||s==="-"||s==="_")return "marker";
+  if(englishPhone(s))return "english";
+  if(extraIpa.has(s))return "outside-english";
+  return "marker";
+ }
+ function setPracticeTarget(target){
+  practiceTarget={symbol:target.symbol,word:target.word,phonemes:[...target.phonemes]};
+  safeText("voiceDrillTarget","下次跟读目标："+target.word+" /"+target.phonemes.join("")+
+   "/（关注 /"+target.symbol+"/）");
+  for(const btn of document.querySelectorAll("#voiceDrillPairs .voice-drill-choose"))
+   btn.classList.toggle("active",btn.dataset.word===target.word);
+  safeText("voiceIpaAttempt","已选择 "+target.word+"。按住下方录音键朗读，再松开进行比对。");
+  $("voiceIpaAttempt").classList.remove("off");
+ }
+ function speakDrill(word){
+  if(!bridge()?.voiceLabSpeakExample){
+   safeText("voiceIpaVoiceStatus","需要新版完整 APK 才能播放示例词。");return;
+  }
+  safeText("voiceIpaVoiceStatus","朗读英语例词："+word);
+  bridge().voiceLabSpeakExample(word);
+ }
+ function openPhoneDrill(raw){
+  const box=$("voicePhonemeDrill"),pairsBox=$("voiceDrillPairs");
+  box.hidden=false;pairsBox.replaceChildren();
+  const kind=classifyPhone(raw),phone=englishPhone(raw);
+  currentDrillPhone=phone;
+  if(!phone){
+   practiceTarget=null;
+   safeText("voiceDrillTitle","/"+raw+"/ · "+(kind==="outside-english"?
+    "合法国际音标，非英语常用音素":"未归类模型标记"));
+   safeText("voiceDrillDescription","ZIPA 支持多语言，不应把这个结果强行映射成英语 /s/ 或 /ʃ/。可点击词典候选或在折叠参考表中手动选择英语音素。");
+   safeText("voiceDrillTarget","暂无可直接比较的英语练习词。");return;
+  }
+  const row=ipaBySymbol(phone);
+  const pairs=minimalPairs[phone]||
+   [[row[4],row[5],ipaBySymbol(row[7])[4],ipaBySymbol(row[7])[5]]];
+  safeText("voiceDrillTitle","/"+raw+"/ → "+row[2]+
+   (raw===phone?"":"（英语教学常用写法 /"+phone+"/）"));
+  safeText("voiceDrillDescription",row[3]+" 每个词都可单独试听或选为复读目标。");
+  for(const pair of pairs){
+   const line=document.createElement("div");line.className="voice-drill-pair";
+   for(const idx of [0,2]){
+    const word=pair[idx],phones=pair[idx+1].split(" ");
+    const cell=document.createElement("div");cell.className="voice-drill-cell";
+    const choose=document.createElement("button");choose.type="button";
+    choose.className="voice-drill-choose";choose.dataset.word=word;
+    choose.textContent=word+" /"+phones.join("")+"/";
+    choose.addEventListener("click",()=>{
+     const isFocus=phones.some(x=>canonicalPhone(x)===canonicalPhone(phone));
+     setPracticeTarget({symbol:isFocus?phone:row[7],word,phonemes:phones});
+    });
+    const listen=document.createElement("button");listen.type="button";
+    listen.className="voice-drill-listen";listen.textContent="▶";
+    listen.setAttribute("aria-label","播放 "+word);
+    listen.addEventListener("click",()=>speakDrill(word));
+    cell.append(choose,listen);line.appendChild(cell);
+   }
+   pairsBox.appendChild(line);
+  }
+  const p=pairs[0],idx=p[1].split(" ").some(x=>canonicalPhone(x)===
+   canonicalPhone(phone))?0:2;
+  setPracticeTarget({symbol:phone,word:p[idx],phonemes:p[idx+1].split(" ")});
+ }
+ function parseDictionaryIpa(value){
+  const ipa=String(value||"").split("、")[0].replace(/[\\/ˈˌ.ː\\s]/g,"");
+  const multi=["aɪ","aʊ","eɪ","oʊ","ɔɪ","əʊ","ɪə","eə","ʊə","tʃ","dʒ"];
+  const result=[];
+  for(let i=0;i<ipa.length;){
+   const found=multi.find(p=>ipa.startsWith(p,i));
+   if(found){result.push(found);i+=found.length;}
+   else{const v=String.fromCodePoint(ipa.codePointAt(i));result.push(v);i+=v.length;}
+  }
+  return result;
+ }
+ function chooseDictionaryWord(match){
+  const phones=parseDictionaryIpa(match.ipa);
+  const focus=currentDrillPhone&&phones.some(p=>canonicalPhone(p)===
+   canonicalPhone(currentDrillPhone))?currentDrillPhone:
+   phones.map(englishPhone).find(Boolean);
+  if(!focus){safeText("voicePhonemeLimit","该词没有可匹配的英语音素。");return;}
+  openPhoneDrill(focus);
+  setPracticeTarget({symbol:focus,word:match.word,phonemes:phones});
+  safeText("voiceDrillDescription","已主动选择词典候选 "+match.word+
+   "，不代表系统已确认你刚才说的是该词。可以复读或改选下方对比词。");
+ }
+ $("voiceDrillClear").addEventListener("click",()=>{
+  practiceTarget=null;currentDrillPhone=null;
+  $("voicePhonemeDrill").hidden=true;
+  safeText("voiceIpaAttempt","自由识别：先说单词，再点击音素展开纠音。");
+  $("voiceIpaAttempt").classList.remove("off");
+ });
+
  selectIpa("ɪ");
 
  const KEY_SIGNATURES={C:[0,0],G:[7,1],D:[2,2],A:[9,3],E:[4,4],B:[11,5],
@@ -595,17 +710,29 @@
   const target=$("voicePhonemeSequence");
   target.replaceChildren();
   const candidates=Array.isArray(evt.candidates)?evt.candidates:[];
-  if(!candidates.length){
-   const empty=document.createElement("span");empty.className="voice-empty";
-   empty.textContent="没有稳定的可归类音素（不是未发音）";
-   target.appendChild(empty);
-  }
+  let invalid=0,displayed=0;
   for(const candidate of candidates){
-   const chip=document.createElement("span");
-   chip.className="voice-phoneme-chip";
-   chip.textContent=String(candidate.ipa||"未分类");
-   target.appendChild(chip);
+   const raw=String(candidate.ipa||"").trim(),kind=
+    evt.engine_kind==="neural_ctc"?classifyPhone(raw):"marker";
+   if(kind==="marker"){invalid++;continue;}
+   const chip=document.createElement("button");chip.type="button";
+   chip.className="voice-phoneme-chip"+
+    (kind==="outside-english"?" outside-english":"");
+   chip.textContent=raw;
+   chip.setAttribute("aria-label","点击展开 /"+raw+"/"+
+    (kind==="outside-english"?"（非英语常用音素）":" 纠音"));
+   chip.addEventListener("click",()=>openPhoneDrill(raw));
+   target.appendChild(chip);displayed++;
   }
+  if(!displayed){
+   const blank=document.createElement("span");blank.className="voice-empty";
+   blank.textContent="没有可展开的英语或国际 IPA 音素；原始输出见下方诊断。";
+   target.appendChild(blank);
+  }
+  safeText("voicePhonemeRaw",candidates.map(x=>String(x.ipa||"")).join(" · ")||"无输出");
+  safeText("voicePhonemeRawNote",invalid?
+   "已隐藏 "+invalid+" 个特殊标记或不能确定为 IPA 的 token。":
+   "灰色音素是合法国际 IPA，但不属于常规英语音素。");
   const matches=Array.isArray(evt.word_matches)?evt.word_matches:[];
   const results=$("voiceWordMatches");
   results.replaceChildren();
@@ -629,7 +756,10 @@
     title.append(word,ipa,grade);
     const translation=document.createElement("p");
     translation.textContent=String(match.zh||"无中文释义");
-    card.append(title,translation);
+    const choose=document.createElement("button");choose.type="button";
+    choose.className="voice-word-choose";choose.textContent="以此候选词练习";
+    choose.addEventListener("click",()=>chooseDictionaryWord(match));
+    card.append(title,translation,choose);
     results.appendChild(card);
    }
   }else{
@@ -717,8 +847,8 @@
   hold.textContent="● 录音中 · 松开分析";
   setPhonemeState("录音中","正在采集完整发音，松开后开始分析。最长 5 秒。");
   if(event?.pointerId!==undefined)try{hold.setPointerCapture(event.pointerId);}catch(_){}
-  recordedIpaTarget=$("voicePhoneDisplay").value==="en"?
-   ipaBySymbol(ipaSelected):null;
+  recordedIpaTarget=$("voicePhoneDisplay").value==="en"&&practiceTarget?
+   {...practiceTarget,phonemes:[...practiceTarget.phonemes]}:null;
   bridge().voiceLabStart("phoneme");
  }
  function up(event){

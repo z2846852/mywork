@@ -593,9 +593,44 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
           </select>
         </div>
       </div>
+      <button type="button" id="voicePhonemeHold" class="voice-hold-button">按住说话</button>
+      <p id="voicePhonemeStatus" class="sub" role="status">支持约 0.3–5 秒的短音频；不保存录音文件。</p>
+      <div id="voicePhonemeReport" class="voice-phoneme-report">
+        <div class="voice-phoneme-heading">本次候选音素 <span id="voicePhonemeDuration">—</span> <span id="voicePhonemeUsedEngine">—</span></div>
+        <div id="voicePhonemeSequence" class="voice-phoneme-sequence"><span class="voice-empty">尚无分析结果</span></div>
+        <section id="voicePhonemeDrill" class="voice-phoneme-drill" hidden>
+          <div class="voice-drill-head"><strong id="voiceDrillTitle">音素纠音</strong>
+            <button id="voiceDrillClear" type="button" class="secondary mini">退出专项</button></div>
+          <p id="voiceDrillDescription" class="sub"></p>
+          <div id="voiceDrillPairs" class="voice-drill-pairs"></div>
+          <p id="voiceDrillTarget" class="voice-drill-target" role="status"></p>
+        </section>
+        <details class="voice-phoneme-raw"><summary>! 原始音素（诊断）</summary>
+          <p id="voicePhonemeRaw"></p><p id="voicePhonemeRawNote" class="sub"></p>
+        </details>
+        <div id="voiceIpaAttempt" class="voice-ipa-attempt" role="status">自由识别：先说一个词，再点击音素展开对比和复读。</div>
+        <div class="voice-phoneme-dictionary">
+          <div id="voicePhonemeEnglishBox">
+            <div class="voice-dictionary-title">
+              <span>整段音素的词典候选（可选为练习词）</span>
+              <strong id="voicePhonemeEnglish">尚未查询</strong>
+            </div>
+            <div id="voiceWordMatches" class="voice-word-matches" aria-live="polite">
+              <p class="voice-empty">读一个英语单词后，显示最相近的单词、IPA 和中文释义。</p>
+            </div>
+            <p id="voiceDictionaryNotice" class="sub">音素距离只是词典相似度，不是识别置信度或口音分数。</p>
+          </div>
+          <div id="voicePhonemePinyinBox" hidden>
+            <span class="voice-mandarin-title">普通话：原始 IPA 音段</span>
+            <strong id="voicePhonemePinyin">不依据孤立音素臆测汉字、拼音或声调。</strong>
+          </div>
+        </div>
+        <p id="voicePhonemeLimit" class="sub">当前为 F1/F2 和擦音的初级声学探针，不能可靠识别整句或判断普通话声调。尤其无法完整识别 think 的 /θɪŋk/。</p>
+      </div>
+      <details class="voice-ipa-library"><summary>完整 44 音标参考表（可选）</summary>
       <section class="voice-ipa-practice" id="voiceIpaPractice" aria-label="英语音标专项训练">
         <div class="voice-ipa-header">
-          <div><strong>IPA 音标专项训练</strong><p class="sub">44 个传统英式英语参考音标 · 点选后练习例词</p></div>
+          <div><strong>音标参考（可选）</strong><p class="sub">需要时手动选音标；主要训练入口在识别结果中</p></div>
         </div>
         <div id="voiceIpaGroups" class="voice-ipa-groups" role="group" aria-label="音标分类">
           <button type="button" class="active" data-ipa-group="vowel">单元音</button>
@@ -619,30 +654,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
         </div>
         <p class="sub voice-ipa-disclaimer">示范音由 Android 英式英语 TTS 朗读整个例词，而非合成单个 IPA 音。ZIPA 会误识别短音；专项反馈只是候选音素比对，不是专业发音打分。不同口音的 IPA 写法会有差异。</p>
       </section>
-      <button type="button" id="voicePhonemeHold" class="voice-hold-button">按住说话</button>
-      <p id="voicePhonemeStatus" class="sub" role="status">支持约 0.3–5 秒的短音频；不保存录音文件。</p>
-      <div id="voicePhonemeReport" class="voice-phoneme-report">
-        <div class="voice-phoneme-heading">本次候选音素 <span id="voicePhonemeDuration">—</span> <span id="voicePhonemeUsedEngine">—</span></div>
-        <div id="voicePhonemeSequence" class="voice-phoneme-sequence"><span class="voice-empty">尚无分析结果</span></div>
-        <div id="voiceIpaAttempt" class="voice-ipa-attempt" role="status">请选择上方音标与例词练习，按住说话后在这里查看模型候选。</div>
-        <div class="voice-phoneme-dictionary">
-          <div id="voicePhonemeEnglishBox">
-            <div class="voice-dictionary-title">
-              <span>整段音素的英语词典匹配</span>
-              <strong id="voicePhonemeEnglish">尚未查询</strong>
-            </div>
-            <div id="voiceWordMatches" class="voice-word-matches" aria-live="polite">
-              <p class="voice-empty">读一个英语单词后，显示最相近的单词、IPA 和中文释义。</p>
-            </div>
-            <p id="voiceDictionaryNotice" class="sub">音素距离只是词典相似度，不是识别置信度或口音分数。</p>
-          </div>
-          <div id="voicePhonemePinyinBox" hidden>
-            <span class="voice-mandarin-title">普通话：原始 IPA 音段</span>
-            <strong id="voicePhonemePinyin">不依据孤立音素臆测汉字、拼音或声调。</strong>
-          </div>
-        </div>
-        <p id="voicePhonemeLimit" class="sub">当前为 F1/F2 和擦音的初级声学探针，不能可靠识别整句或判断普通话声调。尤其无法完整识别 think 的 /θɪŋk/。</p>
-      </div>
+      </details>
       <details class="voice-explain">
         <summary>! 模型能力与开源参考</summary>
         <p>安装 ZIPA 后，模型从真实 PCM 直接产生 IPA 音素。英语模式再利用独立的本地发音/英汉词典，对整个 IPA 序列反向检索单词；不先通过 ASR 猜单词。结果的百分比只表示音素序列匹配程度，不衡量你的口音好坏。</p>

@@ -1966,5 +1966,15 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
  get("voiceIpaSpeak").click();
  assert.equal(spoken.length,1,"Example playback must be user-initiated");
  assert.ok(/^[a-z]+$/.test(spoken[0]));
+ window.bodyTraceReceive({type:"voice_lab",state:"phoneme_result",
+  mode:"phoneme",engine_kind:"neural_ctc",language:"en",
+  candidates:[{ipa:"ɕ"},{ipa:"ɪ"},{ipa:"<unk>"},{ipa:"ŋ"}],word_matches:[]});
+ assert.equal(get("voicePhonemeSequence").children.length,3,
+  "CTC metadata must not render as English sound buttons");
+ assert.ok(get("voicePhonemeSequence").children[0].className.includes("outside-english"),
+  "Multilingual IPA must be distinguished from English phone inventory");
+ get("voicePhonemeSequence").children[1].click();
+ assert.equal(get("voicePhonemeDrill").hidden,false);
+ assert.ok(get("voiceDrillPairs").children.length>=2);
  console.log("Sound Lab SVG + TTS bridge smoke test passed");
 }
