@@ -942,8 +942,21 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
       }
     }
   });
-  if(await page.locator("#voicePitchTraces path").count()<3)
-   throw Error("Do-Re-Mi should form three separate pitched trace segments");
+  if(await page.locator("#voicePitchTraces path").count()!==1)
+   throw Error("Continuous Hz mode must draw a single, unbroken pitch curve");
+  await page.locator("#voicePitchModeStaff").click();
+  const staff=await page.evaluate(()=>[...document.querySelectorAll(
+   "#voicePitchGrid line")].map(x=>Number(x.getAttribute("y1"))));
+  if(staff.length!==5||staff.some((n,i)=>i&&Math.abs(n-staff[i-1]+26)>0.01))
+   throw Error("The staff must have five exactly equally spaced lines: "+staff);
+  if(await page.locator("#voicePitchTraces ellipse").count()<3)
+   throw Error("Do-Re-Mi should produce at least three stable score noteheads");
+  await page.locator("#voicePitchTarget").selectOption("60");
+  const hasRed=await page.locator('#voicePitchTraces ellipse[fill="#f17f86"]').count();
+  if(!hasRed)throw Error("Explicit C4 target should flag the recorded D4/E4 notes");
+  await page.locator("#voicePitchModeCurve").click();
+  if(await page.locator("#voicePitchTraces path").count()!==1)
+   throw Error("Switching back must preserve the continuous Hz trace");
   if((await page.locator("#voicePitchNote").innerText())!=="E4")
    throw Error("Last note must remain E4");
   const before=await page.evaluate(()=>window.BodyTraceVoiceLab.state());
@@ -967,6 +980,23 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(!await page.locator("#voicePhonemeView").isVisible()||
      await page.locator("#voicePitchView").isVisible())
    throw Error("Pitch and phoneme must be separate subpanels");
+  // IPA exercise is explicitly selectable before recording; sample playback
+  // uses the native TTS bridge and does not fabricate isolated phoneme audio.
+  await page.evaluate(()=>{
+    window.__labMock.spoken=[];
+    window.BodyTraceNative.voiceLabSpeakExample=word=>
+      window.__labMock.spoken.push(word);
+  });
+  await page.locator('#voiceIpaGroups button[data-ipa-group="consonant"]').click();
+  if(await page.locator("#voiceIpaGrid button").count()!==24)
+   throw Error("IPA consonant chart must expose all 24 sounds");
+  await page.locator('#voiceIpaGrid button[aria-label="练习音标 θ"]').click();
+  if((await page.locator("#voiceIpaSymbol").innerText())!=="/θ/"||
+     (await page.locator("#voiceIpaWord").innerText())!=="thin")
+   throw Error("Phoneme chart must offer a targeted /θ/ articulation drill");
+  await page.locator("#voiceIpaSpeak").click();
+  if((await page.evaluate(()=>window.__labMock.spoken[0]))!=="thin")
+   throw Error("A user tap must speak the selected IPA example word");
   const hold=page.locator("#voicePhonemeHold");
   await hold.dispatchEvent("pointerdown",{pointerId:7});
   if((await page.evaluate(()=>window.__labMock.started.at(-1)))!=="phoneme")
