@@ -92,9 +92,7 @@
   }
  }
  refreshButton.addEventListener("click",refresh);
- const settingsTab=document.querySelector('.tabs button[data-page="settings"]');
- // Every revisit gets fresh commits, including those uploaded since last opening.
- if(settingsTab)settingsTab.addEventListener("click",refresh);
+ // Git log requests are strictly user-initiated via the Refresh button.
  const previous=window.bodyTraceReceive;
  window.bodyTraceReceive=function(event){
   if(typeof previous==="function")previous(event);
@@ -108,9 +106,6 @@
   }else if(event.type==="disconnected"){
    inFlight=false;refreshButton.disabled=false;
    root.replaceChildren();status.textContent="已解除授权；请在本页底部连接 GitHub";
-  }else if(event.type==="status"&&event.connected&&
-   document.getElementById("page-settings").classList.contains("active")){
-   refresh();
   }
  };
 })();

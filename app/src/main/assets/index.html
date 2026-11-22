@@ -109,7 +109,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </section>
 
 <section class="page" id="page-record">
-<div class="panel record-panel"><h2>记录训练</h2><p class="sub record-hint">本机即时保存；连接 GitHub 后自动上传。 <span id="recordRegionBadge" class="record-region-badge">全部动作</span></p>
+<div class="panel record-panel"><h2>记录训练</h2><p class="sub record-hint">本机即时保存；仅在每日首次启动或手动同步时访问 GitHub。 <span id="recordRegionBadge" class="record-region-badge">全部动作</span></p>
 <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
 <div class="formgrid exercise-top-row">
  <div class="field"><label for="recordGroup">训练部位</label>
@@ -163,7 +163,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <button type="button" class="secondary mini" id="resetTrainingDefault">Reset · 旧版10组</button>
  </div>
  <div class="record-save-dock"><button class="primary" id="saveRecord">＋ 保存本组训练</button></div>
-<p class="note">保存不需要网络，数据首先按原样 JSON 保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
+<p class="note">保存不需要网络，数据首先按原样 JSON 保存；记录只入本地待同步队列；每日首次打开或点击同步时才统一上传及拉取。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
 <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
 </div></section>
 
@@ -667,7 +667,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <section class="page" id="page-settings">
 <div class="settings-sync-strip" aria-label="GitHub 快速同步">
  <button type="button" id="syncSettings" class="primary settings-sync-button">⇅ 立即同步 GitHub</button>
- <span class="sub">同步本机记录与私有仓库最新数据</span>
+ <span class="sub">每天首次打开自动同步一次；其他时候点此手动同步</span>
 </div>
 <div class="panel" id="apkUpdatePanel">
  <div class="row apk-update-heading">
@@ -713,11 +713,11 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
    <button type="button" class="primary mini" id="checkApkUpdate">检查并更新</button>
   </div>
  </div>
- <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">左边只检查版本；右边直接检查并更新，系统安装仍需确认。</p>
+ <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">左边只检查版本；发现新版后右边直接更新、不重复查询；未发现新版时右边检查并更新。</p>
 </div>
 <div class="panel" id="gitHistoryPanel">
  <div class="row wrap"><div><h2>Git log · 最近10次提交</h2>
- <p class="sub">私有 z2846852/- 仓库 main 分支，直接展示文件差异：绿色新增、红色删除，无需展开。</p></div>
+ <p class="sub">私有 z2846852/- 仓库 main 分支，只有点击「刷新」才查询 Git log；绿色新增、红色删除。</p></div>
  <button type="button" class="secondary mini" id="refreshGitLog">刷新</button></div>
  <p class="sub" id="gitLogStatus" role="status" style="margin-top:12px">需要连接 GitHub 才能读取。</p>
  <div id="gitLogList"></div>
@@ -741,11 +741,11 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <summary>Raw 原文收件箱（低频使用）</summary>
  <div id="page-raw" class="raw-in-logs">
 <div class="panel"><div class="eyebrow">RAW / INBOX</div><h2>Raw 原文收件箱</h2>
-<p class="sub">不分类、不推测、不自动生成训练或饮食 JSON。原文按 JSON 保存在 App 私有目录；已连接时立即尝试上传到私有 GitHub，交给未来的 ChatGPT 再解析。</p>
+<p class="sub">不分类、不推测、不自动生成训练或饮食 JSON。原文按 JSON 保存在 App 私有目录；原文先保留本地，仅每日首次打开或手动同步时上传到私有 GitHub，供 ChatGPT 后续解析。</p>
 <div class="field"><label for="rawText">原始想法、需求或训练口述</label>
 <textarea id="rawText" maxlength="10000" placeholder="例如：以后希望记录喝水量；把饮食分成早中晚三餐。也可以暂存尚不确定的训练器械描述……"></textarea></div>
 <div class="row" style="margin-top:8px"><p class="sub" id="rawCount">0 / 10000 字符</p><span class="tag">未解析</span></div>
-<button class="primary" id="saveRaw">保存 Raw · 原样上传</button>
+<button class="primary" id="saveRaw">保存 Raw · 本地排队</button>
 <p class="note">保存目录：<span class="code">data/raw_inbox/YYYY-MM-DD/&lt;UUID&gt;.json</span><br>
 原始内容保存在 <span class="code">text</span> 字段，状态为 <span class="code">unprocessed</span>。不会触发 Actions 或自动运行任何指令。</p>
 </div>
@@ -915,13 +915,13 @@ function plus(s,n){let d=parse(s);d.setUTCDate(d.getUTCDate()+n);return iso(d)}
 function todayShanghai(){return new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:"Asia/Shanghai"}).format(new Date())}
 const today=todayShanghai();$("recordDate").value=today;state.selected=today;
 function toast(msg,bad=false){let e=$("toast");e.textContent=msg;e.className=bad?"warn":"";e.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.style.display="none",4300)}
-let apkUpdating=false,apkReady=false,apkChecking=false;
+let apkUpdating=false,apkReady=false,apkChecking=false,apkKnownNewer=false;
 function checkApkVersionManual(){
  if(apkChecking||apkUpdating)return;
  if(!window.BodyTraceNative?.checkApkVersion){
   $("apkUpdateStatus").textContent="当前 APK 不支持版本查询，请先升级一次。";return;
  }
- apkChecking=true;
+ apkChecking=true;apkKnownNewer=false;
  $("checkApkVersion").disabled=true;
  $("checkApkUpdate").disabled=true;
  $("apkLatestVersion").textContent="查询中…";
@@ -1316,9 +1316,14 @@ $("checkApkUpdate").onclick=()=>{
  apkUpdating=true;
  $("checkApkVersion").disabled=true;
  $("checkApkUpdate").disabled=true;
- $("checkApkUpdate").textContent="检查中…";
- $("apkLatestVersion").textContent="查询中…";
- $("apkUpdateStatus").textContent="正在检查 GitHub 最新版，有更新就自动下载校验…";
+ if(apkKnownNewer){
+  $("checkApkUpdate").textContent="准备更新…";
+  $("apkUpdateStatus").textContent="直接使用左侧已确认的新版信息，准备下载与校验…";
+ }else{
+  $("checkApkUpdate").textContent="检查中…";
+  $("apkLatestVersion").textContent="查询中…";
+  $("apkUpdateStatus").textContent="正在检查 GitHub 最新版，有更新就自动下载校验…";
+ }
  BodyTraceNative.checkApkUpdate();
 };
 $("checkUiUpdates").onclick=()=>{
@@ -1456,6 +1461,7 @@ window.bodyTraceReceive=function(evt){
      evt.state==="version_deferred"){
    if(evt.state!=="version_checking"){
     apkChecking=false;
+    apkKnownNewer=evt.state==="update_available";
     $("checkApkVersion").disabled=false;
    }
    if(!apkUpdating&&!apkReady){
@@ -1463,7 +1469,7 @@ window.bodyTraceReceive=function(evt){
     if(evt.state==="version_error")$("apkLatestVersion").textContent="查询失败";
     if(evt.state==="version_deferred")$("apkLatestVersion").textContent=
       evt.latest_version!==undefined?"缓存 v0.2."+evt.latest_version:"暂不可查";
-    $("checkApkUpdate").textContent="检查并更新";
+    $("checkApkUpdate").textContent=apkKnownNewer?"更新":"检查并更新";
     $("checkApkUpdate").disabled=evt.state==="version_checking";
    }
    if((evt.state==="version_deferred"||evt.state==="up_to_date")&&apkUpdating){
@@ -1488,6 +1494,7 @@ window.bodyTraceReceive=function(evt){
    $("checkApkUpdate").disabled=false;
   }
   if(evt.state==="ready"){
+   apkKnownNewer=false;
    apkReady=true;
    $("checkApkUpdate").textContent="继续安装";
    toast(evt.method==="delta"?"差分 APK 已校验，打开安装器":
@@ -1522,9 +1529,19 @@ window.bodyTraceReceive=function(evt){
    $("restartUiAfterUpdate").disabled=false;
   }
   break;
+ case "sync_status":
+  if(evt.state==="started"){
+   $("sourceLabel").textContent="今日首次启动 · 正在同步 GitHub…";
+  }else if(evt.state==="complete"){
+   $("sourceLabel").textContent="今日已自动同步 GitHub";
+  }else if(evt.state==="partial"){
+   $("sourceLabel").textContent="今日已尝试同步，部分失败 · 可手动重试";
+   toast("今日 GitHub 同步未全部完成，数据仍在本机待同步队列",true);
+  }
+  break;
  case "status":
   state.connected=!!evt.connected;renderStatus();
-  if(state.connected)toast("GitHub 已连接：新记录即时上传，刷新时拉取更新");
+  if(state.connected)toast("GitHub 已连接：本机优先，每日首次打开或手动点击才同步");
   break;
  case "disconnected":
   state.connected=false;renderStatus();
@@ -1552,7 +1569,7 @@ window.bodyTraceReceive=function(evt){
   state.pending=evt.count||state.pending;
   renderRawHistory();renderStatus();
   $("rawText").value="";$("rawCount").textContent="0 / 10000 字符";
-  toast("Raw 已保存本机；已连接时正在上传 GitHub");
+  toast("Raw 已保存本机，等待每日或手动同步");
   break;
  case "raw_uploaded":
   for(const note of state.rawNotes){
@@ -1567,7 +1584,7 @@ window.bodyTraceReceive=function(evt){
   state.hasCache=true;indexData();renderBody();renderStatus();
   if(window.BodyTraceRenderFeatures)window.BodyTraceRenderFeatures();
   workoutEditClose();
-  toast("训练修正已保存本机"+(state.connected?"，正在同步 GitHub":"，待连接后同步"));
+  toast("训练修正已保存本机，等待每日或手动同步");
   break;
  }
  case "local_saved":{
@@ -1579,7 +1596,7 @@ window.bodyTraceReceive=function(evt){
   state.hasCache=true;state.calendarBrowsing=false;indexData();state.selected=evt.event.date;renderHeat();renderDay();renderBody();
   renderStatus();navigate("home");
   $("sourceLabel").textContent="已保存本机 JSON · "+state.rows.length+"组";
-  toast(added.length+"组训练已保存本机"+(state.connected?"，正在逐组同步 GitHub":"，等待连接 GitHub"));
+  toast(added.length+"组训练已保存本机，等待每日或手动同步");
   clearTrainingEdits();refreshExerciseRecommendation(true);
   break;
  }

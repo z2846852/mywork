@@ -190,6 +190,34 @@ assert.ok(native.includes('checkApkVersion()')&&
  native.includes('apkUpdates.launchInstaller'));
 assert.ok(native.includes('apkUpdates.checkVersionsOnly()')&&
  apkUpdate.includes('JSONObject checkVersionsOnly()'));
+assert.ok(apkUpdate.includes('private JSONObject checkedRelease;')&&
+ apkUpdate.includes('new GitHubReleaseCache.Snapshot(checkedRelease,false,0)')&&
+ apkUpdate.includes('checkedRelease=release;'),
+ "Do not fetch GitHub Release twice after a confirmed newer version");
+assert.ok(html.includes('apkKnownNewer=evt.state==="update_available"')&&
+ html.includes('apkKnownNewer?"更新":"检查并更新"'),
+ "Right button shows direct Update when a newer release is already known");
+assert.ok(native.includes('syncOnceOnFirstOpenToday()')&&
+ native.includes('"last_attempt_date"')&&
+ native.includes('LocalDate.now(BEIJING).toString()')&&
+ native.includes('p.edit().putString("last_attempt_date",today).commit()'),
+ "Sync should be attempted only on the first startup of each Beijing date");
+assert.equal((native.match(/drainPending\\(token\\)/g)||[]).length,1,
+ "Saving local workouts, measurements, meals and Raw must not upload immediately");
+assert.equal((native.match(/syncExerciseCatalog\\(token\\)/g)||[]).length,1,
+ "Exercise catalog changes must remain local until scheduled/manual sync");
+const localOnlySaveBridge=native.slice(native.indexOf('saveCatalog(String catalogJson)'),
+ native.indexOf('@JavascriptInterface public void sleepImport('));
+assert.ok(!localOnlySaveBridge.includes('github.')&&
+ !localOnlySaveBridge.includes('vault.read("token")'),
+ "Local save bridges should do no GitHub I/O");
+const gitLogSource=fs.readFileSync(path.join(root,
+ "app/src/main/assets/git_log.js"),"utf8");
+assert.ok(gitLogSource.includes('refreshButton.addEventListener("click",refresh)')&&
+ !gitLogSource.includes('addEventListener("click",refresh);\n const settingsTab')&&
+ !gitLogSource.includes('settingsTab.addEventListener("click",refresh)')&&
+ !gitLogSource.includes('event.type==="status"&&event.connected'),
+ "Viewing settings should never auto-fetch commit diffs");
 const versionOnlyMethod=apkUpdate.slice(
  apkUpdate.indexOf('JSONObject checkVersionsOnly()'),
  apkUpdate.indexOf('synchronized JSONObject checkAndPrepare('));

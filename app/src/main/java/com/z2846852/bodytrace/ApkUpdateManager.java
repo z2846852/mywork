@@ -47,6 +47,9 @@ final class ApkUpdateManager {
     private final File dir;
     private File pendingApk;
     private long pendingVersion;
+    // Exact confirmed Release metadata from the user's last version-only check.
+    // Only reuse it if newer than the currently installed APK.
+    private JSONObject checkedRelease;
 
     ApkUpdateManager(Context context){
         this.context=context.getApplicationContext();
@@ -255,6 +258,7 @@ final class ApkUpdateManager {
      */
     JSONObject checkVersionsOnly() throws Exception {
         long installed=currentVersion();
+        checkedRelease=null;
         GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get(true);
         JSONObject release=snapshot.release;
         String tag=release.getString("tag_name");
@@ -263,6 +267,7 @@ final class ApkUpdateManager {
         int latest=Integer.parseInt(tag.substring(5));
         if(snapshot.stale)return status("version_deferred",snapshot.note())
             .put("installed_version",installed).put("latest_version",latest);
+        if(latest>installed)checkedRelease=release;
         return status(latest>installed?"update_available":"up_to_date",
             latest>installed?"发现新版 v0.2."+latest+"，点击右侧即可升级":
                 "当前已经是 GitHub 最新正式版")
@@ -275,17 +280,31 @@ final class ApkUpdateManager {
      * verify, return a ready status. Caller launches system installer on UI.
      */
     synchronized JSONObject checkAndPrepare(Reporter reporter)throws Exception {
-        progress(reporter,"checking","正在查询 GitHub 最新正式版…");
-        GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get(true);
+        long installedVersion=currentVersion();
+        GitHubReleaseCache.Snapshot snapshot;
+        if(checkedRelease!=null &&
+            checkedRelease.optString("tag_name").matches("v0\\.2\\.[0-9]{1,7}") &&
+            Integer.parseInt(checkedRelease.optString("tag_name").substring(5))>installedVersion){
+            // Reuse the exact release + assets just verified by the left button.
+            // The subsequent download still verifies SHA256, version and signature.
+            progress(reporter,"checking","沿用刚检查的新版元数据，直接准备更新…");
+            snapshot=new GitHubReleaseCache.Snapshot(checkedRelease,false,0);
+        }else{
+            // No known newer version: one fresh Release lookup is required.
+            progress(reporter,"checking","尚无已确认的新版本，正在查询 GitHub…");
+            snapshot=new GitHubReleaseCache(context).get(true);
+        }
         JSONObject release=snapshot.release;
         String tag=release.getString("tag_name");
         if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
             throw new SecurityException("GitHub Release 版本格式无效");
         int targetVersion=Integer.parseInt(tag.substring(5));
-        long installedVersion=currentVersion();
+        if(!snapshot.stale && targetVersion>installedVersion)
+            checkedRelease=release;
         JSONObject result=status("checking","发现最新版 "+tag);
         result.put("latest_version",targetVersion);
         if(targetVersion<=installedVersion){
+            checkedRelease=null;
             result.put("state",snapshot.stale?"version_deferred":"up_to_date");
             result.put("message",snapshot.stale?snapshot.note():
                 "当前已是最新 APK v0.2."+installedVersion);

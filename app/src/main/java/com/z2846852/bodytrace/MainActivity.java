@@ -1043,32 +1043,59 @@ public final class MainActivity extends Activity {
             rawHistory.put("notes", localRawNotes());
             reply(rawHistory);
             sendCatalog(plain.getCatalog());
-            // No network pull on startup. Records are still locally available. User controls sync.
+            // Offline-first local restore; daily GitHub sync starts only after the UI is ready.
         } catch (Exception e) {
             error("本机 JSON 读取或旧版本迁移失败，可先在 GitHub 检查备份。");
         }
     }
 
-    /** Explicit sync is push-outbox followed by pull-and-merge, never overwrite. */
-    private void syncInternal(String token) {
+    /** Push queued events and pull remote JSON only on daily launch or a manual tap.
+     * Failed uploads stay queued; a successful pull cannot silently claim full sync. */
+    private boolean syncInternal(String token) {
+        boolean complete=true;
         try {
             try { drainPending(token); }
             catch (Exception upload) {
+                complete=false;
                 error("有记录尚未上传，已保留本地：" + safeMessage(upload));
             }
             try { syncExerciseCatalog(token); }
             catch (Exception catalogError) {
+                complete=false;
                 error("动作目录尚未同步，保留本机设置：" + safeMessage(catalogError));
             }
             JSONArray remote = github.readDaily(token);
             JSONArray combined = mergeDays(localDays(), remote);
             plain.putDays(combined);
             replyData(combined, false);
+            return complete;
         } catch (Exception e) {
             error("GitHub 同步失败，本地数据仍保留：" + safeMessage(e));
+            return false;
         }
     }
 
+    /** App startup triggers a single network attempt per Beijing calendar day.
+     * Persist the attempt BEFORE networking: failures never cause retry storms.
+     * The user can always retry explicitly via either Sync button. */
+    private void syncOnceOnFirstOpenToday() {
+        try {
+            String token=vault.read("token");
+            if(token==null||token.isEmpty())return;
+            android.content.SharedPreferences p=getSharedPreferences(
+                "bodytrace_daily_sync",MODE_PRIVATE);
+            String today=LocalDate.now(BEIJING).toString();
+            if(today.equals(p.getString("last_attempt_date","")))return;
+            if(!p.edit().putString("last_attempt_date",today).commit())
+                throw new IllegalStateException("无法保存每日同步状态");
+            reply(message("sync_status").put("state","started").put("date",today));
+            boolean complete=syncInternal(token);
+            reply(message("sync_status").put("state",complete?"complete":"partial")
+                .put("date",today));
+        }catch(Exception e){
+            error("每日同步未能完成，本机记录保留；可手动同步：" + safeMessage(e));
+        }
+    }
 
     private JSONArray localRawNotes() throws Exception {
         return plain.getRaw();
@@ -1489,6 +1516,7 @@ public final class MainActivity extends Activity {
                 try{
                     if(uiBundles!=null)reply(uiBundles.status());
                 }catch(Exception ignored){}
+                syncOnceOnFirstOpenToday();
             });
         }
 
@@ -1617,26 +1645,13 @@ public final class MainActivity extends Activity {
                     // Do not describe a private-repo 404 as "repo missing":
                     // first test repository metadata, then Contents permission.
                     github.verifyRepositoryAccess(token);
-                    JSONArray remote = github.readDaily(token);
-                    JSONArray combined = mergeDays(localDays(), remote);
-                    // Persist the JSON first; only the PAT remains encrypted.
-                    plain.putDays(combined);
-                    vault.write("token", token);
-                    JSONObject status = message("status");
-                    status.put("connected", true);
-                    status.put("repo", "z2846852/-");
+                    // Connection validation is explicit, but does not imply
+                    // upload/download. The first daily launch or Sync button does that.
+                    vault.write("token",token);
+                    JSONObject status=message("status");
+                    status.put("connected",true);
+                    status.put("repo","z2846852/-");
                     reply(status);
-                    replyData(combined, false);
-                    try { syncExerciseCatalog(token); }
-                    catch (Exception catalogError) {
-                        error("动作目录未同步，本机已保留：" + safeMessage(catalogError));
-                    }
-                    // Connected App writes upload immediately; new local records
-                    // are always saved before network starts.
-                    try { drainPending(token); }
-                    catch (Exception upload) {
-                        error("待上传记录已保留本机：" + safeMessage(upload));
-                    }
                 } catch (Exception e) {
                     error("连接失败：" + safeMessage(e));
                 }
@@ -1719,13 +1734,8 @@ public final class MainActivity extends Activity {
                     clean.put("_dirty",true);
                     plain.putCatalog(clean);
                     sendCatalog(clean); // UI responds immediately offline.
-                    String token = vault.read("token");
-                    if (token != null && !token.isEmpty()) {
-                        try { syncExerciseCatalog(token); }
-                        catch (Exception e) {
-                            error("动作设置已保存本机，GitHub 未同步：" + safeMessage(e));
-                        }
-                    }
+                    // Dirty catalog is committed to GitHub at the next scheduled
+                    // or explicitly requested sync, never on each local edit.
                 } catch (Exception e) {
                     error("动作管理保存失败：" + safeMessage(e));
                 }
@@ -1767,14 +1777,7 @@ public final class MainActivity extends Activity {
                     saved.put("days", days);
                     saved.put("view_model", view);
                     reply(saved);
-                    String token = vault.read("token");
-                    if (token != null) {
-                        try { drainPending(token); }
-                        catch (Exception upload) {
-                            error("训练已保存本机，GitHub 上传失败，稍后可重试：" + safeMessage(upload));
-                            sendPending();
-                        }
-                    }
+                    // Queue is durable; no automatic GitHub request on save.
                 } catch (Exception e) {
                     error("记录训练失败：" + safeMessage(e));
                 }
@@ -1817,14 +1820,7 @@ public final class MainActivity extends Activity {
                     msg.put("count",pending.length());
                     msg.put("view_model",view);
                     reply(msg);
-                    String token=vault.read("token");
-                    if(token!=null&&!token.isEmpty()){
-                        try{drainPending(token);}
-                        catch(Exception upload){
-                            error("训练修正已保留本机，尚未同步 GitHub："+safeMessage(upload));
-                            sendPending();
-                        }
-                    }
+                    // Workout corrections stay in the local outbox until daily/manual sync.
                 }catch(Exception e){error("训练修正失败："+safeMessage(e));}
             });
         }
@@ -1846,14 +1842,7 @@ public final class MainActivity extends Activity {
                     saved.put("count", pending.length());
                     saved.put("view_model", view);
                     reply(saved);
-                    String token = vault.read("token");
-                    if (token != null) {
-                        try { drainPending(token); }
-                        catch (Exception upload) {
-                            error("测量已保存本机，GitHub 上传失败，稍后可重试：" + safeMessage(upload));
-                            sendPending();
-                        }
-                    }
+                    // Measurement remains local until daily/manual sync.
                 } catch (Exception e) {
                     error("记录身体数据失败：" + safeMessage(e));
                 }
@@ -2228,13 +2217,7 @@ public final class MainActivity extends Activity {
                     msg.put("count", pending.length());
                     msg.put("view_model", ViewProjector.project(days));
                     reply(msg);
-                    String token = vault.read("token");
-                    if (token != null && !token.isEmpty()) {
-                        try { drainPending(token); }
-                        catch (Exception e) {
-                            error("饮食记录已保留本机，尚未同步 GitHub：" + safeMessage(e));
-                        }
-                    }
+                    // Nutrition event remains queued until daily/manual sync.
                 } catch (Exception e) {
                     error("饮食记录失败：" + safeMessage(e));
                 }
@@ -2257,14 +2240,7 @@ public final class MainActivity extends Activity {
                     saved.put("note", copy);
                     saved.put("count", pending.length());
                     reply(saved);
-                    String token = vault.read("token");
-                    if (token != null) {
-                        try { drainPending(token); }
-                        catch (Exception upload) {
-                            error("Raw 已保存本地，GitHub 上传失败：" + safeMessage(upload));
-                            sendPending();
-                        }
-                    }
+                    // Raw inbox stays local until daily/manual sync.
                 } catch (Exception e) {
                     error("保存 Raw 失败：" + safeMessage(e));
                 }
