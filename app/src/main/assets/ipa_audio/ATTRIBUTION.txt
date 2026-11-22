@@ -15,14 +15,22 @@ For this application the Schwa-prepared audio samples are reused unmodified.
 Audio playback volume, speed, and fades are applied at runtime (not re-exported).
 This notice covers attribution of the audio, not a change of source-code license.
 
-Additional original Wikimedia Commons files, bundled without modification:
-- `retroflex_sh.ogg` — "Voiceless retroflex sibilant.ogg", Peter Isotalo.
-  https://commons.wikimedia.org/wiki/File:Voiceless_retroflex_sibilant.ogg
-  CC BY-SA 3.0; note: this file contains /ʂ/ surrounded by vowels /a/.
-- `central_i.ogg` — "Close central unrounded vowel.ogg", Denelson83.
-  https://commons.wikimedia.org/wiki/File:Close_central_unrounded_vowel.ogg
-  CC BY-SA 3.0.
+Additional 22 IPA recordings are retrieved from the pinned GitHub-hosted
+Wikimedia Commons transcode mirror eeeeaaii/langkit (commit
+b3a08c5e6a4defa272f134503f9937b930c9d2b5):
+https://github.com/eeeeaaii/langkit/blob/b3a08c5e6a4defa272f134503f9937b930c9d2b5/audio/ipa/SOURCES.md
 
-No online playback or automatic recording uploads are performed.
-Some diphthongs do not have a licensed isolated sample in this set; those will
-be reported as unavailable rather than falsely using artificial IPA synthesis.
+The original author, IPA sample description and license for EACH recording
+are documented at that URL and its links to Wikimedia Commons. Individual
+recordings retain their original Commons licenses (usually CC BY-SA).
+The files are transferred as the upstream MP3 transcodes except:
+- `retroflex_sh.ogg`: original "Voiceless retroflex sibilant.ogg", by Peter Isotalo,
+  and `central_i.ogg`: "Close central unrounded vowel.ogg", by Denelson83.
+  These two are re-encoded from the pinned mirror MP3 to Ogg Vorbis for APK
+  compatibility. Audio changes: upstream MP3 transcode and build-time conversion.
+https://commons.wikimedia.org/wiki/File:Voiceless_retroflex_sibilant.ogg
+https://commons.wikimedia.org/wiki/File:Close_central_unrounded_vowel.ogg
+
+The audio-only derivatives remain subject to the applicable CC BY-SA terms,
+including attribution and ShareAlike for distributed derivatives.
+No network access is required by the installed App to play these clips.

@@ -34,7 +34,17 @@ final class IpaSamplePlayer {
             {"tʃ","ch.mp3"},{"dʒ","dj.mp3"},{"m","m.mp3"},{"n","n.mp3"},
             {"ŋ","ng.mp3"},{"l","l.mp3"},{"r","r.mp3"},{"ɹ","r.mp3"},
             {"j","y.mp3"},{"w","w.mp3"},{"h","h.mp3"},
-            {"ʂ","retroflex_sh.ogg"},{"ɨ","central_i.ogg"}
+            {"ʂ","retroflex_sh.ogg"},{"ɨ","central_i.ogg"},
+            {"ɕ","extra_0255.mp3"},{"ʑ","extra_0291.mp3"},
+            {"ʐ","extra_0290.mp3"},{"ɾ","extra_027e.mp3"},
+            {"ʔ","extra_0294.mp3"},{"ɽ","extra_027d.mp3"},
+            {"ɻ","extra_027b.mp3"},{"ɲ","extra_0272.mp3"},
+            {"ɣ","extra_0263.mp3"},{"ç","extra_00e7.mp3"},
+            {"x","extra_0078.mp3"},{"ɬ","extra_026c.mp3"},
+            {"ʋ","extra_028b.mp3"},{"ʍ","extra_028d.mp3"},
+            {"ʉ","extra_0289.mp3"},{"ɯ","extra_026f.mp3"},
+            {"ʈ","extra_0288.mp3"},{"ɖ","extra_0256.mp3"},
+            {"ɳ","extra_0273.mp3"},{"ɜ","extra_025c.mp3"}
         };
         for(String[] f:files)m.put(f[0],f[1]);
         FILES=Collections.unmodifiableMap(m);
