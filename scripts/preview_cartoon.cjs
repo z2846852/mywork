@@ -441,18 +441,17 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const measured=await page.evaluate(()=>window.__capturedBody);
   if(!measured||measured.weight_kg!==74.5||"shoulder_cm" in measured)
    throw Error("Body JSON should contain edited values only: "+JSON.stringify(measured));
-  // Opening Settings checks only Release metadata; downloading requires
-  // exactly one explicit user click on the right-side APK upgrade action.
+  // Neither Settings entry nor opening ! may consume GitHub API quota.
   await page.evaluate(()=>{
    window.__apkVersionChecks=0;window.__apkUpgradeClicks=0;
-   window.__apkInstallClicks=0;
+   window.__apkInstallClicks=0;window.__releaseHistoryClicks=0;
    window.BodyTraceNative.checkApkVersion=()=>{window.__apkVersionChecks++};
    window.BodyTraceNative.checkApkUpdate=()=>{window.__apkUpgradeClicks++};
    window.BodyTraceNative.installPendingApk=()=>{window.__apkInstallClicks++};
+   window.BodyTraceNative.fetchReleaseHistory=()=>{window.__releaseHistoryClicks++};
    navigate("settings");
-   window.bodyTraceReceive({type:"apk_update",state:"update_available",
-    installed_version:170,latest_version:171,
-    message:"发现新版 v0.2.171，点击右侧即可升级"});
+   window.bodyTraceReceive({type:"apk_update",state:"local_version",
+    installed_version:170});
    window.bodyTraceReceive({type:"git_log",commits:[{
     sha:"0123456789abcdef0123456789abcdef01234567",
     message:"record: workout updated",date:"2026-11-18T10:00:00+08:00",
@@ -463,15 +462,25 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     }]
    }]});
   });
+  if((await page.evaluate(()=>window.__apkVersionChecks))!==0)
+   throw Error("Settings must not automatically query GitHub version metadata");
+  if(await page.locator("#apkUpdatePanel .apk-update-actions button").count()!==2)
+   throw Error("Settings needs separate small Check and Update buttons");
+  if(!(await page.locator("#checkApkUpdate").isDisabled()))
+   throw Error("Update must be disabled until explicit Check succeeds");
+  await page.locator("#checkApkVersion").click();
   if((await page.evaluate(()=>window.__apkVersionChecks))!==1)
-   throw Error("Settings page should automatically make exactly one metadata-only version check");
+   throw Error("Explicit Check must request version metadata once");
+  await page.evaluate(()=>window.bodyTraceReceive({
+   type:"apk_update",state:"update_available",installed_version:170,
+   latest_version:171,message:"发现新版 v0.2.171"}));
   if((await page.locator("#apkInstalledVersion").innerText())!=="v0.2.170"||
      (await page.locator("#apkLatestVersion").innerText())!=="v0.2.171")
-   throw Error("Installed and latest APK versions should both be visible on Settings");
-  if(await page.locator("#apkUpdatePanel > .apk-version-row > button").count()!==1)
-   throw Error("APK upgrade panel should expose a SINGLE action button");
+   throw Error("Both versions must be visible after manual check");
+  if(await page.locator("#checkApkUpdate").isDisabled())
+   throw Error("Update must enable when a newer version is known");
   if((await page.evaluate(()=>window.__apkUpgradeClicks))!==0)
-   throw Error("Automatic version check must not initiate a download");
+   throw Error("Checking version must never trigger an APK download");
   await page.locator("#checkApkUpdate").click();
   if((await page.evaluate(()=>window.__apkUpgradeClicks))!==1)
    throw Error("Upgrade button must invoke native APK download exactly once");
@@ -510,9 +519,22 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator("#apkUpdatePanel .apk-update-help>summary").click();
   if(!(await page.locator("#uiUpdatePanel").isVisible()))
    throw Error("Opening ! must expose advanced UI-only updater");
-  const advancedVisible=await page.locator("#uiUpdatePanel").locator("button").count();
+  const advancedVisible=await page.locator("#uiUpdatePanel .apk-ui-update-actions button").count();
   if(advancedVisible!==3)
    throw Error("Advanced UI updater must retain all three operational controls");
+  if((await page.evaluate(()=>window.__releaseHistoryClicks))!==0)
+   throw Error("Opening ! must not fetch public Release history");
+  await page.locator("#loadReleaseHistory").click();
+  if((await page.evaluate(()=>window.__releaseHistoryClicks))!==1)
+   throw Error("History should load only after user taps View History");
+  await page.evaluate(()=>window.bodyTraceReceive({
+   type:"release_history",state:"listed",page:1,has_more:false,
+   releases:[{tag:"v0.2.171",date:"2026-11-22T00:00:00Z",
+    body:"- 修复版本检查和更新按钮"},
+    {tag:"v0.2.170",date:"2026-11-21T00:00:00Z",
+    body:"旧版本"}]}));
+  if(await page.locator(".apk-release-item").count()!==2)
+   throw Error("History must list the actual published versions");
   await page.screenshot({path:"bodytrace-settings-update-help-preview.png",fullPage:false});
   await page.locator("#apkUpdatePanel .apk-update-help>summary").click();
   if(await page.locator("#uiUpdatePanel").isVisible())
