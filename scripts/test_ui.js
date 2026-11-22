@@ -1780,3 +1780,36 @@ assert.ok(sleepJS.includes('evt.type==="sleep_playback_position"'));
   assert.equal(fakeWindow.BodyTraceSleepVisual.formatTime(14400,"night2"),"03:00:00");
   console.log("Sleep gesture/filter/skip + clock/relative timeline regression passed.");
 }
+
+// Music-staff UI regression, including pitch-class checks (no Android required).
+for(const id of ["voicePitchKey","voicePitchClef","voicePitchTolerance",
+ "voicePitchToleranceValue","voicePitchQuality"]){
+ assert.ok(html.includes('id="'+id+'"'),"Missing pitch UI setting "+id);
+}
+const musicA=voiceLabJS.indexOf(" const KEY_SIGNATURES=");
+const musicB=voiceLabJS.indexOf(" const el=",musicA);
+assert.ok(musicA>=0&&musicB>musicA);
+const pitchSettings={key:"C",tolerance:"50"};
+const music=vm.runInNewContext("(()=>{const $=id=>({voicePitchKey:{value:settings.key},"+
+ "voicePitchTolerance:{value:settings.tolerance}}[id]);"+
+ voiceLabJS.slice(musicA,musicB)+
+ "return {noteName,gradePitch};})()",{settings:pitchSettings});
+assert.equal(music.noteName(60),"C4");
+assert.equal(music.noteName(61),"C♯4");
+assert.equal(music.gradePitch(69.25).off,false);
+assert.equal(music.gradePitch(69.8).off,true);
+pitchSettings.key="Bb";
+assert.equal(music.noteName(70),"B♭4");
+assert.equal(music.gradePitch(70).off,false);
+pitchSettings.key="G";
+assert.equal(music.noteName(66),"F♯4");
+pitchSettings.key="C#";
+assert.equal(music.noteName(60),"B♯3");
+pitchSettings.key="Cb";
+assert.equal(music.noteName(71),"C♭5");
+pitchSettings.key="C";pitchSettings.tolerance="100";
+assert.equal(music.gradePitch(70).off,false);
+pitchSettings.tolerance="50";
+assert.equal(music.gradePitch(70).off,true);
+assert.ok(voiceLabJS.includes('"stroke-dasharray":solid?"":"3 5"'));
+console.log("Voice staff/key signature and pitch tolerance regression passed.");

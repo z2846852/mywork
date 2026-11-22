@@ -1229,6 +1229,23 @@ body.workout-edit-open{overflow:hidden}
 #page-voice .voice-pitch-actions button{width:100%;height:38px;min-height:38px;
  margin:0;padding:6px 5px;font-size:11px;border-radius:9px}
 #page-voice .voice-pitch-actions button:disabled{opacity:.4}
+#page-voice .voice-pitch-config{display:grid;grid-template-columns:1.3fr .9fr;
+  gap:7px;margin:10px 0 4px}
+#page-voice .voice-pitch-config label{display:flex;flex-direction:column;gap:4px;
+  min-width:0;color:#a9c5b6;font-size:10px}
+#page-voice .voice-pitch-config select{box-sizing:border-box;width:100%;
+  min-width:0;background:#203e32;color:#e3f6e9;border:1px solid #436652;
+  border-radius:7px;padding:7px 5px;font-size:11px}
+#page-voice .voice-pitch-config .voice-tolerance{grid-column:1/-1;
+  display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:9px}
+#page-voice .voice-tolerance output{font-variant-numeric:tabular-nums;
+  font-weight:700;color:#dfefdf}
+#page-voice .voice-tolerance input{grid-column:1/-1;width:100%;
+  accent-color:#8fc9b5;margin:2px 0;touch-action:pan-y}
+#page-voice .voice-pitch-quality{font-size:10px;font-weight:650;
+  border-radius:7px;padding:6px 9px;background:#1c3b30;color:#9ad4b7;
+  margin:0 0 8px;font-variant-numeric:tabular-nums}
+#page-voice .voice-pitch-quality.off{background:#4c2c33;color:#ffc3c6}
 #page-voice .voice-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
  gap:6px;margin:10px 0}
 #page-voice .voice-values>div{display:flex;min-width:0;flex-direction:column;

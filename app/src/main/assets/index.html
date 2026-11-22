@@ -494,14 +494,48 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
         <button id="voicePitchStop" type="button" class="secondary" disabled>■ 结束</button>
         <button id="voicePitchClear" type="button" class="secondary">清空</button>
       </div>
+      <div class="voice-pitch-config">
+        <label>调号
+          <select id="voicePitchKey" aria-label="演唱调号">
+            <option value="C" selected>C 大调 / a 小调</option>
+            <option value="G">G 大调 / e 小调（1♯）</option>
+            <option value="D">D 大调 / b 小调（2♯）</option>
+            <option value="A">A 大调 / f♯ 小调（3♯）</option>
+            <option value="E">E 大调 / c♯ 小调（4♯）</option>
+            <option value="B">B 大调 / g♯ 小调（5♯）</option>
+            <option value="F#">F♯ 大调 / d♯ 小调（6♯）</option>
+            <option value="C#">C♯ 大调 / a♯ 小调（7♯）</option>
+            <option value="F">F 大调 / d 小调（1♭）</option>
+            <option value="Bb">B♭ 大调 / g 小调（2♭）</option>
+            <option value="Eb">E♭ 大调 / c 小调（3♭）</option>
+            <option value="Ab">A♭ 大调 / f 小调（4♭）</option>
+            <option value="Db">D♭ 大调 / b♭ 小调（5♭）</option>
+            <option value="Gb">G♭ 大调 / e♭ 小调（6♭）</option>
+            <option value="Cb">C♭ 大调 / a♭ 小调（7♭）</option>
+          </select>
+        </label>
+        <label>谱表
+          <select id="voicePitchClef" aria-label="参考谱表">
+            <option value="auto" selected>自动</option>
+            <option value="bass">低音谱表</option>
+            <option value="treble">高音谱表</option>
+          </select>
+        </label>
+        <label class="voice-tolerance">音准容差
+          <output id="voicePitchToleranceValue" for="voicePitchTolerance">50 cents</output>
+          <input id="voicePitchTolerance" type="range" min="10" max="100"
+            step="5" value="50" aria-label="音准容差（音分）">
+        </label>
+      </div>
       <div class="voice-values">
         <div><span>最后音符</span><strong id="voicePitchNote">—</strong></div>
         <div><span>频率</span><strong id="voicePitchHz">—</strong></div>
         <div><span>偏差</span><strong id="voicePitchCents">—</strong></div>
       </div>
+      <p id="voicePitchQuality" class="voice-pitch-quality" role="status">等待有效音高</p>
       <div class="voice-chart-frame">
         <svg id="voicePitchChart" viewBox="0 0 360 230" role="img"
-          aria-label="按有效声音推进的音高轨迹，纵轴为音符，显示微小音高波动">
+          aria-label="五条谱线为实线，谱外参考线为虚线，偏离调内音超出容差时显示红色">
           <rect x="0" y="0" width="360" height="230" rx="9" fill="#122820"></rect>
           <g id="voicePitchGrid"></g>
           <g id="voicePitchTraces"></g>
@@ -511,7 +545,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
       <p id="voicePitchStatus" class="sub" role="status">只要没有可检测的音高，音符和曲线就保持原样，不移动时间轴。</p>
       <details class="voice-explain">
         <summary>! 音高图说明</summary>
-        <p>有效声音每约 0.1 秒增加一个数据点；无声、低于检测阈值或音高不稳定时不增加点。纵轴以十二平均律半音标记；不同音符形成不同高度的音段，同一音符内的微小抖动仍可见。这个横轴不是自然时间，不能反映两个音之间停顿了多久。</p>
+        <p>有效声音每约 0.1 秒增加一个数据点；静音或音高不稳定时冻结。五条谱线用实线，谱外参考线用虚线；音符按调号显示升降号（如 C♯4、B♭3）。默认 C 大调 / a 小调。容差以 cents（音分）计，100 cents 等于一个半音；与最近调内音的距离超过容差才标红。改变调号与容差会立即重判已有曲线。红色不代表唱错某首歌的旋律；歌曲旋律准确度需要目标旋律。横轴为有效声音样本，不代表实际经过时间。</p>
       </details>
     </div>
   </section>
