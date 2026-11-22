@@ -297,6 +297,14 @@ assert.ok(neuralBridge.includes('OfflineZipformerCtcModelConfig')&&
 assert.ok(voiceLabJS.includes('voiceModelsInstall(id)')&&
  voiceLabJS.includes('voiceModelsDelete(id)')&&
  voiceLabJS.includes('evt.type==="voice_models"'));
+assert.ok(modelPacks.includes('void installAll(Reporter listener)')&&
+ modelPacks.includes('verifiedStamps')&&
+ modelPacks.includes('dictionary_ready')&&
+ modelPacks.includes('dictionary_entries')&&
+ native.includes('phoneModels.installAll(MainActivity.this::reply)')&&
+ voiceLabJS.includes('const id="all"')&&
+ html.includes('下载缺失资源（全部模型）'),
+ "Offline setup must check resources and offer a single install-all action");
 assert.ok(packScript.includes('"anyspeech/zipa-small-crctc-300k"')&&
  packScript.includes('"anyspeech/zipa-small-crctc-500k"')&&
  packScript.includes('"anyspeech/zipa-small-crctc-ns-700k"'));
