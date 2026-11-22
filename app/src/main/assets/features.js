@@ -143,7 +143,7 @@ for(const id of intakeInputs){
  });
 }
 // The calendar spans 52 weeks; show the recent weeks on first tab opening.
-document.querySelector('.tabs button[data-page="nutrition"]')?.addEventListener("click",()=>{
+document.querySelector('.tabs button[data-page="body"]')?.addEventListener("click",()=>{
  requestAnimationFrame(()=>{
   const scroll=$("intakeCalendarScroll");
   if(scroll&&!scroll.dataset.opened){
@@ -1044,7 +1044,7 @@ window.bodyTraceReceive=function(evt){
       updateFoodPreview();
     }
     if(evt.event?.entry_kind==="daily_checkin")intakeDraftDirty=false;
-    renderIntakeCheckin();navigate("nutrition");
+    renderIntakeCheckin();navigate("body");
     toast(evt.event?.entry_kind==="daily_checkin"?
       "每日四色摄入勾选已保存本机；连接后同步 GitHub":
       "饮食已经存入本机 JSON；已连接时将尝试上传 GitHub");

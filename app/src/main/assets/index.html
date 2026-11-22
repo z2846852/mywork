@@ -47,6 +47,7 @@ h2{margin:0;font-size:17px}h3{margin:0 0 12px;font-size:15px}
 .tabs button{border:0;background:transparent;color:#819895;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 8px;flex:1;max-width:165px;font-size:10px;border-radius:12px}
 .tabs button.active{background:#1d3a30;color:var(--green)}.tabs .ico{font-size:20px;line-height:1.2}
 .page{display:none}.page.active{display:block}
+#nutritionLegacy[hidden]{display:none!important}
 label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin-top:15px}
 .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .primary{display:block;border:none;border-radius:12px;color:#042416;background:var(--green);font-weight:800;padding:14px 17px;width:100%;margin-top:20px}
@@ -63,7 +64,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </style></head>
 <body>
 <main class="screen">
-<header class="quick-head"><span class="quick-head-intro">体迹 · 训练 / 饮食 / 身体</span><div class="status" aria-label="同步状态"><i id="statusDot" class="dot"></i><span id="statusText">本地</span><span id="pendingStatus"></span></div></header>
+<header class="quick-head"><span class="quick-head-intro">体迹 · 训练 / 身体 / 摄入</span><div class="status" aria-label="同步状态"><i id="statusDot" class="dot"></i><span id="statusText">本地</span><span id="pendingStatus"></span></div></header>
 
 <section class="page active" id="page-home">
 <div class="stats"><div class="stat"><strong id="statDays">—</strong><span>训练天数</span></div><div class="stat"><strong id="statSets">—</strong><span>总训练组</span></div><div class="stat"><strong id="statMovements">—</strong><span>训练动作</span></div></div>
@@ -77,6 +78,19 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 <div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
 <div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
+<!-- Trend charts merged into Overview; all chart IDs are retained. -->
+<div class="panel overview-panel">
+<div class="eyebrow">TRAINING OVERVIEW</div><h2>训练总览 · 胸 / 肩 / 背 / 腿</h2>
+<p class="sub">按实际保存的组数统计；最近 8 个连续 7 天周期。不同器械重量不相加，不把组数当作肌肉增长。</p>
+<div id="trainingOverview" class="training-overview" aria-label="近28天训练总览"></div>
+<div id="regionTrendGrid" class="region-trend-grid" aria-label="胸肩背腿四个训练趋势图"></div>
+</div>
+<div class="panel"><div class="eyebrow">STRENGTH / ALL EXERCISES</div><h2>各动作力量趋势</h2>
+<p class="sub">不再筛选动作。每个动作独立绘图，按<strong>最近一次训练日期从新到旧</strong>排列；同日优先展示最近录入的动作。辅助重量和普通负重分别标注，不直接比较。</p>
+<div id="strengthList" class="strength-list" aria-label="全部已记录训练动作趋势"></div>
+</div>
+<div class="panel"><h2>训练区域分布</h2><p class="sub">最近28天各部位记录组数，不代表真实肌肉大小或训练效果。</p>
+<div id="regionSummary"></div></div>
 </section>
 
 <section class="page" id="page-record">
@@ -137,87 +151,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <p class="note">保存不需要网络，数据首先按原样 JSON 保存；已连接 GitHub 会即时尝试上传，失败则保留待同步队列。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
 <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
 </div></section>
-
-<section class="page" id="page-nutrition">
-<div class="panel nutrition-checkin-panel">
-<div class="eyebrow">NUTRITION / QUICK CHECK-IN</div><h2>摄入概况 · 每日四分格</h2>
-<p class="sub">按体感勾选是否摄入；不代表克数或营养质量评估。未勾选不等于已确认没吃。</p>
-<div class="field"><label for="intakeDate">记录日期（北京时间）</label>
-<input type="date" id="intakeDate"></div>
-<div class="intake-check-grid" role="group" aria-label="每日摄入勾选">
-<label class="intake-choice" style="--intake-color:var(--intake-creatine)">
-<input type="checkbox" id="intakeCreatine"><span class="intake-label">肌酸</span></label>
-<label class="intake-choice" style="--intake-color:var(--intake-protein)">
-<input type="checkbox" id="intakeProtein"><span class="intake-label">蛋白粉</span></label>
-<label class="intake-choice" style="--intake-color:var(--intake-carbs)">
-<input type="checkbox" id="intakeCarbs"><span class="intake-label">碳水</span></label>
-<label class="intake-choice" style="--intake-color:var(--intake-sugar-oil)">
-<input type="checkbox" id="intakeSugarOil"><span class="intake-label">劣质糖油</span></label>
-</div>
-<div class="row wrap intake-check-actions">
-<span class="sub" id="intakeCheckStatus" role="status">当天尚未填写摄入勾选</span>
-<button type="button" class="primary" id="saveIntakeCheck">保存勾选并同步 GitHub</button>
-</div>
-<div class="divider"></div>
-<div class="row wrap" style="margin-top:12px"><h3 style="margin:0">近52周摄入日历</h3><button type="button" id="intakeToday" class="secondary mini">回到今天</button></div>
-<p class="sub">四象限固定为左上肌酸、右上蛋白粉、左下碳水、右下劣质糖油；点日期可修改勾选。</p>
-<div class="intake-calendar-scroll" id="intakeCalendarScroll">
-<div class="intake-months" id="intakeMonths"></div>
-<div class="intake-calendar-grid" id="intakeCalendar" aria-label="每日摄入四分格"></div>
-</div>
-<div class="intake-legend">
-<span><i style="background:var(--intake-creatine)"></i>肌酸</span>
-<span><i style="background:var(--intake-protein)"></i>蛋白粉</span>
-<span><i style="background:var(--intake-carbs)"></i>碳水</span>
-<span><i style="background:var(--intake-sugar-oil)"></i>劣质糖油</span>
-</div>
-<p class="sub">没有记录的日期为暗色；保存全未选时只表示本次未标记摄入。原有饮食热量记录独立保留。</p>
-</div>
-<div class="panel"><div class="eyebrow">NUTRITION / DAILY INTAKE</div><h2>饮食热量表</h2>
-<p class="sub">按实际吃下的重量计算；热量和营养素来自包装或你的估算，不自动猜测汤里多少肉。</p>
-<div class="row" style="margin-top:14px"><div><h3 style="margin:0" id="foodDateLabel">今日饮食</h3><p class="sub" id="foodDayTotals">尚无记录</p></div>
-<span class="tag" id="foodRecordCount">0条记录</span></div>
-<div id="nutritionBars"></div><div id="foodList" class="food-list"></div>
-</div>
-<div class="panel"><div class="eyebrow">NEW FOOD ENTRY</div><h2>新增饮食</h2>
-<div class="field"><label for="foodDate">日期（北京时间）</label><input id="foodDate" type="date"></div>
-<div class="formgrid"><div class="field"><label for="foodMeal">餐次</label><select id="foodMeal">
-<option value="breakfast">早餐</option><option value="lunch">午餐</option><option value="dinner">晚餐</option><option value="snack">加餐</option></select></div>
-<div class="field"><label for="foodPreset">快速填充</label><select id="foodPreset">
-<option value="">手动输入</option><option value="rice">熟米饭（参考）</option><option value="egg">鸡蛋（参考）</option>
-<option value="soy">无糖豆浆（参考）</option><option value="chicken">熟鸡胸肉（参考）</option>
-<option value="soup">肉骨茶/排骨汤（请自填）</option></select></div></div>
-<div class="field"><label for="foodName">食物名称</label><input id="foodName" maxlength="100" placeholder="例如：排骨汤（连汤带肉）"></div>
-<div class="formgrid">
-<div class="field"><label for="foodGrams">食用重量 (g)</label><input id="foodGrams" type="number" step="1" min="1" inputmode="decimal" value="100"></div>
-<div class="field"><label for="foodKcal">热量 (kcal/100g)</label><input id="foodKcal" type="number" step="0.1" min="0" inputmode="decimal" placeholder="按包装或估算"></div>
-</div>
-<div class="formgrid">
-<div class="field"><label for="foodProtein">蛋白质 (g/100g，可选)</label><input id="foodProtein" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
-<div class="field"><label for="foodCarbs">碳水 (g/100g，可选)</label><input id="foodCarbs" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
-</div>
-<div class="field"><label for="foodFat">脂肪 (g/100g，可选)</label><input id="foodFat" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
-<div class="panel inner"><div class="row"><span>本次预计摄入</span><strong id="foodPreviewKcal">— kcal</strong></div>
-<p class="sub" id="foodPreviewMacros">按重量 × 每100g数值 ÷ 100</p></div>
-<button class="primary" id="saveNutrition">保存饮食 · 本地立即更新</button>
-<p class="note">参考预设是常见估算值，不是品牌检测报告。尤其汤类差异很大，需要按实际食材与份量填写。只有你录入的数据会被保存，不推断不存在的食物。</p>
-</div>
-</section>
-
-<section class="page" id="page-analytics">
-<div class="panel overview-panel">
-<div class="eyebrow">TRAINING OVERVIEW</div><h2>训练总览 · 胸 / 肩 / 背 / 腿</h2>
-<p class="sub">按实际保存的组数统计；最近 8 个连续 7 天周期。不同器械重量不相加，不把组数当作肌肉增长。</p>
-<div id="trainingOverview" class="training-overview" aria-label="近28天训练总览"></div>
-<div id="regionTrendGrid" class="region-trend-grid" aria-label="胸肩背腿四个训练趋势图"></div>
-</div>
-<div class="panel"><div class="eyebrow">STRENGTH / ALL EXERCISES</div><h2>各动作力量趋势</h2>
-<p class="sub">不再筛选动作。每个动作独立绘图，按<strong>最近一次训练日期从新到旧</strong>排列；同日优先展示最近录入的动作。辅助重量和普通负重分别标注，不直接比较。</p>
-<div id="strengthList" class="strength-list" aria-label="全部已记录训练动作趋势"></div>
-</div>
-<div class="panel"><h2>训练区域分布</h2><p class="sub">最近28天各部位记录组数，不代表真实肌肉大小或训练效果。</p>
-<div id="regionSummary"></div></div>
-</section>
 
 <section class="page" id="page-sleep">
  <div class="panel sleep-workbench">
@@ -456,6 +389,74 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 <div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从本机每日 JSON 直接读取身体指标；更新后无需重新生成图表文件。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div><div class="panel"><h2>身体指标趋势</h2><p class="sub">仅使用已报告的日期与数值；未校正测量设备、时间或条件差异。</p><div id="bodyTrends" style="margin-top:12px"></div></div>
 
+<!-- Four-quadrant nutrition stays visible in Body. Calorie tools are preserved, but hidden. -->
+<div id="bodyNutritionSection">
+<div class="panel nutrition-checkin-panel">
+<div class="eyebrow">NUTRITION / QUICK CHECK-IN</div><h2>摄入概况 · 每日四分格</h2>
+<p class="sub">按体感勾选是否摄入；不代表克数或营养质量评估。未勾选不等于已确认没吃。</p>
+<div class="field"><label for="intakeDate">记录日期（北京时间）</label>
+<input type="date" id="intakeDate"></div>
+<div class="intake-check-grid" role="group" aria-label="每日摄入勾选">
+<label class="intake-choice" style="--intake-color:var(--intake-creatine)">
+<input type="checkbox" id="intakeCreatine"><span class="intake-label">肌酸</span></label>
+<label class="intake-choice" style="--intake-color:var(--intake-protein)">
+<input type="checkbox" id="intakeProtein"><span class="intake-label">蛋白粉</span></label>
+<label class="intake-choice" style="--intake-color:var(--intake-carbs)">
+<input type="checkbox" id="intakeCarbs"><span class="intake-label">碳水</span></label>
+<label class="intake-choice" style="--intake-color:var(--intake-sugar-oil)">
+<input type="checkbox" id="intakeSugarOil"><span class="intake-label">劣质糖油</span></label>
+</div>
+<div class="row wrap intake-check-actions">
+<span class="sub" id="intakeCheckStatus" role="status">当天尚未填写摄入勾选</span>
+<button type="button" class="primary" id="saveIntakeCheck">保存勾选并同步 GitHub</button>
+</div>
+<div class="divider"></div>
+<div class="row wrap" style="margin-top:12px"><h3 style="margin:0">近52周摄入日历</h3><button type="button" id="intakeToday" class="secondary mini">回到今天</button></div>
+<p class="sub">四象限固定为左上肌酸、右上蛋白粉、左下碳水、右下劣质糖油；点日期可修改勾选。</p>
+<div class="intake-calendar-scroll" id="intakeCalendarScroll">
+<div class="intake-months" id="intakeMonths"></div>
+<div class="intake-calendar-grid" id="intakeCalendar" aria-label="每日摄入四分格"></div>
+</div>
+<div class="intake-legend">
+<span><i style="background:var(--intake-creatine)"></i>肌酸</span>
+<span><i style="background:var(--intake-protein)"></i>蛋白粉</span>
+<span><i style="background:var(--intake-carbs)"></i>碳水</span>
+<span><i style="background:var(--intake-sugar-oil)"></i>劣质糖油</span>
+</div>
+<p class="sub">没有记录的日期为暗色；保存全未选时只表示本次未标记摄入。原有饮食热量记录独立保留。</p>
+</div>
+</div>
+<div id="nutritionLegacy" hidden aria-hidden="true">
+<div class="panel"><div class="eyebrow">NUTRITION / DAILY INTAKE</div><h2>饮食热量表</h2>
+<p class="sub">按实际吃下的重量计算；热量和营养素来自包装或你的估算，不自动猜测汤里多少肉。</p>
+<div class="row" style="margin-top:14px"><div><h3 style="margin:0" id="foodDateLabel">今日饮食</h3><p class="sub" id="foodDayTotals">尚无记录</p></div>
+<span class="tag" id="foodRecordCount">0条记录</span></div>
+<div id="nutritionBars"></div><div id="foodList" class="food-list"></div>
+</div>
+<div class="panel"><div class="eyebrow">NEW FOOD ENTRY</div><h2>新增饮食</h2>
+<div class="field"><label for="foodDate">日期（北京时间）</label><input id="foodDate" type="date"></div>
+<div class="formgrid"><div class="field"><label for="foodMeal">餐次</label><select id="foodMeal">
+<option value="breakfast">早餐</option><option value="lunch">午餐</option><option value="dinner">晚餐</option><option value="snack">加餐</option></select></div>
+<div class="field"><label for="foodPreset">快速填充</label><select id="foodPreset">
+<option value="">手动输入</option><option value="rice">熟米饭（参考）</option><option value="egg">鸡蛋（参考）</option>
+<option value="soy">无糖豆浆（参考）</option><option value="chicken">熟鸡胸肉（参考）</option>
+<option value="soup">肉骨茶/排骨汤（请自填）</option></select></div></div>
+<div class="field"><label for="foodName">食物名称</label><input id="foodName" maxlength="100" placeholder="例如：排骨汤（连汤带肉）"></div>
+<div class="formgrid">
+<div class="field"><label for="foodGrams">食用重量 (g)</label><input id="foodGrams" type="number" step="1" min="1" inputmode="decimal" value="100"></div>
+<div class="field"><label for="foodKcal">热量 (kcal/100g)</label><input id="foodKcal" type="number" step="0.1" min="0" inputmode="decimal" placeholder="按包装或估算"></div>
+</div>
+<div class="formgrid">
+<div class="field"><label for="foodProtein">蛋白质 (g/100g，可选)</label><input id="foodProtein" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
+<div class="field"><label for="foodCarbs">碳水 (g/100g，可选)</label><input id="foodCarbs" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
+</div>
+<div class="field"><label for="foodFat">脂肪 (g/100g，可选)</label><input id="foodFat" type="number" step="0.1" min="0" inputmode="decimal" placeholder="未知留空"></div>
+<div class="panel inner"><div class="row"><span>本次预计摄入</span><strong id="foodPreviewKcal">— kcal</strong></div>
+<p class="sub" id="foodPreviewMacros">按重量 × 每100g数值 ÷ 100</p></div>
+<button class="primary" id="saveNutrition">保存饮食 · 本地立即更新</button>
+<p class="note">参考预设是常见估算值，不是品牌检测报告。尤其汤类差异很大，需要按实际食材与份量填写。只有你录入的数据会被保存，不推断不存在的食物。</p>
+</div>
+</div>
 </section>
 
 <section class="page" id="page-voice">
@@ -677,8 +678,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <button data-page="home" class="active"><span class="ico">▦</span>概览</button>
 <button data-page="record"><span class="ico">＋</span>记录</button>
 
-<button data-page="nutrition"><span class="ico">▤</span>饮食</button>
-<button data-page="analytics"><span class="ico">▥</span>趋势</button>
 <button data-page="sleep"><span class="ico">☾</span>睡眠</button>
 <button data-page="voice"><span class="ico">♫</span>声音</button>
 <button data-page="body"><span class="ico">◉</span>身体</button>

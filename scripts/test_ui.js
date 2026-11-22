@@ -654,6 +654,34 @@ assert.ok(projector.includes('item.put("note"'));
 const gh=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
 assert.ok(gh.includes('"load_basis", "date_basis", "note", "source", "created_at"'));
+// Consolidated navigation: keep chart and nutrition elements, not the old tabs.
+const navSection=html.slice(html.indexOf('<nav class="tabs"'),html.indexOf('</nav>')+6);
+for(const page of ["home","record","sleep","voice","body","settings"]){
+ assert.ok(navSection.includes('data-page="'+page+'"'),"Missing navigation: "+page);
+}
+for(const removed of ["nutrition","analytics"]){
+ assert.ok(!navSection.includes('data-page="'+removed+'"'),"Old tab still present: "+removed);
+ assert.ok(!html.includes('id="page-'+removed+'"'),"Old page still present: "+removed);
+}
+const overviewSection=html.slice(html.indexOf('id="page-home"'),html.indexOf('id="page-record"'));
+for(const chart of ["trainingOverview","regionTrendGrid","strengthList","regionSummary"]){
+ assert.ok(overviewSection.includes('id="'+chart+'"'),"Trend not merged into overview: "+chart);
+}
+const bodySection=html.slice(html.indexOf('id="page-body"'),html.indexOf('id="page-voice"'));
+for(const id of ["bodyNutritionSection","intakeDate","saveIntakeCheck","intakeCalendar","intakeCalendarScroll"]){
+ assert.ok(bodySection.includes('id="'+id+'"'),"Four-grid checkin not in Body: "+id);
+}
+const legacyStart=bodySection.indexOf('<div id="nutritionLegacy" hidden aria-hidden="true">');
+assert.ok(legacyStart>=0,"Calorie tools need a hidden, retained wrapper");
+for(const id of ["nutritionBars","foodList","saveNutrition","foodName"]){
+ assert.ok(bodySection.slice(legacyStart).includes('id="'+id+'"'),"Legacy calorie tool lost: "+id);
+}
+assert.ok(html.includes('#nutritionLegacy[hidden]{display:none!important}'),
+ "Explicitly hide calorie forms even when panel styles override browser defaults");
+assert.ok(features.includes('document.querySelector(\'.tabs button[data-page="body"]\')'),
+ "Body tab must initialize the four-grid calendar viewport");
+assert.ok(features.includes('renderIntakeCheckin();navigate("body");'),
+ "Saving nutrition must stay on Body, not navigate to a deleted tab");
 // Four daily subjective intake flags are independent from food calories and
 // from muscle-region training activity. The latest save wins for each date.
 for(const id of ["intakeDate","intakeCreatine","intakeProtein","intakeCarbs",
