@@ -431,8 +431,9 @@
  }
  function axisForPitch(){
   if(!pitchAxis){
-   const source=pitchPoints.length?pitchPoints[0].midi:48;
-   pitchAxis=defaultPitchAxis(source);
+   // An empty placeholder chart must NOT lock the axis before the first sample.
+   if(!pitchPoints.length)return defaultPitchAxis(48);
+   pitchAxis=defaultPitchAxis(pitchPoints[0].midi);
   }
   return pitchAxis;
  }
