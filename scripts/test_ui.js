@@ -356,6 +356,19 @@ assert.ok(modelSpecTest.includes('data[4:8] == b"TFL3"'));
 assert.ok(modelSpecTest.includes('out["shape"] == [1, 521]'));
 assert.ok(sleepAnalyzer.includes("classifier.addSample(value)"));
 assert.ok(sleepAnalyzer.includes("ai_snore_scores"));
+assert.ok(sleepAnalyzer.includes('envelope.put("ai_speech_scores",classifier.speechResult(levels.size()))'));
+assert.ok(yamnet.includes("SPEECH=0")&&yamnet.includes("speechScores.add("));
+assert.ok(sleepAnalysisService.includes("EXTRA_REFRESH_SPEECH")&&
+ sleepAnalysisService.includes("refreshSpeech&&"));
+assert.ok(sleepStore.includes('envelope.put("ai_speech_scores",speechScores)'));
+assert.ok(native.includes('answer.put("ai_speech_scores",speechScores)'));
+assert.ok(native.includes('sleepAnalyzeSpeech(String sessionId'));
+assert.ok(html.includes('<option value="speech">疑似梦话</option>')&&
+ html.includes('id="sleepSpeechUpgrade"'));
+assert.ok(sleepJS.includes('detectSnoreEvents(scores,scoreThreshold,minimum,gap)'));
+assert.ok(sleepJS.includes('speechAvailable()')&&
+ sleepJS.includes('bridge().sleepAnalyzeSpeech(selectedId'));
+assert.ok(sleepVisualization.includes('result.ai_speech_scores'));
 assert.ok(sleepAnalysisService.includes("aiScores==null"));
 assert.ok(sleepStore.includes('envelope.put("ai_snore_scores",aiScores)'));
 assert.ok(native.includes('answer.put("ai_snore_scores",aiScores)'));

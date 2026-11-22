@@ -563,6 +563,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     sleepStop:()=>window.__sleepBridge.stopped++,
     sleepAnalyze:(id,threshold,seconds,gap)=>
      window.__sleepBridge.analysis.push({id,threshold,seconds,gap}),
+    sleepAnalyzeSpeech:(id,threshold,seconds,gap)=>
+     window.__sleepBridge.analysis.push({id,threshold,seconds,gap,speech:true}),
     sleepReadCached:(id,threshold,seconds,gap)=>
      window.__sleepBridge.cached.push({id,threshold,seconds,gap}),
     sleepPlaySequence:(id,json,skip)=>
@@ -674,6 +676,35 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator("#sleepThresholdDown").click();
   if((await page.evaluate(()=>window.__sleepBridge.analysis.length))!==decodeCount)
    throw Error("Changing threshold must not decode the original M4A again");
+  // Existing snore-only caches must not launch another 8-hour decode silently.
+  await page.locator("#sleepDetectionMode").selectOption("speech");
+  if(!(await page.locator("#sleepDetectorNote").innerText()).includes("缺少人声标签"))
+   throw Error("Old cache needs explicit speech-upgrade explanation");
+  if(await page.locator("#sleepSpeechUpgrade").isHidden())
+   throw Error("Speech upgrade button must be visible for old audio");
+  await page.locator("#sleepSpeechUpgrade").click();
+  const requested=await page.evaluate(()=>window.__sleepBridge.analysis.at(-1));
+  if(!requested?.speech||requested.id!==sleepId)
+   throw Error("One-time speech analysis did not reach the native bridge");
+  await page.evaluate(({id,seconds})=>{
+   const rms=Array.from({length:seconds},()=>-61);
+   const speech=Array.from({length:seconds},(_,i)=>i>=120&&i<126?.75:.01);
+   const snore=Array.from({length:seconds},(_,i)=>i>=300&&i<312?.60:.01);
+   window.bodyTraceReceive({type:"sleep_analysis",id,
+    started_ms:1795000000000,date_basis:"user_supplied",
+    total_seconds:seconds,threshold_dbfs:-40,minimum_seconds:2,gap_seconds:1,
+    levels_dbfs:rms,peak_levels_dbfs:rms,
+    ai_snore_scores:snore,ai_speech_scores:speech,events:[]});
+  },{id:sleepId,seconds});
+  if(!Number((await page.locator("#sleepQuickSummary").innerText()).match(/(\d+) 段/)?.[1]))
+   throw Error("Speech candidates should be found separately from snoring");
+  if(await page.locator("#sleepSpeechUpgrade").isVisible())
+   throw Error("New speech cache must hide rebuild button");
+  await page.locator("#sleepDetectionMode").selectOption("ai");
+  if(!Number((await page.locator("#sleepQuickSummary").innerText()).match(/(\d+) 段/)?.[1]))
+   throw Error("Snore model must still classify independent snore windows");
+  await page.locator("#sleepDetectionMode").selectOption("speech");
+  await page.screenshot({path:"bodytrace-sleep-speech-candidates-preview.png",fullPage:false});
   // The optional start time is intentionally collapsed in the compact UI.
   // Expand it explicitly before typing; do not force the field visible.
   await page.locator("#sleepCollectionDetails > summary").click();
