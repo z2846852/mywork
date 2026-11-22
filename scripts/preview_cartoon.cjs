@@ -291,8 +291,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    x:leftPoint.cx*svgBounds.width/svgBounds.vw,
    y:leftPoint.cy*svgBounds.height/svgBounds.vh
   }});
-  if(!(await page.locator(".combined-trend-selection").innerText()).includes("e1RM"))
-   throw Error("Combined chart tap must choose nearest plotted measurement");
+  if(!(await page.locator(".combined-trend-selection").innerText()).includes("表现估算"))
+   throw Error("Combined chart tap must show the focused exercise's observation");
   await page.screenshot({path:"bodytrace-trends-preview.png",fullPage:true});
   await page.evaluate(()=>{
    navigate("home");
