@@ -38,6 +38,7 @@ final class ApkUpdateManager {
         "https://api.github.com/repos/z2846852/mywork/releases/latest";
     private static final String FULL="BodyTrace-release.apk";
     private static final String MANIFEST="BodyTrace-updates.json";
+    private static final String CHANGELOG="BodyTrace-changelog.json";
     private static final long MAX_APK=100L*1024*1024;
     private static final long MAX_PATCH=60L*1024*1024;
     private static final long MAX_JSON=512L*1024;
@@ -70,7 +71,7 @@ final class ApkUpdateManager {
     private static boolean validHash(String s){return s!=null&&s.matches("[0-9a-f]{64}");}
     private static String expectedUrl(String tag,String asset){
         if(!tag.matches("v0\\.2\\.[0-9]{1,7}") ||
-           !(FULL.equals(asset)||MANIFEST.equals(asset)||
+           !(FULL.equals(asset)||MANIFEST.equals(asset)||CHANGELOG.equals(asset)||
              asset.matches("BodyTrace-from-v0\\.2\\.[0-9]{1,7}\\.btpatch")))
             throw new IllegalArgumentException("未知的 GitHub 更新资源");
         return REPO+"/releases/download/"+tag+"/"+asset;
@@ -253,9 +254,11 @@ final class ApkUpdateManager {
      * Only the GitHub Release JSON is fetched; no update manifest, patch,
      * APK, file writes or Android installer are involved.
      */
-    JSONObject checkVersionsOnly() throws Exception {
+    JSONObject checkVersionsOnly() throws Exception {return checkVersionsOnly(false);}
+
+    JSONObject checkVersionsOnly(boolean force) throws Exception {
         long installed=currentVersion();
-        GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get();
+        GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get(force);
         JSONObject release=snapshot.release;
         String tag=release.getString("tag_name");
         if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
@@ -268,6 +271,72 @@ final class ApkUpdateManager {
                 "当前已经是 GitHub 最新正式版")
             .put("installed_version",installed)
             .put("latest_version",latest);
+    }
+
+    /** Read a compact, SHA256-verified history index from the latest published Release. */
+    JSONObject loadReleaseHistory() throws Exception {
+        android.content.SharedPreferences prefs=context.getSharedPreferences(
+            "bodytrace_release_history",Context.MODE_PRIVATE);
+        String stored=prefs.getString("history_json","");
+        String storedTag=prefs.getString("history_tag","");
+        try{
+            GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get();
+            JSONObject release=snapshot.release;
+            String tag=release.getString("tag_name");
+            if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
+                throw new SecurityException("历史版本号不合法");
+            if(tag.equals(storedTag)&&!stored.isEmpty())
+                return releaseHistoryEvent(new JSONObject(stored),
+                    snapshot.stale?"cached":"loaded",
+                    snapshot.stale?"显示已缓存历史，GitHub 最新版本暂不可确认":
+                        "已读取缓存历史");
+            if(snapshot.stale)throw new IllegalStateException(snapshot.note());
+            JSONObject historyAsset=asset(release.getJSONArray("assets"),CHANGELOG);
+            if(historyAsset==null)
+                throw new IllegalStateException("最新 Release 尚未包含历史索引资源");
+            String digest=githubDigest(historyAsset);
+            byte[] bytes=readJson(expectedUrl(tag,CHANGELOG),2L*1024*1024);
+            String hash=hex(MessageDigest.getInstance("SHA-256").digest(bytes));
+            if(!digest.equals(hash))throw new SecurityException("版本历史 SHA256 校验失败");
+            String json=new String(bytes,java.nio.charset.StandardCharsets.UTF_8);
+            JSONObject history=new JSONObject(json);
+            if(history.optInt("schema")!=1||!tag.equals(history.optString("latest_tag")))
+                throw new IllegalStateException("版本历史与 Release 标签不匹配");
+            JSONArray list=history.optJSONArray("releases");
+            if(list==null||list.length()==0||list.length()>500)
+                throw new IllegalStateException("版本历史条目数量异常");
+            int previous=Integer.MAX_VALUE;
+            for(int i=0;i<list.length();i++){
+                JSONObject entry=list.getJSONObject(i);
+                int number=entry.getInt("version");
+                if(number<=0||number>=previous||
+                   !("v0.2."+number).equals(entry.optString("tag"))||
+                   entry.optJSONArray("changes")==null)
+                    throw new IllegalStateException("版本历史条目格式或顺序异常");
+                previous=number;
+            }
+            if(!prefs.edit().putString("history_json",json)
+                .putString("history_tag",tag).commit())
+                throw new IllegalStateException("缓存版本历史失败");
+            return releaseHistoryEvent(history,"loaded",
+                "已加载 "+list.length()+" 个已发布版本");
+        }catch(Exception problem){
+            if(!stored.isEmpty()){
+                try{
+                    return releaseHistoryEvent(new JSONObject(stored),"cached",
+                        "暂无法连接最新版本，显示缓存到 "+storedTag+" 的历史");
+                }catch(Exception ignored){}
+            }
+            throw problem;
+        }
+    }
+    private JSONObject releaseHistoryEvent(JSONObject history,String state,
+            String message)throws Exception {
+        return new JSONObject().put("type","release_history")
+            .put("state",state).put("message",message)
+            .put("installed_version",currentVersion())
+            .put("latest_tag",history.optString("latest_tag"))
+            .put("releases",history.getJSONArray("releases"));
     }
 
     /**
