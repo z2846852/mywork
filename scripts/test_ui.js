@@ -1023,7 +1023,7 @@ assert.ok(featureStyles.includes('.combined-trend-legend-item{display:inline-fle
 assert.ok(!html.includes('aria-label="胸肩背腿四个训练趋势图"'));
 assert.ok(html.includes('id="muscleLegend"'));
 const chartStart=features.indexOf("const dashboardRegions=");
-const chartEnd=features.indexOf("function renderRegionSummary()",chartStart);
+const chartEnd=features.indexOf("const trendColorShades=",chartStart);
 assert.ok(chartStart>=0&&chartEnd>chartStart);
 const chartFuncs=vm.runInNewContext(features.slice(chartStart,chartEnd)+
  "\ncomputeRegionDashboard",{

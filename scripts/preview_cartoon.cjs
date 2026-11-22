@@ -193,6 +193,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     !day.workouts?.some(w=>String(w.id).startsWith("demo-shoulder-")||String(w.id).startsWith("demo-same-day-")));
    window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
   });
+  // The demo includes one April workout, outside the default 90-day window.
+  await page.locator('.trend-period[data-period="365"]').click();
   const multi=page.locator("#regionTrendGrid .combined-trend-scroll svg");
   if(await multi.count()!==1)throw Error("Expected one shared multi-exercise chart");
   if(await page.locator("#regionTrendGrid .region-overview-card").count())
@@ -202,20 +204,20 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const names=await page.locator(".combined-trend-legend-region > strong").allTextContents();
   if(JSON.stringify(names)!==JSON.stringify(["胸 · 1项","肩 · 1项","背 · 1项","腿 · 1项"]))
    throw Error("All four muscle families should appear automatically: "+names);
-  const colors=await page.locator("#regionTrendGrid polyline").evaluateAll(
+  const lineColors=await page.locator("#regionTrendGrid polyline").evaluateAll(
    nodes=>nodes.map(n=>n.getAttribute("stroke")));
-  if(new Set(colors).size!==4)throw Error("Four regional colors were not unique");
+  if(new Set(lineColors).size!==4)throw Error("Four regional colors were not unique");
   // Time controls must permit exact dates without adding invented no-workout data.
   await page.locator('.trend-period[data-period="30"]').click();
-  if((await page.locator("#trendEndDate").inputValue())!=="2026-11-22")
-   throw Error("End date should use current fixture calendar date");
+  if((await page.locator("#trendEndDate").inputValue())!==(await page.evaluate(()=>today)))
+   throw Error("End date should use the local app calendar date");
   await page.locator("#trendStartDate").fill("2026-11-15");
   await page.locator("#trendStartDate").dispatchEvent("change");
   if(!(await page.locator('.trend-period[data-period="custom"]').getAttribute("class")).includes("active"))
    throw Error("Manual date edit must activate Custom");
   if(await page.locator("#regionTrendGrid polyline").count()!==2)
    throw Error("Date filter should drop earlier lines without losing the source data");
-  await page.locator('.trend-period[data-period="90"]').click();
+  await page.locator('.trend-period[data-period="365"]').click();
   const markers=page.locator("#regionTrendGrid .combined-trend-point");
   if(await markers.count()<4)throw Error("Combined chart needs clickable raw-data points");
   await markers.first().click();
