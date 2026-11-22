@@ -1506,6 +1506,39 @@ public final class MainActivity extends Activity {
             });
         }
 
+        /** Explicit fresh GitHub lookup; does not download or install. */
+        @JavascriptInterface public void refreshApkVersion(){
+            worker.execute(()->{
+                try{
+                    reply(message("apk_update").put("state","version_checking")
+                        .put("installed_version",apkUpdates.currentVersion())
+                        .put("message","正在主动查询 GitHub 最新正式版…"));
+                    reply(apkUpdates.checkVersionsOnly(true));
+                }catch(Exception e){
+                    try{
+                        JSONObject failed=message("apk_update").put("state","version_error")
+                            .put("message","主动检查失败："+safeMessage(e));
+                        try{failed.put("installed_version",apkUpdates.currentVersion());}
+                        catch(Exception ignored){}
+                        reply(failed);
+                    }catch(Exception ignored){}
+                }
+            });
+        }
+
+        /** User-initiated loading of published version differences. */
+        @JavascriptInterface public void loadReleaseHistory(){
+            worker.execute(()->{
+                try{reply(apkUpdates.loadReleaseHistory());}
+                catch(Exception e){
+                    try{
+                        reply(message("release_history").put("state","error")
+                            .put("message","版本历史读取失败："+safeMessage(e)));
+                    }catch(Exception ignored){}
+                }
+            });
+        }
+
         @JavascriptInterface public void checkApkUpdate(){
             worker.execute(()->{
                 try{
