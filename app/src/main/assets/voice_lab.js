@@ -17,6 +17,7 @@
  let modelsSelected="acoustic";
  let lastPhonemeEvent=null;
  let modelBusy=false;
+ let allModelsReady=false;
  function voiceModelStatus(message){safeText("voiceModelsStatus",message);}
  function renderModels(evt){
   if(evt.state==="downloading"||evt.state==="checking"){
@@ -40,36 +41,43 @@
   modelBusy=false;
   modelsInstalled=new Set((evt.models||[]).filter(m=>m.installed).map(m=>m.id));
   modelsSelected=evt.selected||"acoustic";
+  allModelsReady=Number(evt.installed_count)===Number(evt.total_count)&&
+    Number(evt.total_count)>0;
   $("voiceModelsChoice").value=modelsSelected;
   safeText("voiceModelsEngine",
    modelsSelected==="acoustic"?"基础声学探针":modelsSelected+" ✓ 已安装");
   const chosen=modelsSelected;
-  $("voiceModelsInstall").disabled=chosen==="acoustic"||modelsInstalled.has(chosen);
+  $("voiceModelsInstall").disabled=allModelsReady;
   $("voiceModelsDelete").disabled=chosen==="acoustic"||!modelsInstalled.has(chosen);
-  voiceModelStatus(evt.message||"模型已就绪，可开始测试");
+  const count=Number(evt.installed_count)||0;
+  const dictionary=evt.dictionary_ready?
+    "英汉词典 "+Number(evt.dictionary_entries).toLocaleString("zh-CN")+" 词条 ✓":
+    "英汉词典异常，需更新 APK";
+  voiceModelStatus("模型："+count+"/3 已完整 · "+dictionary+
+    (allModelsReady?" · 可离线使用":" · 点击下载缺失模型")+
+    (evt.message&&evt.message.includes("失败")?" · "+evt.message:""));
  }
  function updateModelActions(){
   const choice=$("voiceModelsChoice").value;
-  $("voiceModelsInstall").disabled=modelBusy||
-    choice==="acoustic"||modelsInstalled.has(choice);
+  $("voiceModelsInstall").disabled=modelBusy||allModelsReady;
   $("voiceModelsDelete").disabled=modelBusy||
     choice==="acoustic"||!modelsInstalled.has(choice);
   if(choice==="acoustic"||modelsInstalled.has(choice)){
    if(bridge()?.voiceModelsSelect)bridge().voiceModelsSelect(choice);
    else voiceModelStatus("安装新 APK 后才能选择神经音素模型");
   }else{
-   voiceModelStatus("当前选项尚未安装。点击“下载并启用”，从独立 GitHub Release 获取模型。");
+   voiceModelStatus("该模型尚未安装，点击“下载缺失资源”可一次补齐全部模型。");
   }
  }
  $("voiceModelsChoice").addEventListener("change",updateModelActions);
  $("voiceModelsInstall").addEventListener("click",()=>{
-  const id=$("voiceModelsChoice").value;
-  if(modelBusy||id==="acoustic"||modelsInstalled.has(id))return;
+  const id="all";
+  if(modelBusy||allModelsReady)return;
   if(!bridge()?.voiceModelsInstall){
    voiceModelStatus("需要安装支持模型包的新 APK");return;
   }
   modelBusy=true;$("voiceModelsInstall").disabled=true;
-  voiceModelStatus("正在查询模型包；首装会下载几十 MB，后续 APK 升级不重复下载。");
+  voiceModelStatus("正在下载缺失模型（最多 3 个），已完整的不会重复下载。");
   bridge().voiceModelsInstall(id);
  });
  $("voiceModelsDelete").addEventListener("click",()=>{
