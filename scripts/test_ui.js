@@ -2114,6 +2114,11 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   c.children.some(t=>String(t.textContent).includes("书"))));
  get("voicePhonemeSequence").children[1].click();
  assert.equal(samples.at(-1),"ɨ");
+ const playerSource=fs.readFileSync(path.join(root,
+  "app/src/main/java/com/z2846852/bodytrace/IpaSamplePlayer.java"),"utf8");
+ assert.ok(["retroflex_sh.ogg","central_i.ogg","extra_0255.mp3",
+  "extra_0291.mp3","extra_027e.mp3"].every(name=>playerSource.includes(name)),
+  "Human phoneme playback needs both common English and multilingual IPA assets");
  assert.ok(get("voiceWordCompareStatus").textContent.includes("待核实"),
   "Acoustic mismatches must not be asserted as confirmed pronunciation errors");
  assert.ok(get("voicePhoneExamples").children.some(c=>
