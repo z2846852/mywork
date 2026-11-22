@@ -13,6 +13,7 @@ public final class PhoneticLexiconTest {
     private static PhoneticLexicon fixture()throws Exception{
         String rows=String.join("\n",
             "think\tθɪŋk\t认为；思考\t100",
+            "thinking\tθɪŋkɪŋ\t思考中\t101",
             "thin\tθɪn\t薄的；瘦的\t700",
             "thing\tθɪŋ\t东西；事情\t500",
             "sink\tsɪŋk\t下沉；水槽\t1400",
@@ -32,10 +33,11 @@ public final class PhoneticLexiconTest {
     }
     public static void main(String[] args)throws Exception{
         PhoneticLexicon db=fixture();
-        require(db.size()==13,"Duplicate entries should not load");
+        require(db.size()==14,"Duplicate entries should not load");
         require(db.lookup(" THINK ")!=null&&db.lookup(" THINK ").ipa.equals("θɪŋk"),
             "Exact word lookup must work offline and be case-insensitive");
-        require(db.lookup("thinking")==null,"An absent word must not invent IPA");
+        require(db.lookup("thinking")!=null&&db.lookup("thinking").ipa.equals("θɪŋkɪŋ"),"Thinking must have six standard IPA phones");
+        require(db.lookup("nonexistentword")==null,"Unknown word must not invent IPA");
         List<PhoneticLexicon.Match> think=db.find(Arrays.asList("θ","ɪ","ŋ","k"),5);
         require(think.size()>=3,"Similar English words expected");
         require("think".equals(think.get(0).word),"Full IPA must rank think first");
