@@ -583,6 +583,18 @@
     (x0+i*dx).toFixed(1)+" "+yClamp(y(p.midi),y0,y1).toFixed(1)).join(" ");
    traces.appendChild(el("path",{d:path,stroke:"#89ddbb","stroke-width":2.6,
     "stroke-linejoin":"round","stroke-linecap":"round",fill:"none"}));
+   // Restore the original information-dense annotations: one note name for
+   // EVERY drawn pitch point, even when labels touch or overlap. Do not
+   // decimate labels by distance, hide repeats, or only label the latest point.
+   pitchPoints.forEach((point,index)=>{
+    const px=x0+index*dx,py=yClamp(y(point.midi),y0,y1);
+    const marker=el("text",{x:px,y:yClamp(py-7-(index%2)*9,10,211),
+     "text-anchor":"middle","font-size":8,"font-weight":650,
+     fill:"#c0f2d5","fill-opacity":.84,
+     "pointer-events":"none",class:"pitch-sample-label"});
+    marker.textContent=noteName(point.midi,info);
+    traces.appendChild(marker);
+   });
    const last=pitchPoints[pitchPoints.length-1];
    const py=yClamp(y(last.midi),y0,y1);
    traces.appendChild(el("circle",{cx:x1,cy:py,r:3.8,fill:"#eefff5"}));
@@ -651,11 +663,12 @@
     PASTELS[pc(b.note)%PASTELS.length]:RED;
    traces.appendChild(el("line",{x1:bx+1,x2:Math.max(bx+2,ex-1),
     y1:sy,y2:sy,stroke:color,"stroke-width":7,"stroke-linecap":"round"}));
-   if(ex-bx>=33){
-    const label=el("text",{x:(bx+ex)/2,y:sy-9,
-     "text-anchor":"middle",fill:color,"font-size":9,"font-weight":700});
-    label.textContent=noteName(b.note,info);traces.appendChild(label);
-   }
+   // Label every horizontal sung segment, including very brief ones. Dense
+   // labels are intentional; the singer wants to see each note transition.
+   const label=el("text",{x:(bx+ex)/2,y:sy-9,
+    "text-anchor":"middle",fill:color,"font-size":9,"font-weight":700,
+    "pointer-events":"none",class:"pitch-segment-label"});
+   label.textContent=noteName(b.note,info);traces.appendChild(label);
   }
   const last=pitchPoints[pitchPoints.length-1],nearest=Math.round(last.midi);
   const color=inSelectedScale(last.midi,info)?

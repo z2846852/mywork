@@ -1978,6 +1978,12 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   "C sharp must be red in C major, even without a song target");
  assert.ok(graphics.some(x=>x.tag==="line"&&x.attrs.stroke!=="#f17f86"),
   "C major scale notes must remain pastel");
+ const segmentCount=graphics.filter(x=>x.tag==="line"&&
+  x.attrs["stroke-width"]==="7").length;
+ const segmentLabels=graphics.filter(x=>x.tag==="text"&&
+  x.attrs.class==="pitch-segment-label");
+ assert.equal(segmentLabels.length,segmentCount,
+  "Every sung staff bar, including short bars, must have a note name");
  assert.ok(get("voicePitchPercent").textContent.endsWith("%"),
   "Staff mode must give precise frequency deviation percentage");
  get("voicePitchModeCurve").click();
@@ -1991,6 +1997,13 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   "Frequency Y axis must label both note and Hertz");
  assert.ok(get("voicePitchTraces").children.some(x=>x.tag==="text"&&
   /C♯4/.test(x.textContent)),"Frequency graph must show live pitch name");
+ const sampleLabels=get("voicePitchTraces").children.filter(x=>
+  x.tag==="text"&&x.attrs.class==="pitch-sample-label");
+ assert.equal(sampleLabels.length,6,
+  "Frequency view must label all six rendered pitch samples, not only latest");
+ assert.ok(sampleLabels.some(x=>x.textContent==="C4")&&
+  sampleLabels.some(x=>x.textContent==="C♯4"),
+  "Repeated and transitional notes must all remain visible");
  const sizes=[];
  for(const group of groups){
   group.click();sizes.push(get("voiceIpaGrid").children.length);
