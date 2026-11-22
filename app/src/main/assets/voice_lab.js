@@ -439,7 +439,7 @@
  }
  function noteDiatonicStep(midi,info){
   const name=noteName(Math.round(midi),info);
-  const m=name.match(/^([A-G])(?:♯|♭)?(-?\\d+)$/);
+  const m=name.match(/^([A-G])(?:♯|♭)?(-?\d+)$/);
   if(!m)return null;
   return (Number(m[2])+1)*7+LETTERS.indexOf(m[1]);
  }
