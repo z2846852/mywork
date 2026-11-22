@@ -329,7 +329,7 @@ const trendColorShades={
 };
 let trendSelectedPeriod="90",trendStart="",trendEnd="",trendAssistBase=70;
 const trendExcluded=new Set();
-const validTrendDate=x=>/^\\d{4}-\\d{2}-\\d{2}$/.test(x||"")&&
+const validTrendDate=x=>/^\d{4}-\d{2}-\d{2}$/.test(x||"")&&
  !Number.isNaN(Date.parse(x+"T12:00:00Z"));
 const trendMillis=x=>Date.parse(x+"T12:00:00Z");
 function trendRange(){
