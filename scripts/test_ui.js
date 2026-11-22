@@ -1034,14 +1034,18 @@ assert.ok(features.includes('Math.max(0,bodyWeight-load)'));
 assert.ok(features.includes('estimate=effective*(1+reps/30)'));
 assert.ok(features.includes('group.days.set(day'));
 assert.ok(features.includes('const x=day=>span===0?775:73+'));
-assert.ok(features.includes('function trendRelativeOffset(value,reference,assisted)'));
-assert.ok(features.includes('const trendDisplayRegions=["腿","背","胸","肩"]'));
+assert.ok(features.includes('function trendRelativeIndex(value,reference,assisted)'));
+assert.ok(!features.includes('const trendDisplayRegions='));
+assert.ok(!features.includes('const trendRegionLanes='));
+assert.ok(features.includes('const curveValues=all.map(group=>'));
+assert.ok(features.includes('svg.setAttribute("data-axis-mode",trendFocusKey?"focused":"all")'));
+assert.ok(features.includes('const chosenValues=trendFocusKey?'));
 assert.ok(features.includes('const trendMarkerStyles='));
 assert.ok(features.includes('const trendDashStyles='));
 assert.ok(features.includes('trendFocusKey=trendFocusKey===key&&!pt?null:key'));
 assert.ok(features.includes('clear.textContent="显示全部曲线"'));
 assert.ok(featureStyles.includes('min-width:0!important;height:auto'));
-assert.ok(html.includes('aria-label="胸肩背腿相对力量趋势，全部曲线单屏可见"'));
+assert.ok(html.includes('aria-label="胸肩背腿所有动作同一纵轴、同一完整图，点击动作后纵轴放大"'));
 assert.ok(features.includes('const trendColorShades='));
 assert.ok(featureStyles.includes('.combined-trend-legend-item{display:inline-flex'));
 assert.ok(!html.includes('aria-label="胸肩背腿四个训练趋势图"'));
@@ -1120,13 +1124,13 @@ assert.equal(new Set(estimated.series.filter(s=>s.region==="腿").map(s=>s.color
 const legStyles=estimated.series.filter(s=>s.region==="腿");
 assert.equal(new Set(legStyles.map(s=>s.marker)).size,3);
 assert.equal(new Set(legStyles.map(s=>s.dash)).size,3);
-const visualModel=vm.runInNewContext(estimateJs+'\ntrendRelativeOffset',{
-  Math
-});
-assert.equal(visualModel(40,40,false),0);
-assert.ok(visualModel(50,40,false)>0);
-assert.ok(visualModel(30,40,false)<0);
-assert.ok(visualModel(10,0,true)>0);
+const visualModel=vm.runInNewContext(estimateJs+'\ntrendRelativeIndex',{Math});
+assert.equal(visualModel(40,40,false),100);
+assert.ok(visualModel(50,40,false)>100);
+assert.ok(visualModel(30,40,false)<100);
+assert.ok(visualModel(10,0,true)>100);
+assert.ok(visualModel(42,40,false)-100>0,
+ "Small improvements must be retained without tanh flattening");
 
 const targetsStart=features.indexOf("const muscleTargets=");
 const targetsEnd=features.indexOf("const musclePaths=",targetsStart);

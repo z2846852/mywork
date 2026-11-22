@@ -219,12 +219,29 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(fit.scroll>fit.client+2||fit.svg>fit.client+2||
      fit.lastX<fit.viewWidth*.85)
    throw Error("Chart must fit one screen and keep latest point at the right edge: "+JSON.stringify(fit));
-  const orderedBands=await page.locator("#regionTrendGrid .combined-trend-band")
-   .evaluateAll(nodes=>nodes.map(n=>n.getAttribute("data-region")));
-  if(JSON.stringify(orderedBands)!==JSON.stringify(["腿","背","胸","肩"]))
-   throw Error("Four visual lanes not ordered as expected: "+orderedBands);
+  if(await page.locator("#regionTrendGrid .combined-trend-band").count())
+   throw Error("Four segregated muscle subplots must not exist");
+  const unified=await page.locator("#regionTrendGrid .combined-trend-scroll > svg")
+   .evaluate(svg=>({
+    axis:svg.getAttribute("data-axis-mode"),
+    low:Number(svg.getAttribute("data-ymin")),
+    high:Number(svg.getAttribute("data-ymax")),
+    series:[...svg.querySelectorAll(".combined-trend-line")].map(line=>
+      (line.getAttribute("points")||"").split(" ")
+        .filter(Boolean).map(p=>Number(p.split(",")[1])))
+   }));
+  if(unified.axis!=="all"||unified.series.length!==4||
+     unified.series.some(s=>s.some(y=>!Number.isFinite(y))))
+   throw Error("All action series must use a single shared full-height y-axis");
   // Legend selection is a focus action, not a hide toggle.
   await page.locator("#regionTrendGrid .combined-trend-legend-item").first().click();
+  const focusedDomain=await page.locator("#regionTrendGrid .combined-trend-scroll > svg")
+   .evaluate(svg=>({
+    axis:svg.getAttribute("data-axis-mode"),
+    span:Number(svg.getAttribute("data-ymax"))-Number(svg.getAttribute("data-ymin"))
+   }));
+  if(focusedDomain.axis!=="focused"||!(focusedDomain.span<unified.high-unified.low))
+   throw Error("Focusing a curve must zoom the SAME chart's shared y-axis");
   if(await page.locator("#regionTrendGrid .combined-trend-line.selected").count()!==1||
      await page.locator("#regionTrendGrid .combined-trend-line.muted").count()!==3)
    throw Error("Click legend should focus one line, dim three others, and hide none");
@@ -233,6 +250,9 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator("#regionTrendGrid .combined-trend-legend-item.selected").click();
   if(await page.locator("#regionTrendGrid .combined-trend-line.muted").count())
    throw Error("Click selected legend again should restore all lines");
+  const restoredMode=await page.locator("#regionTrendGrid .combined-trend-scroll > svg")
+   .getAttribute("data-axis-mode");
+  if(restoredMode!=="all")throw Error("Restoring all lines must restore the common y-axis");
   // Add a second leg exercise in the visual fixture; line styles and markers
   // must still differ even if shades are difficult to distinguish.
   await page.evaluate(()=>{

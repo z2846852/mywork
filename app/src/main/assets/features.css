@@ -1498,3 +1498,8 @@ body.workout-edit-open{overflow:hidden}
 #page-analytics .combined-trend-marker{pointer-events:none}
 #page-analytics .combined-trend-line.muted{opacity:.16}
 #page-analytics .combined-trend-line.selected{opacity:1}
+
+/* All four muscle groups now occupy one full-height shared plot. */
+#page-analytics .combined-trend-scroll{background:#142723}
+#page-analytics .combined-trend-scroll > svg{width:100%!important;min-width:0!important;
+ display:block;max-width:100%;height:auto}

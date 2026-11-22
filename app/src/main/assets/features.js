@@ -329,16 +329,15 @@ const trendColorShades={
 };
 let trendSelectedPeriod="30",trendStart="",trendEnd="",trendAssistBase=70;
 let trendFocusKey=null;
-// These are visual lanes, NOT a claim that all leg exercises exceed all others.
-const trendDisplayRegions=["腿","背","胸","肩"];
-const trendRegionLanes={腿:95,背:220,胸:345,肩:470};
+// All exercises use the SAME y-axis in the SAME plot, without per-region lanes.
 const trendDashStyles=["","10 6","3 6","15 5 3 5","2 3","11 4 2 4"];
 const trendMarkerStyles=["circle","square","diamond","triangle","cross","hexagon"];
-function trendRelativeOffset(value,reference,assisted){
- const floor=Math.max(assisted?20:5,reference*.42);
- const ratio=(Math.max(0,value)+floor)/(Math.max(0,reference)+floor);
- // Same formula on every series, symmetric for improvements and setbacks.
- return Math.tanh(Math.log(ratio)*2.2)*49;
+function trendRelativeIndex(value,reference,assisted){
+ // 100 marks this exercise's own first effective record. For an assisted
+ // exercise with 0 kg estimated load, the fixed floor avoids division by zero.
+ // Do not squash small changes with tanh or flatten real declines.
+ const denominator=Math.max(assisted?20:10,reference*.6);
+ return 100+100*(value-reference)/denominator;
 }
 function trendRecordedRange(series){
  const dates=series.flatMap(s=>s.points.map(p=>p.date)).sort();
@@ -484,60 +483,86 @@ function renderRegionDashboard(){
   root.append(empty);return;
  }
  const section=document.createElement("div");section.className="combined-trend-scroll";
- const W=800,H=594;
+ // SVG aspect ratio gives the full plot roughly one phone-screen width of height.
+ // There is a single shared y-domain, never a fixed region-per-row lane.
+ const W=800,H=750,plotTop=48,plotBottom=676;
  const svg=el("svg",{viewBox:"0 0 "+W+" "+H,role:"img",
-  "aria-label":"胸肩背腿四个色系的相对力量变化；一张图完整显示，不需要左右滚动"});
+  "aria-label":"所有胸肩背腿动作共用完整高度与一个表现指数纵轴的折线图"});
  svg.append(el("rect",{x:0,y:0,width:W,height:H,
   fill:"transparent","pointer-events":"all"}));
- for(let i=0;i<trendDisplayRegions.length;i++){
-  const region=trendDisplayRegions[i],cy=trendRegionLanes[region];
-  const band=el("g",{class:"combined-trend-band","data-region":region,
-   "data-center":cy});
-  band.append(el("rect",{x:0,y:cy-60,width:W,height:120,
-   fill:regionThemeColors[region],opacity:".035"}));
-  band.append(el("line",{x1:67,y1:cy,x2:788,y2:cy,
-   stroke:regionThemeColors[region],"stroke-width":1,"stroke-dasharray":"3 7",
-   opacity:".35"}));
-  const label=el("text",{x:12,y:cy+6,fill:regionThemeColors[region],
-   "font-size":19,"font-weight":"bold"});
-  label.textContent=region;band.append(label);
-  svg.append(band);
- }
+ const clip=el("clipPath",{id:"trend-shared-plot-clip"});
+ clip.append(el("rect",{x:70,y:plotTop,width:718,
+  height:plotBottom-plotTop}));
+ const defs=el("defs");defs.append(clip);svg.append(defs);
  const span=Math.max(0,trendMillis(recorded.last)-trendMillis(recorded.first));
- // Date filters choose which observations exist, not a huge invisible 90d canvas.
- // Last recorded observation always sits at the visible chart's right edge.
+ // Only recorded dates set chart extents. No left-only blank 90-day viewport.
  const x=day=>span===0?775:73+
   (trendMillis(day)-trendMillis(recorded.first))/span*702;
- const datespan=Math.round(span/86400000);
- if(datespan>0){
-  const ticks=Math.min(4,datespan);
+ const curveValues=all.map(group=>{
+  const base=reference.get(group.key)??group.points[0].value;
+  return {group,base,points:group.points.map(point=>({
+   point,index:trendRelativeIndex(point.value,base,group.assisted)
+  }))};
+ });
+ // On focus zoom into selected action's real variation. With no selection,
+ // calculate one y domain for ALL actions, not one scale per muscle.
+ const chosenValues=trendFocusKey?
+  curveValues.filter(v=>v.group.key===trendFocusKey):curveValues;
+ const samples=chosenValues.flatMap(v=>v.points.map(p=>p.index));
+ const rawMin=Math.min(...samples,100),rawMax=Math.max(...samples,100);
+ // Do not force a 100 baseline into the focused domain: subtle gains need
+ // most of the total plotting height, not another miniature subplot.
+ const focusSamples=trendFocusKey?chosenValues.flatMap(v=>v.points.map(p=>p.index)):[];
+ const minIndex=focusSamples.length?Math.min(...focusSamples):rawMin;
+ const maxIndex=focusSamples.length?Math.max(...focusSamples):rawMax;
+ const delta=Math.max(trendFocusKey?3:12,maxIndex-minIndex);
+ const midpoint=(maxIndex+minIndex)/2;
+ const low=midpoint-delta*.64,high=midpoint+delta*.64;
+ const y=value=>plotBottom-(value-low)/(high-low)*(plotBottom-plotTop);
+ svg.setAttribute("data-ymin",low.toFixed(3));
+ svg.setAttribute("data-ymax",high.toFixed(3));
+ svg.setAttribute("data-axis-mode",trendFocusKey?"focused":"all");
+ for(let i=0;i<=5;i++){
+  const value=low+(high-low)*i/5,py=y(value);
+  svg.append(el("line",{x1:70,y1:py,x2:788,y2:py,
+   stroke:"#3a554c","stroke-width":1,opacity:".8"}));
+  const label=el("text",{x:63,y:py+5,
+   "text-anchor":"end",fill:"#a9c8b8","font-size":15});
+  label.textContent=round1(value);svg.append(label);
+ }
+ const title=el("text",{x:15,y:22,fill:"#a9c8b8","font-size":16});
+ title.textContent="表现指数";svg.append(title);
+ const baseline=y(100);
+ if(baseline>=plotTop&&baseline<=plotBottom){
+  svg.append(el("line",{x1:70,y1:baseline,x2:788,y2:baseline,
+   stroke:"#b1c7bd","stroke-width":1.4,opacity:".68",
+   "stroke-dasharray":"5 6"}));
+ }
+ const dateSpan=Math.round(span/86400000);
+ if(dateSpan>0){
+  const ticks=Math.min(4,dateSpan);
   for(let i=0;i<=ticks;i++){
-   const day=plus(recorded.first,Math.round(datespan*i/ticks));
+   const day=plus(recorded.first,Math.round(dateSpan*i/ticks));
    const px=x(day);
-   svg.append(el("line",{x1:px,y1:30,x2:px,y2:536,
-    stroke:"#3d5b50","stroke-width":"1","stroke-dasharray":"2 9"}));
-   const label=el("text",{x:px,y:571,
+   svg.append(el("line",{x1:px,y1:plotTop,x2:px,y2:plotBottom,
+    stroke:"#304d44","stroke-width":1,"stroke-dasharray":"2 9"}));
+   const label=el("text",{x:px,y:719,
     "text-anchor":i===0?"start":i===ticks?"end":"middle",
-    fill:"#adc9b9","font-size":"17"});
+    fill:"#aecabb","font-size":17});
    label.textContent=day.slice(5);svg.append(label);
   }
  }else{
-  const label=el("text",{x:776,y:571,"text-anchor":"end",
-   fill:"#adc9b9","font-size":"17"});
+  const label=el("text",{x:776,y:719,"text-anchor":"end",
+   fill:"#aecabb","font-size":17});
   label.textContent=recorded.last.slice(5);svg.append(label);
  }
  const details=document.createElement("div");details.className="combined-trend-selection";
  details.setAttribute("role","status");
- const curves=[];
- for(const group of all){
-  const base=reference.get(group.key)??group.points[0].value;
-  const center=trendRegionLanes[group.region];
-  const pts=group.points.map(point=>({
-   x:x(point.date),y:center-trendRelativeOffset(point.value,base,group.assisted),
-   point
-  }));
-  curves.push({group,pts,base});
- }
+ const curves=curveValues.map(v=>({
+  group:v.group,base:v.base,
+  pts:v.points.map(p=>({x:x(p.point.date),y:y(p.index),
+   point:p.point,index:p.index}))
+ }));
  const showPoint=(curve,pt)=>{
   const {group,base}=curve,point=pt.point;
   const difference=point.value-base;
@@ -583,13 +608,15 @@ function renderRegionDashboard(){
    fill:"none",stroke:group.color,
    "stroke-width":focused?5.2:3.1,
    "stroke-linejoin":"round","stroke-linecap":"round",
-   opacity:dimmed?".16":"1"});
+   opacity:dimmed?".16":"1",
+   "clip-path":"url(#trend-shared-plot-clip)"});
   if(group.dash)line.setAttribute("stroke-dasharray",group.dash);
   line.setAttribute("pointer-events","none");
   svg.append(line);
   for(const pt of pts){
    const marker=svgMarker(group.marker,pt.x,pt.y,group.color,focused?8:6);
    if(dimmed)marker.setAttribute("opacity",".16");
+   marker.setAttribute("clip-path","url(#trend-shared-plot-clip)");
    svg.append(marker);
    // Accessible named points; pointer activation is handled on SVG itself
    // so that overlapping touch targets never steal clicks.
@@ -677,9 +704,10 @@ function renderRegionDashboard(){
  root.append(legend);
  const note=document.createElement("p");
  note.className="note combined-trend-note";
- note.textContent="相对表现：各动作以首次有效记录为起点。腿、背、胸、肩固定分层便于阅读；"+
-  "上下层级不代表跨动作的绝对力量大小。折线允许真实下降，未训练日不生成新点。"+
-  "辅助动作仍按 "+round1(trendAssistBase)+" kg 体重基准估算。";
+ note.textContent="全部动作共用一张图和一条表现指数纵轴（首条有效记录=100）。"+
+  "点选动作后会自动放大该动作的上下波动，其他曲线仍保留为淡色背景。"+
+  "这是便于观察趋势的相对指标，不是跨器械可比的肌肉力量。"+
+  "未训练日不补点，辅助动作沿用 "+round1(trendAssistBase)+" kg 体重基准。";
  root.append(note);
 }
 function updateTrendPreference(){
