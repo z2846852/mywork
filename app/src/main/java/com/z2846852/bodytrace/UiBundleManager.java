@@ -219,8 +219,8 @@ final class UiBundleManager {
      */
     synchronized JSONObject fetchLatest() throws Exception {
         JSONObject result=status();
-        JSONObject release=new JSONObject(new String(download(LATEST_API,256*1024),
-                StandardCharsets.UTF_8));
+        GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get();
+        JSONObject release=snapshot.release;
         String tag=release.getString("tag_name");
         if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
             throw new IllegalArgumentException("无法识别的发布版本号");
@@ -228,8 +228,8 @@ final class UiBundleManager {
         result.put("latest_version",latest);
         if(latest<=Math.max(bundledVersion(),
                 activeManifest==null?0:activeManifest.optInt("release_number"))){
-            result.put("state","up_to_date");
-            result.put("message","当前已是最新界面版本。");
+            result.put("state",snapshot.stale?"version_deferred":"up_to_date");
+            result.put("message",snapshot.stale?snapshot.note():"当前已是最新界面版本。");
             return result;
         }
         JSONArray assets=release.getJSONArray("assets");

@@ -1230,14 +1230,23 @@ window.bodyTraceReceive=function(evt){
   if(evt.latest_version!==undefined)
    $("apkLatestVersion").textContent="v0.2."+evt.latest_version;
   if(evt.state==="version_checking"||evt.state==="update_available"||
-     evt.state==="version_error"||evt.state==="up_to_date"){
+     evt.state==="version_error"||evt.state==="up_to_date"||
+     evt.state==="version_deferred"){
    if(!apkUpdating&&!apkReady){
     $("apkUpdateStatus").textContent=evt.message||"版本状态未知";
     if(evt.state==="version_error")$("apkLatestVersion").textContent="查询失败";
+    if(evt.state==="version_deferred")$("apkLatestVersion").textContent=
+      evt.latest_version!==undefined?"缓存 v0.2."+evt.latest_version:"暂不可查";
     if(evt.state==="up_to_date"){
      $("checkApkUpdate").textContent="已是最新版";
     }else $("checkApkUpdate").textContent="检查并升级";
     $("checkApkUpdate").disabled=evt.state==="up_to_date";
+   }
+   if(evt.state==="version_deferred"&&apkUpdating){
+    apkUpdating=false;
+    $("checkApkUpdate").disabled=false;
+    $("checkApkUpdate").textContent="稍后重试";
+    $("apkUpdateStatus").textContent=evt.message||"公共 API 暂时受限";
    }
    if(evt.state==="up_to_date"&&apkUpdating){
     apkUpdating=false;

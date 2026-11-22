@@ -136,6 +136,16 @@ assert.ok(fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytra
  .includes('X-RateLimit-Remaining'),"UI updater must distinguish GitHub rate limiting");
 assert.ok(fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8")
  .includes('GitHub API 请求额度耗尽'),"Private sync should distinguish quota exhaustion");
+const releaseCache=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/GitHubReleaseCache.java"),"utf8");
+assert.ok(releaseCache.includes('getSharedPreferences(PREFS,Context.MODE_PRIVATE)'));
+assert.ok(releaseCache.includes('X-RateLimit-Reset')&&
+ releaseCache.includes('Retry-After')&&releaseCache.includes('blocked_until'));
+assert.ok(releaseCache.includes('new Snapshot(local,true,blocked)'));
+assert.ok(apkUpdate.includes('new GitHubReleaseCache(context).get()'));
+assert.ok(fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/UiBundleManager.java"),"utf8")
+ .includes('new GitHubReleaseCache(context).get()'));
 assert.ok(html.includes('BodyTraceNative.checkApkVersion()')&&
  html.includes('BodyTraceNative.checkApkUpdate()')&&
  html.includes('BodyTraceNative.installPendingApk()'));
@@ -150,7 +160,7 @@ assert.ok(native.includes('apkUpdates.checkVersionsOnly()')&&
 const versionOnlyMethod=apkUpdate.slice(
  apkUpdate.indexOf('JSONObject checkVersionsOnly()'),
  apkUpdate.indexOf('synchronized JSONObject checkAndPrepare('));
-assert.ok(versionOnlyMethod.includes('readJson(API,MAX_JSON)')&&
+assert.ok(versionOnlyMethod.includes('new GitHubReleaseCache(context).get()')&&
  !versionOnlyMethod.includes('download(')&&
  !versionOnlyMethod.includes('ApkDeltaPatch.apply(')&&
  !versionOnlyMethod.includes('Files.deleteIfExists('),
