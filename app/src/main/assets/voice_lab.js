@@ -306,7 +306,7 @@
   "r":[["right","r aɪ t","light","l aɪ t"],["road","r əʊ d","load","l əʊ d"]]
  };
  function englishPhone(raw){
-  const s=String(raw||"").trim().replace(/^\\/+|\\/+$/g,"");
+  const s=String(raw||"").trim().replaceAll("/","");
   const p=aliasToEnglish[s]||s;
   return ipaBySymbol(p)?p:null;
  }
@@ -377,7 +377,9 @@
   setPracticeTarget({symbol:phone,word:p[idx],phonemes:p[idx+1].split(" ")});
  }
  function parseDictionaryIpa(value){
-  const ipa=String(value||"").split("、")[0].replace(/[\\/ˈˌ.ː\\s]/g,"");
+  const ipa=String(value||"").split("、")[0].replaceAll("/","")
+   .replaceAll("ˈ","").replaceAll("ˌ","").replaceAll(".","")
+   .replaceAll("ː","").replaceAll(" ","");
   const multi=["aɪ","aʊ","eɪ","oʊ","ɔɪ","əʊ","ɪə","eə","ʊə","tʃ","dʒ"];
   const result=[];
   for(let i=0;i<ipa.length;){
