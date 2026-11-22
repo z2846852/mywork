@@ -1475,6 +1475,10 @@ public final class MainActivity extends Activity {
             worker.execute(() -> {
                 restore();
                 sendUiPreferences();
+                // Show the local installed version without fetching GitHub.
+                try{reply(message("apk_update").put("state","local_version")
+                    .put("installed_version",apkUpdates.currentVersion()));}
+                catch(Exception ignored){}
                 uiReady = true;
                 consumePendingSharedAvatar();
                 sendSleepStatus();
@@ -1506,6 +1510,27 @@ public final class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public void fetchReleaseHistory(int page){
+            worker.execute(()->{
+                try{reply(ReleaseHistory.list(page));}
+                catch(Exception e){
+                    try{reply(message("release_history").put("state","error")
+                        .put("page",page).put("message","版本历史查询失败："+safeMessage(e)));}
+                    catch(Exception ignored){}
+                }
+            });
+        }
+        @JavascriptInterface public void fetchReleaseChanges(String previous,String current){
+            worker.execute(()->{
+                try{reply(ReleaseHistory.changes(previous,current));}
+                catch(Exception e){
+                    try{reply(message("release_history").put("state","error")
+                        .put("previous",previous).put("current",current)
+                        .put("message","提交对比失败："+safeMessage(e)));}
+                    catch(Exception ignored){}
+                }
+            });
+        }
         @JavascriptInterface public void checkApkUpdate(){
             worker.execute(()->{
                 try{

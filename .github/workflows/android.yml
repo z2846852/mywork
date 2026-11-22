@@ -178,6 +178,33 @@ jobs:
           tag="v0.2.$GITHUB_RUN_NUMBER"
           shopt -s nullglob
           patch_assets=(release-updates/*.btpatch)
+          previous_tag="$(gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name' 2>/dev/null || true)"
+          {
+            echo "### $tag 的实际 Git 提交"
+            if [[ "$previous_tag" =~ ^v0\.2\.[0-9]+$ ]]; then
+              echo
+              echo "比较范围：$previous_tag → $tag"
+              echo
+              if gh api "repos/$GH_REPO/compare/${previous_tag}...${GITHUB_SHA}" \
+                --jq '.commits[].commit.message | split("\n")[0] | "- " + .' \
+                > release-commit-lines.txt; then
+                if [[ -s release-commit-lines.txt ]]; then
+                  cat release-commit-lines.txt
+                else
+                  echo "- 该区间没有可列出的提交。"
+                fi
+              else
+                echo "- 无法生成提交列表，请查看 GitHub Compare。"
+              fi
+              echo
+              echo "完整差异：https://github.com/$GH_REPO/compare/$previous_tag...$tag"
+            else
+              echo
+              echo "首次 Release；后续版本将逐版记录实际 Git 提交。"
+            fi
+            echo
+            echo "安装资源：签名 APK、可选界面小包，以及旧版本的直接差分补丁。"
+          } > release-notes.md
           gh release create "$tag" \
             "BodyTrace-release.apk#Fixed-signature Android APK" \
             "BodyTrace-ui.zip#Optional small UI-only update" \
@@ -185,6 +212,6 @@ jobs:
             "${patch_assets[@]}" \
             --target "$GITHUB_SHA" \
             --title "BodyTrace $tag (Release)" \
-            --notes "Signed APK + optional UI ZIP + direct APK delta updates for up to 10 prior versions. Update in-app; Android confirms installation." \
+            --notes-file release-notes.md \
             --latest
           echo "https://github.com/$GH_REPO/releases/latest/download/BodyTrace-release.apk"

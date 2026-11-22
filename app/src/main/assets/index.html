@@ -620,10 +620,19 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <div class="row apk-update-heading">
   <h2>APP 版本更新</h2>
   <div class="apk-update-heading-actions">
-   <span class="sub">自动查询 GitHub</span>
+   <span class="sub">手动检查 GitHub</span>
    <details class="apk-update-help">
-    <summary aria-label="高级：仅界面更新" title="仅界面更新 · 高级">!</summary>
+    <summary aria-label="版本历史及界面更新说明" title="版本历史与高级更新">!</summary>
     <div class="apk-update-help-popup" id="uiUpdatePanel">
+     <div class="apk-history-heading">
+      <h3>版本更新历史</h3>
+      <button type="button" id="loadReleaseHistory" class="secondary mini">查看历史</button>
+     </div>
+     <p class="sub">按实际发布的版本展示；旧版本若无说明，可按需查询真实 Git 提交。</p>
+     <p id="releaseHistoryStatus" class="sub" role="status">未查询（不会自动访问 GitHub）</p>
+     <div id="releaseHistoryList" class="apk-release-list"></div>
+     <button type="button" id="moreReleaseHistory" class="secondary mini" hidden>更早版本</button>
+     <div class="apk-advanced-updater">
      <h3>仅界面更新 <span class="sub">高级功能</span></h3>
      <p class="sub">只替换 HTML/CSS/JS，不更新 Java、权限或 YAMNet；需要原生指纹兼容。</p>
      <p id="uiUpdateStatus" class="sub" role="status">当前界面版本读取中…</p>
@@ -632,7 +641,8 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
       <button type="button" class="secondary mini" id="restartUiAfterUpdate" disabled>重新加载</button>
       <button type="button" class="secondary mini" id="rollbackUiUpdate">恢复内置界面</button>
      </div>
-     <p class="sub">日常推荐直接用下方 APK 升级；原生代码、权限或模型变更时，此处无法代替完整安装。</p>
+     <p class="sub">原生代码、权限或模型变更时请使用 APK 更新。</p>
+     </div>
     </div>
    </details>
   </div>
@@ -642,9 +652,12 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
    <span>本机 <strong id="apkInstalledVersion">读取中…</strong></span>
    <span>最新 <strong id="apkLatestVersion">未查询</strong></span>
   </div>
-  <button type="button" class="primary" id="checkApkUpdate">检查并升级</button>
+  <div class="apk-update-actions">
+   <button type="button" class="secondary mini" id="checkApkVersion">检查</button>
+   <button type="button" class="primary mini" id="checkApkUpdate" disabled>更新</button>
+  </div>
  </div>
- <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">进入设置后自动检查版本，不下载 APK。</p>
+ <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">只有点击“检查”才查询 GitHub，点击“更新”才下载。</p>
 </div>
 <div class="panel" id="gitHistoryPanel">
  <div class="row wrap"><div><h2>Git log · 最近10次提交</h2>
@@ -846,18 +859,17 @@ function plus(s,n){let d=parse(s);d.setUTCDate(d.getUTCDate()+n);return iso(d)}
 function todayShanghai(){return new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:"Asia/Shanghai"}).format(new Date())}
 const today=todayShanghai();$("recordDate").value=today;state.selected=today;
 function toast(msg,bad=false){let e=$("toast");e.textContent=msg;e.className=bad?"warn":"";e.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.style.display="none",4300)}
-let lastApkVersionCheck=0,apkUpdating=false,apkReady=false;
-function checkVersionOnSettingsEntry(){
- if(apkUpdating||apkReady||Date.now()-lastApkVersionCheck<600000)return;
- lastApkVersionCheck=Date.now();
- $("apkLatestVersion").textContent="查询中…";
- $("apkUpdateStatus").textContent="正在检查 GitHub 最新版本，不下载文件…";
+let apkUpdating=false,apkReady=false,apkChecking=false,apkUpdateKnown=false;
+function checkApkVersionManual(){
+ if(apkChecking||apkUpdating)return;
  if(!window.BodyTraceNative?.checkApkVersion){
-  $("apkInstalledVersion").textContent="未知";
-  $("apkLatestVersion").textContent="未知";
-  $("apkUpdateStatus").textContent="当前 APK 不支持自动版本查询，需完整安装新版一次。";
-  return;
+  $("apkUpdateStatus").textContent="当前 APK 不支持版本查询，请先升级一次。";return;
  }
+ apkChecking=true;apkUpdateKnown=false;
+ $("checkApkVersion").disabled=true;
+ $("checkApkUpdate").disabled=!apkReady;
+ $("apkLatestVersion").textContent="查询中…";
+ $("apkUpdateStatus").textContent="仅检查 GitHub 版本，不下载文件…";
  BodyTraceNative.checkApkVersion();
 }
 let currentMainPage="home",navigationTouched=false;
@@ -867,7 +879,7 @@ function navigate(name,fromUser=true){
  currentMainPage=name;
  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+name));
  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
- if(name==="settings"&&fromUser)checkVersionOnSettingsEntry();
+ // Entering Settings is entirely offline; public API calls require a tap.
  if(fromUser){
   navigationTouched=true;
   if(window.BodyTraceNative?.setUiNavigation)BodyTraceNative.setUiNavigation(name);
@@ -1235,17 +1247,20 @@ $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("
 $("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的原始 JSON 和未上传记录会保留。"))BodyTraceNative.disconnect()};
 const sync=()=>BodyTraceNative.sync();
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
+$("checkApkVersion").onclick=checkApkVersionManual;
 $("checkApkUpdate").onclick=()=>{
  if(apkReady&&window.BodyTraceNative?.installPendingApk){
   BodyTraceNative.installPendingApk();
   return;
  }
+ if(!apkUpdateKnown){toast("请先点击检查确认是否有新版本",true);return;}
  if(!window.BodyTraceNative?.checkApkUpdate){
   toast("当前 APP 不支持 APK 差分升级，请先完整安装新版一次",true);return;
  }
  apkUpdating=true;
+ $("checkApkVersion").disabled=true;
  $("checkApkUpdate").disabled=true;
- $("checkApkUpdate").textContent="准备升级…";
+ $("checkApkUpdate").textContent="准备中…";
  $("apkUpdateStatus").textContent="正在寻找适配本机版本的更新包…";
  BodyTraceNative.checkApkUpdate();
 };
@@ -1267,38 +1282,144 @@ $("rollbackUiUpdate").onclick=()=>{
   $("restartUiAfterUpdate").disabled=false;
  }
 };
+
+const releaseList=[],releaseDiffs=new Map();
+let releasePage=0,releaseBusy=false,releaseHasMore=true;
+const genericReleaseNote="Signed APK + optional UI ZIP + direct APK delta updates for up to 10 prior versions. Update in-app; Android confirms installation.";
+function releaseElement(tag,cls,txt){
+ const e=document.createElement(tag);if(cls)e.className=cls;
+ if(txt!==undefined)e.textContent=txt;return e;
+}
+function renderReleases(expandKey=""){
+ const root=$("releaseHistoryList");root.replaceChildren();
+ releaseList.forEach((item,i)=>{
+  const prev=releaseList[i+1];
+  const panel=releaseElement("section","apk-release-item");
+  const head=releaseElement("div","apk-release-head");
+  head.append(releaseElement("strong","",item.tag),
+   releaseElement("small","",item.date?item.date.slice(0,10):"日期未知"));
+  panel.append(head);
+  const note=(item.body||"").trim();
+  panel.append(releaseElement("p","apk-release-notes"+
+   (!note||note===genericReleaseNote?" apk-note-empty":""),
+   note&&note!==genericReleaseNote?note:"历史 Release 未记录具体改动，可按需查看真实提交。"));
+  if(prev){
+   const key=prev.tag+"..."+item.tag;
+   const diff=releaseDiffs.get(key);
+   const details=releaseElement("div","apk-release-commits");
+   details.hidden=key!==expandKey;
+   const action=releaseElement("button","secondary mini",diff?"展开 / 收起提交":"查看本版提交");
+   action.type="button";
+   action.onclick=()=>{
+    if(releaseDiffs.has(key)){details.hidden=!details.hidden;return;}
+    if(!window.BodyTraceNative?.fetchReleaseChanges){
+     details.textContent="请先安装支持版本历史查询的新 APK。";details.hidden=false;return;
+    }
+    action.disabled=true;action.textContent="查询中…";
+    BodyTraceNative.fetchReleaseChanges(prev.tag,item.tag);
+   };
+   if(diff){
+    if(diff.error)details.append(releaseElement("p","apk-error",diff.error));
+    else{
+     details.append(releaseElement("small","",
+      prev.tag+" → "+item.tag+" · 共 "+diff.total+" 次提交"));
+     for(const msg of diff.commits)details.append(releaseElement("p","apk-release-commit","• "+msg));
+     if(!diff.commits.length)details.append(releaseElement("p","","两版间没有可显示的提交。"));
+     if(diff.total>diff.commits.length)details.append(releaseElement("p","apk-note-empty",
+      "仅显示前 "+diff.commits.length+" 条，完整记录请在 GitHub Compare 中查看。"));
+    }
+   }
+   panel.append(action,details);
+  }else panel.append(releaseElement("small","apk-note-empty","加载更早版本后可比较本版提交。"));
+  root.append(panel);
+ });
+}
+function loadReleases(){
+ if(releaseBusy||!releaseHasMore)return;
+ if(!window.BodyTraceNative?.fetchReleaseHistory){
+  $("releaseHistoryStatus").textContent="当前 APK 不支持历史查询，请先升级一次。";return;
+ }
+ releaseBusy=true;$("loadReleaseHistory").disabled=true;
+ $("moreReleaseHistory").disabled=true;
+ $("releaseHistoryStatus").textContent="正在读取 GitHub Release 历史…";
+ BodyTraceNative.fetchReleaseHistory(releasePage+1);
+}
+$("loadReleaseHistory").onclick=()=>{
+ // Explicit refresh clears old pages, but never queries automatically.
+ if(releasePage>0){releasePage=0;releaseHasMore=true;releaseList.length=0;}
+ loadReleases();
+};
+$("moreReleaseHistory").onclick=loadReleases;
+function receiveReleaseHistory(evt){
+ if(evt.state==="listed"){
+  releaseBusy=false;
+  releasePage=evt.page;releaseHasMore=evt.has_more===true;
+  const seen=new Set(releaseList.map(x=>x.tag));
+  for(const rel of evt.releases||[]){
+   if(!seen.has(rel.tag)){releaseList.push(rel);seen.add(rel.tag);}
+  }
+  $("releaseHistoryStatus").textContent="已加载 "+releaseList.length+" 个发布版本";
+  $("loadReleaseHistory").disabled=false;
+  $("moreReleaseHistory").disabled=false;
+  $("moreReleaseHistory").hidden=!releaseHasMore;
+  $("loadReleaseHistory").textContent="刷新历史";
+  renderReleases();
+ }else if(evt.state==="changes"){
+  const key=evt.previous+"..."+evt.current;
+  releaseDiffs.set(key,{commits:evt.commits||[],total:evt.total||0});
+  renderReleases(key);
+ }else if(evt.state==="error"){
+  if(evt.previous&&evt.current){
+   const key=evt.previous+"..."+evt.current;
+   releaseDiffs.set(key,{error:evt.message||"查询失败"});
+   renderReleases(key);
+  }else{
+   releaseBusy=false;
+   $("loadReleaseHistory").disabled=false;
+   $("moreReleaseHistory").disabled=false;
+   $("releaseHistoryStatus").textContent=evt.message||"读取失败";
+  }
+ }
+}
+
 $("showViewJson").onclick=()=>{if(window.BodyTraceNative)BodyTraceNative.showViewModel();};
 window.bodyTraceReceive=function(evt){
  switch(evt.type){
+ case "release_history":
+  receiveReleaseHistory(evt);break;
  case "apk_update":{
-  // Version-only results never start a download or disable the action button.
+  // Check and local version results never start a download.
   if(evt.installed_version!==undefined)
    $("apkInstalledVersion").textContent="v0.2."+evt.installed_version;
   if(evt.latest_version!==undefined)
    $("apkLatestVersion").textContent="v0.2."+evt.latest_version;
+  if(evt.state==="local_version")break;
   if(evt.state==="version_checking"||evt.state==="update_available"||
      evt.state==="version_error"||evt.state==="up_to_date"||
      evt.state==="version_deferred"){
+   if(evt.state!=="version_checking"){
+    apkChecking=false;$("checkApkVersion").disabled=false;
+    apkUpdateKnown=evt.state==="update_available";
+   }
    if(!apkUpdating&&!apkReady){
     $("apkUpdateStatus").textContent=evt.message||"版本状态未知";
     if(evt.state==="version_error")$("apkLatestVersion").textContent="查询失败";
     if(evt.state==="version_deferred")$("apkLatestVersion").textContent=
       evt.latest_version!==undefined?"缓存 v0.2."+evt.latest_version:"暂不可查";
-    if(evt.state==="up_to_date"){
-     $("checkApkUpdate").textContent="已是最新版";
-    }else $("checkApkUpdate").textContent="检查并升级";
-    $("checkApkUpdate").disabled=evt.state==="up_to_date";
+    $("checkApkUpdate").textContent=evt.state==="up_to_date"?"最新版":"更新";
+    $("checkApkUpdate").disabled=!apkUpdateKnown;
    }
    if(evt.state==="version_deferred"&&apkUpdating){
     apkUpdating=false;
     $("checkApkUpdate").disabled=false;
-    $("checkApkUpdate").textContent="稍后重试";
+    $("checkApkUpdate").textContent="更新";
+    apkUpdateKnown=false;
     $("apkUpdateStatus").textContent=evt.message||"公共 API 暂时受限";
    }
    if(evt.state==="up_to_date"&&apkUpdating){
     apkUpdating=false;
     $("checkApkUpdate").disabled=true;
-    $("checkApkUpdate").textContent="已是最新版";
+    $("checkApkUpdate").textContent="最新版";
     $("apkUpdateStatus").textContent=evt.message||"当前已是最新版";
    }
    break;
@@ -1307,11 +1428,13 @@ window.bodyTraceReceive=function(evt){
   if(evt.state==="checking"||evt.state==="downloading"||
      evt.state==="applying"||evt.state==="verifying"){
    apkUpdating=true;
+   $("checkApkVersion").disabled=true;
    $("checkApkUpdate").disabled=true;
    $("checkApkUpdate").textContent=evt.state==="downloading"?"下载中…":"升级进行中…";
   }else{
    apkUpdating=false;
-   $("checkApkUpdate").disabled=false;
+   $("checkApkVersion").disabled=false;
+   $("checkApkUpdate").disabled=!apkUpdateKnown&&!apkReady;
   }
   if(evt.state==="ready"){
    apkReady=true;
@@ -1323,7 +1446,8 @@ window.bodyTraceReceive=function(evt){
    $("checkApkUpdate").textContent="继续安装";
   }else if(evt.state==="error"){
    apkReady=false;
-   $("checkApkUpdate").textContent="检查并升级";
+   $("checkApkUpdate").textContent="更新";
+   $("checkApkUpdate").disabled=!apkUpdateKnown;
    toast(evt.message||"APK 更新失败",true);
   }
   break;

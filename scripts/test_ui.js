@@ -103,12 +103,13 @@ assert.ok(apkPatch.includes('original.seek(offset)')&&
 assert.ok(apkProvider.includes('"/verified.apk".equals(uri.getPath())'));
 assert.ok(apkProvider.includes('"r".equals(mode)')&&
  !apkProvider.includes('MODE_WRITE_ONLY'));
-assert.ok(html.includes('id="checkApkUpdate"')&&
+assert.ok(html.includes('id="checkApkVersion"')&&
+ html.includes('id="checkApkUpdate"')&&
  html.includes('id="apkInstalledVersion"')&&
  html.includes('id="apkLatestVersion"')&&
  html.includes('case "apk_update":'));
 assert.ok(html.includes('class="apk-update-help"')&&
- html.includes('aria-label="高级：仅界面更新"')&&
+ html.includes('aria-label="版本历史及界面更新说明"')&&
  html.includes('class="apk-update-help-popup" id="uiUpdatePanel"'),
  "UI-only updates must live inside the APK panel help disclosure");
 const uiHelpStart=html.indexOf('class="apk-update-help"');
@@ -123,11 +124,27 @@ assert.equal((html.match(/id="uiUpdatePanel"/g)||[]).length,1);
 
 assert.ok(!html.includes('id="installPendingApk"'),
  "Only one APK update action should be displayed");
-assert.ok(html.includes('function checkVersionOnSettingsEntry()') &&
- html.includes('if(name==="settings"&&fromUser)checkVersionOnSettingsEntry()'),
- "Entering Settings must automatically query the installed/latest versions");
-assert.ok(html.includes('Date.now()-lastApkVersionCheck<600000'),
- "Do not repeatedly query public release API when switching settings tabs");
+assert.ok(html.includes('function checkApkVersionManual()') &&
+ html.includes('$("checkApkVersion").onclick=checkApkVersionManual')&&
+ !html.includes('checkVersionOnSettingsEntry()')&&
+ !html.includes('lastApkVersionCheck'),
+ "GitHub version checks must be manually triggered, never on Settings navigation");
+assert.ok(html.includes('id="releaseHistoryList"')&&
+ html.includes('id="loadReleaseHistory"')&&
+ html.includes('case "release_history":')&&
+ html.includes('BodyTraceNative.fetchReleaseHistory(releasePage+1)'),
+ "Changelog must be on-demand in the ! disclosure");
+const releaseHistoryJava=fs.readFileSync(path.join(root,
+ "app/src/main/java/com/z2846852/bodytrace/ReleaseHistory.java"),"utf8");
+assert.ok(releaseHistoryJava.includes('releases?per_page=')&&
+ releaseHistoryJava.includes('compare/')&&
+ releaseHistoryJava.includes('MAX_RESPONSE=3*1024*1024'));
+assert.ok(native.includes('fetchReleaseHistory(int page)')&&
+ native.includes('fetchReleaseChanges(String previous,String current)')&&
+ native.includes('put("state","local_version")'));
+assert.ok(workflow.includes('release-commit-lines.txt')&&
+ workflow.includes('--notes-file release-notes.md'),
+ "Every new Release should describe real Git commits");
 assert.ok(html.includes('if(!navigationTouched)'),
  "Native preference restore should not override a manual navigation");
 assert.ok(apkUpdate.includes('X-RateLimit-Remaining')&&

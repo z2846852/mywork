@@ -1168,9 +1168,37 @@ body.workout-edit-open{overflow:hidden}
 #apkUpdatePanel .apk-version-info{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 #apkUpdatePanel .apk-version-info span{font-size:11px;color:#9db7aa}
 #apkUpdatePanel .apk-version-info strong{font-size:13px;color:#c9f1de;font-variant-numeric:tabular-nums}
-#apkUpdatePanel #checkApkUpdate{width:auto;min-width:104px;
+#apkUpdatePanel #checkApkUpdate{width:auto;min-width:52px;
  min-height:39px;margin:0;padding:8px 10px;border-radius:9px;font-size:11px;flex-shrink:0}
 #apkUpdatePanel #checkApkUpdate:disabled{opacity:.6;cursor:default}
+#apkUpdatePanel .apk-update-actions{display:flex;gap:5px;flex-shrink:0}
+#apkUpdatePanel .apk-update-actions button{width:auto;min-width:52px;
+ min-height:36px;margin:0;padding:6px 9px;border-radius:8px;font-size:11px}
+#apkUpdatePanel #checkApkVersion:disabled{opacity:.6}
+#apkUpdatePanel .apk-history-heading{display:flex;justify-content:space-between;
+ align-items:center;gap:8px}
+#apkUpdatePanel .apk-history-heading h3{margin:0}
+#apkUpdatePanel .apk-history-heading button{min-height:31px;font-size:10px}
+#apkUpdatePanel .apk-release-list{display:flex;flex-direction:column;gap:8px;
+ max-height:43vh;overflow-y:auto;overscroll-behavior:contain}
+#apkUpdatePanel .apk-release-item{background:#1c352b;border:1px solid #355849;
+ padding:9px;border-radius:8px;overflow-wrap:anywhere}
+#apkUpdatePanel .apk-release-head{display:flex;align-items:center;
+ justify-content:space-between;gap:8px;font-size:12px}
+#apkUpdatePanel .apk-release-head small{color:#a9c5b6;font-size:10px}
+#apkUpdatePanel .apk-release-notes{white-space:pre-wrap;font-size:10px;line-height:1.4;
+ max-height:150px;overflow:auto;color:#cae7d4}
+#apkUpdatePanel .apk-note-empty{font-size:10px;color:#a2b5a9}
+#apkUpdatePanel .apk-release-item>button{min-height:30px;font-size:10px}
+#apkUpdatePanel .apk-release-commits{border-top:1px solid #476453;margin-top:7px;padding-top:6px}
+#apkUpdatePanel .apk-release-commits[hidden]{display:none}
+#apkUpdatePanel .apk-release-commits p{margin:5px 0;font-size:10px;
+ line-height:1.45;overflow-wrap:anywhere}
+#apkUpdatePanel .apk-release-commits .apk-error{color:#f5adad}
+#apkUpdatePanel #moreReleaseHistory{margin-top:8px;min-height:30px}
+#apkUpdatePanel #moreReleaseHistory[hidden]{display:none}
+#apkUpdatePanel .apk-advanced-updater{border-top:1px solid #456b55;
+ margin-top:11px;padding-top:10px}
 #apkUpdatePanel #apkUpdateStatus{font-size:10px;margin-top:7px;line-height:1.45}
 
 /* Low-frequency UI bundle updater: ! disclosure within the APK upgrade card. */
@@ -1185,7 +1213,7 @@ body.workout-edit-open{overflow:hidden}
 #apkUpdatePanel .apk-update-help>summary::-webkit-details-marker{display:none}
 #apkUpdatePanel .apk-update-help[open]>summary{background:#386952}
 #apkUpdatePanel .apk-update-help-popup{position:absolute;right:11px;top:52px;
- z-index:30;width:min(350px,calc(100vw - 42px));max-height:min(70vh,530px);
+ z-index:30;width:min(350px,calc(100vw - 42px));max-height:min(75vh,620px);
  overflow-y:auto;padding:12px;border:1px solid #568e74;border-radius:12px;
  background:#162b27;box-shadow:0 14px 32px #000a}
 #apkUpdatePanel .apk-update-help-popup h3{display:flex;align-items:center;gap:8px;
