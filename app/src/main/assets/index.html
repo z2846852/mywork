@@ -82,15 +82,28 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 
 <section class="page" id="page-analytics">
 <div class="panel overview-panel">
-<div class="eyebrow">TRAINING OVERVIEW</div><h2>训练总览 · 胸 / 肩 / 背 / 腿</h2>
-<p class="sub">按实际保存的组数统计；最近 8 个连续 7 天周期。不同器械重量不相加，不把组数当作肌肉增长。</p>
-<div id="trainingOverview" class="training-overview" aria-label="近28天训练总览"></div>
-<div id="regionTrendGrid" class="region-trend-grid" aria-label="胸肩背腿四个训练趋势图"></div>
+<div class="eyebrow">STRENGTH DEVELOPMENT</div><h2>力量趋势 · 全部动作</h2>
+<p class="sub">同一张图展示胸、肩、背、腿所有有效动作；颜色按部位分组，深浅区分动作。横轴按真实日期，纵轴为简化 Epley 估算 1RM，不代表实测最大力量。</p>
+<div class="trend-period-toolbar" role="group" aria-label="力量趋势时间范围" id="trendPeriodToolbar">
+ <button type="button" class="trend-period active" data-period="30">30天</button>
+ <button type="button" class="trend-period" data-period="90">90天</button>
+ <button type="button" class="trend-period" data-period="365">365天</button>
+ <button type="button" class="trend-period" data-period="all">全部</button>
+ <button type="button" class="trend-period" data-period="custom">自定义</button>
 </div>
-<div class="panel"><div class="eyebrow">STRENGTH / ALL EXERCISES</div><h2>各动作力量趋势</h2>
-<p class="sub">不再筛选动作。每个动作独立绘图，按<strong>最近一次训练日期从新到旧</strong>排列；同日优先展示最近录入的动作。辅助重量和普通负重分别标注，不直接比较。</p>
-<div id="strengthList" class="strength-list" aria-label="全部已记录训练动作趋势"></div>
+<div class="trend-range-fields">
+ <label>起始 <input type="date" id="trendStartDate" aria-label="趋势起始日期"></label>
+ <label>结束 <input type="date" id="trendEndDate" aria-label="趋势结束日期"></label>
+ <label class="trend-weight-label">辅助基准体重 <span><input type="number" id="trendAssistWeight" min="30" max="250" step="0.1" value="70" inputmode="decimal" aria-label="辅助引体换算所用基准体重"> kg</span></label>
 </div>
+<div id="trainingOverview" class="training-overview" aria-label="近28天训练概况"></div>
+<div id="regionTrendGrid" class="combined-trend" aria-label="胸肩背腿全部动作共享坐标系力量趋势图"></div>
+</div>
+<div class="panel"><details id="strengthDetailExpander" class="strength-detail-expander">
+ <summary>单动作详情与编辑 <small>失败尝试、原始重量、历史记录</small></summary>
+ <p class="sub">需要检查具体器械记录时再展开。失败尝试不计入上方估算 1RM 曲线。</p>
+ <div id="strengthList" class="strength-list" aria-label="全部已记录训练动作趋势"></div>
+</details></div>
 <div class="panel"><h2>训练区域分布</h2><p class="sub">最近28天各部位记录组数，不代表真实肌肉大小或训练效果。</p>
 <div id="regionSummary"></div></div>
 </section>

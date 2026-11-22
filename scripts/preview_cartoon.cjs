@@ -73,6 +73,9 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(await page.locator("#analyticsExercise").count())throw Error("Trend dropdown still visible");
   const plots=await page.locator("#strengthList .feature-chart svg").count();
   if(plots!==4)throw Error("Expected every recorded exercise to have a chart: "+plots);
+  if(await page.locator("#strengthList").isVisible())
+   throw Error("Per-exercise detailed charts should be collapsed by default");
+  await page.locator("#strengthDetailExpander > summary").click();
   // Mobile taps on graph dots must show saved kg/reps, not desktop hover alone.
   await page.evaluate(()=>{
    // Exercise charts are private module functions; refresh through the same
@@ -190,15 +193,34 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     !day.workouts?.some(w=>String(w.id).startsWith("demo-shoulder-")||String(w.id).startsWith("demo-same-day-")));
    window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
   });
-  const overview=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
-   nodes=>nodes.map(node=>node.dataset.region));
-  if(JSON.stringify(overview)!==JSON.stringify(["胸","肩","背","腿"]))
-   throw Error("Four-region dashboard is incomplete: "+JSON.stringify(overview));
-  const cardPalette=await page.locator("#regionTrendGrid .region-overview-card").evaluateAll(
-    nodes=>nodes.map(n=>getComputedStyle(n.querySelector(".region-overview-count")).color));
-  if(new Set(cardPalette).size!==4)throw Error("Four dashboard colors must be distinct: "+cardPalette);
-  const sparks=await page.locator("#regionTrendGrid .region-overview-spark rect").count();
-  if(sparks!==32)throw Error("Each region must have eight weekly bars: "+sparks);
+  const multi=page.locator("#regionTrendGrid .combined-trend-scroll svg");
+  if(await multi.count()!==1)throw Error("Expected one shared multi-exercise chart");
+  if(await page.locator("#regionTrendGrid .region-overview-card").count())
+   throw Error("Legacy four-panel bars must not remain");
+  const curves=await page.locator("#regionTrendGrid polyline").count();
+  if(curves!==4)throw Error("Demo should create four color-family curves: "+curves);
+  const names=await page.locator(".combined-trend-legend-region > strong").allTextContents();
+  if(JSON.stringify(names)!==JSON.stringify(["胸 · 1项","肩 · 1项","背 · 1项","腿 · 1项"]))
+   throw Error("All four muscle families should appear automatically: "+names);
+  const colors=await page.locator("#regionTrendGrid polyline").evaluateAll(
+   nodes=>nodes.map(n=>n.getAttribute("stroke")));
+  if(new Set(colors).size!==4)throw Error("Four regional colors were not unique");
+  // Time controls must permit exact dates without adding invented no-workout data.
+  await page.locator('.trend-period[data-period="30"]').click();
+  if((await page.locator("#trendEndDate").inputValue())!=="2026-11-22")
+   throw Error("End date should use current fixture calendar date");
+  await page.locator("#trendStartDate").fill("2026-11-15");
+  await page.locator("#trendStartDate").dispatchEvent("change");
+  if(!(await page.locator('.trend-period[data-period="custom"]').getAttribute("class")).includes("active"))
+   throw Error("Manual date edit must activate Custom");
+  if(await page.locator("#regionTrendGrid polyline").count()!==2)
+   throw Error("Date filter should drop earlier lines without losing the source data");
+  await page.locator('.trend-period[data-period="90"]').click();
+  const markers=page.locator("#regionTrendGrid .combined-trend-point");
+  if(await markers.count()<4)throw Error("Combined chart needs clickable raw-data points");
+  await markers.first().click();
+  if(!(await page.locator(".combined-trend-selection").innerText()).includes("e1RM"))
+   throw Error("Combined chart point needs e1RM drilldown");
   await page.screenshot({path:"bodytrace-trends-preview.png",fullPage:true});
   await page.evaluate(()=>{
    navigate("home");

@@ -1008,6 +1008,19 @@ assert.ok(html.includes('class="record-save-dock"')&&
 assert.ok(featureStyles.includes("env(safe-area-inset-bottom"),
  "Fixed action must account for device safe-area inset");
 assert.ok(html.includes('id="trainingOverview"')&&html.includes('id="regionTrendGrid"'));
+assert.ok(html.includes('id="trendStartDate"')&&html.includes('id="trendEndDate"'));
+assert.ok(html.includes('id="trendAssistWeight"')&&html.includes('id="strengthDetailExpander"'));
+assert.ok(html.includes('data-period="365"')&&html.includes('data-period="custom"'));
+assert.ok(features.includes('function trendData(rows,from,end,bodyWeight=70)'));
+assert.ok(features.includes('const assisted=row.exercise_id==="assisted_pullup"'));
+assert.ok(features.includes('Math.max(0,bodyWeight-load)'));
+assert.ok(features.includes('estimate=effective*(1+reps/30)'));
+assert.ok(features.includes('group.days.set(day'));
+assert.ok(features.includes('const x=day=>56+(trendMillis(day)-xmin)/xSpan*724'));
+assert.ok(features.includes('const low=Math.max(0,Math.floor('));
+assert.ok(features.includes('const trendColorShades='));
+assert.ok(featureStyles.includes('.combined-trend-legend-item{display:inline-flex'));
+assert.ok(!html.includes('aria-label="胸肩背腿四个训练趋势图"'));
 assert.ok(html.includes('id="muscleLegend"'));
 const chartStart=features.indexOf("const dashboardRegions=");
 const chartEnd=features.indexOf("function renderRegionSummary()",chartStart);
@@ -1043,6 +1056,43 @@ assert.equal(chartStats.cards[3].last7,2);
 assert.equal(chartStats.cards[2].last7,0);
 assert.ok(features.includes('renderRegionDashboard();renderStrength();'),
  "The overview must refresh whenever training records refresh");
+
+const trendPalettes=vm.runInNewContext(
+ features.slice(features.indexOf('const trendColorShades='),
+  features.indexOf('function renderRegionDashboard(){'))+
+ '\ntrendColorShades',{});
+assert.equal(new Set(Object.values(trendPalettes).flat()).size,
+ Object.values(trendPalettes).flat().length);
+const estimateJs=features.slice(features.indexOf('const trendColorShades='),
+ features.indexOf('function renderRegionDashboard(){'));
+const estimate=vm.runInNewContext(estimateJs+'\ntrendData',{
+ dashboardRegions:["胸","肩","背","腿"],
+ categoryForRow:r=>({hip_thrust:"腿",adductor:"腿",abductor:"腿",assisted_pullup:"背",
+  chest_press:"胸"})[r.exercise_id]||"其他",
+ targetForExercise:id=>({adductor:"髋内收肌群",abductor:"髋外展肌群"})[id]||null,
+ exerciseLabels:{hip_thrust:"臀推",adductor:"内收",abductor:"外展",assisted_pullup:"辅助引体"},
+ isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps)==="0",
+ validNum:x=>x!==""&&x!==null&&x!==undefined&&Number.isFinite(Number(x)),
+ regionThemeColors:{胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"}
+});
+const estimated=estimate([
+ {exercise_id:"adductor",session_date:"2026-11-17",reps:10,load_kg:30},
+ {exercise_id:"adductor",session_date:"2026-11-17",reps:5,load_kg:42},
+ {exercise_id:"abductor",session_date:"2026-11-16",reps:10,load_kg:18},
+ {exercise_id:"hip_thrust",session_date:"2026-11-18",reps:8,load_kg:70},
+ {exercise_id:"assisted_pullup",session_date:"2026-11-18",reps:10,assistance_kg:70},
+ {exercise_id:"assisted_pullup",session_date:"2026-11-20",reps:10,assistance_kg:60},
+ {exercise_id:"assisted_pullup",session_date:"2026-11-21",reps:0,assistance_kg:50},
+ {exercise_id:"hip_thrust",session_date:"2026-11-19",reps:20,load_kg:90}
+],"2026-11-16","2026-11-22",70);
+assert.equal(estimated.series.length,4);
+assert.equal(estimated.series.find(s=>s.id==="adductor").points.length,1);
+assert.equal(estimated.series.find(s=>s.id==="adductor").points[0].value,49);
+assert.equal(estimated.series.find(s=>s.id==="assisted_pullup").points[0].value,0);
+assert.ok(Math.abs(estimated.series.find(s=>s.id==="assisted_pullup").points[1].value-13.333)<.01);
+assert.equal(estimated.ignored.failed,1);
+assert.equal(estimated.ignored.highReps,1);
+assert.equal(new Set(estimated.series.filter(s=>s.region==="腿").map(s=>s.color)).size,3);
 const targetsStart=features.indexOf("const muscleTargets=");
 const targetsEnd=features.indexOf("const musclePaths=",targetsStart);
 assert.ok(targetsStart>=0&&targetsEnd>targetsStart);

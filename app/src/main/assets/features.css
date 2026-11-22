@@ -1386,3 +1386,50 @@ body.workout-edit-open{overflow:hidden}
  #page-body #intakeDate{font-size:9px}
  #page-body .intake-quick-controls .intake-choice .intake-label{font-size:8px}
 }
+
+/* One shared-axis multi-exercise chart replaces four independently-scaled cards. */
+.trend-period-toolbar{display:flex;gap:5px;flex-wrap:wrap;margin:12px 0 8px}
+.trend-period-toolbar button{flex:1 1 auto;min-width:52px;min-height:37px;
+ padding:6px 7px;border-radius:10px;font-size:11px;
+ background:#182e29;border:1px solid #365c50;color:#a6c5b7}
+.trend-period-toolbar button.active{color:#0c3022;background:#74e8b3;
+ border-color:#9af5c4;font-weight:800}
+.trend-range-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+ gap:6px;margin:8px 0 8px}
+.trend-range-fields label{display:flex;align-items:center;gap:4px;min-width:0;
+ color:#a8c5b9;font-size:10px}
+.trend-range-fields input{width:100%;min-width:0;min-height:38px;padding:5px 5px;
+ color:#eef9f1;font-size:11px;background:#162b29;border:1px solid #35594d;border-radius:8px}
+.trend-range-fields .trend-weight-label{grid-column:1/-1;justify-content:flex-end;gap:8px}
+.trend-weight-label span{display:flex;align-items:center;gap:3px;color:#c4dccc}
+.trend-weight-label span input{width:65px;text-align:center}
+#page-analytics .training-overview{padding:10px 12px;margin-top:8px;gap:10px}
+#page-analytics .training-overview-main strong{font-size:24px}
+#page-analytics .training-overview-stat{font-size:12px}
+.combined-trend{margin-top:10px;min-width:0}
+.combined-trend-status{color:#b6d3c6;font-size:11px;margin:4px 2px 8px}
+.combined-trend-scroll{overflow-x:auto;overscroll-behavior-x:contain;
+ border:1px solid #35594d;border-radius:12px;background:#132623;
+ scrollbar-width:thin}
+.combined-trend-scroll svg{display:block;width:100%;min-width:460px;height:auto}
+.combined-trend-scroll .combined-trend-point{cursor:pointer;touch-action:manipulation}
+.combined-trend-selection{font-size:11px;min-height:31px;padding:9px 5px;
+ color:#d2f3e1;overflow-wrap:anywhere}
+.combined-trend-legend{display:flex;flex-direction:column;gap:8px;margin-top:9px}
+.combined-trend-legend-region{display:flex;gap:6px;align-items:flex-start;min-width:0}
+.combined-trend-legend-region>strong{font-size:12px;flex:none;margin:4px 0;min-width:38px}
+.combined-trend-legend-items{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
+.combined-trend-legend-item{display:inline-flex;align-items:center;gap:4px;
+ border:1px solid #36574c;background:#1c302d;border-radius:7px;
+ padding:5px 6px;max-width:145px;min-height:29px;font-size:10px;color:#e1eee8}
+.combined-trend-legend-item i{width:17px;height:3px;flex:none;border-radius:4px}
+.combined-trend-legend-item i.dashed{background:repeating-linear-gradient(
+ 90deg,currentColor 0 5px,transparent 5px 8px)!important}
+.combined-trend-legend-item span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.combined-trend-legend-item.inactive{opacity:.42;text-decoration:line-through}
+.combined-trend-note{margin:9px 0 1px;font-size:10px;line-height:1.55}
+.strength-detail-expander>summary{cursor:pointer;min-height:40px;padding:6px 0;
+ font-weight:750;font-size:14px;color:#c8e8d8}
+.strength-detail-expander>summary small{display:block;font-weight:400;color:#96b7aa;
+ margin-top:3px;font-size:10px}
+.strength-detail-expander:not([open]) #strengthList{display:none}
