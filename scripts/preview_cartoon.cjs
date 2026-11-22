@@ -676,6 +676,16 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator("#sleepThresholdDown").click();
   if((await page.evaluate(()=>window.__sleepBridge.analysis.length))!==decodeCount)
    throw Error("Changing threshold must not decode the original M4A again");
+  // Make the old cached night explicitly snore-only; plain RMS fixtures
+  // intentionally trigger automatic AI initialization and cannot select modes.
+  await page.evaluate(({id,seconds})=>{
+   const rms=Array.from({length:seconds},()=>-61);
+   const snore=Array.from({length:seconds},(_,i)=>i>=300&&i<312?.60:.01);
+   window.bodyTraceReceive({type:"sleep_analysis",id,
+    started_ms:1795000000000,date_basis:"user_supplied",
+    total_seconds:seconds,threshold_dbfs:-40,minimum_seconds:2,gap_seconds:1,
+    levels_dbfs:rms,peak_levels_dbfs:rms,ai_snore_scores:snore,events:[]});
+  },{id:sleepId,seconds});
   // Existing snore-only caches must not launch another 8-hour decode silently.
   await page.locator("#sleepDetectionMode").selectOption("speech");
   if(!(await page.locator("#sleepDetectorNote").innerText()).includes("缺少人声标签"))
