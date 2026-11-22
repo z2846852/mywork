@@ -1896,3 +1896,75 @@ assert.ok(native.includes('voiceLabSpeakExample(String word)')&&
 assert.ok(manifest.includes('android.intent.action.TTS_SERVICE'));
 
 console.log("Independent frequency/staff and 44-IPA practice regression passed.");
+
+
+// Full Sound Lab browser-bridge smoke test: original pitch samples, real SVG
+// staff geometry, red feedback only with an explicit target, and IPA playback.
+{
+ class LabNode{
+  constructor(tag=""){
+   this.tag=tag;this.children=[];this.handlers={};this.value="";
+   this.textContent="";this.hidden=false;this.disabled=false;this.dataset={};
+   this.attrs={};this.className="";
+   this.classList={add(){},remove(){},toggle(){}};
+  }
+  addEventListener(t,cb){(this.handlers[t]||=[]).push(cb);}
+  click(){for(const cb of this.handlers.click||[])cb({preventDefault(){}});}
+  append(...items){this.children.push(...items);}
+  appendChild(item){this.children.push(item);}
+  replaceChildren(...items){this.children=items;}
+  setAttribute(key,value){this.attrs[key]=String(value);}
+ }
+ const nodes={};
+ const get=id=>nodes[id]||(nodes[id]=new LabNode(id));
+ for(const [id,value] of Object.entries({voicePitchKey:"C",
+  voicePitchClef:"auto",voicePitchTolerance:"50",voicePitchTarget:"",
+  voicePhoneDisplay:"en",voiceModelsChoice:"acoustic"}))get(id).value=value;
+ const groups=["vowel","diphthong","consonant"].map(group=>{
+  const el=new LabNode("button");el.dataset.ipaGroup=group;return el;
+ });
+ const doc={
+  getElementById:get,
+  createElement:tag=>new LabNode(tag),
+  createElementNS:(ns,tag)=>new LabNode(tag),
+  querySelector:()=>new LabNode("button"),
+  querySelectorAll:q=>q==="#voiceIpaGroups button"?groups:[]
+ };
+ const spoken=[];
+ const native={voiceLabSetLanguage(){},voiceLabStart(){},voiceLabStop(){},
+  voiceLabFinishPhoneme(){},voiceLabSpeakExample:word=>spoken.push(word)};
+ const window={BodyTraceNative:native,addEventListener(){}};
+ vm.runInNewContext(voiceLabJS,{document:doc,window});
+ assert.equal(window.BodyTraceVoiceLab.state().axis,null,
+  "Unvoiced placeholder must not lock the frequency range");
+ get("voicePitchModeStaff").click();
+ window.bodyTraceReceive({type:"voice_lab",state:"running",mode:"pitch"});
+ for(const midi of [60.02,60,59.99,61.05,61.01,61.04]){
+  window.bodyTraceReceive({type:"voice_lab",state:"pitch_sample",
+   midi,pitch_hz:440*Math.pow(2,(midi-69)/12)});
+ }
+ get("voicePitchTarget").value="60";
+ for(const cb of get("voicePitchTarget").handlers.change||[])cb();
+ const staffLines=get("voicePitchGrid").children
+  .filter(x=>x.tag==="line").map(x=>Number(x.attrs.y1));
+ assert.deepEqual(staffLines,[177,151,125,99,73],
+  "All five staff lines must be physically equally spaced");
+ const graphics=get("voicePitchTraces").children;
+ assert.ok(graphics.filter(x=>x.tag==="ellipse").length>=2,
+  "Stable note segments must render score noteheads");
+ assert.ok(graphics.some(x=>x.attrs.fill==="#f17f86"),
+  "Deviation from explicit score target should turn notehead red");
+ get("voicePitchModeCurve").click();
+ assert.equal(get("voicePitchTraces").children.filter(x=>x.tag==="path").length,1,
+  "Curve mode must draw one continuous frequency trace, not fragments");
+ assert.equal(window.BodyTraceVoiceLab.state().chartMode,"curve");
+ const sizes=[];
+ for(const group of groups){
+  group.click();sizes.push(get("voiceIpaGrid").children.length);
+ }
+ assert.deepEqual(sizes,[12,8,24]);
+ get("voiceIpaSpeak").click();
+ assert.equal(spoken.length,1,"Example playback must be user-initiated");
+ assert.ok(/^[a-z]+$/.test(spoken[0]));
+ console.log("Sound Lab SVG + TTS bridge smoke test passed");
+}
