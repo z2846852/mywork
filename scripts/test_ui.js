@@ -108,13 +108,14 @@ assert.ok(html.includes('id="checkApkUpdate"')&&
  html.includes('id="apkLatestVersion"')&&
  html.includes('case "apk_update":'));
 assert.ok(html.includes('class="apk-update-help"')&&
- html.includes('aria-label="高级：仅界面更新"')&&
+ html.includes('aria-label="版本检查、更新历史与高级更新"')&&
  html.includes('class="apk-update-help-popup" id="uiUpdatePanel"'),
  "UI-only updates must live inside the APK panel help disclosure");
 const uiHelpStart=html.indexOf('class="apk-update-help"');
 const uiHelpEnd=html.indexOf('class="apk-version-row"',uiHelpStart);
 assert.ok(uiHelpStart>0&&uiHelpEnd>uiHelpStart);
-for(const action of ["checkUiUpdates","restartUiAfterUpdate","rollbackUiUpdate"])
+for(const action of ["checkUiUpdates","restartUiAfterUpdate","rollbackUiUpdate",
+  "checkApkVersionNow","loadReleaseHistory","releaseHistoryList","moreReleaseHistory"])
  assert.ok(html.slice(uiHelpStart,uiHelpEnd).includes('id="'+action+'"'),
   "Advanced UI-only action must remain functional inside !: "+action);
 assert.ok(!html.includes('<div class="panel" id="uiUpdatePanel">'),
@@ -151,6 +152,22 @@ assert.ok(html.includes('BodyTraceNative.checkApkVersion()')&&
  html.includes('BodyTraceNative.installPendingApk()'));
 assert.ok(html.includes('apkReady=true')&&html.includes('继续安装'),
  "The same update button must reopen a previously downloaded APK installer");
+assert.ok(native.includes('refreshApkVersion()')&&
+ native.includes('loadReleaseHistory()')&&
+ html.includes('BodyTraceNative.refreshApkVersion()')&&
+ html.includes('BodyTraceNative.loadReleaseHistory()')&&
+ html.includes('case "release_history":')&&
+ html.includes('function renderReleaseHistoryBatch()'),
+ "Manual version check and release history must be wired");
+assert.ok(apkUpdate.includes('JSONObject loadReleaseHistory()')&&
+ apkUpdate.includes('CHANGELOG="BodyTrace-changelog.json"')&&
+ apkUpdate.includes('MessageDigest.getInstance("SHA-256").digest(bytes)')&&
+ apkUpdate.includes('readJson(expectedUrl(tag,CHANGELOG),2L*1024*1024)')&&
+ apkUpdate.includes('new GitHubReleaseCache(context).get(force)'),
+ "Version history download must be verified and rate limit aware");
+assert.ok(workflow.includes('scripts/build_release_history.py')&&
+ workflow.includes('BodyTrace-changelog.json')&&
+ workflow.includes('--notes-file build/release-notes.md'));
 assert.ok(native.includes('checkApkVersion()')&&
  native.includes('checkApkUpdate()')&&
  native.includes('installPendingApk()')&&
