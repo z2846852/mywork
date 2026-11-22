@@ -1890,12 +1890,17 @@ public final class MainActivity extends Activity {
         }
         @JavascriptInterface public void voiceModelsInstall(String modelId){
             worker.execute(()->{
-                try{phoneModels.install(modelId,MainActivity.this::reply);}
+                try{
+                    if("all".equals(modelId))
+                        phoneModels.installAll(MainActivity.this::reply);
+                    else phoneModels.install(modelId,MainActivity.this::reply);
+                }
                 catch(Exception e){
                     try{reply(message("voice_models").put("state","error")
                         .put("id",modelId).put("message","模型安装失败："+safeMessage(e)));}
                     catch(Exception ignored){}
-                    try{reply(phoneModels.state("可重试下载；已安装模型不受影响"));}
+                    try{reply(phoneModels.state("下载失败："+safeMessage(e)+
+                        "；已完整资源不会重复下载"));}
                     catch(Exception ignored){}
                 }
             });
