@@ -115,7 +115,14 @@ def main():
             raise RuntimeError(f"GitHub mirror checksum mismatch: {source}")
         if dest.endswith(".ogg"):
             # Genuine Vorbis content, not an MP3 mislabelled with .ogg.
-            import subprocess,tempfile
+            import subprocess,tempfile,shutil
+            if shutil.which("ffmpeg") is None:
+                # Ubuntu 24.04 GitHub-hosted images do not always bundle ffmpeg.
+                # This is build-only; the installed Android App needs no encoder.
+                subprocess.run(["sudo","apt-get","update","-qq"],
+                    check=True,timeout=180)
+                subprocess.run(["sudo","apt-get","install","-y","-qq","ffmpeg"],
+                    check=True,timeout=180)
             with tempfile.NamedTemporaryFile(dir=OUT,suffix=".mp3") as temp:
                 temp.write(raw);temp.flush()
                 subprocess.run(["ffmpeg","-hide_banner","-loglevel","error",
