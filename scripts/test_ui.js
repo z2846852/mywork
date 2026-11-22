@@ -252,6 +252,14 @@ assert.ok(dictionaryBuild.includes('open-dict-data/ipa-dict')&&
 assert.ok(workflow.includes('test_pronunciation_lexicon.py')&&
  workflow.includes('build_pronunciation_lexicon.py')&&
  workflow.includes('PhoneticLexiconTest.java'));
+const androidGradle=fs.readFileSync(path.join(root,"app/build.gradle"),"utf8");
+assert.ok(androidGradle.includes("ensureOfflineLexicon")&&
+ androidGradle.includes("scripts/build_pronunciation_lexicon.py")&&
+ androidGradle.includes("dependsOn('ensureOfflineLexicon')")&&
+ workflow.includes('Verify signed APK embeds the bilingual pronunciation dictionary')&&
+ workflow.includes("assets/en_pronunciation_zh.tsv.gz")&&
+ labNative.includes("APK 缺少英汉发音词典文件"),
+ "Fail build if the generated bilingual pronunciation dictionary is missing");
 for(const id of ["voiceWordMatches","voiceDictionaryNotice","voicePhonemeEnglishBox"]){
  assert.ok(html.includes('id="'+id+'"'),"Whole-word bilingual dictionary UI missing "+id);
 }
