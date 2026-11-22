@@ -60,6 +60,11 @@ public final class PhoneticLexiconTest {
             PhoneticLexicon.phones("θɪŋk"),
             PhoneticLexicon.fromZipa(Arrays.asList("θ","ɪ","ŋ","k")))==0,
             "ZIPA phone tokens must align with IPA dictionary without ASR or spelling");
+        List<PhoneticLexicon.Match> boundary=db.find(
+            Arrays.asList("▁θ","ɪ","ŋ","k"),3);
+        require(!boundary.isEmpty()&&"think".equals(boundary.get(0).word)&&
+                boundary.get(0).exact,
+            "CTC word-boundary marker must not corrupt phoneme-to-dictionary lookup");
         System.out.println("PhoneticLexiconTest passed: full sequence, bilingual meanings,"
             +" missing/substitute phones, apostrophe, no fake word from isolated sound");
     }
