@@ -1337,17 +1337,13 @@ body.workout-edit-open{overflow:hidden}
 #page-voice .voice-mandarin-title{display:block;margin-bottom:5px;font-weight:700}
 #page-voice #voicePhonemePinyin{font-size:12px;font-weight:450}
 
-/* Ergonomic overview: two persistent top choices, exactly one view at a time. */
-#page-home .overview-switch{position:sticky;top:0;z-index:6;display:grid;
- grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:7px 3px 8px;
- background:#0c1719f5;border-bottom:1px solid #284c40;backdrop-filter:blur(12px)}
-#page-home .overview-switch button{min-height:44px;padding:8px 10px;
- border:1px solid transparent;border-radius:10px;background:#18312d;
- color:#96b6a9;font-size:13px;font-weight:700}
-#page-home .overview-switch button.active{background:#2c5947;color:#f0fff7;
- border-color:#5ac693}
-#page-home .overview-view[hidden]{display:none!important}
-#page-home .overview-view>.panel:first-child{margin-top:9px}
+/* Direct-access 7-tab navigation on compact phones. */
+.tabs{gap:0;padding-left:max(2px,env(safe-area-inset-left));
+ padding-right:max(2px,env(safe-area-inset-right))}
+.tabs button{flex:1 1 0;min-width:0;max-width:none;min-height:48px;
+ padding:5px 2px;font-size:10px;white-space:nowrap}
+.tabs .ico{font-size:19px}
+@media(max-width:360px){.tabs button{font-size:9px;padding:4px 1px}}
 
 /* Body: one compact intake card comes first; date + 4 checks + save on one row. */
 #page-body #bodyNutritionSection>.nutrition-checkin-panel{

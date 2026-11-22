@@ -664,64 +664,41 @@ assert.ok(projector.includes('item.put("note"'));
 const gh=fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
 assert.ok(gh.includes('"load_basis", "date_basis", "note", "source", "created_at"'));
-// Consolidated navigation: keep chart and nutrition elements, not the old tabs.
+// Direct top-level tabs; no nested Overview mode switching.
 const navSection=html.slice(html.indexOf('<nav class="tabs"'),html.indexOf('</nav>')+6);
-for(const page of ["home","record","sleep","voice","body","settings"]){
- assert.ok(navSection.includes('data-page="'+page+'"'),"Missing navigation: "+page);
-}
-for(const removed of ["nutrition","analytics"]){
- assert.ok(!navSection.includes('data-page="'+removed+'"'),"Old tab still present: "+removed);
- assert.ok(!html.includes('id="page-'+removed+'"'),"Old page still present: "+removed);
-}
-const overviewSection=html.slice(html.indexOf('id="page-home"'),html.indexOf('id="page-record"'));
-for(const chart of ["trainingOverview","regionTrendGrid","strengthList","regionSummary"]){
- assert.ok(overviewSection.includes('id="'+chart+'"'),"Trend not merged into overview: "+chart);
-}
-const bodySection=html.slice(html.indexOf('id="page-body"'),html.indexOf('id="page-voice"'));
-for(const id of ["bodyNutritionSection","intakeDate","saveIntakeCheck","intakeCalendar","intakeCalendarScroll"]){
- assert.ok(bodySection.includes('id="'+id+'"'),"Four-grid checkin not in Body: "+id);
-}
-const legacyStart=bodySection.indexOf('<div id="nutritionLegacy" hidden aria-hidden="true">');
-assert.ok(legacyStart>=0,"Calorie tools need a hidden, retained wrapper");
-for(const id of ["nutritionBars","foodList","saveNutrition","foodName"]){
- assert.ok(bodySection.slice(legacyStart).includes('id="'+id+'"'),"Legacy calorie tool lost: "+id);
-}
-assert.ok(html.includes('#nutritionLegacy[hidden]{display:none!important}'),
- "Explicitly hide calorie forms even when panel styles override browser defaults");
-assert.ok(features.includes('document.querySelector(\'.tabs button[data-page="body"]\')'),
- "Body tab must initialize the four-grid calendar viewport");
-assert.ok(features.includes('renderIntakeCheckin();navigate("body");'),
- "Saving nutrition must stay on Body, not navigate to a deleted tab");
+const tabNames=Array.from(navSection.matchAll(/data-page="([^"]+)"/g),m=>m[1]);
+assert.deepEqual(tabNames,["home","analytics","record","body","sleep","voice","settings"]);
+assert.ok(!html.includes('id="page-nutrition"')&&!html.includes('data-page="nutrition"'));
+for(const id of ["overviewModeSwitch","overviewSummary","overviewTrends"])
+ assert.ok(!html.includes('id="'+id+'"'),"Legacy nested overview: "+id);
+const overviewSection=html.slice(html.indexOf('id="page-home"'),html.indexOf('id="page-analytics"'));
+const trendsSection=html.slice(html.indexOf('id="page-analytics"'),html.indexOf('id="page-record"'));
+for(const id of ["statDays","heatScroll","selectedDate","dayDetails","syncHome"])
+ assert.ok(overviewSection.includes('id="'+id+'"'),"Home missing: "+id);
+for(const id of ["trainingOverview","regionTrendGrid","strengthList","regionSummary"])
+ assert.ok(trendsSection.includes('id="'+id+'"'),"Trends missing: "+id);
+assert.ok(!overviewSection.includes('id="strengthList"'));
+assert.ok(html.includes('BodyTraceNative.setUiNavigation(name)'));
+assert.ok(html.includes('navigate(allowedMainPages.has(evt.last_main_page)?evt.last_main_page:"home",false)'));
+assert.ok(native.includes('@JavascriptInterface public void setUiNavigation(String mainPage)'));
+assert.ok(native.includes('.remove("overview_view").commit()'));
+assert.ok(native.includes('lastPage="analytics"'));
 const ergonomicCss=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
-// Ergonomic overview must show either history or trends, never both stacked.
-assert.ok(overviewSection.includes('id="overviewModeSwitch"'));
-assert.ok(overviewSection.includes('id="overviewSummary"'));
-assert.ok(overviewSection.includes('id="overviewTrends" role="tabpanel" aria-labelledby="overviewTrendsTab" hidden'));
-assert.ok(overviewSection.indexOf('id="overviewModeSwitch"')<
- overviewSection.indexOf('id="statDays"'));
-assert.ok(overviewSection.indexOf('id="overviewSummary"')<
- overviewSection.indexOf('id="heatScroll"'));
-assert.ok(overviewSection.indexOf('id="overviewTrends"')<
- overviewSection.indexOf('id="strengthList"'));
-assert.ok(html.includes('function chooseOverviewMode(mode,fromUser=true)'));
-assert.ok(html.includes('if(!navigationTouched)')&&
- html.includes('chooseOverviewMode(evt.overview_view==="trends"?"trends":"summary",false)'));
-assert.ok(html.includes('BodyTraceNative.setUiNavigation(currentMainPage,currentOverviewMode)'));
-assert.ok(native.includes('setDomStorageEnabled(false)')&&
- native.includes('@JavascriptInterface public void setUiNavigation(String mainPage,String overviewMode)'));
-assert.ok(native.includes('.putString("last_main_page",mainPage)')&&
- native.includes('.putString("overview_view",overviewMode).commit()'));
-assert.ok(native.includes('event.put("overview_view",p.getString("overview_view","summary"))'));
-assert.ok(ergonomicCss.includes('#page-home .overview-switch{position:sticky'));
-assert.ok(ergonomicCss.includes('#page-home .overview-view[hidden]{display:none!important}'));
-// Intake should be the FIRST card in Body, not below muscle charts.
-assert.ok(bodySection.indexOf('id="bodyNutritionSection"')<
- bodySection.indexOf('class="panel panel-avatar"'));
+assert.ok(ergonomicCss.includes('.tabs button{flex:1 1 0;min-width:0;max-width:none;min-height:48px'));
+const bodySection=html.slice(html.indexOf('id="page-body"'),html.indexOf('id="page-voice"'));
+for(const id of ["bodyNutritionSection","intakeDate","saveIntakeCheck","intakeCalendar","intakeCalendarScroll"])
+ assert.ok(bodySection.includes('id="'+id+'"'),"Intake missing: "+id);
+const legacyStart=bodySection.indexOf('<div id="nutritionLegacy" hidden aria-hidden="true">');
+assert.ok(legacyStart>=0,"Hidden calorie tools missing");
+for(const id of ["nutritionBars","foodList","saveNutrition","foodName"])
+ assert.ok(bodySection.slice(legacyStart).includes('id="'+id+'"'),"Legacy food field missing: "+id);
+assert.ok(html.includes('#nutritionLegacy[hidden]{display:none!important}'));
+assert.ok(features.includes('document.querySelector(\'.tabs button[data-page="body"]\')'));
+assert.ok(features.includes('renderIntakeCheckin();navigate("body");'));
+assert.ok(bodySection.indexOf('id="bodyNutritionSection"')<bodySection.indexOf('class="panel panel-avatar"'));
 assert.ok(bodySection.includes('class="intake-quick-controls"'));
-assert.ok(bodySection.indexOf('id="intakeCalendar"')<
- bodySection.indexOf('id="intakeDate"'));
-assert.ok(bodySection.indexOf('id="intakeDate"')<
- bodySection.indexOf('id="saveIntakeCheck"'));
+assert.ok(bodySection.indexOf('id="intakeCalendar"')<bodySection.indexOf('id="intakeDate"'));
+assert.ok(bodySection.indexOf('id="intakeDate"')<bodySection.indexOf('id="saveIntakeCheck"'));
 assert.equal((bodySection.match(/class="panel nutrition-checkin-panel"/g)||[]).length,1);
 assert.ok(ergonomicCss.includes('#page-body .intake-quick-controls{display:grid;'));
 // Four daily subjective intake flags are independent from food calories and

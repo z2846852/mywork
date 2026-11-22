@@ -1010,8 +1010,10 @@ public final class MainActivity extends Activity {
             JSONObject event=message("ui_preferences");
             event.put("show_workout_history",show);
             android.content.SharedPreferences p=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE);
-            event.put("last_main_page",p.getString("last_main_page","home"));
-            event.put("overview_view",p.getString("overview_view","summary"));
+            String lastPage=p.getString("last_main_page","home");
+            if("home".equals(lastPage)&&"trends".equals(p.getString("overview_view","summary")))
+                lastPage="analytics"; // Upgrade from former nested Trends view.
+            event.put("last_main_page",lastPage);
             reply(event);
         }catch(Exception ex){error("读取训练显示设置失败："+safeMessage(ex));}
     }
@@ -1652,15 +1654,14 @@ public final class MainActivity extends Activity {
 
         /** Durable navigation preference, independent of WebView DOM Storage.
          * Synchronous commit avoids losing the last tap when the app closes. */
-        @JavascriptInterface public void setUiNavigation(String mainPage,String overviewMode){
-            if(mainPage==null||overviewMode==null)return;
-            if(!("home".equals(mainPage)||"record".equals(mainPage)||
-                 "sleep".equals(mainPage)||"body".equals(mainPage)||
-                 "voice".equals(mainPage)||"settings".equals(mainPage)))return;
-            if(!("summary".equals(overviewMode)||"trends".equals(overviewMode)))return;
+        @JavascriptInterface public void setUiNavigation(String mainPage){
+            if(mainPage==null||!("home".equals(mainPage)||"analytics".equals(mainPage)||
+                 "record".equals(mainPage)||"body".equals(mainPage)||
+                 "sleep".equals(mainPage)||"voice".equals(mainPage)||
+                 "settings".equals(mainPage)))return;
             boolean written=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
                 .edit().putString("last_main_page",mainPage)
-                .putString("overview_view",overviewMode).commit();
+                .remove("overview_view").commit();
             if(!written)error("页面偏好保存失败");
         }
 

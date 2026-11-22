@@ -67,11 +67,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <header class="quick-head"><span class="quick-head-intro">体迹 · 训练 / 身体 / 摄入</span><div class="status" aria-label="同步状态"><i id="statusDot" class="dot"></i><span id="statusText">本地</span><span id="pendingStatus"></span></div></header>
 
 <section class="page active" id="page-home">
-<div class="overview-switch" role="tablist" aria-label="概况内容" id="overviewModeSwitch">
- <button type="button" id="overviewSummaryTab" role="tab" aria-selected="true" aria-controls="overviewSummary" class="active">▦ 日期概况</button>
- <button type="button" id="overviewTrendsTab" role="tab" aria-selected="false" aria-controls="overviewTrends">⌁ 训练曲线</button>
-</div>
-<div class="overview-view" id="overviewSummary" role="tabpanel" aria-labelledby="overviewSummaryTab">
 <div class="stats"><div class="stat"><strong id="statDays">—</strong><span>训练天数</span></div><div class="stat"><strong id="statSets">—</strong><span>总训练组</span></div><div class="stat"><strong id="statMovements">—</strong><span>训练动作</span></div></div>
 <div class="panel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，每天四分格：胸、肩、背、腿；亮起代表当天练过该部位</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
@@ -83,8 +78,9 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 <div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
 <div class="row wrap" style="margin-top:18px"><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
-</div>
-<div class="overview-view" id="overviewTrends" role="tabpanel" aria-labelledby="overviewTrendsTab" hidden>
+</section>
+
+<section class="page" id="page-analytics">
 <div class="panel overview-panel">
 <div class="eyebrow">TRAINING OVERVIEW</div><h2>训练总览 · 胸 / 肩 / 背 / 腿</h2>
 <p class="sub">按实际保存的组数统计；最近 8 个连续 7 天周期。不同器械重量不相加，不把组数当作肌肉增长。</p>
@@ -97,7 +93,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 <div class="panel"><h2>训练区域分布</h2><p class="sub">最近28天各部位记录组数，不代表真实肌肉大小或训练效果。</p>
 <div id="regionSummary"></div></div>
-</div>
 </section>
 
 <section class="page" id="page-record">
@@ -682,13 +677,13 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 </div>
 
 <nav class="tabs" aria-label="主导航">
-<button data-page="home" class="active"><span class="ico">▦</span>概览</button>
-<button data-page="record"><span class="ico">＋</span>记录</button>
-
-<button data-page="sleep"><span class="ico">☾</span>睡眠</button>
-<button data-page="voice"><span class="ico">♫</span>声音</button>
-<button data-page="body"><span class="ico">◉</span>身体</button>
-<button data-page="settings"><span class="ico">≡</span>日志</button>
+<button type="button" data-page="home" class="active"><span class="ico">▦</span>概况</button>
+<button type="button" data-page="analytics"><span class="ico">▥</span>趋势</button>
+<button type="button" data-page="record"><span class="ico">＋</span>记录</button>
+<button type="button" data-page="body"><span class="ico">◉</span>身体</button>
+<button type="button" data-page="sleep"><span class="ico">☾</span>睡眠</button>
+<button type="button" data-page="voice"><span class="ico">♫</span>声音</button>
+<button type="button" data-page="settings"><span class="ico">≡</span>日志</button>
 </nav><div id="toast" role="status"></div>
 <script>
 "use strict";
@@ -816,38 +811,20 @@ function checkVersionOnSettingsEntry(){
  }
  BodyTraceNative.checkApkVersion();
 }
-let currentMainPage="home",currentOverviewMode="summary",navigationTouched=false;
-const allowedMainPages=new Set(["home","record","sleep","body","voice","settings"]);
-function saveUiNavigation(){
- if(window.BodyTraceNative?.setUiNavigation)
-  BodyTraceNative.setUiNavigation(currentMainPage,currentOverviewMode);
-}
-function chooseOverviewMode(mode,fromUser=true){
- if(mode!=="summary"&&mode!=="trends")return;
- currentOverviewMode=mode;
- $("overviewSummary").hidden=mode!=="summary";
- $("overviewTrends").hidden=mode!=="trends";
- for(const [id,active] of [["overviewSummaryTab",mode==="summary"],["overviewTrendsTab",mode==="trends"]]){
-  const button=$(id);
-  button.classList.toggle("active",active);
-  button.setAttribute("aria-selected",String(active));
-  button.tabIndex=active?0:-1;
- }
- if(fromUser){
-  navigationTouched=true;saveUiNavigation();
-  window.scrollTo(0,0);
- }
-}
+let currentMainPage="home",navigationTouched=false;
+const allowedMainPages=new Set(["home","analytics","record","body","sleep","voice","settings"]);
 function navigate(name,fromUser=true){
  if(!allowedMainPages.has(name))return;
  currentMainPage=name;
  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+name));
  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
  if(name==="settings"&&fromUser)checkVersionOnSettingsEntry();
- if(fromUser){navigationTouched=true;saveUiNavigation();window.scrollTo(0,0)}
+ if(fromUser){
+  navigationTouched=true;
+  if(window.BodyTraceNative?.setUiNavigation)BodyTraceNative.setUiNavigation(name);
+  window.scrollTo(0,0);
+ }
 }
-$("overviewSummaryTab").onclick=()=>chooseOverviewMode("summary");
-$("overviewTrendsTab").onclick=()=>chooseOverviewMode("trends");
 document.querySelectorAll(".tabs button").forEach(btn=>btn.onclick=()=>navigate(btn.dataset.page));
 function renderStatus(){
  $("statusDot").classList.toggle("on",state.connected);
@@ -1331,10 +1308,8 @@ window.bodyTraceReceive=function(evt){
   applyWorkoutHistoryVisibility(evt.show_workout_history!==false);
   // Restore only if the user has not navigated since this WebView started.
   // A delayed native response must never override a recent tap.
-  if(!navigationTouched){
-   chooseOverviewMode(evt.overview_view==="trends"?"trends":"summary",false);
+  if(!navigationTouched)
    navigate(allowedMainPages.has(evt.last_main_page)?evt.last_main_page:"home",false);
-  }
   break;
  case "raw_history":
   state.rawNotes=Array.isArray(evt.notes)?evt.notes:[];

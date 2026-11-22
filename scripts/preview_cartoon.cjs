@@ -53,20 +53,18 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(dates!==2)throw Error("Body measurement history failed: "+dates);
   if(await page.locator("#avatarPicture").count())throw Error("Old cartoon still visible");
   await page.screenshot({path:"bodytrace-cartoon-preview.png",fullPage:true});
-  await page.evaluate(()=>navigate("home"));
-  // Both views exist, but only one may be visible at a time.
-  if(!(await page.locator("#overviewTrends").isHidden()))
-   throw Error("Trend panel must be hidden when calendar is selected");
   await page.evaluate(()=>{
-   window.BodyTraceNative={setUiNavigation:(p,v)=>window.__savedNavigation={page:p,view:v}};
+   window.BodyTraceNative={setUiNavigation:p=>window.__savedNavigation=p};
+   navigate("home");
   });
-  await page.locator("#overviewTrendsTab").click();
-  if(await page.locator("#overviewTrends").isHidden()||
-     !(await page.locator("#overviewSummary").isHidden()))
-   throw Error("Overview segmented control failed to switch to trends");
-  const savedView=await page.evaluate(()=>window.__savedNavigation);
-  if(savedView?.page!=="home"||savedView?.view!=="trends")
-   throw Error("Trend selection did not persist to the native bridge");
+  if(!(await page.locator("#page-analytics").isHidden()))
+   throw Error("Trends must be hidden on Overview");
+  await page.locator('.tabs button[data-page="analytics"]').click();
+  if(await page.locator("#page-analytics").isHidden()||
+     !(await page.locator("#page-home").isHidden()))
+   throw Error("Separate Trends page did not open");
+  if((await page.evaluate(()=>window.__savedNavigation))!=="analytics")
+   throw Error("Trends tab choice did not persist");
   const ordered=await page.locator("#strengthList .strength-exercise-card").evaluateAll(
    cards=>cards.map(card=>card.dataset.exerciseId));
   const wanted=["adductor","lateral_raise","chest_press","row"];
@@ -879,7 +877,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    }
    window.bodyTraceReceive({type:"data",cached:true,days:window.__previewDays});
    state.calendarBrowsing=true;state.selected="2026-11-20";renderHeat();renderDay();
-   navigate("home");chooseOverviewMode("summary");
+   navigate("home");
   });
   const hips=page.locator('#dayDetails .exercise[data-exercise-id="hip_thrust"]');
   const hipDates=hips.locator(".exercise-history-date");
@@ -937,7 +935,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.evaluate(()=>{
    window.__editPayloads=[];
    window.BodyTraceNative.editWorkout=raw=>window.__editPayloads.push(JSON.parse(raw));
-   navigate("home");chooseOverviewMode("trends");
+   navigate("analytics");
   });
   const hipChart=page.locator('#strengthList [data-exercise-id="hip_thrust"]');
   const hipRecent=hipChart.locator(".strength-recent-set");
