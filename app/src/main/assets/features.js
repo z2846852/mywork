@@ -438,6 +438,10 @@ function renderRegionDashboard(){
  if(nonEmpty.length){
   const svg=el("svg",{viewBox:"0 0 800 384",role:"img",
    "aria-label":"所有部位动作最近训练日估算1RM，多条共用纵轴的折线"});
+  // Transparent chart-wide hit surface avoids overlapping touch circles
+  // swallowing one another when many daily measurements are close together.
+  svg.append(el("rect",{x:0,y:0,width:800,height:384,
+   fill:"transparent","pointer-events":"all"}));
   const xmin=trendMillis(from),xmax=trendMillis(end),xSpan=Math.max(86400000,xmax-xmin);
   const x=day=>56+(trendMillis(day)-xmin)/xSpan*724;
   const rawMin=Math.min(...nonEmpty.map(p=>p.value));
@@ -467,6 +471,7 @@ function renderRegionDashboard(){
   const selected=document.createElement("div");selected.className="combined-trend-selection";
   selected.setAttribute("role","status");
   selected.textContent="点击折线上的点，查看当日该动作的重量、次数与估算 1RM";
+  const chartPoints=[];
   for(const group of enabled){
    const line=el("polyline",{points:group.points.map(p=>x(p.date)+","+y(p.value)).join(" "),
     fill:"none",stroke:group.color,"stroke-width":"3.1",
@@ -477,7 +482,7 @@ function renderRegionDashboard(){
     const cx=x(point.date),cy=y(point.value);
     const dot=el("circle",{cx,cy,r:4.1,fill:group.color,stroke:"#14251f","stroke-width":"1.5"});
     const hit=el("circle",{cx,cy,r:13,fill:"transparent",class:"combined-trend-point",
-     "pointer-events":"all",tabindex:0,role:"button",
+     "pointer-events":"none",tabindex:0,role:"button",
      "aria-label":group.name+" "+point.date+" 估算1RM "+round1(point.value)+"公斤"});
     const title=el("title");
     title.textContent=group.name+" · "+point.date+" · "+
@@ -489,13 +494,26 @@ function renderRegionDashboard(){
        "次 → e1RM "+round1(point.value)+" kg"+
        (group.assisted?"（基准体重 "+round1(point.bodyWeight)+" kg）":"");
     };
-    hit.addEventListener("click",select);
+    chartPoints.push({cx,cy,select});
     hit.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){
       e.preventDefault();select();
     }});
     svg.append(dot,hit);
    }
   }
+  svg.addEventListener("click",e=>{
+   const rect=svg.getBoundingClientRect();
+   if(!rect.width||!rect.height)return;
+   const px=(e.clientX-rect.left)/rect.width*800;
+   const py=(e.clientY-rect.top)/rect.height*384;
+   let best=null,dist=Infinity;
+   for(const point of chartPoints){
+    const d=(point.cx-px)**2+(point.cy-py)**2;
+    if(d<dist){dist=d;best=point;}
+   }
+   // Approximately 15-20 CSS pixels on a normal phone screen.
+   if(best&&dist<=36*36)best.select();
+  });
   chartBox.append(svg);
   root.append(chartBox,selected);
  }else root.append(chartBox);

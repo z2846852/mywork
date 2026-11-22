@@ -226,9 +226,23 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator('.trend-period[data-period="365"]').click();
   const markers=page.locator("#regionTrendGrid .combined-trend-point");
   if(await markers.count()<4)throw Error("Combined chart needs clickable raw-data points");
-  await markers.first().click();
+  // On crowded days transparent point targets overlap. Exercise the shared
+  // nearest-point chart hit area instead of demanding SVG circles be clickable.
+  const leftPoint=await markers.evaluateAll(nodes=>{
+   const node=nodes.slice().sort((a,b)=>
+     Number(a.getAttribute("cx"))-Number(b.getAttribute("cx")))[0];
+   return {cx:Number(node.getAttribute("cx")),cy:Number(node.getAttribute("cy"))};
+  });
+  const svgBounds=await page.locator("#regionTrendGrid svg").evaluate(svg=>{
+   const box=svg.getBoundingClientRect(),v=svg.viewBox.baseVal;
+   return {width:box.width,height:box.height,vw:v.width,vh:v.height};
+  });
+  await page.locator("#regionTrendGrid svg").click({position:{
+   x:leftPoint.cx*svgBounds.width/svgBounds.vw,
+   y:leftPoint.cy*svgBounds.height/svgBounds.vh
+  }});
   if(!(await page.locator(".combined-trend-selection").innerText()).includes("e1RM"))
-   throw Error("Combined chart point needs e1RM drilldown");
+   throw Error("Combined chart tap must choose nearest plotted measurement");
   await page.screenshot({path:"bodytrace-trends-preview.png",fullPage:true});
   await page.evaluate(()=>{
    navigate("home");
