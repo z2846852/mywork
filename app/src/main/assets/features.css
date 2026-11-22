@@ -1178,6 +1178,8 @@ body.workout-edit-open{overflow:hidden}
 #apkUpdatePanel .apk-history-heading{display:flex;justify-content:space-between;
  align-items:center;gap:8px}
 #apkUpdatePanel .apk-history-heading h3{margin:0}
+#apkUpdatePanel .apk-history-heading-buttons{display:flex;align-items:center;gap:5px;flex-shrink:0}
+#apkUpdatePanel .apk-history-heading-buttons button{padding:6px;font-size:10px}
 #apkUpdatePanel .apk-history-heading button{min-height:31px;font-size:10px}
 #apkUpdatePanel .apk-release-list{display:flex;flex-direction:column;gap:8px;
  max-height:43vh;overflow-y:auto;overscroll-behavior:contain}

@@ -626,7 +626,10 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     <div class="apk-update-help-popup" id="uiUpdatePanel">
      <div class="apk-history-heading">
       <h3>版本更新历史</h3>
-      <button type="button" id="loadReleaseHistory" class="secondary mini">查看历史</button>
+      <div class="apk-history-heading-buttons">
+       <button type="button" id="checkApkVersionHelp" class="secondary mini">主动检查</button>
+       <button type="button" id="loadReleaseHistory" class="secondary mini">查看历史</button>
+      </div>
      </div>
      <p class="sub">按实际发布的版本展示；旧版本若无说明，可按需查询真实 Git 提交。</p>
      <p id="releaseHistoryStatus" class="sub" role="status">未查询（不会自动访问 GitHub）</p>
@@ -1248,6 +1251,7 @@ $("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的原�
 const sync=()=>BodyTraceNative.sync();
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
 $("checkApkVersion").onclick=checkApkVersionManual;
+$("checkApkVersionHelp").onclick=checkApkVersionManual;
 $("checkApkUpdate").onclick=()=>{
  if(apkReady&&window.BodyTraceNative?.installPendingApk){
   BodyTraceNative.installPendingApk();

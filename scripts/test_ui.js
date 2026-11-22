@@ -129,6 +129,9 @@ assert.ok(html.includes('function checkApkVersionManual()') &&
  !html.includes('checkVersionOnSettingsEntry()')&&
  !html.includes('lastApkVersionCheck'),
  "GitHub version checks must be manually triggered, never on Settings navigation");
+assert.ok(html.includes('id="checkApkVersionHelp"')&&
+ html.includes('$("checkApkVersionHelp").onclick=checkApkVersionManual'),
+ "The ! disclosure must expose an actual version check action");
 assert.ok(html.includes('id="releaseHistoryList"')&&
  html.includes('id="loadReleaseHistory"')&&
  html.includes('case "release_history":')&&
