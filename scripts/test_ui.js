@@ -2128,6 +2128,14 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   group.click();sizes.push(get("voiceIpaGrid").children.length);
  }
  assert.deepEqual(sizes,[12,8,24]);
+ const sharedS=get("voiceIpaGrid").children.find(x=>x.textContent==="s");
+ assert.ok(sharedS,"English 44 IPA inventory needs /s/");
+ sharedS.click();
+ const common=get("voicePhoneExamples").children.flatMap(c=>
+  c.children.map(t=>String(t.textContent)));
+ assert.ok(common.some(x=>x.includes("英语"))&&
+  common.some(x=>x.includes("普通话")),
+  "Shared /s/ must show BOTH English and Mandarin examples");
  get("voiceIpaSpeak").click();
  assert.equal(spoken.length,1,"Example playback must be user-initiated");
  assert.ok(/^[a-z]+$/.test(spoken[0]));
