@@ -124,7 +124,8 @@ final class PhoneticLexicon {
             if(label==null)continue;
             if(combined.length()>100)break;
             if(label.matches("(?i)(<blk>|<eps>|<unk>|▁|\\s*)"))continue;
-            combined.append(label);
+            // CTC word-boundary markers are not phonetic tokens.
+            combined.append(label.replace("▁",""));
         }
         return phones(combined.toString());
     }
