@@ -1261,6 +1261,7 @@ body.workout-edit-open{overflow:hidden}
 #page-voice .voice-pitch-actions button:disabled{opacity:.4}
 #page-voice .voice-pitch-config{display:grid;grid-template-columns:1.3fr .9fr;
   gap:7px;margin:10px 0 4px}
+#page-voice .voice-pitch-config label[hidden]{display:none!important}
 #page-voice .voice-pitch-config label{display:flex;flex-direction:column;gap:4px;
   min-width:0;color:#a9c5b6;font-size:10px}
 #page-voice .voice-pitch-config select{box-sizing:border-box;width:100%;

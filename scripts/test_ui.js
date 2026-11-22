@@ -2019,7 +2019,7 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
  assert.ok(graphics.some(x=>x.tag==="line"&&x.attrs["stroke-width"]==="7"),
   "Voiced notes must be horizontal bar segments");
  assert.ok(graphics.some(x=>x.tag==="line"&&x.attrs.stroke==="#f17f86"),
-  "C sharp must be red in C major, even without a song target");
+  "C sharp must be red when more than 50 cents from a C-major scale note");
  assert.ok(graphics.some(x=>x.tag==="line"&&x.attrs.stroke!=="#f17f86"),
   "C major scale notes must remain pastel");
  const segmentCount=graphics.filter(x=>x.tag==="line"&&
@@ -2031,8 +2031,16 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
  assert.ok(get("voicePitchPercent").textContent.endsWith("%"),
   "Staff mode must give precise frequency deviation percentage");
  get("voicePitchModeCurve").click();
- assert.equal(get("voicePitchTraces").children.filter(x=>x.tag==="path").length,1,
-  "Curve mode must draw one continuous frequency trace, not fragments");
+ const colourPaths=get("voicePitchTraces").children.filter(x=>
+  x.tag==="path"&&x.attrs.class==="pitch-coloured-path");
+ assert.ok(colourPaths.length>=2,
+  "Curve must use pastel and red stroke paths instead of a monochrome trace");
+ assert.ok(colourPaths.some(x=>x.attrs.stroke==="#f17f86")&&
+  colourPaths.some(x=>x.attrs.stroke!=="#f17f86"),
+  "Curve must render red only for out-of-tolerance pitch intervals");
+ assert.equal(colourPaths.reduce((sum,x)=>
+  sum+(x.attrs.d.match(/M/g)||[]).length,0),5,
+  "Coloured intervals must still form the full continuous 6-sample curve");
  assert.equal(window.BodyTraceVoiceLab.state().chartMode,"curve");
  assert.equal(get("voicePitchNote").textContent,"C♯4",
   "Frequency mode must retain current MIDI note display");
@@ -2045,9 +2053,34 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   x.tag==="text"&&x.attrs.class==="pitch-sample-label");
  assert.equal(sampleLabels.length,6,
   "Frequency view must label all six rendered pitch samples, not only latest");
+ const sampleDots=get("voicePitchTraces").children.filter(x=>
+  x.tag==="circle"&&x.attrs.class==="pitch-sample-dot");
+ assert.equal(sampleDots.length,6,"Every frequency sample needs a coloured dot");
+ assert.ok(sampleLabels.some(x=>x.attrs.fill==="#f17f86")&&
+  sampleLabels.some(x=>x.attrs.fill!=="#f17f86"),
+  "Off-tolerance labels must be red and in-tolerance ones pastel");
+ assert.ok(sampleLabels.every(x=>sampleDots.some(d=>d.attrs.cx===x.attrs.x&&
+  d.attrs.fill===x.attrs.fill)),
+  "Each note label must match the adjacent dot colour");
  assert.ok(sampleLabels.some(x=>x.textContent==="C4")&&
   sampleLabels.some(x=>x.textContent==="C♯4"),
   "Repeated and transitional notes must all remain visible");
+ assert.equal(get("voicePitchConfig").hidden,false,
+  "The tuning settings must be visible in frequency mode");
+ assert.equal(get("voicePitchClefSetting").hidden,true,
+  "Staff-only clef remains hidden in frequency mode");
+ get("voicePitchTolerance").value="100";
+ for(const cb of get("voicePitchTolerance").handlers.input||[])cb();
+ assert.ok(get("voicePitchTraces").children.filter(x=>
+  x.tag==="text"&&x.attrs.class==="pitch-sample-label").every(x=>
+  x.attrs.fill!=="#f17f86"),
+  "Increasing tolerance to 100 cents must recolour nearby C-sharp samples");
+ get("voicePitchTarget").value="60";
+ for(const cb of get("voicePitchTarget").handlers.change||[])cb();
+ assert.ok(get("voicePitchTraces").children.some(x=>
+  x.tag==="text"&&x.attrs.class==="pitch-sample-label"&&
+  x.textContent==="C♯4"&&x.attrs.fill==="#f17f86"),
+  "An explicit C4 target must turn C-sharp red even at 100-cent tolerance");
  const sizes=[];
  for(const group of groups){
   group.click();sizes.push(get("voiceIpaGrid").children.length);

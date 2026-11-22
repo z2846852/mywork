@@ -498,7 +498,7 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
         <button type="button" id="voicePitchModeCurve" class="active" aria-pressed="true">频率 + 音名</button>
         <button type="button" id="voicePitchModeStaff" aria-pressed="false">五线谱音高条</button>
       </div>
-      <div class="voice-pitch-config" id="voicePitchConfig" hidden>
+      <div class="voice-pitch-config" id="voicePitchConfig">
         <label>调号
           <select id="voicePitchKey" aria-label="演唱调号">
             <option value="C" selected>C 大调 / a 小调</option>
@@ -518,19 +518,19 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
             <option value="Cb">C♭ 大调 / a♭ 小调（7♭）</option>
           </select>
         </label>
-        <label>谱表
+        <label id="voicePitchClefSetting" hidden>谱表
           <select id="voicePitchClef" aria-label="参考谱表">
             <option value="auto" selected>自动</option>
             <option value="bass">低音谱表</option>
             <option value="treble">高音谱表</option>
           </select>
         </label>
-        <label>目标音
-          <select id="voicePitchTarget" aria-label="五线谱练习目标音">
+        <label>目标音（可选）
+          <select id="voicePitchTarget" aria-label="音高练习目标音">
             <option value="" selected>不设目标 · 只记谱</option>
           </select>
         </label>
-        <label class="voice-tolerance">目标音容差
+        <label class="voice-tolerance">音准容差
           <output id="voicePitchToleranceValue" for="voicePitchTolerance">50 cents</output>
           <input id="voicePitchTolerance" type="range" min="10" max="100"
             step="5" value="50" aria-label="音准容差（音分）">
@@ -556,10 +556,10 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
           <text id="voicePitchAxisCaption" x="348" y="223" text-anchor="end" fill="#91b5a5" font-size="10">横轴：有效发声样本（停声冻结）</text>
         </svg>
       </div>
-      <p id="voicePitchStatus" class="sub" role="status">频率图持续显示 Hz 与音名，五线谱图以横向音高条显示演唱位置；调外才标红。偏差同时显示 cents 与频率百分比；调外不等于歌曲唱错。</p>
+      <p id="voicePitchStatus" class="sub" role="status">频率图和五线谱图都用不同淡彩标记音名；超过容差的点或音段变红。未设目标时相对所选调式最近音判断，设置目标后相对目标音判断；不能据此判定整首歌唱对与否。</p>
       <details class="voice-explain">
         <summary>! 音高图说明</summary>
-        <p>连续频率：以 MIDI 半音的对数纵轴显示实际频率（Hz），自第一次有效发声锁定纵轴；用上下按钮整体平移纵轴。曲线不因唱到调外音而变红。五线谱：五条线严格等距，按音名字母的级进排列，超出谱表使用局部加线；相同稳定音连续采样合并为一个音符，不推断真实乐谱时值。选择目标音后，才根据相对目标音的音分误差和容差标红；不设目标时只记谱，不判断对错。停声时数据保持，横轴为有效发声样本而非真实时间；对完整旋律评分尚需导入目标旋律。</p>
+        <p>连续频率：以 MIDI 半音的对数纵轴显示实际频率（Hz），首次有效发声后锁定纵轴；可以整体平移。每个采样点都显示对应音名和彩色圆点，折线也逐段上色。五线谱：五条参考线严格等距，彩色横条显示连续有效发声样本，不表示实际乐谱时值。两张图共用容差：未选择目标音时，比较当前调式中最近的合法音；选择目标音后，比较该指定目标音。误差超过所设 cents 时显示红色，否则按音名显示不同淡彩。这里表示调式参考音高偏差，不等于某首歌曲的演唱评分。停声时保持数据，横轴是有效发声样本而非真实时间。</p>
       </details>
     </div>
   </section>

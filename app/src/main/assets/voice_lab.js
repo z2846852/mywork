@@ -452,9 +452,21 @@
   }
   return {target,delta,off:Math.abs(delta)>tol+1e-7};
  }
- // Staff color is based on key membership, not a claimed melody error.
+ // A colour means proximity to a musical reference, not correct song melody.
+ // Without an explicit target, compare the closest note in the chosen scale.
+ // With a target, compare exactly that note. Both chart modes use this rule.
  function inSelectedScale(midi,info=keyInfo()){
   return info.scale.has(pc(Math.round(midi)));
+ }
+ function pitchAccuracy(midi,info=keyInfo()){
+  const target=currentTarget();
+  if(target===null)return gradePitch(midi,info,toleranceCents());
+  const delta=(midi-target)*100;
+  return {target,delta,off:Math.abs(delta)>toleranceCents()+1e-7};
+ }
+ function pitchColor(midi,info=keyInfo()){
+  return pitchAccuracy(midi,info).off?RED:
+    PASTELS[pc(Math.round(midi))%PASTELS.length];
  }
  function pitchDeviationPercent(cents){
   return (Math.pow(2,cents/1200)-1)*100;
@@ -503,7 +515,8 @@
  function setPitchView(mode){
   pitchViewMode=mode==="staff"?"staff":"curve";
   const staff=pitchViewMode==="staff";
-  $("voicePitchConfig").hidden=!staff;
+  // Key, target and cents threshold work in BOTH pitch modes.
+  $("voicePitchClefSetting").hidden=!staff;
   $("voicePitchAxisActions").hidden=staff;
   for(const [name,active] of [["voicePitchModeCurve",!staff],["voicePitchModeStaff",staff]]){
    const b=$(name);b.classList.toggle("active",active);
@@ -522,20 +535,21 @@
   }
   const last=pitchPoints[pitchPoints.length-1],info=keyInfo();
   const nearest=Math.round(last.midi),name=noteName(nearest,info);
-  const target=pitchViewMode==="staff"?currentTarget():null;
-  const cents=(last.midi-(target===null?nearest:target))*100;
+  const explicitTarget=currentTarget(),grade=pitchAccuracy(last.midi,info);
+  const target=grade.target;
+  const cents=grade.delta;
   const pct=pitchDeviationPercent(cents),inside=inSelectedScale(last.midi,info);
   latestNote=name;
   safeText("voicePitchNote",name);
-  safeText("voicePitchCentsLabel",target===null?"相对最近音":"相对目标音");
+  safeText("voicePitchCentsLabel",explicitTarget===null?"相对最近调内音":"相对目标音");
   safeText("voicePitchCents",signed(cents,1)+" cents");
   safeText("voicePitchPercent",signed(pct,2)+"%");
-  const ref=target===null?"最近音 "+name:"目标 "+noteName(target,info);
-  const over=target!==null&&Math.abs(cents)>toleranceCents();
+  const ref=explicitTarget===null?"最近调内音 "+noteName(target,info):
+    "目标 "+noteName(target,info);
   safeText("voicePitchQuality",name+" · "+(inside?"调内":"调外")+
    " · "+ref+" "+signed(cents,1)+" cents ("+signed(pct,2)+"%)"+
-   (over?" · 超出容差":""));
-  quality.classList.toggle("off",!inside||over);
+   (grade.off?" · 超出容差":" · 容差内"));
+  quality.classList.toggle("off",grade.off);
  }
  const yClamp=(v,min,max)=>Math.max(min,Math.min(max,v));
  function defaultPitchAxis(midi){
@@ -573,35 +587,55 @@
     label.textContent=noteName(n,info)+" "+Math.round(hz)+"Hz";
     grid.appendChild(label);
    }
-   safeText("voicePitchAxisCaption","频率/音名 · 有效发声样本（停声冻结）");
+   safeText("voicePitchAxisCaption","频率/音名 · 各音淡彩 · 超容差红色");
+   const target=currentTarget();
+   if(target!==null){
+    const ty=y(target);
+    if(ty>=y0&&ty<=y1){
+     grid.appendChild(el("line",{x1:x0,x2:x1,y1:ty,y2:ty,
+      stroke:"#e9d698","stroke-width":1,"stroke-dasharray":"5 5"}));
+     const aim=el("text",{x:x0+4,y:ty-5,"font-size":9,fill:"#e9d698"});
+     aim.textContent="目标 "+noteName(target,info);grid.appendChild(aim);
+    }
+   }
    if(!pitchPoints.length){
     const hint=el("text",{x:202,y:110,"text-anchor":"middle",fill:"#8ab3a0","font-size":12});
-    hint.textContent="发声后显示连续频率和音名";traces.appendChild(hint);return;
+    hint.textContent="发声后显示连续频率和彩色音名";traces.appendChild(hint);return;
    }
    const dx=(x1-x0)/Math.max(1,pitchPoints.length-1);
-   const path=pitchPoints.map((p,i)=>(i?"L":"M")+
-    (x0+i*dx).toFixed(1)+" "+yClamp(y(p.midi),y0,y1).toFixed(1)).join(" ");
-   traces.appendChild(el("path",{d:path,stroke:"#89ddbb","stroke-width":2.6,
-    "stroke-linejoin":"round","stroke-linecap":"round",fill:"none"}));
-   // Restore the original information-dense annotations: one note name for
-   // EVERY drawn pitch point, even when labels touch or overlap. Do not
-   // decimate labels by distance, hide repeats, or only label the latest point.
+   const at=index=>({x:x0+index*dx,
+    y:yClamp(y(pitchPoints[index].midi),y0,y1)});
+   // Batch individual coloured segments into at most six SVG paths: the
+   // underlying trace stays continuous without creating hundreds of nodes.
+   const paths=new Map();
+   for(let i=1;i<pitchPoints.length;i++){
+    const prev=at(i-1),next=at(i),color=pitchColor(pitchPoints[i].midi,info);
+    paths.set(color,(paths.get(color)||"")+"M"+prev.x.toFixed(2)+
+     " "+prev.y.toFixed(2)+"L"+next.x.toFixed(2)+" "+next.y.toFixed(2)+" ");
+   }
+   for(const [color,d] of paths)traces.appendChild(el("path",{d,
+    stroke:color,"stroke-width":2.6,"stroke-linejoin":"round",
+    "stroke-linecap":"round",fill:"none",class:"pitch-coloured-path"}));
+   // The user prefers dense information: never omit an individual note label.
    pitchPoints.forEach((point,index)=>{
-    const px=x0+index*dx,py=yClamp(y(point.midi),y0,y1);
-    const marker=el("text",{x:px,y:yClamp(py-7-(index%2)*9,10,211),
+    const {x,y:py}=at(index),color=pitchColor(point.midi,info);
+    traces.appendChild(el("circle",{cx:x,cy:py,r:2.5,fill:color,
+     class:"pitch-sample-dot"}));
+    const marker=el("text",{x,y:yClamp(py-7-(index%2)*9,10,211),
      "text-anchor":"middle","font-size":8,"font-weight":650,
-     fill:"#c0f2d5","fill-opacity":.84,
+     fill:color,"fill-opacity":.94,
      "pointer-events":"none",class:"pitch-sample-label"});
     marker.textContent=noteName(point.midi,info);
     traces.appendChild(marker);
    });
    const last=pitchPoints[pitchPoints.length-1];
-   const py=yClamp(y(last.midi),y0,y1);
-   traces.appendChild(el("circle",{cx:x1,cy:py,r:3.8,fill:"#eefff5"}));
-   const note=el("text",{x:x1,y:16,"text-anchor":"end",fill:"#d8fae6",
+   const py=yClamp(y(last.midi),y0,y1),lastColor=pitchColor(last.midi,info);
+   traces.appendChild(el("circle",{cx:x1,cy:py,r:3.8,
+    stroke:"#eefff5","stroke-width":1,fill:lastColor}));
+   const deviation=pitchAccuracy(last.midi,info).delta;
+   const note=el("text",{x:x1,y:16,"text-anchor":"end",fill:lastColor,
     "font-size":12,"font-weight":700});
-   note.textContent=noteName(last.midi,info)+"  "+
-    signed((last.midi-Math.round(last.midi))*100,0)+"c";
+   note.textContent=noteName(last.midi,info)+"  "+signed(deviation,0)+"c";
    traces.appendChild(note);
    if(y(last.midi)!==py){
     const warn=el("text",{x:x1,y:212,"text-anchor":"end",
@@ -627,7 +661,7 @@
   }
   const clefText=el("text",{x:5,y:26,fill:"#c4dfce","font-size":10});
   clefText.textContent=clef==="bass"?"低音谱":"高音谱";grid.appendChild(clefText);
-  safeText("voicePitchAxisCaption","K歌音高条 · 淡彩=调内 · 红色=调外");
+  safeText("voicePitchAxisCaption","K歌音高条 · 各音淡彩 · 超容差红色");
   const target=currentTarget();
   if(target!==null){
    const ty=yForNote(target);
@@ -647,11 +681,13 @@
   const visible=pitchPoints.slice(-150),dx=(x1-x0)/Math.max(1,visible.length);
   const bars=[];let run=null;
   for(let i=0;i<visible.length;i++){
-   const p=visible[i],n=Math.round(p.midi);
-   if(run&&run.note===n){run.end=i;run.sum+=p.midi;run.count++;}
-   else{
+   const p=visible[i],n=Math.round(p.midi),color=pitchColor(p.midi,info);
+   // Preserve the colour transition even within a sustained nominal note.
+   if(run&&run.note===n&&run.color===color){
+    run.end=i;run.sum+=p.midi;run.count++;
+   }else{
     if(run)bars.push(run);
-    run={note:n,start:i,end:i,sum:p.midi,count:1};
+    run={note:n,color,start:i,end:i,sum:p.midi,count:1};
    }
   }
   if(run)bars.push(run);
@@ -659,8 +695,7 @@
    const avg=b.sum/b.count;
    const sy=yClamp(yActual(avg),34,200);
    const bx=x0+b.start*dx,ex=x0+(b.end+1)*dx;
-   const color=inSelectedScale(b.note,info)?
-    PASTELS[pc(b.note)%PASTELS.length]:RED;
+   const color=b.color;
    traces.appendChild(el("line",{x1:bx+1,x2:Math.max(bx+2,ex-1),
     y1:sy,y2:sy,stroke:color,"stroke-width":7,"stroke-linecap":"round"}));
    // Label every horizontal sung segment, including very brief ones. Dense
@@ -671,12 +706,11 @@
    label.textContent=noteName(b.note,info);traces.appendChild(label);
   }
   const last=pitchPoints[pitchPoints.length-1],nearest=Math.round(last.midi);
-  const color=inSelectedScale(last.midi,info)?
-   PASTELS[pc(nearest)%PASTELS.length]:RED;
+  const color=pitchColor(last.midi,info);
   const rawY=yActual(last.midi),cy=yClamp(rawY,34,200);
   traces.appendChild(el("circle",{cx:x1,cy,r:4.2,
    stroke:color,"stroke-width":2,fill:"#edfff7"}));
-  const cents=(last.midi-(target===null?nearest:target))*100;
+  const cents=pitchAccuracy(last.midi,info).delta;
   const reading=el("text",{x:x1,y:16,"text-anchor":"end",
    fill:color,"font-size":11,"font-weight":750});
   reading.textContent=noteName(last.midi,info)+" "+
