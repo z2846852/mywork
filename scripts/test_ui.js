@@ -2069,12 +2069,15 @@ console.log("Independent frequency/staff and 44-IPA practice regression passed."
   "The tuning settings must be visible in frequency mode");
  assert.equal(get("voicePitchClefSetting").hidden,true,
   "Staff-only clef remains hidden in frequency mode");
+ // Clear the staff-mode C4 target before testing nearest-in-scale tolerance.
+ get("voicePitchTarget").value="";
+ for(const cb of get("voicePitchTarget").handlers.change||[])cb();
  get("voicePitchTolerance").value="100";
  for(const cb of get("voicePitchTolerance").handlers.input||[])cb();
  assert.ok(get("voicePitchTraces").children.filter(x=>
   x.tag==="text"&&x.attrs.class==="pitch-sample-label").every(x=>
   x.attrs.fill!=="#f17f86"),
-  "Increasing tolerance to 100 cents must recolour nearby C-sharp samples");
+  "At 100-cent tolerance all these notes must match a nearby scale note");
  get("voicePitchTarget").value="60";
  for(const cb of get("voicePitchTarget").handlers.change||[])cb();
  assert.ok(get("voicePitchTraces").children.some(x=>
