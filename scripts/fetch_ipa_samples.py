@@ -86,7 +86,9 @@ def main():
         path=OUT/dest
         if path.is_file() and 4000<path.stat().st_size<250000 and path.read_bytes().startswith(b"OggS"):
             continue
-        url="https://commons.wikimedia.org/wiki/Special:Redirect/file/"+urllib.parse.quote(source)
+        md5=hashlib.md5(source.encode("utf-8")).hexdigest()
+        url=("https://upload.wikimedia.org/wikipedia/commons/"
+             +md5[0]+"/"+md5[:2]+"/"+urllib.parse.quote(source))
         raw=get(url)
         if not 4000<len(raw)<250000 or not raw.startswith(b"OggS"):
             raise RuntimeError(f"Invalid Commons recording: {source}")
