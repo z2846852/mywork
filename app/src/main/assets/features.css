@@ -1384,6 +1384,71 @@ body.workout-edit-open{overflow:hidden}
 #page-voice .voice-mandarin-title{display:block;margin-bottom:5px;font-weight:700}
 #page-voice #voicePhonemePinyin{font-size:12px;font-weight:450}
 
+
+/* Sound Lab V3 — chart modes and per-phoneme practice */
+#page-voice .voice-pitch-mode{display:grid;grid-template-columns:1fr 1fr;
+ gap:5px;margin:9px 0;padding:4px;border:1px solid #375c4d;
+ border-radius:10px;background:#1a3329}
+#page-voice .voice-pitch-mode button{border:0;background:transparent;
+ color:#a5c6b4;border-radius:8px;min-height:36px;margin:0;
+ padding:6px;font-size:12px;font-weight:700}
+#page-voice .voice-pitch-mode button.active{background:#35745b;color:#e8fff0}
+#page-voice #voicePitchConfig[hidden],#page-voice #voicePitchAxisActions[hidden]{display:none!important}
+#page-voice .voice-pitch-config{grid-template-columns:1fr 1fr}
+#page-voice .voice-axis-actions{display:flex;align-items:center;justify-content:space-between;
+ gap:5px;flex-wrap:wrap;margin:7px 0 8px}
+#page-voice .voice-axis-actions .sub{font-size:10px;margin:0;flex:1 0 100%}
+#page-voice .voice-axis-actions button{font-size:10px;padding:5px 7px;min-height:30px;
+ flex:1;margin:0}
+#page-voice .voice-ipa-practice{margin:13px 0 11px;padding:10px;border:1px solid #426b58;
+ border-radius:11px;background:#1a3429}
+#page-voice .voice-ipa-header{display:flex;align-items:center;justify-content:space-between;
+ gap:8px;margin-bottom:9px}
+#page-voice .voice-ipa-header strong{font-size:14px;color:#d6f6e3}
+#page-voice .voice-ipa-header .sub{font-size:10px;line-height:1.4;margin:4px 0 0}
+#page-voice .voice-ipa-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:5px;margin-bottom:8px}
+#page-voice .voice-ipa-groups button{border:1px solid #446a57;background:#203b30;
+ color:#b6d1c1;font-size:11px;font-weight:650;border-radius:8px;
+ min-height:35px;margin:0;padding:6px 3px}
+#page-voice .voice-ipa-groups button.active{border-color:#79bca1;
+ color:#e2fff1;background:#376c54}
+#page-voice .voice-ipa-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));
+ gap:5px;max-height:212px;overflow-y:auto;overscroll-behavior:contain;
+ padding:1px 1px 5px}
+#page-voice .voice-ipa-grid button{padding:6px 2px;margin:0;min-height:43px;
+ font-size:18px;line-height:1.2;font-weight:700;border-radius:8px;
+ color:#d5eddd;background:#274238;border:1px solid #426b57}
+#page-voice .voice-ipa-grid button.active{background:#45866a;border:2px solid #99e9bc;
+ color:#fff}
+#page-voice .voice-ipa-detail{margin-top:10px;padding:10px;border-radius:9px;
+ border:1px solid #3b6552;background:#193b2c}
+#page-voice .voice-ipa-ident{display:flex;align-items:center;gap:13px}
+#page-voice .voice-ipa-ident>strong{min-width:60px;text-align:center;font-size:30px;
+ font-weight:750;color:#acedd0}
+#page-voice .voice-ipa-ident>div{min-width:0;flex:1}
+#page-voice #voiceIpaName{font-size:12px;font-weight:700;color:#e1f4e7}
+#page-voice #voiceIpaTip{font-size:11px;line-height:1.5;margin:3px 0;color:#c3dbcd}
+#page-voice .voice-ipa-reference{margin:9px 0!important;font-size:12px;
+ line-height:1.5;color:#b9d7c6}
+#page-voice .voice-ipa-reference b{color:#e4fff1;font-size:16px}
+#page-voice #voiceIpaWordIpa{color:#b8f3d5}
+#page-voice .voice-ipa-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
+#page-voice .voice-ipa-actions button{margin:0;padding:6px 3px;min-height:34px;
+ font-size:10px;border-radius:8px;white-space:normal}
+#page-voice #voiceIpaContrast,#page-voice #voiceIpaVoiceStatus{font-size:10px;
+ line-height:1.5;margin:7px 0 0}
+#page-voice #voiceIpaVoiceStatus:not(:empty){color:#bcead1}
+#page-voice .voice-ipa-disclaimer{font-size:10px;line-height:1.55;margin:10px 0 0}
+#page-voice .voice-ipa-attempt{margin:2px 0 12px;padding:9px;
+ border-radius:8px;border:1px solid #436958;color:#cde6d3;
+ font-size:11px;line-height:1.55;background:#1b3c2e}
+#page-voice .voice-ipa-attempt.off{border-color:#985d61;color:#ffd3d2;background:#452b31}
+@media(max-width:359px){
+ #page-voice .voice-ipa-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+ #page-voice .voice-ipa-actions button{font-size:9px}
+}
+
 /* Direct-access 7-tab navigation on compact phones. */
 .tabs{gap:0;padding-left:max(2px,env(safe-area-inset-left));
  padding-right:max(2px,env(safe-area-inset-right))}
