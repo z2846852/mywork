@@ -622,8 +622,17 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
   <div class="apk-update-heading-actions">
    <span class="sub">自动查询 GitHub</span>
    <details class="apk-update-help">
-    <summary aria-label="高级：仅界面更新" title="仅界面更新 · 高级">!</summary>
+    <summary aria-label="版本检查、更新历史与高级更新" title="版本与更新历史">!</summary>
     <div class="apk-update-help-popup" id="uiUpdatePanel">
+     <h3>版本与更新历史 <span class="sub">GitHub Release</span></h3>
+     <div class="apk-history-actions">
+      <button type="button" class="secondary mini" id="checkApkVersionNow">立即检查版本</button>
+      <button type="button" class="secondary mini" id="loadReleaseHistory">查看升级历史</button>
+     </div>
+     <p id="releaseHistoryStatus" class="sub" role="status">手动检查不下载安装。点击“查看升级历史”后读取逐版本差异。</p>
+     <div id="releaseHistoryList" class="apk-history-list" aria-label="逐版本更新记录"></div>
+     <button type="button" class="secondary mini apk-history-more" id="moreReleaseHistory" hidden>查看更多版本</button>
+     <div class="apk-help-divider"></div>
      <h3>仅界面更新 <span class="sub">高级功能</span></h3>
      <p class="sub">只替换 HTML/CSS/JS，不更新 Java、权限或 YAMNet；需要原生指纹兼容。</p>
      <p id="uiUpdateStatus" class="sub" role="status">当前界面版本读取中…</p>
@@ -847,6 +856,53 @@ function todayShanghai(){return new Intl.DateTimeFormat("sv-SE",{year:"numeric",
 const today=todayShanghai();$("recordDate").value=today;state.selected=today;
 function toast(msg,bad=false){let e=$("toast");e.textContent=msg;e.className=bad?"warn":"";e.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.style.display="none",4300)}
 let lastApkVersionCheck=0,apkUpdating=false,apkReady=false;
+let releaseHistoryRows=[],releaseHistoryShown=0,releaseHistoryBusy=false;
+function renderReleaseHistoryBatch(){
+ const list=$("releaseHistoryList");
+ const until=Math.min(releaseHistoryRows.length,releaseHistoryShown+12);
+ for(let i=releaseHistoryShown;i<until;i++){
+  const record=releaseHistoryRows[i];
+  if(!record||!Number.isInteger(record.version))continue;
+  const item=document.createElement("details");item.className="apk-history-item";
+  if(i===0)item.open=true;
+  const summary=document.createElement("summary");
+  const subjects=Array.isArray(record.changes)?record.changes:[];
+  summary.textContent="v0.2."+record.version+" · "+subjects.length+" 条提交"+
+   (record.more_commits>0?"（另有 "+record.more_commits+" 条）":"");
+  const meta=document.createElement("p");meta.className="sub";
+  meta.textContent=(record.date?"代码提交 "+String(record.date).slice(0,10)+" · ":"")+
+   (record.base?"相对 "+record.base:"最早可用的发布基线");
+  item.append(summary,meta);
+  if(subjects.length){
+   const ul=document.createElement("ul");ul.className="apk-history-changes";
+   for(const subject of subjects){
+    const li=document.createElement("li");
+    li.textContent=String(subject);ul.append(li);
+   }
+   item.append(ul);
+  }else{
+   const no=document.createElement("p");no.className="sub";
+   no.textContent=record.base?"此版本间没有可显示的非合并提交标题":
+    "无更早的发布基线，不能计算增量";
+   item.append(no);
+  }
+  list.append(item);
+ }
+ releaseHistoryShown=until;
+ $("moreReleaseHistory").hidden=releaseHistoryShown>=releaseHistoryRows.length;
+}
+function showReleaseHistory(evt){
+ releaseHistoryBusy=false;
+ $("loadReleaseHistory").disabled=false;
+ if(evt.state!=="loaded"&&evt.state!=="cached"){
+  $("releaseHistoryStatus").textContent=evt.message||"历史读取失败";return;
+ }
+ releaseHistoryRows=Array.isArray(evt.releases)?evt.releases:[];
+ releaseHistoryShown=0;$("releaseHistoryList").replaceChildren();
+ $("releaseHistoryStatus").textContent=(evt.message||"历史已载入")+
+  " · "+releaseHistoryRows.length+" 个发布版本。根据 Git 提交标题整理，未经逐项功能验收。";
+ renderReleaseHistoryBatch();
+}
 function checkVersionOnSettingsEntry(){
  if(apkUpdating||apkReady||Date.now()-lastApkVersionCheck<600000)return;
  lastApkVersionCheck=Date.now();
@@ -1235,6 +1291,26 @@ $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("
 $("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的原始 JSON 和未上传记录会保留。"))BodyTraceNative.disconnect()};
 const sync=()=>BodyTraceNative.sync();
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
+$("checkApkVersionNow").onclick=()=>{
+ if(apkUpdating){$("releaseHistoryStatus").textContent="正在进行 APK 更新，无法并行检查";return;}
+ if(!window.BodyTraceNative?.refreshApkVersion){
+  $("releaseHistoryStatus").textContent="当前 APK 不支持强制检查，请先完整安装新版";return;
+ }
+ lastApkVersionCheck=Date.now();
+ $("apkLatestVersion").textContent="查询中…";
+ $("releaseHistoryStatus").textContent="正在主动访问 GitHub（不下载 APK）…";
+ BodyTraceNative.refreshApkVersion();
+};
+$("loadReleaseHistory").onclick=()=>{
+ if(releaseHistoryBusy)return;
+ if(!window.BodyTraceNative?.loadReleaseHistory){
+  $("releaseHistoryStatus").textContent="需要先安装带历史索引功能的新版 APK";return;
+ }
+ releaseHistoryBusy=true;$("loadReleaseHistory").disabled=true;
+ $("releaseHistoryStatus").textContent="读取 GitHub Release 版本历史中…";
+ BodyTraceNative.loadReleaseHistory();
+};
+$("moreReleaseHistory").onclick=renderReleaseHistoryBatch;
 $("checkApkUpdate").onclick=()=>{
  if(apkReady&&window.BodyTraceNative?.installPendingApk){
   BodyTraceNative.installPendingApk();
@@ -1270,6 +1346,7 @@ $("rollbackUiUpdate").onclick=()=>{
 $("showViewJson").onclick=()=>{if(window.BodyTraceNative)BodyTraceNative.showViewModel();};
 window.bodyTraceReceive=function(evt){
  switch(evt.type){
+ case "release_history":showReleaseHistory(evt);break;
  case "apk_update":{
   // Version-only results never start a download or disable the action button.
   if(evt.installed_version!==undefined)
@@ -1281,6 +1358,8 @@ window.bodyTraceReceive=function(evt){
      evt.state==="version_deferred"){
    if(!apkUpdating&&!apkReady){
     $("apkUpdateStatus").textContent=evt.message||"版本状态未知";
+    if(evt.state!=="version_checking")
+     $("releaseHistoryStatus").textContent="版本检查："+(evt.message||"状态未知");
     if(evt.state==="version_error")$("apkLatestVersion").textContent="查询失败";
     if(evt.state==="version_deferred")$("apkLatestVersion").textContent=
       evt.latest_version!==undefined?"缓存 v0.2."+evt.latest_version:"暂不可查";
