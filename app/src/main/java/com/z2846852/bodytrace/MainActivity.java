@@ -1009,6 +1009,9 @@ public final class MainActivity extends Activity {
                 .getBoolean("show_workout_history",true);
             JSONObject event=message("ui_preferences");
             event.put("show_workout_history",show);
+            android.content.SharedPreferences p=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE);
+            event.put("last_main_page",p.getString("last_main_page","home"));
+            event.put("overview_view",p.getString("overview_view","summary"));
             reply(event);
         }catch(Exception ex){error("读取训练显示设置失败："+safeMessage(ex));}
     }
@@ -1645,6 +1648,20 @@ public final class MainActivity extends Activity {
                     error("读取派生 JSON 失败：" + safeMessage(e));
                 }
             });
+        }
+
+        /** Durable navigation preference, independent of WebView DOM Storage.
+         * Synchronous commit avoids losing the last tap when the app closes. */
+        @JavascriptInterface public void setUiNavigation(String mainPage,String overviewMode){
+            if(mainPage==null||overviewMode==null)return;
+            if(!("home".equals(mainPage)||"record".equals(mainPage)||
+                 "sleep".equals(mainPage)||"body".equals(mainPage)||
+                 "voice".equals(mainPage)||"settings".equals(mainPage)))return;
+            if(!("summary".equals(overviewMode)||"trends".equals(overviewMode)))return;
+            boolean written=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
+                .edit().putString("last_main_page",mainPage)
+                .putString("overview_view",overviewMode).commit();
+            if(!written)error("页面偏好保存失败");
         }
 
         @JavascriptInterface public void setWorkoutHistoryVisible(boolean visible){

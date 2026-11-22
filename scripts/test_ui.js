@@ -682,6 +682,37 @@ assert.ok(features.includes('document.querySelector(\'.tabs button[data-page="bo
  "Body tab must initialize the four-grid calendar viewport");
 assert.ok(features.includes('renderIntakeCheckin();navigate("body");'),
  "Saving nutrition must stay on Body, not navigate to a deleted tab");
+// Ergonomic overview must show either history or trends, never both stacked.
+assert.ok(overviewSection.includes('id="overviewModeSwitch"'));
+assert.ok(overviewSection.includes('id="overviewSummary"'));
+assert.ok(overviewSection.includes('id="overviewTrends" role="tabpanel" aria-labelledby="overviewTrendsTab" hidden'));
+assert.ok(overviewSection.indexOf('id="overviewModeSwitch"')<
+ overviewSection.indexOf('id="statDays"'));
+assert.ok(overviewSection.indexOf('id="overviewSummary"')<
+ overviewSection.indexOf('id="heatScroll"'));
+assert.ok(overviewSection.indexOf('id="overviewTrends"')<
+ overviewSection.indexOf('id="strengthList"'));
+assert.ok(html.includes('function chooseOverviewMode(mode,fromUser=true)'));
+assert.ok(html.includes('if(!navigationTouched)')&&
+ html.includes('chooseOverviewMode(evt.overview_view==="trends"?"trends":"summary",false)'));
+assert.ok(html.includes('BodyTraceNative.setUiNavigation(currentMainPage,currentOverviewMode)'));
+assert.ok(native.includes('setDomStorageEnabled(false)')&&
+ native.includes('@JavascriptInterface public void setUiNavigation(String mainPage,String overviewMode)'));
+assert.ok(native.includes('.putString("last_main_page",mainPage)')&&
+ native.includes('.putString("overview_view",overviewMode).commit()'));
+assert.ok(native.includes('event.put("overview_view",p.getString("overview_view","summary"))'));
+assert.ok(featureStyles.includes('#page-home .overview-switch{position:sticky'));
+assert.ok(featureStyles.includes('#page-home .overview-view[hidden]{display:none!important}'));
+// Intake should be the FIRST card in Body, not below muscle charts.
+assert.ok(bodySection.indexOf('id="bodyNutritionSection"')<
+ bodySection.indexOf('class="panel panel-avatar"'));
+assert.ok(bodySection.includes('class="intake-quick-controls"'));
+assert.ok(bodySection.indexOf('id="intakeCalendar"')<
+ bodySection.indexOf('id="intakeDate"'));
+assert.ok(bodySection.indexOf('id="intakeDate"')<
+ bodySection.indexOf('id="saveIntakeCheck"'));
+assert.equal((bodySection.match(/class="panel nutrition-checkin-panel"/g)||[]).length,1);
+assert.ok(featureStyles.includes('#page-body .intake-quick-controls{display:grid;'));
 // Four daily subjective intake flags are independent from food calories and
 // from muscle-region training activity. The latest save wins for each date.
 for(const id of ["intakeDate","intakeCreatine","intakeProtein","intakeCarbs",

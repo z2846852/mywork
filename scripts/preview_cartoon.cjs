@@ -54,6 +54,19 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(await page.locator("#avatarPicture").count())throw Error("Old cartoon still visible");
   await page.screenshot({path:"bodytrace-cartoon-preview.png",fullPage:true});
   await page.evaluate(()=>navigate("home"));
+  // Both views exist, but only one may be visible at a time.
+  if(!(await page.locator("#overviewTrends").isHidden()))
+   throw Error("Trend panel must be hidden when calendar is selected");
+  await page.evaluate(()=>{
+   window.BodyTraceNative={setUiNavigation:(p,v)=>window.__savedNavigation={page:p,view:v}};
+  });
+  await page.locator("#overviewTrendsTab").click();
+  if(await page.locator("#overviewTrends").isHidden()||
+     !(await page.locator("#overviewSummary").isHidden()))
+   throw Error("Overview segmented control failed to switch to trends");
+  const savedView=await page.evaluate(()=>window.__savedNavigation);
+  if(savedView?.page!=="home"||savedView?.view!=="trends")
+   throw Error("Trend selection did not persist to the native bridge");
   const ordered=await page.locator("#strengthList .strength-exercise-card").evaluateAll(
    cards=>cards.map(card=>card.dataset.exerciseId));
   const wanted=["adductor","lateral_raise","chest_press","row"];
@@ -407,6 +420,13 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   // Nutrition check-in: four semantic quadrants, saved snapshots and GitHub
   // native bridge payload. Synthetic samples only, never personal nutrition.
   await page.locator('.tabs button[data-page="body"]').click();
+  const bodyFirst=await page.locator("#page-body > div").first().getAttribute("id");
+  if(bodyFirst!=="bodyNutritionSection")
+   throw Error("Nutrition four-grid should be the first Body card: "+bodyFirst);
+  const quickGeometry=await page.locator("#intakeDate, .intake-quick-controls .intake-choice, #saveIntakeCheck")
+   .evaluateAll(items=>items.map(x=>x.getBoundingClientRect().top));
+  if(quickGeometry.length!==6||Math.max(...quickGeometry)-Math.min(...quickGeometry)>8)
+   throw Error("Nutrition date, four checkboxes, and save must be one compact row: "+quickGeometry);
   if(await page.locator("#intakeCalendar .intake-cell").count()!==364)
    throw Error("Nutrition 52-week calendar should render 364 day cells");
   const scrollState=await page.locator("#intakeCalendarScroll").evaluate(node=>
