@@ -105,6 +105,7 @@ assert.ok(apkProvider.includes('"r".equals(mode)')&&
  !apkProvider.includes('MODE_WRITE_ONLY'));
 assert.ok(html.includes('id="checkApkVersion"')&&
  html.includes('id="checkApkUpdate"')&&
+ html.includes('id="checkApkUpdate">检查并更新</button>')&&
  html.includes('id="apkInstalledVersion"')&&
  html.includes('id="apkLatestVersion"')&&
  html.includes('case "apk_update":'));
@@ -150,6 +151,14 @@ assert.ok(workflow.includes('release-commit-lines.txt')&&
  "Every new Release should describe real Git commits");
 assert.ok(html.includes('if(!navigationTouched)'),
  "Native preference restore should not override a manual navigation");
+const directUpdater=html.slice(html.indexOf('$("checkApkUpdate").onclick=()=>{'),
+ html.indexOf('$("checkUiUpdates").onclick=()=>{'));
+assert.ok(directUpdater.includes('BodyTraceNative.checkApkUpdate()')&&
+ !directUpdater.includes('apkUpdateKnown')&&
+ !directUpdater.includes('checkApkVersionManual()'),
+ "Right-hand action must check and prepare directly without a left-hand prerequisite");
+assert.ok(!html.includes('id="checkApkUpdate" disabled'),
+ "One-click updater should be enabled at rest");
 assert.ok(apkUpdate.includes('X-RateLimit-Remaining')&&
  apkUpdate.includes('Retry-After'),"APK updater must distinguish GitHub rate limiting");
 assert.ok(fs.readFileSync(path.join(root,"app/src/main/java/com/z2846852/bodytrace/UiBundleManager.java"),"utf8")
@@ -162,7 +171,11 @@ assert.ok(releaseCache.includes('getSharedPreferences(PREFS,Context.MODE_PRIVATE
 assert.ok(releaseCache.includes('X-RateLimit-Reset')&&
  releaseCache.includes('Retry-After')&&releaseCache.includes('blocked_until'));
 assert.ok(releaseCache.includes('new Snapshot(local,true,blocked)'));
-assert.ok(apkUpdate.includes('new GitHubReleaseCache(context).get()'));
+assert.ok(releaseCache.includes('get(boolean forceRefresh)')&&
+ releaseCache.includes('if(!forceRefresh&&local!=null'),
+ "Manual version checks must bypass the 10-minute local cache");
+assert.ok(apkUpdate.includes('new GitHubReleaseCache(context).get(true)'),
+ "Explicit APK checks should use fresh metadata");
 assert.ok(fs.readFileSync(path.join(root,
  "app/src/main/java/com/z2846852/bodytrace/UiBundleManager.java"),"utf8")
  .includes('new GitHubReleaseCache(context).get()'));
@@ -180,11 +193,13 @@ assert.ok(native.includes('apkUpdates.checkVersionsOnly()')&&
 const versionOnlyMethod=apkUpdate.slice(
  apkUpdate.indexOf('JSONObject checkVersionsOnly()'),
  apkUpdate.indexOf('synchronized JSONObject checkAndPrepare('));
-assert.ok(versionOnlyMethod.includes('new GitHubReleaseCache(context).get()')&&
+assert.ok(versionOnlyMethod.includes('new GitHubReleaseCache(context).get(true)')&&
  !versionOnlyMethod.includes('download(')&&
  !versionOnlyMethod.includes('ApkDeltaPatch.apply(')&&
  !versionOnlyMethod.includes('Files.deleteIfExists('),
  "Version inspection must only fetch release metadata; never download APK/patch");
+assert.ok(apkUpdate.includes('未确认最新版前不会下载旧缓存 APK'),
+ "Updater must not install an unverified cached-release version");
 assert.ok(html.includes('evt.state==="update_available"')&&
  html.includes('evt.state==="version_error"'));
 assert.ok(apkBuilder.includes('MAX_PATCH_RATIO=0.85')&&

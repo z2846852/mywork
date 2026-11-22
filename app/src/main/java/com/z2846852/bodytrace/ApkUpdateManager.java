@@ -255,7 +255,7 @@ final class ApkUpdateManager {
      */
     JSONObject checkVersionsOnly() throws Exception {
         long installed=currentVersion();
-        GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get();
+        GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get(true);
         JSONObject release=snapshot.release;
         String tag=release.getString("tag_name");
         if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
@@ -276,7 +276,7 @@ final class ApkUpdateManager {
      */
     synchronized JSONObject checkAndPrepare(Reporter reporter)throws Exception {
         progress(reporter,"checking","正在查询 GitHub 最新正式版…");
-        GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get();
+        GitHubReleaseCache.Snapshot snapshot=new GitHubReleaseCache(context).get(true);
         JSONObject release=snapshot.release;
         String tag=release.getString("tag_name");
         if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
@@ -292,8 +292,10 @@ final class ApkUpdateManager {
             return result;
         }
         if(snapshot.stale)
-            progress(reporter,"checking","使用缓存版本 v0.2."+targetVersion+
-                "；尚未确认 GitHub 当前是否存在更新版本");
+            return status("version_deferred",snapshot.note()+
+                "；未确认最新版前不会下载旧缓存 APK")
+                .put("installed_version",installedVersion)
+                .put("latest_version",targetVersion);
         if(!dir.exists()&&!dir.mkdirs())
             throw new IllegalStateException("无法创建 APK 下载目录");
         JSONArray assets=release.getJSONArray("assets");
