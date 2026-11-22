@@ -54,6 +54,10 @@ public final class MainActivity extends Activity {
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int VOICE_LAB_MIC_PERMISSION_REQUEST=7206;
     private VoiceLabController voiceLab;
+    // Android's installed TTS engine reads complete words, not isolated IPA symbols.
+    private android.speech.tts.TextToSpeech ipaExampleTts;
+    private boolean ipaExampleTtsReady=false;
+    private String ipaExamplePendingWord="";
     private PhoneModelPacks phoneModels;
     private String pendingVoiceLabMode="";
     private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
@@ -1919,6 +1923,13 @@ public final class MainActivity extends Activity {
                 }else voiceLab.start(requestedMode);
             });
         }
+        @JavascriptInterface public void voiceLabSpeakExample(String word){
+            if(word==null||!word.matches("[A-Za-z]{1,32}")){
+                voiceIpaTtsReport("示例词只能包含英文字母");return;
+            }
+            runOnUiThread(()->playVoiceIpaWord(word));
+        }
+
         @JavascriptInterface public void voiceLabSetLanguage(String language){
             voiceLab.setLanguage(language);
         }
@@ -2270,6 +2281,53 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void voiceIpaTtsReport(String message){
+        try{
+            reply(message("voice_tts").put("state","status")
+                .put("message",message));
+        }catch(Exception ignored){}
+    }
+
+    private void speakVoiceIpaPending(){
+        String word=ipaExamplePendingWord;
+        if(!ipaExampleTtsReady||ipaExampleTts==null||word.isEmpty())return;
+        ipaExamplePendingWord="";
+        int result=ipaExampleTts.speak(word,
+            android.speech.tts.TextToSpeech.QUEUE_FLUSH,null,
+            "bodytrace_ipa_"+System.currentTimeMillis());
+        voiceIpaTtsReport(result==android.speech.tts.TextToSpeech.SUCCESS?
+            "正在朗读英式例词："+word:
+            "系统语音引擎朗读失败，请检查系统 TTS 语言包");
+    }
+
+    private void playVoiceIpaWord(String word){
+        ipaExamplePendingWord=word;
+        if(ipaExampleTtsReady){speakVoiceIpaPending();return;}
+        if(ipaExampleTts!=null){
+            voiceIpaTtsReport("系统英式 TTS 初始化中…");
+            return;
+        }
+        voiceIpaTtsReport("首次使用，正在初始化系统英式 TTS…");
+        ipaExampleTts=new android.speech.tts.TextToSpeech(
+            getApplicationContext(),status->runOnUiThread(()->{
+                if(ipaExampleTts==null)return;
+                if(status!=android.speech.tts.TextToSpeech.SUCCESS){
+                    ipaExampleTts.shutdown();ipaExampleTts=null;
+                    voiceIpaTtsReport("手机未能启动系统 TTS，请安装或启用语音引擎");
+                    return;
+                }
+                int supported=ipaExampleTts.setLanguage(java.util.Locale.UK);
+                if(supported==android.speech.tts.TextToSpeech.LANG_MISSING_DATA||
+                   supported==android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED){
+                    ipaExampleTts.shutdown();ipaExampleTts=null;
+                    voiceIpaTtsReport("本机缺少英式英语 TTS 语音数据，需在系统设置中安装");
+                    return;
+                }
+                ipaExampleTtsReady=true;
+                speakVoiceIpaPending();
+            }));
+    }
+
     @Override protected void onPause() {
         if(voiceLab!=null&&voiceLab.isRunning())voiceLab.cancel(true);
         super.onPause();
@@ -2277,6 +2335,10 @@ public final class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         if(voiceLab!=null)voiceLab.cancel(false);
+        if(ipaExampleTts!=null){
+            ipaExampleTts.stop();ipaExampleTts.shutdown();
+            ipaExampleTts=null;ipaExampleTtsReady=false;
+        }
         unregisterReceiver(sleepAnalysisReceiver);
         stopSleepPlayback();
         sleepHandler.removeCallbacksAndMessages(null);
