@@ -1282,8 +1282,11 @@ const logContext={
  }
 };
 vm.runInNewContext(gitLogJS,logContext);
-logTab.handlers.click();
-assert.equal(refreshCount,1,"Opening the log page fetches latest commits");
+assert.equal(logTab.handlers.click,undefined,
+ "Opening settings must not issue a GitHub history request");
+assert.equal(refreshCount,0);
+logNodes.refreshGitLog.handlers.click();
+assert.equal(refreshCount,1,"Only tapping Refresh reads the Git log");
 logContext.window.bodyTraceReceive({type:"git_log",commits:[{
  sha:"1234567890123456789012345678901234567890",
  message:"record: add lateral raise",date:"2026-11-18T12:00:00+08:00",
@@ -1316,8 +1319,10 @@ assert.ok(allLogNodes.some(el=>el.className==="git-diff-unavailable"&&
  el.textContent.includes("GitHub 未提供")));
 assert.ok(allLogNodes.some(el=>el.className==="git-diff-unavailable"&&
  el.textContent.includes("截断")));
-logTab.handlers.click();
-assert.equal(refreshCount,2,"Reopening log page must refetch instead of caching stale history");
+assert.equal(logTab.handlers.click,undefined);
+assert.equal(refreshCount,1,"Reopening settings must not fetch again");
+logNodes.refreshGitLog.handlers.click();
+assert.equal(refreshCount,2,"Each explicit Refresh fetches fresh history");
 assert.ok(github.includes('readRecentCommits(String token)'));
 assert.ok(native.includes('void readGitLog()')&&native.includes('readUiAsset("git_log.js")'));
 assert.ok(github.includes('currentSha.equals(expectedSha)'));
