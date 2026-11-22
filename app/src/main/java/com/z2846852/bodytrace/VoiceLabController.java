@@ -84,6 +84,35 @@ final class VoiceLabController {
         }
         return dictionary;
     }
+    /** Local lexical lookup by the user's intended spelling. No ASR, network
+     * calls, or inference; the returned IPA is a reference, not an observation. */
+    void lookupWord(String raw){
+        String word=raw==null?"":raw.trim().toLowerCase(java.util.Locale.ROOT);
+        try{
+            JSONObject result=new JSONObject().put("type","voice_word_target")
+                .put("query",word);
+            if(word.length()>40||!word.matches("[a-z]+(?:['-][a-z]+)*")){
+                result.put("state","invalid")
+                    .put("message","请输入一个英文单词（仅英文字母、连字符或撇号）");
+            }else{
+                PhoneticLexicon.Entry e=lexicon().lookup(word);
+                if(e==null){
+                    result.put("state","missing")
+                        .put("message","离线词典没有这个词；请检查拼写或更换练习词");
+                }else{
+                    result.put("state","ready").put("word",e.word)
+                        .put("ipa",e.ipa).put("zh",e.zh)
+                        .put("variants",new JSONArray(e.ipa.split("\\|")));
+                }
+            }
+            sink.onEvent(result);
+        }catch(Exception ex){
+            try{sink.onEvent(new JSONObject().put("type","voice_word_target")
+                .put("query",word).put("state","error")
+                .put("message","本地发音词典读取失败："+ex.getMessage()));}
+            catch(Exception ignored){}
+        }
+    }
     private void status(String mode,String state,String message){
         try{sink.onEvent(new JSONObject()
             .put("type","voice_lab").put("mode",mode)

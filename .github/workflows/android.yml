@@ -104,6 +104,11 @@ jobs:
         run: bash scripts/fetch_yamnet.sh
       - name: Inspect bundled YAMNet TFLite tensor shapes
         run: python3 scripts/inspect_yamnet.py
+      - name: Bundle pinned human IPA samples (Wikimedia Commons, CC BY-SA)
+        run: |
+          python3 scripts/fetch_ipa_samples.py
+          test -s app/src/main/assets/ipa_audio/retroflex_sh.ogg
+          test -s app/src/main/assets/ipa_audio/central_i.ogg
       - name: Generate verified UI-only bundle
         run: |
           python3 scripts/build_ui_bundle.py --version "$GITHUB_RUN_NUMBER" --commit "$GITHUB_SHA"
@@ -140,6 +145,18 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging \
             app/build/outputs/apk/release/app-release.apk | head -n 3
           cp app/build/outputs/apk/release/app-release.apk BodyTrace-release.apk
+      - name: Verify signed APK embeds real offline IPA audio
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile("BodyTrace-release.apk") as apk:
+              names=set(apk.namelist())
+              required={"s.mp3","th.mp3","i.mp3","ng.mp3",
+                        "retroflex_sh.ogg","central_i.ogg"}
+              assert all("assets/ipa_audio/"+x in names for x in required), (
+                  "Missing actual recorded phonemes in signed APK")
+              print("Real phoneme assets verified in APK")
+          PY
       - name: Verify signed APK embeds the bilingual pronunciation dictionary
         run: |
           set -euo pipefail

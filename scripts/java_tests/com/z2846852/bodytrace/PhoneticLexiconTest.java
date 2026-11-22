@@ -33,6 +33,9 @@ public final class PhoneticLexiconTest {
     public static void main(String[] args)throws Exception{
         PhoneticLexicon db=fixture();
         require(db.size()==13,"Duplicate entries should not load");
+        require(db.lookup(" THINK ")!=null&&db.lookup(" THINK ").ipa.equals("θɪŋk"),
+            "Exact word lookup must work offline and be case-insensitive");
+        require(db.lookup("thinking")==null,"An absent word must not invent IPA");
         List<PhoneticLexicon.Match> think=db.find(Arrays.asList("θ","ɪ","ŋ","k"),5);
         require(think.size()>=3,"Similar English words expected");
         require("think".equals(think.get(0).word),"Full IPA must rank think first");

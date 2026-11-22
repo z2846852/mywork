@@ -54,6 +54,7 @@ public final class MainActivity extends Activity {
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int VOICE_LAB_MIC_PERMISSION_REQUEST=7206;
     private VoiceLabController voiceLab;
+    private IpaSamplePlayer ipaSamplePlayer;
     // Android's installed TTS engine reads complete words, not isolated IPA symbols.
     private android.speech.tts.TextToSpeech ipaExampleTts;
     private boolean ipaExampleTtsReady=false;
@@ -120,6 +121,10 @@ public final class MainActivity extends Activity {
         apkUpdates=new ApkUpdateManager(this);
         phoneModels=new PhoneModelPacks(this);
         voiceLab=new VoiceLabController(this,this::reply,phoneModels);
+        ipaSamplePlayer=new IpaSamplePlayer(this,detail->{
+            try{reply(message("voice_sample_audio").put("message",detail));}
+            catch(Exception ignored){}
+        });
         try {
             uiBundles=new UiBundleManager(this);
             uiBundles.prepareBoot();
@@ -1940,6 +1945,13 @@ public final class MainActivity extends Activity {
                 }else voiceLab.start(requestedMode);
             });
         }
+        @JavascriptInterface public void voiceLabLookupWord(String word){
+            worker.execute(()->voiceLab.lookupWord(word));
+        }
+        @JavascriptInterface public void voiceLabPlayPhoneme(String ipa){
+            if(ipa==null||ipa.codePointCount(0,ipa.length())>4)return;
+            runOnUiThread(()->ipaSamplePlayer.play(ipa));
+        }
         @JavascriptInterface public void voiceLabSpeakExample(String word){
             if(word==null||!word.matches("[A-Za-z]{1,32}")){
                 voiceIpaTtsReport("示例词只能包含英文字母");return;
@@ -2333,11 +2345,13 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onPause() {
+        if(ipaSamplePlayer!=null)ipaSamplePlayer.stop();
         if(voiceLab!=null&&voiceLab.isRunning())voiceLab.cancel(true);
         super.onPause();
     }
 
     @Override protected void onDestroy() {
+        if(ipaSamplePlayer!=null)ipaSamplePlayer.stop();
         if(voiceLab!=null)voiceLab.cancel(false);
         if(ipaExampleTts!=null){
             ipaExampleTts.stop();ipaExampleTts.shutdown();

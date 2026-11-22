@@ -1,0 +1,28 @@
+# Human IPA recordings — source and licensing
+
+Bundled recordings are copies of existing human pronunciation recordings, not synthetic IPA phonemes.
+The files are used as examples, not a guarantee of any single accent or error diagnosis.
+
+Source: Nico-Sanchez/schwa, immutable commit 720907443ddd1811756dc4a73b686c774fc277d7
+https://github.com/Nico-Sanchez/schwa
+37 files (`aa.mp3`, ..., `zh.mp3`) are Schwa's edited (trimmed and loudness-levelled)
+Wikimedia Commons samples. The original file, individual creator and licensing
+details for EACH sample are recorded at:
+https://github.com/Nico-Sanchez/schwa/blob/720907443ddd1811756dc4a73b686c774fc277d7/src/commons.json
+The original recordings are licensed CC BY-SA 3.0 (except `dʒ`, public domain).
+https://creativecommons.org/licenses/by-sa/3.0/
+For this application the Schwa-prepared audio samples are reused unmodified.
+Audio playback volume, speed, and fades are applied at runtime (not re-exported).
+This notice covers attribution of the audio, not a change of source-code license.
+
+Additional original Wikimedia Commons files, bundled without modification:
+- `retroflex_sh.ogg` — "Voiceless retroflex sibilant.ogg", Peter Isotalo.
+  https://commons.wikimedia.org/wiki/File:Voiceless_retroflex_sibilant.ogg
+  CC BY-SA 3.0; note: this file contains /ʂ/ surrounded by vowels /a/.
+- `central_i.ogg` — "Close central unrounded vowel.ogg", Denelson83.
+  https://commons.wikimedia.org/wiki/File:Close_central_unrounded_vowel.ogg
+  CC BY-SA 3.0.
+
+No online playback or automatic recording uploads are performed.
+Some diphthongs do not have a licensed isolated sample in this set; those will
+be reported as unavailable rather than falsely using artificial IPA synthesis.

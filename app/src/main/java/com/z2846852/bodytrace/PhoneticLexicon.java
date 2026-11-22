@@ -56,8 +56,18 @@ final class PhoneticLexicon {
     }
 
     private final List<Entry> entries;
-    private PhoneticLexicon(List<Entry> entries){this.entries=entries;}
+    private final java.util.Map<String,Entry> byWord;
+    private PhoneticLexicon(List<Entry> entries){
+        this.entries=entries;
+        java.util.HashMap<String,Entry> index=new java.util.HashMap<>();
+        for(Entry e:entries)index.put(e.word,e);
+        byWord=Collections.unmodifiableMap(index);
+    }
     int size(){return entries.size();}
+    Entry lookup(String word){
+        if(word==null)return null;
+        return byWord.get(word.trim().toLowerCase(java.util.Locale.ROOT));
+    }
 
     static PhoneticLexicon load(InputStream input)throws IOException {
         List<Entry> items=new ArrayList<>();
