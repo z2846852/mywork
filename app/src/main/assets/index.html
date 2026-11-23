@@ -248,16 +248,17 @@ body.overview-muscle-open{overflow:hidden}
     <div class="trend-range-fields">
      <label>起始 <input type="date" id="trendStartDate" aria-label="趋势起始日期"></label>
      <label>结束 <input type="date" id="trendEndDate" aria-label="趋势结束日期"></label>
-     <label class="trend-weight-label">辅助基准体重 <span><input type="number" id="trendAssistWeight" min="30" max="250" step="0.1" value="70" inputmode="decimal" aria-label="辅助引体换算所用基准体重"> kg</span></label>
     </div>
    </div>
   </details>
  </div>
  <div id="trainingOverview" class="training-overview" aria-label="近28天训练概况"></div>
- <div id="regionTrendGrid" class="combined-trend" aria-label="胸肩背腿所有动作同一纵轴、同一完整图，点击动作后纵轴放大"></div>
+ <div id="regionTrendGrid" class="combined-trend" aria-label="胸肩背腿所有动作同一纵轴、同一完整图，点击动作后纵轴放大并查看详情"></div>
+ <div id="trendFocusedDetail" class="trend-focused-detail" hidden aria-live="polite"></div>
+ <div id="trendLegendArea" class="trend-legend-area"></div>
 </div>
 <div class="panel trend-support-panel"><details id="strengthDetailExpander" class="strength-detail-expander">
- <summary>单动作详情与编辑 <small>原始重量 · 失败尝试 · 历史记录</small></summary>
+ <summary>全部动作详情与编辑 <small>原始重量 · 失败尝试 · 历史记录</small></summary>
  <p class="sub">按动作查看组数、记录和估算力量曲线。失败尝试不计入估算1RM。</p>
  <div id="strengthList" class="strength-list" aria-label="全部已记录训练动作趋势"></div>
 </details></div>
