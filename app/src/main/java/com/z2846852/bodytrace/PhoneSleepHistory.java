@@ -21,16 +21,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Local, on-demand UsageStatsManager history scanner.
- * Calls queryEvents(0, now), asking the OS for ALL CURRENTLY RETAINED events
- * rather than guessing whether the vivo ROM keeps 7, 14 or another number
- * of days. Android documents that the event history is only kept for a few
- * days; this class never claims older missing dates were "no activity".
- *
- * Stores only nightly summaries and counts, not per-app usage information.
+ * Private, on-device screen activity history and human-reviewed sleep candidates.
+ * System event retention is controlled by Android, not by a guessed 7-day limit.
+ * Manual decisions are never replaced by later automatic scans.
  */
 final class PhoneSleepHistory {
     private static final String FILE="phone_sleep_reports.json";
+    private static final String MODEL="phone_activity_v2";
     private static final int MAX_SCANNED=300_000;
     private static final int MAX_FILE=4*1024*1024;
     private final Context context;
@@ -56,30 +53,32 @@ final class PhoneSleepHistory {
             .put("usage_access",hasUsageAccess());
     }
 
-    private JSONObject readStore() throws Exception {
+    private JSONObject readStore()throws Exception {
         try(InputStream in=store.openRead();
             ByteArrayOutputStream out=new ByteArrayOutputStream()){
             byte[] chunk=new byte[16384];int length;
             while((length=in.read(chunk))!=-1){
                 if(out.size()+length>MAX_FILE)
-                    throw new SecurityException("手机睡眠历史文件异常过大");
+                    throw new SecurityException("手机行为历史文件异常过大");
                 out.write(chunk,0,length);
             }
             JSONObject result=new JSONObject(new String(
                 out.toByteArray(),StandardCharsets.UTF_8));
-            return result.optInt("schema")==1?result:new JSONObject();
+            int schema=result.optInt("schema");
+            return schema==1||schema==2?result:new JSONObject();
         }catch(java.io.FileNotFoundException missing){
             return new JSONObject();
         }
     }
 
     private void saveStore(Map<String,JSONObject> reports)throws Exception {
-        JSONObject data=new JSONObject().put("schema",1);
+        JSONObject data=new JSONObject().put("schema",2);
         JSONArray values=new JSONArray();
         for(JSONObject report:reports.values())values.put(report);
         data.put("reports",values);
         byte[] bytes=data.toString().getBytes(StandardCharsets.UTF_8);
-        if(bytes.length>MAX_FILE)throw new IllegalStateException("手机睡眠历史记录容量达到上限");
+        if(bytes.length>MAX_FILE)
+            throw new IllegalStateException("手机行为历史记录容量达到上限");
         FileOutputStream stream=null;
         try{
             stream=store.startWrite();
@@ -91,24 +90,82 @@ final class PhoneSleepHistory {
         }
     }
 
-    private static Map<String,JSONObject> mergeStored(JSONObject stored) {
+    private static String idFor(long start){return "p"+start;}
+    private static Map<String,JSONObject> mergeStored(JSONObject stored)throws Exception {
         Map<String,JSONObject> map=new LinkedHashMap<>();
         JSONArray records=stored.optJSONArray("reports");
-        if(records!=null){
-            for(int i=0;i<records.length();i++){
-                JSONObject report=records.optJSONObject(i);
-                if(report!=null){
-                    String date=report.optString("day","");
-                    if(date.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")&&
-                        "screen_idle_opportunity_v1".equals(report.optString("model")))
-                        map.put(date,report);
-                }
-            }
+        if(records==null)return map;
+        for(int i=0;i<records.length();i++){
+            JSONObject report=records.optJSONObject(i);
+            if(report==null)continue;
+            String day=report.optString("day","");
+            long from=report.optLong("screen_off_ms");
+            long to=report.optLong("next_screen_on_ms");
+            if(!day.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")||
+               from<=0||to<=from)continue;
+            String model=report.optString("model");
+            if("screen_idle_opportunity_v1".equals(model)){
+                // Non-destructive migration: preserve historical intervals.
+                report.put("model",MODEL);
+                report.put("id",idFor(from));
+                report.put("sleep_status","suspected");
+                report.put("reviewed",false);
+                report.put("prompted",true); // Do not flood with legacy prompts.
+                report.put("short_use_count",0);
+                report.put("short_use_ms",0);
+                report.put("note","旧版本记录，仍可人工确认；不是实测睡眠");
+            }else if(!MODEL.equals(model))continue;
+            String id=report.optString("id",idFor(from));
+            if(!id.matches("p[0-9]{10,16}"))id=idFor(from);
+            report.put("id",id);
+            map.put(id,report);
         }
         return map;
     }
 
-    JSONObject scanAllRetainedEvents() throws Exception {
+    private static JSONObject overlapping(Map<String,JSONObject> saved,
+                                          PhoneSleepInference.Night window){
+        for(JSONObject record:saved.values()){
+            long a=record.optLong("screen_off_ms");
+            long b=record.optLong("next_screen_on_ms");
+            long overlap=Math.min(b,window.onMs)-Math.max(a,window.offMs);
+            long shorter=Math.min(b-a,window.gapMs);
+            // Handles a former single screen-off interval extended by merging
+            // brief time checks, without duplicating previously reviewed nights.
+            if(shorter>0 && overlap>0 && overlap*10>=shorter*7)
+                return record;
+        }
+        return null;
+    }
+
+    private static JSONArray sortedHistory(Map<String,JSONObject> saved){
+        JSONArray result=new JSONArray();
+        saved.values().stream()
+            .sorted((a,b)->Long.compare(b.optLong("screen_off_ms"),
+                                        a.optLong("screen_off_ms")))
+            .forEach(result::put);
+        return result;
+    }
+
+    /** Call only for explicit user input; accept a known local candidate ID. */
+    synchronized void review(String id,String decision)throws Exception {
+        if(id==null||!id.matches("p[0-9]{10,16}"))
+            throw new IllegalArgumentException("无效记录编号");
+        if(!"confirmed_sleep".equals(decision)&&
+           !"not_sleep".equals(decision)&&
+           !"unknown".equals(decision))
+            throw new IllegalArgumentException("无效确认状态");
+        Map<String,JSONObject> saved=mergeStored(readStore());
+        JSONObject item=saved.get(id);
+        if(item==null)throw new IllegalArgumentException("记录不存在，请重新扫描");
+        item.put("sleep_status",decision)
+            .put("reviewed",true)
+            .put("prompted",true)
+            .put("reviewed_ms",System.currentTimeMillis());
+        saveStore(saved);
+    }
+
+    synchronized JSONObject scanAllRetainedEvents()throws Exception {
         if(!hasUsageAccess())
             return status("permission_required",
                 "需要一次性开启系统“使用情况访问权限”；不需要每天授权。");
@@ -119,11 +176,9 @@ final class PhoneSleepHistory {
             return status("unsupported","系统未提供使用情况记录接口");
 
         long now=System.currentTimeMillis();
-        // 0 is intentionally NOT a 7-day window. Android itself controls
-        // which events still exist in its protected usage history database.
         UsageEvents events=manager.queryEvents(0L,now+1L);
         if(events==null)
-            return status("no_events","系统未返回使用事件，手机需要解锁并确认使用情况权限");
+            return status("no_events","系统没有返回可读取的使用事件");
 
         ArrayList<PhoneSleepInference.Event> relevant=new ArrayList<>();
         UsageEvents.Event event=new UsageEvents.Event();
@@ -140,71 +195,112 @@ final class PhoneSleepHistory {
                type!=PhoneSleepInference.KEYGUARD_HIDDEN &&
                type!=PhoneSleepInference.KEYGUARD_SHOWN &&
                type!=PhoneSleepInference.STARTUP &&
-               type!=PhoneSleepInference.SHUTDOWN)
-                continue;
+               type!=PhoneSleepInference.SHUTDOWN)continue;
             long timestamp=event.getTimeStamp();
             if(timestamp<=0||timestamp>now+60000L)continue;
             relevant.add(new PhoneSleepInference.Event(timestamp,type));
             earliest=Math.min(earliest,timestamp);
             latest=Math.max(latest,timestamp);
         }
+        JSONObject stored=readStore();
+        Map<String,JSONObject> saved=mergeStored(stored);
         if(relevant.isEmpty()){
             JSONObject empty=status("no_events",scanned>0?
-                "系统返回了使用记录，但没有可用于睡眠推测的屏幕和解锁事件。":
+                "系统返回了使用记录，但没有可用于推测休息的屏幕事件。":
                 "系统没有返回可读取的历史事件。");
-            empty.put("events_scanned",scanned);
-            empty.put("truncated",truncated);
+            empty.put("history",sortedHistory(saved))
+                .put("events_scanned",scanned).put("truncated",truncated);
+            if(stored.optInt("schema")!=2 && !saved.isEmpty())saveStore(saved);
             return empty;
         }
 
-        List<PhoneSleepInference.Night> nights=
+        List<PhoneSleepInference.Night> windows=
             PhoneSleepInference.infer(relevant,now);
-        Map<String,JSONObject> records=mergeStored(readStore());
         int created=0;
-        JSONArray insufficient=new JSONArray();
-        for(PhoneSleepInference.Night night:nights){
-            if("candidate".equals(night.state)){
-                if(!records.containsKey(night.day)){
-                    JSONObject record=new JSONObject()
-                        .put("day",night.day)
-                        .put("model","screen_idle_opportunity_v1")
-                        .put("screen_off_ms",night.offMs)
-                        .put("next_screen_on_ms",night.onMs)
-                        .put("inactive_window_ms",night.gapMs)
-                        .put("screen_on_events",night.screenOn)
-                        .put("unlock_events",night.unlock)
-                        .put("screen_off_events",night.screenOff)
-                        .put("created_ms",now)
-                        .put("note",night.reason);
-                    records.put(night.day,record);
-                    created++;
-                }
-            }else{
-                JSONObject missing=new JSONObject()
-                    .put("day",night.day).put("state",night.state)
-                    .put("message",night.reason)
-                    .put("screen_on_events",night.screenOn)
-                    .put("unlock_events",night.unlock);
-                insufficient.put(missing);
+        boolean dirty=stored.optInt("schema")!=2;
+        JSONArray incomplete=new JSONArray();
+        for(PhoneSleepInference.Night window:windows){
+            if("pending".equals(window.state)){
+                incomplete.put(new JSONObject()
+                    .put("day",window.day).put("state","pending")
+                    .put("message",window.reason));
+                continue;
             }
+            if(window.gapMs<PhoneSleepInference.MIN_GAP)continue;
+            JSONObject record=saved.get(idFor(window.offMs));
+            if(record==null)record=overlapping(saved,window);
+            if(record==null){
+                record=new JSONObject()
+                    .put("id",idFor(window.offMs))
+                    .put("model",MODEL)
+                    .put("created_ms",now)
+                    .put("reviewed",false)
+                    .put("prompted",false);
+                saved.put(record.getString("id"),record);
+                created++;
+                dirty=true;
+            }
+            if(record.optBoolean("reviewed",false)){
+                // Preserve both the manually selected label and its evidence.
+                continue;
+            }
+            String updatedStatus="candidate".equals(window.state)?
+                "suspected":"unknown";
+            // Existing unreviewed candidate can be refined by a new scan.
+            if(record.optLong("screen_off_ms")!=window.offMs ||
+               record.optLong("next_screen_on_ms")!=window.onMs ||
+               !updatedStatus.equals(record.optString("sleep_status")) ||
+               record.optLong("short_use_ms")!=window.shortUseMs ||
+               record.optInt("short_use_count")!=window.shortUseCount)
+                dirty=true;
+            record.put("day",window.day)
+                .put("model",MODEL)
+                .put("screen_off_ms",window.offMs)
+                .put("next_screen_on_ms",window.onMs)
+                .put("inactive_window_ms",window.gapMs)
+                .put("short_use_count",window.shortUseCount)
+                .put("short_use_ms",window.shortUseMs)
+                .put("screen_on_events",window.screenOn)
+                .put("unlock_events",window.unlock)
+                .put("screen_off_events",window.screenOff)
+                .put("sleep_status",updatedStatus)
+                .put("note",window.reason);
         }
-        if(created>0)saveStore(records);
-        JSONArray history=new JSONArray();
-        records.values().stream()
-            .sorted((a,b)->b.optString("day").compareTo(a.optString("day")))
-            .forEach(history::put);
+        // A single first-time prompt; all new records remain directly editable.
+        // Mark them all prompted so reopening the page never creates a pop-up loop.
+        JSONObject prompt=null;
+        for(JSONObject record:saved.values()){
+            if(record.optBoolean("reviewed")||record.optBoolean("prompted"))continue;
+            if(prompt==null ||
+               ("unknown".equals(record.optString("sleep_status")) &&
+                !"unknown".equals(prompt.optString("sleep_status"))) ||
+               (record.optString("sleep_status")
+                  .equals(prompt.optString("sleep_status")) &&
+                record.optLong("screen_off_ms")>prompt.optLong("screen_off_ms")))
+                prompt=record;
+        }
+        String promptId=prompt==null?"":prompt.optString("id");
+        if(prompt!=null){
+            for(JSONObject record:saved.values()){
+                if(!record.optBoolean("reviewed")&&!record.optBoolean("prompted"))
+                    record.put("prompted",true);
+            }
+            dirty=true;
+        }
+        if(dirty)saveStore(saved);
+
         JSONObject result=status("ready",
-            "按系统实际可读事件扫描完成；这里只是手机使用间隔，不是已证实的睡眠时间。");
-        result.put("history",history);
-        result.put("insufficient",insufficient);
-        result.put("created_count",created);
-        result.put("total_count",history.length());
-        result.put("nights_examined",nights.size());
-        result.put("events_scanned",scanned);
-        result.put("evidence_events",relevant.size());
-        result.put("first_event_ms",earliest);
-        result.put("last_event_ms",latest);
-        result.put("truncated",truncated);
+            "已扫描系统仍保留的屏幕事件；未使用手机不等于实际睡眠。");
+        result.put("history",sortedHistory(saved))
+            .put("insufficient",incomplete)
+            .put("prompt_id",promptId)
+            .put("created_count",created)
+            .put("total_count",saved.size())
+            .put("events_scanned",scanned)
+            .put("evidence_events",relevant.size())
+            .put("first_event_ms",earliest)
+            .put("last_event_ms",latest)
+            .put("truncated",truncated);
         return result;
     }
 }
