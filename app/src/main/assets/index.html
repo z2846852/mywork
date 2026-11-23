@@ -512,11 +512,25 @@ body.overview-muscle-open{overflow:hidden}
   <p id="phoneSleepCoverage" class="sub" hidden></p>
   <div id="phoneSleepHistory" class="phone-sleep-history"></div>
   <details class="phone-sleep-help">
-   <summary>! 数据来源和判读规则</summary>
-   <p>读取系统仍保留的全部亮屏、熄屏、解锁及开关机事件，不指定最近 7 天。Android 不保证保留特定天数，超出系统可用历史的空白日期不会自动补齐。</p>
-   <p>仅当找到夜间熄屏到早晨亮屏的连续间隔时才生成候选休息窗口；这不是实际入睡时间，也不是睡眠时长。锁屏听小说的时间包含在内，亮屏也可能只是看闹钟。可与 vivo 健康手环结果人工对照。</p>
-   <p>已有候选报告存本机，后续扫描只补充缺少的夜晚；没有足够证据就显示数据不足，不编造报告。不会上传应用使用记录到 GitHub。</p>
+   <summary>ⓘ 数据来源和识别规则</summary>
+   <p>读取 Android 当前仍保留的亮屏、熄屏、锁屏及开关机事件，不限定夜间或最近七天。系统可能清除旧事件，空白日期不能视为未睡。</p>
+   <p>连续四小时以上未明显使用才列为候选；短暂亮屏（每次最多两分钟、累计最多五分钟且不能太频繁）可合并。关机或重启会打断证据链。夜间或凌晨优先标为疑似，其他时间为未知。</p>
+   <p>通知亮屏和短暂看时间可能被容忍；无操作不能证明实际睡眠。你可选择“睡了／没睡／未知”，结果仅存手机本地，重新扫描不会覆盖人工判断。</p>
   </details>
+  <div id="phoneSleepPrompt" class="phone-sleep-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="phoneSleepPromptTitle">
+   <div class="phone-sleep-dialog-card">
+    <h3 id="phoneSleepPromptTitle">发现可能的休息区间</h3>
+    <p class="sub" id="phoneSleepPromptTime"></p>
+    <strong id="phoneSleepPromptDuration"></strong>
+    <p class="sub">没操作手机不代表一定睡了，请确认一次。其他候选可以直接在列表中修改。</p>
+    <div class="phone-sleep-dialog-actions">
+     <button type="button" id="phoneSleepPromptConfirm">✓ 确实睡了</button>
+     <button type="button" class="secondary" id="phoneSleepPromptNo">× 没睡</button>
+     <button type="button" class="secondary" id="phoneSleepPromptUnknown">? 未知</button>
+    </div>
+    <button type="button" class="secondary phone-sleep-dismiss" id="phoneSleepPromptLater">稍后再说</button>
+   </div>
+  </div>
  </div>
  <details class="sleep-watch-probe" id="vivoSleepPanel">
   <summary>vivo WATCH 5 · 睡眠数据 <span id="vivoSleepBadge">未检测</span></summary>
