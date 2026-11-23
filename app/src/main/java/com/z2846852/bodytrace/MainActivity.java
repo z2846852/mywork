@@ -1159,34 +1159,53 @@ public final class MainActivity extends Activity {
         reply(update);
     }
 
+    /** Upload all events from the same calendar day in one request.
+     * The durable queue is shortened ONLY after GitHub confirms that date;
+     * any timeout or conflict leaves that date's events available for retry.
+     * Raw inbox notes retain their independent, idempotent uploads. */
     private void drainPending(String token) throws Exception {
         JSONArray pending = plain.getPending();
         while (pending.length() > 0) {
-            JSONObject event = pending.getJSONObject(0);
-            boolean isRaw = "raw_note".equals(event.optString("type"));
+            JSONObject first = pending.getJSONObject(0);
+            boolean isRaw = "raw_note".equals(first.optString("type"));
+            java.util.HashSet<String> uploadedIds = new java.util.HashSet<>();
+            JSONArray completed = new JSONArray();
             if (isRaw) {
-                github.createRawNote(token, event);
+                github.createRawNote(token, first);
+                uploadedIds.add(first.getString("id"));
+                completed.put(first);
             } else {
-                // Legacy queued records without type remain workouts.
-                github.createEvent(token, event);
+                String date = first.getString("date");
+                for (int i = 0; i < pending.length(); ++i) {
+                    JSONObject event = pending.getJSONObject(i);
+                    if (!"raw_note".equals(event.optString("type")) &&
+                            date.equals(event.optString("date"))) {
+                        completed.put(event);
+                        uploadedIds.add(event.getString("id"));
+                    }
+                }
+                github.createEvents(token, completed); // A single daily JSON commit.
             }
             JSONArray remaining = new JSONArray();
-            for (int i = 1; i < pending.length(); ++i) remaining.put(pending.getJSONObject(i));
+            for (int i = 0; i < pending.length(); ++i) {
+                JSONObject event = pending.getJSONObject(i);
+                if (!uploadedIds.contains(event.optString("id")))
+                    remaining.put(event);
+            }
+            // A successful remote write is the ONLY point at which we advance
+            // the local queue. UUID de-duplication also covers lost responses.
             plain.putPending(remaining);
             pending = remaining;
             if (isRaw) {
-                markRawUploaded(event.getString("id"));
+                markRawUploaded(first.getString("id"));
                 JSONObject result = message("raw_uploaded");
-                result.put("id", event.getString("id"));
+                result.put("id", first.getString("id"));
                 reply(result);
             } else {
-                JSONObject saved = message("saved");
-                saved.put("event", event);
-                saved.put("category", "nutrition".equals(event.optString("type")) ?
-                        "nutrition" : "measurement".equals(event.optString("type")) ?
-                        "measurements" : "workout_edit".equals(event.optString("type")) ?
-                        "workout_edits" : "workouts");
-                reply(saved);
+                JSONObject result = message("saved_batch");
+                result.put("count", completed.length());
+                result.put("date", first.getString("date"));
+                reply(result);
             }
             sendPending();
         }
