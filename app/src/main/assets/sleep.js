@@ -137,6 +137,16 @@
   $("sleepAiPresetHint").textContent=mode==="speech"?
    "人声模型得分不是概率；标准 0.20/2 秒，高召回 0.05/1 秒；不自动转写。":
    "标准 0.15/2 秒；高召回 0.05/1 秒；仅重新筛选缓存。";
+  const score=Number($("sleepSnoreThreshold").value);
+  const minimum=Number($("sleepMinSeconds").value);
+  const gap=Number($("sleepGapSeconds").value);
+  const normalScore=mode==="speech"?SPEECH_DEFAULT_SCORE:AI_DEFAULT_SCORE;
+  const standard=active&&Math.abs(score-normalScore)<.001&&minimum===2&&gap===3;
+  const recall=active&&Math.abs(score-AI_HIGH_RECALL_SCORE)<.001&&minimum===1&&gap===3;
+  for(const [id,pressed] of [["sleepAiStandard",standard],["sleepAiHighRecall",recall]]){
+   $(id).classList.toggle("active",pressed);
+   $(id).setAttribute("aria-pressed",String(pressed));
+  }
  }
  function applyLiveFilters(updateUi=true){
   if(!analysis||!Array.isArray(analysis.levels_dbfs))return false;
