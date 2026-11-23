@@ -327,7 +327,7 @@ const trendColorShades={
  背:["#83C7FF","#50A7E9","#B0DEFF","#6B94DC","#6FBBD6","#9BA9F0"],
  腿:["#C7A6FF","#A78CE2","#E0C4FF","#9270D0","#D9A0E5","#B59ACD","#AE80EF","#E1B5D6"]
 };
-let trendSelectedPeriod="30",trendStart="",trendEnd="",trendAssistBase=70;
+let trendSelectedPeriod="30",trendStart="",trendEnd="",trendAssistBase=null;
 let trendFocusKey=null;
 let trendLegendExpanded=false;
 try{trendLegendExpanded=localStorage.getItem("bodytrace.trendLegendExpanded")==="true";}catch(_){}
@@ -348,6 +348,13 @@ function trendRecordedRange(series){
 const validTrendDate=x=>/^\d{4}-\d{2}-\d{2}$/.test(x||"")&&
  !Number.isNaN(Date.parse(x+"T12:00:00Z"));
 const trendMillis=x=>Date.parse(x+"T12:00:00Z");
+function latestTrendWeight(){
+ const valid=state.measurements.map((row,index)=>({row,index}))
+  .filter(({row})=>validTrendDate(row.reported_date)&&
+   row.reported_date<=today&&validNum(row.weight_kg)&&Number(row.weight_kg)>0)
+  .sort((a,b)=>a.row.reported_date.localeCompare(b.row.reported_date)||a.index-b.index);
+ return valid.length?Number(valid[valid.length-1].row.weight_kg):null;
+}
 function trendRange(){
  const end=validTrendDate(trendEnd)?trendEnd:today;
  const from=validTrendDate(trendStart)?trendStart:plus(end,-29);
@@ -359,7 +366,7 @@ function trendInitialDates(period){
  return {from:period==="all"?(known[0]||plus(end,-29)):
   plus(end,-(Number(period)||90)+1),end};
 }
-function trendData(rows,from,end,bodyWeight=70){
+function trendData(rows,from,end,bodyWeight=null){
  const groups=new Map(),ignored={failed:0,missing:0,highReps:0,other:0};
  for(const row of rows){
   const day=row.session_date,region=categoryForRow(row);
@@ -372,6 +379,9 @@ function trendData(rows,from,end,bodyWeight=70){
   }
   const assisted=row.exercise_id==="assisted_pullup"||
    row.exercise_id==="assisted_dip";
+  if(assisted&&(!Number.isFinite(bodyWeight)||bodyWeight<=0)){
+   ignored.missing++;continue;
+  }
   const basis=assisted?"assisted":row.load_basis==="per_side"?"per_side":
    row.load_basis==="bodyweight"?"bodyweight":"machine";
   // A raw 'bodyweight' field is typically EXTRA kg, not the total weight.
@@ -424,7 +434,9 @@ function trendLegendColumns(series){
 }
 function renderRegionDashboard(){
  const dashboard=$("trainingOverview"),root=$("regionTrendGrid");
- dashboard.replaceChildren();root.replaceChildren();
+ const legendHost=$("trendLegendArea");
+ dashboard.replaceChildren();root.replaceChildren();legendHost.replaceChildren();
+ trendAssistBase=latestTrendWeight();
  const summary=computeRegionDashboard(state.rows);
  const main=document.createElement("div");main.className="training-overview-main";
  const label=document.createElement("span");label.textContent="近28天";
@@ -453,7 +465,7 @@ function renderRegionDashboard(){
   button.setAttribute("aria-pressed",String(button.dataset.period===trendSelectedPeriod));
  }
  const {from,end,valid}=trendRange();
- if(!valid){root.textContent="起始日期不能晚于结束日期";return}
+ if(!valid){root.textContent="起始日期不能晚于结束日期";trendFocusKey=null;syncFocusedStrengthCard();return}
  const dataset=trendData(state.rows,from,end,trendAssistBase);
  const all=dataset.series;
  const focusedForCaption=all.find(group=>group.key===trendFocusKey);
@@ -462,6 +474,13 @@ function renderRegionDashboard(){
  const actionCount=document.createElement("span");actionCount.className="trend-overview-curves";
  actionCount.textContent=all.length+" 条曲线";
  aside.append(actionCount);
+ const weightJump=document.createElement("button");weightJump.type="button";
+ weightJump.className="trend-weight-jump";
+ weightJump.textContent=trendAssistBase===null?"体重 未记录 ↗":"体重 "+round1(trendAssistBase)+" kg ↗";
+ weightJump.title="读取「身体」最新体重；点击查看或更新身体指标";
+ weightJump.setAttribute("aria-label","当前体重 "+(trendAssistBase===null?"未记录":round1(trendAssistBase)+" 千克")+"，查看身体指标");
+ weightJump.onclick=()=>window.BodyTraceJumpTo?.("body",()=>$("bodyMetrics"));
+ aside.append(weightJump);
  // A reference is established from the first recorded session for THIS
  // exercise, regardless of the currently selected viewing window.
  const history=trendData(state.rows,"1900-01-01",end,trendAssistBase).series;
@@ -511,12 +530,12 @@ function renderRegionDashboard(){
  if(!all.length){
   const empty=document.createElement("p");empty.className="note";
   empty.textContent="所选日期内没有可用的力量表现记录，可尝试「全部」查看历史。";
-  root.append(empty);return;
+  root.append(empty);syncFocusedStrengthCard();return;
  }
  const section=document.createElement("div");section.className="combined-trend-scroll";
  // SVG aspect ratio gives the full plot roughly one phone-screen width of height.
  // There is a single shared y-domain, never a fixed region-per-row lane.
- const W=800,H=750,plotTop=48,plotBottom=676;
+ const W=800,H=560,plotTop=40,plotBottom=486;
  const svg=el("svg",{viewBox:"0 0 "+W+" "+H,role:"img",
   "aria-label":"所有胸肩背腿动作共用完整高度与一个表现指数纵轴的折线图"});
  svg.append(el("rect",{x:0,y:0,width:W,height:H,
@@ -577,13 +596,13 @@ function renderRegionDashboard(){
    const px=x(day);
    svg.append(el("line",{x1:px,y1:plotTop,x2:px,y2:plotBottom,
     stroke:"#304d44","stroke-width":1,"stroke-dasharray":"2 9"}));
-   const label=el("text",{x:px,y:719,
+   const label=el("text",{x:px,y:530,
     "text-anchor":i===0?"start":i===ticks?"end":"middle",
     fill:"#aecabb","font-size":17});
    label.textContent=day.slice(5);svg.append(label);
   }
  }else{
-  const label=el("text",{x:776,y:719,"text-anchor":"end",
+  const label=el("text",{x:776,y:530,"text-anchor":"end",
    fill:"#aecabb","font-size":17});
   label.textContent=recorded.last.slice(5);svg.append(label);
  }
@@ -743,12 +762,13 @@ function renderRegionDashboard(){
  summaryLine.textContent="曲线名称与线型 · "+all.length+"项";
  legendPanel.append(summaryLine,legend);
  legendPanel.addEventListener("toggle",()=>{
-  if(!root.contains(legendPanel))return;
+  if(!legendHost.contains(legendPanel))return;
   trendLegendExpanded=legendPanel.open;
   try{localStorage.setItem("bodytrace.trendLegendExpanded",
    String(trendLegendExpanded));}catch(_){}
  });
- root.append(details,legendPanel);
+ root.append(details);
+ legendHost.append(legendPanel);
  if(trendFocusKey){
   const clear=document.createElement("button");clear.type="button";
   clear.className="secondary mini combined-trend-clear";
@@ -763,19 +783,15 @@ function renderRegionDashboard(){
  const note=document.createElement("p");
  note.textContent="全部动作共用一个纵轴，单动作首条有效记录对应指数100。"+
   "点选动作后放大其波动，其他曲线淡化；这是相对变化，不能用于跨器械比较力量。"+
-  "未训练日不补点；辅助动作使用 "+round1(trendAssistBase)+" kg 体重基准。";
+  "未训练日不补点；辅助动作使用身体页最新体重作为统一换算基准"+
+  (trendAssistBase===null?"（尚无体重，暂不绘制辅助动作）":"（"+round1(trendAssistBase)+" kg，非各训练日体重）")+"。";
  help.append(heading,note);root.append(help);
+ syncFocusedStrengthCard();
 }
 function updateTrendPreference(){
  const from=$("trendStartDate").value,to=$("trendEndDate").value;
  if(!validTrendDate(from)||!validTrendDate(to))return;
  trendStart=from;trendEnd=to;
- const weight=Number($("trendAssistWeight").value);
- if(!Number.isFinite(weight)||weight<30||weight>250){
-  $("trendAssistWeight").value=String(trendAssistBase);
-  return;
- }
- trendAssistBase=weight;
  renderRegionDashboard();
 }
 for(const button of document.querySelectorAll("#page-analytics .trend-period")){
@@ -799,14 +815,13 @@ for(const name of ["trendStartDate","trendEndDate"])
   updateTrendPreference();
  };
 $("trendLegendShortcut").onclick=()=>{
- const panel=$("regionTrendGrid").querySelector(".trend-legend-expander");
+ const panel=$("trendLegendArea").querySelector(".trend-legend-expander");
  if(!panel)return;
  panel.open=!panel.open;
  trendLegendExpanded=panel.open;
  try{localStorage.setItem("bodytrace.trendLegendExpanded",String(panel.open));}catch(_){}
  if(panel.open)window.BodyTraceJumpTo?.("analytics",()=>panel);
  };
-$("trendAssistWeight").onchange=updateTrendPreference;
 ({from:trendStart,end:trendEnd}=trendInitialDates("30"));
 $("trendStartDate").value=trendStart;
 $("trendEndDate").value=trendEnd;
@@ -1015,7 +1030,29 @@ function compactStrengthSet(row,exerciseId){
  const rep=validNum(row.reps)?Number(row.reps)+" 次":"次数未录入";
  return weight+" × "+rep+(isFailedAttempt(row)?"（0次失败）":"");
 }
+function syncFocusedStrengthCard(){
+ const slot=$("trendFocusedDetail"),list=$("strengthList");
+ if(!slot||!list)return;
+ const previous=slot.querySelector(".strength-exercise-card");
+ if(previous){
+  previous.classList.remove("selected-trend-exercise");
+  list.append(previous);
+ }
+ const order=new Map(orderedExerciseGroups(state.rows).map((group,index)=>[group.id,index]));
+ const cards=[...list.querySelectorAll(".strength-exercise-card")];
+ cards.sort((a,b)=>(order.get(a.dataset.exerciseId)??Infinity)-
+  (order.get(b.dataset.exerciseId)??Infinity));
+ for(const card of cards)list.append(card);
+ const exerciseId=trendFocusKey?trendFocusKey.split("|")[0]:null;
+ const selected=cards.find(card=>card.dataset.exerciseId===exerciseId);
+ slot.hidden=!selected;
+ if(!selected){slot.replaceChildren();return;}
+ selected.classList.add("selected-trend-exercise");
+ slot.append(selected);
+}
 function renderStrength(){
+ const slot=$("trendFocusedDetail");
+ slot.replaceChildren();slot.hidden=true;
  const root=$("strengthList");root.replaceChildren();
  const groups=orderedExerciseGroups(state.rows);
  if(!groups.length){
@@ -1050,6 +1087,7 @@ function renderStrength(){
   root.append(card);
   renderStrengthPlot(group,chart,range,disclaimer,region);
  }
+ syncFocusedStrengthCard();
 }
 // Same machine, same recorded units and strictly later date; avoid fabricating
 // intra-day ordering when a workout entry has no actual completion timestamp.
