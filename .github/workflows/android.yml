@@ -1,7 +1,7 @@
 name: Build BodyTrace Android APK (fast)
 on:
   push:
-    branches: [main, fix/sleep-autostatus-update-launch]
+    branches: [main]
     paths:
       - 'app/**'
       - 'scripts/build_ui_bundle.py'
