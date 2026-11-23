@@ -34,9 +34,9 @@ public final class PhoneSleepInferenceTest {
             e("2026-11-20",23,30,off),
             e("2026-11-21",7,30,on));
         PhoneSleepInference.Night first=find(run(normal,"2026-11-21",13),"2026-11-21");
-        check("candidate".equals(first.state),"Normal night should be suspected");
+        check("candidate".equals(first.state),"Normal night remains an auto-detectable candidate");
         check(first.gapMs==8*PhoneSleepInference.HOUR,"Normal eight-hour interval");
-        check(first.reason.contains("不等于真实睡眠"),"Never assert actual sleep");
+        check(first.reason.contains("非实测睡眠"),"Never assert actual sleep");
 
         // The old hardcoded 04:00 bedtime and 12:00 wake cutoffs excluded this.
         List<PhoneSleepInference.Event> late=List.of(
@@ -47,6 +47,25 @@ public final class PhoneSleepInferenceTest {
         check(lateNight.gapMs==7*PhoneSleepInference.HOUR+45*60_000L,
             "Late-morning wake can extend past noon");
 
+        check("auto_sleep".equals(PhoneSleepInference.automaticStatus(
+            t("2026-11-20",23,30),t("2026-11-21",7,30))),
+            "Normal overnight inactivity becomes automatic sleep");
+        check("auto_sleep".equals(PhoneSleepInference.automaticStatus(
+            t("2026-11-22",5,20),t("2026-11-22",13,5))),
+            "Sleeping after 05:00 must not need daily review");
+        check("unknown".equals(PhoneSleepInference.automaticStatus(
+            t("2026-11-22",14,0),t("2026-11-22",19,0))),
+            "Daytime 5-hour gap must remain unknown");
+        check("unknown".equals(PhoneSleepInference.automaticStatus(
+            t("2026-11-22",19,0),t("2026-11-23",1,0))),
+            "Evening inactivity before bedtime is not automatically sleep");
+        check("unknown".equals(PhoneSleepInference.automaticStatus(
+            t("2026-11-22",23,0),t("2026-11-23",16,0))),
+            "17-hour inactivity is too long to auto-classify");
+        check("unknown".equals(PhoneSleepInference.automaticStatus(
+            t("2026-11-22",23,0),t("2026-11-23",2,59))),
+            "Less than four hours must not auto-classify");
+        
         // Two short screen activations: clock/notification and a brief unlock.
         List<PhoneSleepInference.Event> brief=new ArrayList<>();
         brief.add(e("2026-11-21",23,0,off));
