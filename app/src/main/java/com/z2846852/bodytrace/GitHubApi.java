@@ -179,7 +179,7 @@ final class GitHubApi {
             put.put("branch", "main");
             if (sha != null) put.put("sha", sha);
             put.put("content", Base64.encodeToString(
-                    (daily.toString(2) + "\\n").getBytes(StandardCharsets.UTF_8),
+                    (daily.toString(2) + "\n").getBytes(StandardCharsets.UTF_8),
                     Base64.NO_WRAP));
             try {
                 request("PUT", url, token, put.toString());
