@@ -30,15 +30,14 @@
   backgroundDb=Number.isFinite(Number(evt.background_dbfs))?
    Number(evt.background_dbfs):-40;
   if(saved){axisMin=saved.low;axisMax=saved.high;return;}
-  // Global quantile range is computed ONCE for each recording.
-  // Horizontal pinch/drag NEVER changes the Y axis.
-  const p05=quantile(evt.levels_dbfs,.05);
-  // Keep the locked Y axis relevant to the audible short-RMS curve.
-  // Raw PCM peak outliers used to inflate the scale by 60-80 dB.
+  // Keep the default lower edge at -5 dB relative to background.
+  // Long near-silent stretches (e.g. a microphone unavailable while a novel
+  // is playing) must not make the whole-night waveform waste half its height.
+  // The upper edge stays adaptive; two-finger vertical gestures can override.
+  // Short RMS, not raw PCM peaks, avoids inflation by transient outliers.
   const p995=quantile(evt.short_levels_dbfs||evt.levels_dbfs,.995);
-  const lower=Math.min(-4,(p05??backgroundDb-5)-backgroundDb);
   const upper=Math.max(8,(p995??backgroundDb+12)-backgroundDb);
-  axisMin=Math.floor((lower-2)/5)*5;
+  axisMin=-5;
   axisMax=Math.ceil((upper+2)/5)*5;
   if(axisMax-axisMin<12)axisMax=axisMin+12;
   axisById.set(evt.id,{low:axisMin,high:axisMax});

@@ -1879,6 +1879,17 @@ assert.ok(sleepJS.includes('evt.type==="sleep_playback_position"'));
   assert.equal(fakeWindow.BodyTraceSleepVisual.formatTime(14400,"night2"),"+04:00:00");
   fakeWindow.BodyTraceSleepVisual.setTimeMode("clock");
   assert.equal(fakeWindow.BodyTraceSleepVisual.formatTime(14400,"night2"),"03:00:00");
+  // Playback can prevent microphone capture for the first 15% of a session.
+  // A near-silent lead-in must not stretch the Y axis to -60 dB relative.
+  const mutedLeadIn=Array.from({length:600},(_,i)=>i<90?-96:-32);
+  fakeWindow.bodyTraceReceive({type:"sleep_analysis",id:"night-muted-leadin",
+    background_dbfs:-40,levels_dbfs:mutedLeadIn,
+    short_levels_dbfs:mutedLeadIn,peak_levels_dbfs:mutedLeadIn,
+    threshold_dbfs:-35,events:[]});
+  assert.equal(fakeWindow.BodyTraceSleepVisual.state().axisMin,-5,
+    "Missing capture at the beginning must leave the Y lower bound at -5 dB");
+  assert.ok(fakeWindow.BodyTraceSleepVisual.state().axisMax>=10,
+    "Retain an adaptive upper bound for the audible part of the recording");
   console.log("Sleep gesture/filter/skip + clock/relative timeline regression passed.");
 }
 
