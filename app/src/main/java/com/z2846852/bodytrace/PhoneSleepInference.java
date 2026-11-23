@@ -16,6 +16,7 @@ import java.util.List;
 final class PhoneSleepInference {
     static final int SCREEN_ON=15, SCREEN_OFF=16;
     static final int KEYGUARD_SHOWN=17, KEYGUARD_HIDDEN=18;
+    static final int USER_INTERACTION=7;
     static final int SHUTDOWN=26, STARTUP=27;
     static final long MINUTE=60_000L, HOUR=60*MINUTE;
     static final long MIN_GAP=4*HOUR;
@@ -111,29 +112,47 @@ final class PhoneSleepInference {
 
         if(!intervals.isEmpty()){
             Interval first=intervals.get(0);
-            long start=first.from,end=first.to,totalShort=0;
+            long start=first.from,end=first.to,totalShort=0,activeShort=0;
             int count=0,activeEpoch=first.epoch;
-            ArrayList<Long> wakeTimes=new ArrayList<>();
+            ArrayList<Long> activeWakes=new ArrayList<>();
             for(int i=1;i<intervals.size();i++){
                 Interval next=intervals.get(i);
                 long awake=next.from-end;
+                boolean evidenceOfInteraction=false;
+                for(Event event:events){
+                    if(event.ms<=end)continue;
+                    if(event.ms>=next.from)break;
+                    if(event.kind==KEYGUARD_HIDDEN ||
+                       event.kind==USER_INTERACTION){
+                        evidenceOfInteraction=true;break;
+                    }
+                }
+                // A notification/clock flash is NOT a deliberate phone use.
+                // Frequent passive flashes therefore do not trigger the
+                // three-active-wakes rule or consume its 5-minute budget.
+                boolean passive=awake>=0&&awake<=QUICK_CHECK &&
+                                !evidenceOfInteraction;
+                long counted=passive?0:awake;
                 int recent=0;
-                for(long wake:wakeTimes)
+                for(long wake:activeWakes)
                     if(next.from-wake<=REPEATED_WINDOW)recent++;
                 boolean canMerge=next.epoch==activeEpoch &&
                     awake>=0 && awake<=MAX_SHORT_USE &&
-                    totalShort+awake<=MAX_TOTAL_SHORT_USE && recent<2;
+                    activeShort+counted<=MAX_TOTAL_SHORT_USE &&
+                    (passive||recent<2);
                 if(canMerge){
                     totalShort+=awake;
+                    activeShort+=counted;
                     count++;
-                    wakeTimes.add(end);
+                    if(!passive)activeWakes.add(end);
                     end=next.to;
                 }else{
                     Night night=report(start,end,totalShort,count,events);
                     if(night!=null)result.add(night);
-                    start=next.from;end=next.to;totalShort=0;count=0;
+                    start=next.from;end=next.to;totalShort=0;
+                    activeShort=0;count=0;
                     activeEpoch=next.epoch;
-                    wakeTimes.clear();
+                    activeWakes.clear();
                 }
             }
             Night night=report(start,end,totalShort,count,events);
