@@ -1943,6 +1943,16 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void phoneSleepReports(){
             worker.execute(MainActivity.this::sendPhoneSleepReports);
         }
+        @JavascriptInterface public void reviewPhoneSleep(String id,String decision){
+            worker.execute(()->{
+                try{
+                    new PhoneSleepHistory(MainActivity.this).review(id,decision);
+                    sendPhoneSleepReports();
+                }catch(Exception failure){
+                    error("手机行为确认保存失败："+safeMessage(failure));
+                }
+            });
+        }
         @JavascriptInterface public void requestPhoneUsageAccess(){
             runOnUiThread(()->{
                 try{
