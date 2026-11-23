@@ -79,19 +79,29 @@ final class GitHubApi {
         return result;
     }
 
-    /** Append a single event to ONE daily JSON file with SHA optimistic locking. */
-    void createEvent(String token, JSONObject event) throws Exception {
-        String date = event.getString("date");
-        String id = event.getString("id");
-        if (!date.matches("\\d{4}-\\d{2}-\\d{2}") ||
-                !id.matches("[0-9a-f]{8}-[0-9a-f-]{27,40}")) {
-            throw new IllegalArgumentException("Invalid daily record identity");
+    /** Upload every pending event for one date in ONE GitHub Contents PUT.
+     * The date file is re-read on a write conflict; event UUIDs make retries
+     * safe even if GitHub accepted a request whose response was lost.
+     * Different dates remain independent commits; no force-push or overwrite. */
+    void createEvents(String token, JSONArray events) throws Exception {
+        if (events == null || events.length() == 0) return;
+        String date = events.getJSONObject(0).getString("date");
+        if (!date.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            throw new IllegalArgumentException("Invalid daily date");
         }
-        final String path = "data/daily/" + date + ".json";
-        final String url = REPO + "/contents/" + path;
+        java.util.HashSet<String> inputIds = new java.util.HashSet<>();
+        for (int i = 0; i < events.length(); ++i) {
+            JSONObject event = events.getJSONObject(i);
+            String id = event.getString("id");
+            if (!date.equals(event.getString("date")) ||
+                    !id.matches("[0-9a-f]{8}-[0-9a-f-]{27,40}") ||
+                    "raw_note".equals(event.optString("type")) ||
+                    !inputIds.add(id)) {
+                throw new IllegalArgumentException("Invalid or duplicate daily event in batch");
+            }
+        }
+        final String url = REPO + "/contents/data/daily/" + date + ".json";
         for (int attempt = 0; attempt < 4; ++attempt) {
-            // A missing day is expected; a missing repository/token was already
-            // rejected when the user connected via the protected workouts CSV.
             String existing = request("GET", url + "?ref=main", token, null, true);
             JSONObject daily;
             String sha = null;
@@ -99,75 +109,96 @@ final class GitHubApi {
                 daily = new JSONObject();
                 daily.put("schema_version", 2);
                 daily.put("date", date);
-                daily.put("workouts", new org.json.JSONArray());
-                daily.put("measurements", new org.json.JSONArray());
-                daily.put("nutrition", new org.json.JSONArray());
+                daily.put("workouts", new JSONArray());
+                daily.put("measurements", new JSONArray());
+                daily.put("nutrition", new JSONArray());
             } else {
                 JSONObject meta = new JSONObject(existing);
                 sha = meta.getString("sha");
                 if (!"base64".equals(meta.getString("encoding"))) {
                     throw new IllegalStateException("Unexpected daily file encoding");
                 }
-                String decoded = new String(Base64.decode(
-                        meta.getString("content").replace("\n", ""), Base64.DEFAULT),
-                        StandardCharsets.UTF_8);
-                daily = new JSONObject(decoded);
+                daily = new JSONObject(new String(Base64.decode(
+                        meta.getString("content"), Base64.DEFAULT),
+                        StandardCharsets.UTF_8));
                 if (daily.getInt("schema_version") != 2 ||
                         !date.equals(daily.getString("date"))) {
                     throw new IllegalStateException("Unsupported daily JSON format/date");
                 }
             }
-            boolean isNutrition = "nutrition".equals(event.optString("type"));
-            boolean isMeasurement = "measurement".equals(event.optString("type"));
-            boolean isWorkoutEdit="workout_edit".equals(event.optString("type"));
-            String category = isNutrition ? "nutrition" :
-                    isMeasurement ? "measurements" : isWorkoutEdit ? "workout_edits" : "workouts";
-            JSONArray records = daily.optJSONArray(category);
-            if (records == null) {
-                records = new JSONArray();
-                daily.put(category, records);
-            }
-            if (records.length() >= 500) throw new IllegalStateException("Daily record is full");
-            for (int i = 0; i < records.length(); ++i) {
-                if (id.equals(records.getJSONObject(i).optString("id"))) {
-                    return; // Successful earlier upload: idempotent retry.
+            int added = 0;
+            for (int i = 0; i < events.length(); ++i) {
+                JSONObject event = events.getJSONObject(i);
+                String id = event.getString("id");
+                String type = event.optString("type");
+                boolean isNutrition = "nutrition".equals(type);
+                boolean isMeasurement = "measurement".equals(type);
+                boolean isWorkoutEdit = "workout_edit".equals(type);
+                String category = isNutrition ? "nutrition" :
+                        isMeasurement ? "measurements" :
+                        isWorkoutEdit ? "workout_edits" : "workouts";
+                JSONArray records = daily.optJSONArray(category);
+                if (records == null) {
+                    records = new JSONArray();
+                    daily.put(category, records);
                 }
+                boolean exists = false;
+                for (int n = 0; n < records.length(); ++n) {
+                    if (id.equals(records.getJSONObject(n).optString("id"))) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (exists) continue; // Previously committed UUID: safe retry.
+                if (records.length() >= 500)
+                    throw new IllegalStateException("Daily record is full");
+                JSONObject row = new JSONObject();
+                String[] allowed = isNutrition ?
+                        new String[]{"id", "meal", "food", "grams", "kcal_per_100g",
+                            "protein_per_100g", "carbs_per_100g", "fat_per_100g",
+                            "entry_kind", "intake_creatine", "intake_protein_powder",
+                            "intake_carbs", "intake_sugar_oil", "source", "created_at"} :
+                        isMeasurement ?
+                        new String[]{"id", "weight_kg", "shoulder_cm", "chest_cm", "waist_cm",
+                            "upper_arm_cm", "hip_cm", "thigh_cm", "calf_cm",
+                            "source", "created_at"} :
+                        isWorkoutEdit ?
+                        new String[]{"id", "target_id", "action", "load_key", "load_kg",
+                            "reps", "copies", "note", "source", "created_at"} :
+                        new String[]{"id", "exercise_id", "exercise_label", "exercise_region",
+                            "reps", "load_kg", "assistance_kg", "attempt_status",
+                            "load_basis", "date_basis", "note", "source", "created_at"};
+                for (String key : allowed)
+                    if (event.has(key)) row.put(key, event.get(key));
+                records.put(row);
+                added++;
             }
-            JSONObject row = new JSONObject();
-            String[] allowed = isNutrition ?
-                    new String[]{"id", "meal", "food", "grams", "kcal_per_100g",
-                        "protein_per_100g", "carbs_per_100g", "fat_per_100g",
-                        "entry_kind", "intake_creatine", "intake_protein_powder",
-                        "intake_carbs", "intake_sugar_oil", "source", "created_at"} : isMeasurement ?
-                    new String[]{"id", "weight_kg", "shoulder_cm", "chest_cm", "waist_cm",
-                        "upper_arm_cm", "hip_cm", "thigh_cm", "calf_cm",
-                        "source", "created_at"} : isWorkoutEdit ?
-                    new String[]{"id", "target_id", "action", "load_key", "load_kg",
-                        "reps", "copies", "note", "source", "created_at"} :
-                    new String[]{"id", "exercise_id", "exercise_label", "exercise_region",
-                        "reps", "load_kg", "assistance_kg", "attempt_status",
-                        "load_basis", "date_basis", "note", "source", "created_at"};
-            for (String key : allowed) if (event.has(key)) row.put(key, event.get(key));
-            records.put(row);
+            if (added == 0) return;
             JSONObject put = new JSONObject();
-            put.put("message", "daily: append " + category + " " + date + " " + id.substring(0, 8));
+            put.put("message", "daily: batch append " + added + " records " + date);
             put.put("branch", "main");
             if (sha != null) put.put("sha", sha);
             put.put("content", Base64.encodeToString(
-                    (daily.toString(2) + "\n").getBytes(StandardCharsets.UTF_8),
+                    (daily.toString(2) + "\\n").getBytes(StandardCharsets.UTF_8),
                     Base64.NO_WRAP));
             try {
                 request("PUT", url, token, put.toString());
                 return;
             } catch (ApiStatusException conflict) {
                 if ((conflict.status == 409 || conflict.status == 422) && attempt < 3) {
-                    // Re-read latest SHA and reapply event, never clobber a group.
+                    // Re-read the latest remote file before merging again.
                     continue;
                 }
                 throw conflict;
             }
         }
         throw new IllegalStateException("Concurrent daily file update did not settle");
+    }
+
+    void createEvent(String token, JSONObject event) throws Exception {
+        JSONArray one = new JSONArray();
+        one.put(event);
+        createEvents(token, one);
     }
     /** Fetch the latest 10 commit snapshots and their changed-file diffs from private data repo. */
     JSONArray readRecentCommits(String token) throws Exception {
