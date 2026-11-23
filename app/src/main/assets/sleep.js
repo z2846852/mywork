@@ -582,80 +582,123 @@
   bridge()?.sleepStopPlayback?.();
   $("sleepPlaybackStatus").textContent="正在停止播放…";
  };
- // Android UsageStatsManager decides retention; NEVER assume a fixed 7-day period.
- // Only persisted candidate reports are shown as such. Phone inactivity is NOT
- // a measured sleep duration, even if the user listens to an audiobook asleep.
+ // Android UsageStatsManager retains events for a system-defined period.
+ // A long inactivity interval is not measured sleep.
  const phoneStamp=ms=>new Date(Number(ms)).toLocaleString("zh-CN",{
   timeZone:"Asia/Shanghai",month:"2-digit",day:"2-digit",
   hour:"2-digit",minute:"2-digit",hour12:false
  });
  const phoneDuration=ms=>{
-  const minutes=Math.floor(Math.max(0,Number(ms)||0)/60000);
-  return Math.floor(minutes/60)+"小时"+String(minutes%60).padStart(2,"0")+"分";
+  const m=Math.floor(Math.max(0,Number(ms)||0)/60000);
+  return Math.floor(m/60)+"小时"+String(m%60).padStart(2,"0")+"分";
  };
+ const phoneLabels={suspected:"疑似睡眠",unknown:"未知",
+  confirmed_sleep:"已确认睡眠",not_sleep:"不是睡眠"};
+ let phoneReviewBusy=false,activePhonePrompt="";
+ function phoneReview(id,decision){
+  if(phoneReviewBusy)return;
+  if(!bridge()?.reviewPhoneSleep){
+   toast("请更新完整 APK 才能保存人工确认",true);return;
+  }
+  phoneReviewBusy=true;
+  $("phoneSleepStatus").textContent="正在保存人工确认…";
+  $("phoneSleepPrompt").hidden=true;
+  bridge().reviewPhoneSleep(id,decision);
+ }
  function renderPhoneSleep(evt){
+  phoneReviewBusy=false;
   $("phoneSleepRefresh").disabled=false;
   const state=evt.state||"error";
   $("phoneSleepStatus").textContent=evt.message||"无法获取系统使用记录";
   $("phoneSleepGrant").hidden=state!=="permission_required";
-  const history=$("phoneSleepHistory");
-  history.replaceChildren();
+  const history=$("phoneSleepHistory");history.replaceChildren();
   if(state!=="ready"){
    $("phoneSleepCoverage").hidden=true;
    return;
   }
-  const first=Number(evt.first_event_ms),last=Number(evt.last_event_ms);
+  const reports=Array.isArray(evt.history)?evt.history:[];
   $("phoneSleepCoverage").hidden=false;
   $("phoneSleepCoverage").textContent=
-   "系统实际可读："+phoneStamp(first)+" — "+phoneStamp(last)+
-   " · 已扫描 "+(Number(evt.events_scanned)||0)+" 条事件"+
-   " · 已有 "+(Number(evt.total_count)||0)+" 晚"+
-   " · 本次新增 "+(Number(evt.created_count)||0)+" 晚"+
-   (evt.truncated?" · ! 事件过多，本次读取已截断":"");
-  const reports=Array.isArray(evt.history)?evt.history:[];
+   "可读："+phoneStamp(evt.first_event_ms)+"—"+phoneStamp(evt.last_event_ms)+
+   " · 扫描 "+(Number(evt.events_scanned)||0)+" 条"+
+   " · 候选 "+reports.length+" · 已人工标记 "+
+   reports.filter(r=>!!r.reviewed).length+
+   " · 本次新增 "+(Number(evt.created_count)||0)+
+   (evt.truncated?" · ! 历史读取被截断":"");
   for(const [index,report] of reports.entries()){
+   const status=report.sleep_status||"unknown";
    const wrapper=document.createElement("details");
-   wrapper.className="phone-sleep-night";
-   // The newest one is open so the user can compare with vivo Health.
+   wrapper.className="phone-sleep-night phone-sleep-"+status;
    wrapper.open=index===0;
    const title=document.createElement("summary");
-   title.textContent=report.day+"  ·  连续熄屏 "+
-    phoneDuration(report.inactive_window_ms);
+   title.textContent=report.day+" · "+phoneDuration(report.inactive_window_ms)+
+    " · "+(phoneLabels[status]||"未知");
    const times=document.createElement("div");
    times.className="phone-sleep-interval";
-   times.textContent="熄屏 "+phoneStamp(report.screen_off_ms)+
-    "  →  首次亮屏 "+phoneStamp(report.next_screen_on_ms);
+   times.textContent="未明显使用："+phoneStamp(report.screen_off_ms)+
+    " → "+phoneStamp(report.next_screen_on_ms);
    const evidence=document.createElement("p");
    evidence.className="sub";
-   evidence.textContent="这只是手机未亮屏的候选休息窗口，不等于睡眠时长。"+
-    "夜间亮屏 "+(Number(report.screen_on_events)||0)+
-    " 次，解锁 "+(Number(report.unlock_events)||0)+" 次。";
-   wrapper.append(title,times,evidence);
-   history.appendChild(wrapper);
-  }
-  const insufficient=Array.isArray(evt.insufficient)?evt.insufficient:[];
-  if(insufficient.length){
-   const missing=document.createElement("details");
-   missing.className="phone-sleep-unresolved";
-   const label=document.createElement("summary");
-   label.textContent="! "+insufficient.length+
-    " 个日期缺少完整证据（含尚未结束的夜晚）";
-   missing.appendChild(label);
-   for(const item of insufficient){
-    const line=document.createElement("p");
-    line.className="sub";
-    line.textContent=item.day+" · "+item.message;
-    missing.appendChild(line);
+   const count=Number(report.short_use_count)||0;
+   evidence.textContent="这不是实测睡眠时长。"+
+    (count?" 已容忍短暂亮屏 "+count+" 次，共 "+
+     phoneDuration(report.short_use_ms)+"。":"")+
+    (report.note?" "+report.note:"");
+   const actions=document.createElement("div");
+   actions.className="phone-sleep-actions";
+   for(const [value,label] of [
+    ["confirmed_sleep","✓ 睡了"],["not_sleep","× 没睡"],
+    ["unknown","? 未知"]]){
+    const btn=document.createElement("button");
+    btn.type="button";btn.className="secondary mini";btn.textContent=label;
+    btn.setAttribute("aria-pressed",String(!!report.reviewed&&status===value));
+    btn.onclick=()=>phoneReview(report.id,value);
+    actions.appendChild(btn);
    }
-   history.appendChild(missing);
+   wrapper.append(title,times,evidence,actions);history.appendChild(wrapper);
   }
-  if(!reports.length&&!insufficient.length){
+  const pending=Array.isArray(evt.insufficient)?evt.insufficient:[];
+  if(pending.length){
+   const details=document.createElement("details");
+   details.className="phone-sleep-unresolved";
+   const label=document.createElement("summary");
+   label.textContent="! "+pending.length+" 段尚未结束（不推算时长）";
+   details.appendChild(label);
+   for(const item of pending){
+    const line=document.createElement("p");
+    line.textContent=item.day+" · "+item.message;
+    details.appendChild(line);
+   }
+   history.appendChild(details);
+  }
+  if(!reports.length&&!pending.length){
    const note=document.createElement("p");
    note.className="sub";
-   note.textContent="系统返回了事件，但不足以生成任何一晚的候选休息窗口。";
+   note.textContent="系统可读事件中没有完整的 4 小时以上区间；不能据此认定空白日期未睡觉。";
    history.appendChild(note);
   }
+  // The native store records first-time prompts, so reopening never loops.
+  activePhonePrompt=evt.prompt_id||"";
+  const prompt=reports.find(r=>r.id===activePhonePrompt);
+  if(prompt){
+   $("phoneSleepPromptTitle").textContent=
+    "发现可能的休息区间 · "+(phoneLabels[prompt.sleep_status]||"未知");
+   $("phoneSleepPromptTime").textContent=
+    phoneStamp(prompt.screen_off_ms)+"—"+phoneStamp(prompt.next_screen_on_ms);
+   $("phoneSleepPromptDuration").textContent=
+    phoneDuration(prompt.inactive_window_ms)+" 未明显使用";
+   $("phoneSleepPrompt").hidden=false;
+  }
  }
+ $("phoneSleepPromptConfirm").onclick=()=>
+  activePhonePrompt&&phoneReview(activePhonePrompt,"confirmed_sleep");
+ $("phoneSleepPromptNo").onclick=()=>
+  activePhonePrompt&&phoneReview(activePhonePrompt,"not_sleep");
+ $("phoneSleepPromptUnknown").onclick=()=>
+  activePhonePrompt&&phoneReview(activePhonePrompt,"unknown");
+ $("phoneSleepPromptLater").onclick=()=>{
+  $("phoneSleepPrompt").hidden=true;activePhonePrompt="";
+ };
  $("phoneSleepRefresh").onclick=()=>{
   if(!bridge()?.phoneSleepReports){
    $("phoneSleepStatus").textContent="请完整安装支持手机行为报告的新版 APK";
