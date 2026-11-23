@@ -592,9 +592,9 @@
   const m=Math.floor(Math.max(0,Number(ms)||0)/60000);
   return Math.floor(m/60)+"小时"+String(m%60).padStart(2,"0")+"分";
  };
- const phoneLabels={suspected:"疑似睡眠",unknown:"未知",
-  confirmed_sleep:"已确认睡眠",not_sleep:"不是睡眠"};
- let phoneReviewBusy=false,activePhonePrompt="";
+ const phoneLabels={auto_sleep:"睡眠（自动）",suspected:"睡眠（自动）",unknown:"未知",
+  confirmed_sleep:"睡眠（已确认）",not_sleep:"不是睡眠"};
+ let phoneReviewBusy=false;
  const phoneExpanded=new Map();
  function phoneReview(id,decision){
   if(phoneReviewBusy)return;
@@ -603,7 +603,6 @@
   }
   phoneReviewBusy=true;
   $("phoneSleepStatus").textContent="正在保存人工确认…";
-  $("phoneSleepPrompt").hidden=true;
   bridge().reviewPhoneSleep(id,decision);
  }
  function renderPhoneSleep(evt){
@@ -624,8 +623,9 @@
    (state==="no_events"?"仅显示本机已存历史":
     "可读："+phoneStamp(evt.first_event_ms)+"—"+phoneStamp(evt.last_event_ms))+
    " · 扫描 "+(Number(evt.events_scanned)||0)+" 条"+
-   " · 候选 "+reports.length+" · 已人工标记 "+
-   reports.filter(r=>!!r.reviewed).length+
+   " · 睡眠 "+reports.filter(r=>["auto_sleep","confirmed_sleep"].includes(r.sleep_status)).length+
+   " · 未知 "+reports.filter(r=>r.sleep_status==="unknown").length+
+   " · 人工修正 "+reports.filter(r=>!!r.reviewed).length+
    " · 本次新增 "+(Number(evt.created_count)||0)+
    (evt.truncated?" · ! 历史读取被截断":"");
   for(const [index,report] of reports.entries()){
@@ -644,7 +644,9 @@
    const evidence=document.createElement("p");
    evidence.className="sub";
    const count=Number(report.short_use_count)||0;
-   evidence.textContent="这不是实测睡眠时长。"+
+   evidence.textContent=(status==="auto_sleep"?"按规则自动识别为睡眠，并非实测睡眠时长。":
+    status==="confirmed_sleep"?"已由你确认睡眠；时长是手机无明显使用的时间窗口。":
+    "手机未使用不等于真实睡眠。")+
     (count?" 已容忍短暂亮屏 "+count+" 次，共 "+
      phoneDuration(report.short_use_ms)+"。":"")+
     (report.note?" "+report.note:"");
@@ -681,28 +683,8 @@
    note.textContent="系统可读事件中没有完整的 4 小时以上区间；不能据此认定空白日期未睡觉。";
    history.appendChild(note);
   }
-  // The native store records first-time prompts, so reopening never loops.
-  activePhonePrompt=evt.prompt_id||"";
-  const prompt=reports.find(r=>r.id===activePhonePrompt);
-  if(prompt){
-   $("phoneSleepPromptTitle").textContent=
-    "发现可能的休息区间 · "+(phoneLabels[prompt.sleep_status]||"未知");
-   $("phoneSleepPromptTime").textContent=
-    phoneStamp(prompt.screen_off_ms)+"—"+phoneStamp(prompt.next_screen_on_ms);
-   $("phoneSleepPromptDuration").textContent=
-    phoneDuration(prompt.inactive_window_ms)+" 未明显使用";
-   $("phoneSleepPrompt").hidden=false;
-  }
+  // No daily interruption. Unusual intervals remain editable in the list.
  }
- $("phoneSleepPromptConfirm").onclick=()=>
-  activePhonePrompt&&phoneReview(activePhonePrompt,"confirmed_sleep");
- $("phoneSleepPromptNo").onclick=()=>
-  activePhonePrompt&&phoneReview(activePhonePrompt,"not_sleep");
- $("phoneSleepPromptUnknown").onclick=()=>
-  activePhonePrompt&&phoneReview(activePhonePrompt,"unknown");
- $("phoneSleepPromptLater").onclick=()=>{
-  $("phoneSleepPrompt").hidden=true;activePhonePrompt="";
- };
  $("phoneSleepRefresh").onclick=()=>{
   if(!bridge()?.phoneSleepReports){
    $("phoneSleepStatus").textContent="请完整安装支持手机行为报告的新版 APK";
