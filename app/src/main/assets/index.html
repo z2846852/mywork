@@ -253,15 +253,29 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     </label>
    </div>
    <div id="sleepAiControls" class="sleep-ai-controls" hidden>
-    <label for="sleepSnoreThreshold">AI 得分 ≥
-     <strong id="sleepSnoreThresholdText">0.15</strong></label>
-    <input id="sleepSnoreThreshold" type="range" min="0.01" max="0.9"
-     step="0.01" value="0.15" aria-label="AI 鼾声模型最低得分">
     <div class="row wrap sleep-ai-presets">
      <button type="button" class="secondary mini" id="sleepAiStandard">标准</button>
      <button type="button" class="secondary mini" id="sleepAiHighRecall">高召回</button>
     </div>
     <p class="sub" id="sleepAiPresetHint" hidden>标准 0.15/2 秒；高召回 0.05/1 秒；仅重新筛选缓存。</p>
+   </div>
+   <div class="sleep-filter-overview">
+    <span id="sleepQuickSummary" aria-live="polite">暂无候选片段</span>
+    <details class="sleep-filter-advanced" id="sleepFilterAdvanced">
+     <summary>高级筛选</summary>
+     <div class="sleep-filter-advanced-content">
+      <div id="sleepAiScoreControls" class="sleep-ai-score-controls" hidden>
+       <label for="sleepSnoreThreshold">AI 得分 ≥
+        <strong id="sleepSnoreThresholdText">0.15</strong></label>
+       <input id="sleepSnoreThreshold" type="range" min="0.01" max="0.9"
+        step="0.01" value="0.15" aria-label="AI 鼾声模型最低得分">
+      </div>
+   <div class="sleep-quick-constraints">
+    <label>持续 <input id="sleepMinSeconds" type="number" inputmode="numeric" min="1" max="120" step="1" value="2"> 秒</label>
+    <label>空隙 <input id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="3"> 秒</label>
+   </div>
+     </div>
+    </details>
    </div>
    <p id="sleepDetectorNote" class="sub" hidden></p>
    <button type="button" class="secondary mini" id="sleepSpeechUpgrade" hidden>补充疑似梦话标签（旧录音需重新分析一次）</button>
@@ -279,6 +293,18 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
      aria-label="相对录音背景响度，纵轴以dB表示并保持固定；红线为阈值。双指水平缩放和上下双指移动纵轴"></canvas>
    </div>
    <p id="sleepWaveSelection" class="sub"></p>
+   <div class="sleep-transport">
+    <div class="sleep-playbar">
+     <button type="button" class="secondary mini" id="sleepPreviousEvent" aria-label="上一候选片段">◀ 上段</button>
+     <button type="button" class="primary" id="sleepPlaySelection" disabled>▶ 播放</button>
+     <button type="button" class="secondary mini" id="sleepNextEvent" aria-label="下一候选片段">下段 ▶</button>
+     <button type="button" id="sleepStopPlayback" class="secondary mini">■ 停</button>
+    </div>
+    <label class="sleep-skip-option" for="sleepSkipQuiet">
+     <input type="checkbox" id="sleepSkipQuiet"><span>跳过安静段</span>
+    </label>
+    <p id="sleepPlaybackStatus" class="sub" role="status"></p>
+   </div>
    <div class="sleep-threshold-workbench" id="sleepThresholdWorkbench">
     <div class="sleep-threshold-header">
      <span>红线阈值</span>
@@ -294,25 +320,8 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
     </div>
     <p id="sleepBaselineLabel" class="sub"></p>
    </div>
-   <div class="sleep-quick-constraints">
-    <label>持续 <input id="sleepMinSeconds" type="number" inputmode="numeric" min="1" max="120" step="1" value="2"> 秒</label>
-    <label>空隙 <input id="sleepGapSeconds" type="number" inputmode="numeric" min="0" max="5" step="1" value="3"> 秒</label>
-    <span id="sleepQuickSummary" aria-live="polite">暂无候选片段</span>
-   </div>
    <p id="sleepNoiseHint" class="sleep-noise-warning" hidden></p>
     
-   <div class="sleep-transport">
-    <label class="sleep-skip-option" for="sleepSkipQuiet">
-     <input type="checkbox" id="sleepSkipQuiet"><span>跳过安静段</span>
-    </label>
-    <div class="sleep-playbar">
-     <button type="button" class="secondary mini" id="sleepPreviousEvent" aria-label="上一候选片段">◀ 上段</button>
-     <button type="button" class="primary" id="sleepPlaySelection" disabled>▶ 播放</button>
-     <button type="button" class="secondary mini" id="sleepNextEvent" aria-label="下一候选片段">下段 ▶</button>
-     <button type="button" id="sleepStopPlayback" class="secondary mini">■ 停</button>
-    </div>
-    <p id="sleepPlaybackStatus" class="sub" role="status"></p>
-   </div>
    <details class="sleep-extras">
     <summary>详细统计与分布</summary>
     <div id="sleepSoundStats" class="sleep-sound-stats"></div>
