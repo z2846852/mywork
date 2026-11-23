@@ -836,7 +836,7 @@ const fakeWindow={
  scrollTo(a,b){this.scrollY=typeof a==="object"?a.top:b}
 };
 const fakeNav=vm.runInNewContext(navCode+"\n({navigate,pageScrollPositions,renderPageScrollShortcuts})",{
- document:fakeDocument,window:fakeWindow,
+ document:fakeDocument,window:fakeWindow,BodyTraceNative:fakeWindow.BodyTraceNative,
  $:id=>fakeNodes[id],requestAnimationFrame:fn=>pendingFrames.push(fn)
 });
 function flushScrollFrames(){
