@@ -1541,19 +1541,31 @@ body.workout-edit-open{overflow:hidden}
 .combined-trend-scroll .combined-trend-point{cursor:pointer;touch-action:manipulation}
 .combined-trend-selection{font-size:11px;min-height:31px;padding:9px 5px;
  color:#d2f3e1;overflow-wrap:anywhere}
-.combined-trend-legend{display:flex;flex-direction:column;gap:8px;margin-top:9px}
-.combined-trend-legend-region{display:flex;gap:6px;align-items:flex-start;min-width:0}
-.combined-trend-legend-region>strong{font-size:12px;flex:none;margin:4px 0;min-width:38px}
-.combined-trend-legend-items{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
-.combined-trend-legend-item{display:inline-flex;align-items:center;gap:4px;
- border:1px solid #36574c;background:#1c302d;border-radius:7px;
- padding:5px 6px;max-width:145px;min-height:29px;font-size:10px;color:#e1eee8}
-.combined-trend-legend-item i{width:17px;height:3px;flex:none;border-radius:4px}
-.combined-trend-legend-item i.dashed{background:repeating-linear-gradient(
- 90deg,currentColor 0 5px,transparent 5px 8px)!important}
-.combined-trend-legend-item span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.combined-trend-legend-item.inactive{opacity:.42;text-decoration:line-through}
-.combined-trend-note{margin:9px 0 1px;font-size:10px;line-height:1.55}
+.combined-trend-legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:4px;margin-top:9px;min-width:0}
+.combined-trend-legend-heading{font-size:12px;line-height:1.5;text-align:center;
+ padding:3px 0 4px;border-bottom:1px solid #36574c}
+.combined-trend-legend-item{display:flex;flex-direction:column;align-items:center;
+ justify-content:center;gap:3px;width:100%;min-width:0;max-width:none;
+ min-height:46px;border:1px solid #36574c;background:#1c302d;border-radius:7px;
+ padding:5px 3px;color:#e1eee8;font-size:10px;cursor:pointer}
+.combined-trend-legend-name{display:block;max-width:100%;width:100%;min-width:0;
+ overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:center}
+.combined-trend-legend-symbol{display:block;width:68px;max-width:100%;
+ height:16px;min-width:0;flex:none;overflow:visible}
+.combined-trend-legend-empty{display:block;min-width:0;min-height:46px}
+.combined-trend-legend-item.selected{border-color:#9df3c7;
+ box-shadow:0 0 0 1px #9df3c766;background:#284b3e;color:#fff;font-weight:750}
+.combined-trend-legend-item.muted{opacity:.42}
+.combined-trend-selection:empty{display:none}
+.combined-trend-help{margin:5px 0 0;color:#9ab8a9;font-size:10px}
+.combined-trend-help>summary{padding:5px 0;cursor:pointer}
+.combined-trend-help>p{margin:3px 0 6px;line-height:1.55}
+@media(max-width:350px){
+ .combined-trend-legend{gap:3px}
+ .combined-trend-legend-item{padding:5px 2px;font-size:9px;min-height:43px}
+ .combined-trend-legend-empty{min-height:43px}
+}
 .strength-detail-expander>summary{cursor:pointer;min-height:40px;padding:6px 0;
  font-weight:750;font-size:14px;color:#c8e8d8}
 .strength-detail-expander>summary small{display:block;font-weight:400;color:#96b7aa;
@@ -1565,14 +1577,6 @@ body.workout-edit-open{overflow:hidden}
  width:100%;max-width:100%;box-sizing:border-box}
 #page-analytics .combined-trend-scroll svg{display:block;width:100%!important;
  max-width:100%;min-width:0!important;height:auto;overflow:visible}
-#page-analytics .combined-trend-legend-symbol{width:40px;min-width:40px;
- height:17px;flex:none;overflow:visible}
-#page-analytics .combined-trend-legend-item{min-height:35px;padding:5px 7px;
- border-radius:8px;max-width:184px;gap:6px}
-#page-analytics .combined-trend-legend-item.selected{border-color:#9df3c7;
- box-shadow:0 0 0 1px #9df3c766;background:#284b3e;color:#fff;font-weight:750}
-#page-analytics .combined-trend-legend-item.muted{opacity:.42;
- text-decoration:none}
 #page-analytics .combined-trend-clear{margin:2px 0 6px;
  min-height:33px;padding:4px 10px;font-size:11px}
 #page-analytics .combined-trend-selection{min-height:30px;line-height:1.45}
