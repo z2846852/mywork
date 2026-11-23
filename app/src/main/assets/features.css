@@ -994,16 +994,29 @@ body.workout-edit-open{overflow:hidden}
 #page-sleep #sleepDetectorNote,#page-sleep #sleepTimeModeHint{
  display:block;margin:2px 0 4px;font-size:10px;color:#e0b38a}
 #page-sleep #sleepDetectorNote[hidden],#page-sleep #sleepTimeModeHint[hidden]{display:none!important}
-#page-sleep .sleep-ai-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;
- grid-template-areas:"label presets" "range range";align-items:center;
- gap:3px 8px;margin:4px 0;padding:6px 8px;border-radius:8px}
-#page-sleep .sleep-ai-controls label{grid-area:label;display:flex;gap:6px;
- justify-content:flex-start;align-items:center;margin:0;font-size:10px}
-#page-sleep .sleep-ai-controls input{grid-area:range;margin:0;
- min-height:23px;width:100%}
-#page-sleep .sleep-ai-presets{grid-area:presets;display:flex;gap:4px;margin:0}
+#page-sleep .sleep-ai-controls{display:flex;flex-wrap:wrap;align-items:center;
+ gap:4px;margin:4px 0;padding:5px 8px;border-radius:8px}
+#page-sleep .sleep-ai-presets{display:flex;gap:4px;margin:0}
+#page-sleep .sleep-filter-overview{display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:5px;margin:4px 0 6px}
+#page-sleep .sleep-filter-overview #sleepQuickSummary{margin:0;font-size:11px;
+ color:#9ce0bb;font-weight:750;font-variant-numeric:tabular-nums}
+#page-sleep .sleep-filter-advanced{max-width:100%;margin-left:auto}
+#page-sleep .sleep-filter-advanced[open]{flex-basis:100%;margin-left:0}
+#page-sleep .sleep-filter-advanced>summary{cursor:pointer;text-align:right;
+ font-size:10px;color:#a8d7c3}
+#page-sleep .sleep-filter-advanced-content{background:#182c2b;border:1px solid #385c55;
+ border-radius:9px;padding:9px;margin-top:6px}
+#page-sleep .sleep-ai-score-controls[hidden]{display:none!important}
+#page-sleep .sleep-ai-score-controls label{display:flex;gap:6px;
+ align-items:center;justify-content:space-between;font-size:10px;color:#bfd9cc}
+#page-sleep .sleep-ai-score-controls input{width:100%;min-height:28px;
+ margin:3px 0 5px;accent-color:#ea667d}
+#page-sleep .sleep-filter-advanced .sleep-quick-constraints{margin:3px 0 0}
 #page-sleep .sleep-ai-presets button{min-height:32px;margin:0;
  padding:4px 8px;font-size:10px;white-space:nowrap;border-radius:7px}
+#page-sleep .sleep-ai-presets button.active{background:#397866;border-color:#95d5b4;
+ color:#fff;font-weight:750}
 #page-sleep .sleep-ai-controls [hidden]{display:none!important}
 #page-sleep .sleep-wave-controls{margin:4px 0 5px;gap:3px}
 #page-sleep .sleep-wave-controls .mini{min-height:34px;padding:5px 4px;

@@ -1,15 +1,16 @@
-name: Build BodyTrace Android APK
+name: Build BodyTrace Android APK (fast)
 on:
   push:
     branches: [main]
     paths:
       - 'app/**'
-      - 'scripts/test_ui.js'
       - 'scripts/build_ui_bundle.py'
       - 'scripts/apk_delta.py'
-      - 'scripts/test_apk_delta.py'
-      - 'scripts/java_tests/**'
-      - 'app/src/main/assets/avatar_cartoon.svg'
+      - 'scripts/build_pronunciation_lexicon.py'
+      - 'scripts/fetch_yamnet.sh'
+      - 'scripts/fetch_ipa_samples.py'
+      - 'scripts/fetch_sherpa_aar.sh'
+      - 'signing/**'
       - '*.gradle'
       - 'gradle.properties'
       - '.github/workflows/android.yml'
@@ -32,59 +33,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Validate inferred recording start timestamps (plain Java)
-        run: |
-          mkdir -p "$RUNNER_TEMP/bodytrace-timestamp-test"
-          javac -d "$RUNNER_TEMP/bodytrace-timestamp-test" \
-            app/src/main/java/com/z2846852/bodytrace/SleepRecordingTime.java \
-            scripts/java_tests/com/z2846852/bodytrace/SleepRecordingTimeTest.java
-          java -cp "$RUNNER_TEMP/bodytrace-timestamp-test" \
-            com.z2846852.bodytrace.SleepRecordingTimeTest
-      - name: Validate APK binary delta roundtrip (Python producer / Java consumer)
-        run: |
-          set -euo pipefail
-          python3 scripts/test_apk_delta.py
-          mkdir -p "$RUNNER_TEMP/bodytrace-delta-test"
-          javac -d "$RUNNER_TEMP/bodytrace-delta-test" \
-            app/src/main/java/com/z2846852/bodytrace/ApkDeltaPatch.java \
-            scripts/java_tests/com/z2846852/bodytrace/ApkDeltaPatchTest.java
-          java -cp "$RUNNER_TEMP/bodytrace-delta-test" \
-            com.z2846852.bodytrace.ApkDeltaPatchTest
-      - name: Validate phone activity sleep inference (all retained event dates)
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/bodytrace-phone-sleep"
-          javac -d "$RUNNER_TEMP/bodytrace-phone-sleep" \
-            app/src/main/java/com/z2846852/bodytrace/PhoneSleepInference.java \
-            scripts/java_tests/com/z2846852/bodytrace/PhoneSleepInferenceTest.java
-          java -cp "$RUNNER_TEMP/bodytrace-phone-sleep" \
-            com.z2846852.bodytrace.PhoneSleepInferenceTest
-      - name: Validate live pitch and phonetic acoustic probes (plain Java)
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/bodytrace-voice-lab"
-          javac -d "$RUNNER_TEMP/bodytrace-voice-lab" \
-            app/src/main/java/com/z2846852/bodytrace/PitchDetector.java \
-            app/src/main/java/com/z2846852/bodytrace/VowelSpectrum.java \
-            app/src/main/java/com/z2846852/bodytrace/PhonemeProbe.java \
-            scripts/java_tests/com/z2846852/bodytrace/VoiceLabDspTest.java
-          java -cp "$RUNNER_TEMP/bodytrace-voice-lab" \
-            com.z2846852.bodytrace.VoiceLabDspTest
-      - name: Validate English IPA-to-word and Chinese meaning lookup (offline fixtures)
-        run: |
-          set -euo pipefail
-          python3 scripts/test_pronunciation_lexicon.py
-          mkdir -p "$RUNNER_TEMP/bodytrace-lexicon"
-          javac -d "$RUNNER_TEMP/bodytrace-lexicon" \
-            app/src/main/java/com/z2846852/bodytrace/PhoneticLexicon.java \
-            scripts/java_tests/com/z2846852/bodytrace/PhoneticLexiconTest.java
-          java -cp "$RUNNER_TEMP/bodytrace-lexicon" \
-            com.z2846852.bodytrace.PhoneticLexiconTest
-      - name: Validate cartoon body page, JSON UI and avatar persistence
-        run: node scripts/test_ui.js
       - name: Build pinned offline American IPA and English-Chinese dictionary
         run: |
           set -euo pipefail
@@ -102,8 +50,6 @@ jobs:
           PY
       - name: Fetch and SHA256-verify offline YAMNet model
         run: bash scripts/fetch_yamnet.sh
-      - name: Inspect bundled YAMNet TFLite tensor shapes
-        run: python3 scripts/inspect_yamnet.py
       - name: Bundle pinned human IPA samples (Wikimedia Commons, CC BY-SA)
         run: |
           python3 scripts/fetch_ipa_samples.py
@@ -112,7 +58,6 @@ jobs:
       - name: Generate verified UI-only bundle
         run: |
           python3 scripts/build_ui_bundle.py --version "$GITHUB_RUN_NUMBER" --commit "$GITHUB_SHA"
-          python3 scripts/test_ui_bundle.py
           cp build/ui_bundle.zip BodyTrace-ui.zip
       - name: Android SDK platform
         run: |

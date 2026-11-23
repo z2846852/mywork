@@ -1046,9 +1046,23 @@ for(const id of ['sleepSkipQuiet','sleepPlaybackStatus','sleepPreviousEvent','sl
  'sleepThresholdUp','sleepThresholdReset','sleepThresholdRelative','sleepBaselineLabel',
  'sleepQuickSummary','sleepLibraryCount','sleepEventCount'])assert.ok(html.includes('id="'+id+'"'),id);
 assert.ok(html.includes('step="0.1"'));
-assert.ok(html.indexOf('id="sleepWaveCanvas"')<html.indexOf('id="sleepThreshold"'),
- "Threshold must sit immediately BELOW the always-visible waveform");
-assert.ok(html.indexOf('id="sleepThreshold"')<html.indexOf('id="sleepPlaySelection"'));
+assert.ok(html.indexOf('id="sleepAiStandard"')<html.indexOf('id="sleepFilterAdvanced"') &&
+ html.indexOf('id="sleepFilterAdvanced"')<html.indexOf('id="sleepMinSeconds"') &&
+ html.indexOf('id="sleepMinSeconds"')<html.indexOf('id="sleepWaveCanvas"'),
+ "Manual duration/gap options belong in advanced filter above waveform");
+assert.ok(html.indexOf('id="sleepWaveCanvas"')<html.indexOf('id="sleepPreviousEvent"') &&
+ html.indexOf('id="sleepPreviousEvent"')<html.indexOf('id="sleepPlaySelection"') &&
+ html.indexOf('id="sleepPlaySelection"')<html.indexOf('id="sleepNextEvent"') &&
+ html.indexOf('id="sleepNextEvent"')<html.indexOf('id="sleepSkipQuiet"') &&
+ html.indexOf('id="sleepSkipQuiet"')<html.indexOf('id="sleepThreshold"'),
+ "Playback controls must follow waveform, before optional level threshold");
+assert.ok(html.includes('id="sleepFilterAdvanced"') &&
+ html.includes('id="sleepAiScoreControls" class="sleep-ai-score-controls" hidden'));
+assert.ok(sleepJS.includes('$("sleepAiScoreControls").hidden=!active;'));
+assert.ok(sleepJS.includes('" 段候选"'));
+assert.ok(sleepJS.includes('classList.toggle("active",pressed)'));
+assert.ok(fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8")
+ .includes('#page-sleep .sleep-ai-presets button.active'));
 assert.ok(html.includes('class="sleep-collection sleep-library-menu"'),
  "Audio collection is now a compact top-toolbar disclosure");
 assert.ok(html.includes('<details class="sleep-events-details"'));

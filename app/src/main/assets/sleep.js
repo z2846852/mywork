@@ -124,6 +124,7 @@
   const mode=$("sleepDetectionMode").value;
   const active=selectedAiActive();
   $("sleepAiControls").hidden=!active;
+  $("sleepAiScoreControls").hidden=!active;
   $("sleepThresholdWorkbench").hidden=mode!=="level";
   $("sleepDetectionMode").disabled=!aiAvailable()&&!speechAvailable();
   const missing=mode==="speech"&&!speechAvailable();
@@ -136,6 +137,16 @@
   $("sleepAiPresetHint").textContent=mode==="speech"?
    "人声模型得分不是概率；标准 0.20/2 秒，高召回 0.05/1 秒；不自动转写。":
    "标准 0.15/2 秒；高召回 0.05/1 秒；仅重新筛选缓存。";
+  const score=Number($("sleepSnoreThreshold").value);
+  const minimum=Number($("sleepMinSeconds").value);
+  const gap=Number($("sleepGapSeconds").value);
+  const normalScore=mode==="speech"?SPEECH_DEFAULT_SCORE:AI_DEFAULT_SCORE;
+  const standard=active&&Math.abs(score-normalScore)<.001&&minimum===2&&gap===3;
+  const recall=active&&Math.abs(score-AI_HIGH_RECALL_SCORE)<.001&&minimum===1&&gap===3;
+  for(const [id,pressed] of [["sleepAiStandard",standard],["sleepAiHighRecall",recall]]){
+   $(id).classList.toggle("active",pressed);
+   $(id).setAttribute("aria-pressed",String(pressed));
+  }
  }
  function applyLiveFilters(updateUi=true){
   if(!analysis||!Array.isArray(analysis.levels_dbfs))return false;
@@ -393,9 +404,12 @@
  }
  function renderEvents(){
   const root=$("sleepAnalysis");root.replaceChildren();
-  if(!analysis||analysis.id!==selectedId)return;
+  if(!analysis||analysis.id!==selectedId){
+   $("sleepQuickSummary").textContent="暂无候选片段";return;
+  }
   const head=document.createElement("p");head.className="sleep-analysis-summary";
   const events=Array.isArray(analysis.events)?analysis.events:[];
+  $("sleepQuickSummary").textContent=events.length+" 段候选";
   const total=events.reduce((sum,e)=>sum+(Number(e.active_sec)||0),0);
   const mode=analysis.detection_mode==="speech"?"疑似梦话（人声候选）":
    analysis.detection_mode==="ai"?"AI 鼾声候选":"响度候选";
