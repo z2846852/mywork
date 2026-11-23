@@ -120,7 +120,7 @@ final class PhoneSleepInference {
                 long awake=next.from-end;
                 boolean evidenceOfInteraction=false;
                 for(Event event:events){
-                    if(event.ms<=end)continue;
+                    if(event.ms<end)continue; // Unlock may share the ON timestamp.
                     if(event.ms>=next.from)break;
                     if(event.kind==KEYGUARD_HIDDEN ||
                        event.kind==USER_INTERACTION){
