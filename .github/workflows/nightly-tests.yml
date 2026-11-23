@@ -1,6 +1,8 @@
 name: Full BodyTrace regression tests (nightly)
 
 on:
+  push:
+    branches: [feat/record-rest-timer]
   schedule:
     # GitHub cron runs in UTC; 19:00 UTC = 03:00 Asia/Shanghai.
     - cron: '0 19 * * *'
@@ -44,6 +46,8 @@ jobs:
             scripts/java_tests/com/z2846852/bodytrace/ApkDeltaPatchTest.java
           java -cp "$RUNNER_TEMP/bodytrace-delta-test" \
             com.z2846852.bodytrace.ApkDeltaPatchTest
+      - name: Validate group-rest countdown and record workflow
+        run: node scripts/test_rest_timer.js
       - name: Validate phone activity sleep inference (all retained event dates)
         run: |
           set -euo pipefail
