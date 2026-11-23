@@ -589,11 +589,12 @@ body.overview-muscle-open{overflow:hidden}
   <p id="intakeCheckStatus" class="intake-compact-status" role="status">当天尚未填写摄入勾选</p>
  </div>
 </div>
-
+<div class="panel body-trends-panel" id="bodyTrendsPanel">
+ <div class="body-panel-title"><h2>身体变化</h2><span>点按指标快速录入 ↗</span></div>
+ <div id="bodyTrends" class="body-trend-grid" aria-label="体重、腰围、胸围和体脂率两列趋势"></div>
+</div>
 <div class="panel panel-avatar">
- <div class="eyebrow">BODY / MUSCLE TARGETS</div>
- <div class="avatar-title-line"><h2>身体数据</h2><span class="tag">细分肌群</span></div>
- <p class="sub">身高固定 173.5cm。图示仅标记训练部位，不表示你的真实身材比例；身体围度以右侧记录数值为准。</p>
+ <div class="body-panel-title"><h2>身体概况</h2><span>最近数据 · 身高参考 173.5 cm</span></div>
  <div id="profileStats" class="profile-stats"></div>
  <div class="avatar-toolbar">
    <div class="field"><label for="avatarMeasureDate">测量日期</label><select id="avatarMeasureDate" aria-label="查看身体数据日期"></select></div>
@@ -601,20 +602,19 @@ body.overview-muscle-open{overflow:hidden}
  <div class="body-schematic-panel">
    <div id="bodyMuscleView" class="muscle-view" aria-label="正面和背面细分肌群示意"></div>
    <div id="muscleLegend" class="muscle-legend" aria-label="点击选择细分肌群"></div>
-   <p class="note">内收肌位于大腿内侧；外展肌主要在髋外侧和臀部。颜色仅反映相关动作最近28天的组数，不代表实际肌肉刺激量。</p>
+   <details class="body-small-help"><summary>ⓘ 肌群图说明</summary><p>内收肌在大腿内侧；外展肌主要在髋部外侧。颜色只反映最近28天训练组数，不代表肌肉体积。</p></details>
  </div>
- <div class="body-metric-heading">身体围度 <small>点击指标查看变化</small></div>
+ <div class="body-metric-heading">围度速览 <small>点选卡片查看历史</small></div>
  <div class="avatar-body-layout body-simple-metrics">
    <div class="avatar-stat-column" id="avatarStatLeft"></div>
    <div class="avatar-stat-column" id="avatarStatRight"></div>
  </div>
- <div class="avatar-weight-summary" id="avatarWeightSummary"></div>
- <div id="avatarSelectedDetail" class="note">选择日期后显示测量数值与变化。</div>
- <div id="muscleDetail" class="note">点选图中的区域查看对应训练组数。</div>
+ <details class="body-measure-detail" id="bodyMeasureDetail"><summary>选中围度的历史变化</summary><div id="avatarSelectedDetail" class="note">选择日期后显示测量数值与变化。</div></details>
+ <details class="body-measure-detail" id="bodyMuscleDetail"><summary>选中肌群的训练详情</summary><div id="muscleDetail" class="note">点选图中的区域查看对应训练组数。</div></details>
+ <details class="body-measure-detail body-raw-details"><summary>原始身体指标明细（核对数据）</summary><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></details>
 </div>
 <div class="panel" id="bodyEntryPanel">
- <div class="eyebrow">NEW / BODY MEASUREMENTS</div><h2>记录身体围度</h2>
- <p class="sub">默认显示上次测量值作为参考。<strong>只有点击滚轮确认的项目才会作为本次测量保存</strong>；没有重新测量的不复制进当天 JSON。</p>
+ <div class="body-panel-title"><h2>快捷记录身体参数</h2><details class="body-entry-help"><summary aria-label="查看录入规则">ⓘ</summary><p>历史数值只供参考；点击参数并确认滚轮才保存。未改动参数不会重复写入。</p></details></div>
  <div class="formgrid">
   <div class="field"><label for="bodyEntryDate">测量日期（北京时间）</label><input id="bodyEntryDate" type="date"></div>
   <div class="field"><label for="bodyWeightUnit">体重显示单位</label><select id="bodyWeightUnit"><option value="kg">kg</option><option value="jin">斤</option></select></div>
@@ -622,9 +622,9 @@ body.overview-muscle-open{overflow:hidden}
  <div id="bodyEntryGrid" class="body-entry-grid"></div>
  <div class="row wrap" style="margin-top:13px"><span id="bodyChangedCount" class="tag">尚未选择本次测量项目</span><button type="button" id="bodyClearChanges" class="secondary" style="padding:8px 10px;font-size:11px">清除修改</button></div>
  <button type="button" id="bodySaveMeasurement" class="primary">保存本次身体测量 · 同步 GitHub</button>
- <p class="note">多次保存不会删除此前数据。只追加本次实际输入的项目；App 显示同一天最后一次录入的有效值。</p>
+ <p class="body-entry-footnote">只保存本次确认的数值，保留全部历史记录</p>
 </div>
-<div class="panel"><div class="eyebrow">BODY / MEASUREMENTS</div><h2>身体指标</h2><p class="sub">从本机每日 JSON 直接读取身体指标；更新后无需重新生成图表文件。</p><div id="bodyMetrics" class="empty">同步后显示最近记录。</div></div><div class="panel"><h2>身体指标趋势</h2><p class="sub">仅使用已报告的日期与数值；未校正测量设备、时间或条件差异。</p><div id="bodyTrends" style="margin-top:12px"></div></div>
+
 
 
 <div id="nutritionLegacy" hidden aria-hidden="true">
@@ -1256,7 +1256,7 @@ function navigate(name,fromUser=true){
 document.querySelectorAll(".tabs button").forEach(btn=>btn.onclick=()=>navigate(btn.dataset.page));
 // Shared, exact destination scroll. The outgoing page is remembered by
 // navigate(); the destination is saved after the jump for reliable return.
-function jumpToView(page,findTarget){
+function jumpToView(page,findTarget,onArrive){
  navigate(page);
  requestAnimationFrame(()=>requestAnimationFrame(()=>{
   if(currentMainPage!==page)return;
@@ -1271,9 +1271,14 @@ function jumpToView(page,findTarget){
   target.classList.add("overview-jump-target");
   setTimeout(()=>target.classList.remove("overview-jump-target"),1650);
   refreshPageScrollShortcuts();
+  if(typeof onArrive==="function")onArrive(target);
  }));
 }
 window.BodyTraceJumpTo=jumpToView;
+window.BodyTraceEditBodyMetric=function(key){
+ jumpToView("body",()=> $("bodyEntryPanel"),
+  ()=>window.BodyTraceOpenBodyMetric?.(key));
+};
 $("jumpTrainingDays").onclick=()=>jumpToView("home",()=> $("heatPanel"));
 $("jumpTrainingSets").onclick=()=>jumpToView("home",()=> $("trainingDetailsPanel"));
 $("jumpTrainingMovements").onclick=()=>{
@@ -1643,62 +1648,90 @@ function renderDay(){
 }
 function renderBody(){
  const el=$("bodyMetrics");el.replaceChildren();
- const fields=[["weight_kg","体重","kg"],["height_cm","身高","cm"],["body_fat_pct","体脂率","%"],["muscle_mass_kg","肌肉量","kg"],["chest_cm","胸围","cm"],["waist_cm","腰围","cm"],["abdomen_cm","腹围","cm"],["hip_cm","臀围","cm"],["shoulder_cm","肩围","cm"],["upper_arm_cm","上臂围","cm"]];
- let n=0;
- for(const [field,label,unit] of fields){
-  const v=state.measurements.filter(r=>r.reported_date&&r[field]!==undefined&&r[field]!==null&&r[field]!==""&&Number.isFinite(Number(r[field]))).sort((a,b)=>a.reported_date.localeCompare(b.reported_date)).at(-1);
-  if(!v)continue;n++;
-  const row=document.createElement("div");row.className="metric";const lhs=document.createElement("div");
+ const fields=[["weight_kg","体重","kg"],["height_cm","身高","cm"],["body_fat_pct","体脂率","%"],
+  ["muscle_mass_kg","肌肉量","kg"],["chest_cm","胸围","cm"],["waist_cm","腰围","cm"],
+  ["abdomen_cm","腹围","cm"],["hip_cm","臀围","cm"],["shoulder_cm","肩围","cm"],
+  ["upper_arm_cm","手臂围","cm"],["thigh_cm","大腿围","cm"],["calf_cm","小腿围","cm"]];
+ let count=0;
+ for(const [key,label,unit] of fields){
+  const records=state.measurements.filter(m=>m.reported_date&&m[key]!==undefined&&m[key]!==null&&
+   m[key]!==""&&Number.isFinite(Number(m[key])));
+  const latest=records.sort((a,b)=>a.reported_date.localeCompare(b.reported_date)||
+   String(a.created_at||"").localeCompare(String(b.created_at||""))).at(-1);
+  if(!latest)continue;
+  count++;
+  const row=document.createElement("div");row.className="metric";
   const title=document.createElement("strong");title.textContent=label;
-  const small=document.createElement("small");small.textContent="记录日期："+v.reported_date;
-  lhs.append(title,small);const val=document.createElement("b");val.textContent=v[field]+unit;row.append(lhs,val);el.append(row)
+  const when=document.createElement("small");when.textContent=latest.reported_date;
+  const lhs=document.createElement("div");lhs.append(title,when);
+  const value=document.createElement("b");value.textContent=Number(latest[key]).toFixed(1)+unit;
+  row.append(lhs,value);el.append(row);
  }
- if(!n){el.className="empty";el.textContent="尚无已同步的身体指标。"}else el.className="";
+ el.className=count?"body-raw-metrics":"empty";
+ if(!count)el.textContent="尚无身体测量数据";
  renderBodyTrends();
 }
 function renderBodyTrends(){
  const root=$("bodyTrends");root.replaceChildren();
- const metricKeys=[["weight_kg","体重","kg"],["waist_cm","腰围","cm"],
-  ["chest_cm","胸围","cm"],["body_fat_pct","体脂率","%"]];
- const NS="http://www.w3.org/2000/svg";
- const svgEl=(name,attrs)=>{const node=document.createElementNS(NS,name);
-  for(const [k,v] of Object.entries(attrs||{}))node.setAttribute(k,String(v));
-  return node};
- let count=0;
- for(const [key,label,unit] of metricKeys){
-  const points=state.measurements
-   .filter(m=>m.reported_date&&m[key]!==undefined&&m[key]!==""&&Number.isFinite(Number(m[key])))
-   .map(m=>({date:m.reported_date,value:Number(m[key])}))
-   .sort((a,b)=>a.date.localeCompare(b.date));
-  if(points.length<2)continue;
-  count++;
-  const card=document.createElement("div");card.style.cssText="border-top:1px solid #2a4140;padding-top:14px;margin-top:14px";
-  const title=document.createElement("div");title.className="row";
-  const heading=document.createElement("strong");heading.textContent=label+" · "+points.length+"次记录";
-  const latest=document.createElement("span");latest.className="tag";latest.textContent=points.at(-1).value+unit;
-  title.append(heading,latest);card.append(title);
-  const svg=svgEl("svg",{viewBox:"0 0 340 150",width:"100%",height:"150","aria-label":label+"趋势图"});
-  const values=points.map(p=>p.value),minimum=Math.min(...values),maximum=Math.max(...values);
-  const spread=Math.max(maximum-minimum,Math.max(1,maximum*0.025));
-  const lo=minimum-spread*0.18,hi=maximum+spread*0.18;
-  const earliest=parse(points[0].date).getTime();
-  const latestTime=parse(points.at(-1).date).getTime();
-  const span=Math.max(86400000,latestTime-earliest);
-  const coord=p=>{const x=24+(parse(p.date).getTime()-earliest)/span*294;
-   const y=13+(hi-p.value)/(hi-lo)*100;return [x,y]};
-  for(const y of [30,75,113])svg.append(svgEl("line",{x1:24,y1:y,x2:319,y2:y,stroke:"#29433c","stroke-width":0.8}));
-  const poly=svgEl("polyline",{points:points.map(p=>coord(p).map(v=>v.toFixed(1)).join(",")).join(" "),
-   fill:"none",stroke:"#62e9ad","stroke-width":2.5,"stroke-linejoin":"round","stroke-linecap":"round"});
-  svg.append(poly);
-  for(const p of points){const [x,y]=coord(p);const circle=svgEl("circle",{cx:x,cy:y,r:4,fill:"#62e9ad"});
-   const tip=svgEl("title");tip.textContent=p.date+" · "+p.value+unit;circle.append(tip);svg.append(circle)}
-  const createLabel=(text,x,anchor)=>{const t=svgEl("text",{x,y:142,fill:"#95aaa6","font-size":11,"text-anchor":anchor});t.textContent=text;svg.append(t)};
-  createLabel(points[0].date.slice(2),24,"start");
-  createLabel(points.at(-1).date.slice(2),318,"end");
-  card.append(svg);root.append(card);
+ const metrics=[
+  {key:"weight_kg",label:"体重",unit:"kg",color:"#71eab1"},
+  {key:"waist_cm",label:"腰围",unit:"cm",color:"#f0b26b"},
+  {key:"chest_cm",label:"胸围",unit:"cm",color:"#78b9ff"},
+  {key:"body_fat_pct",label:"体脂率",unit:"%",color:"#d7a6ff"}
+ ];
+ const ns="http://www.w3.org/2000/svg";
+ const make=(name,props={})=>{const node=document.createElementNS(ns,name);
+  for(const [key,value] of Object.entries(props))node.setAttribute(key,String(value));return node;};
+ for(const metric of metrics){
+  const byDay=new Map();
+  [...state.measurements].sort((a,b)=>String(a.reported_date||"").localeCompare(String(b.reported_date||""))||
+   String(a.created_at||"").localeCompare(String(b.created_at||""))).forEach(m=>{
+   if(/^\d{4}-\d{2}-\d{2}$/.test(m.reported_date||"")&&
+     m[metric.key]!==undefined&&m[metric.key]!==null&&m[metric.key]!==""&&
+     Number.isFinite(Number(m[metric.key])))byDay.set(m.reported_date,Number(m[metric.key]));
+  });
+  const points=[...byDay].map(([date,value])=>({date,value}));
+  const card=document.createElement("button");card.type="button";
+  card.className="body-trend-card";card.style.setProperty("--body-chart-color",metric.color);
+  card.title="点击录入"+metric.label;
+  const header=document.createElement("div");header.className="body-trend-card-head";
+  const title=document.createElement("span");title.textContent=metric.label;
+  const latest=document.createElement("strong");latest.textContent=points.length?
+   points.at(-1).value.toFixed(1)+" "+metric.unit:"—";
+  header.append(title,latest);card.append(header);
+  const svg=make("svg",{viewBox:"0 0 240 104","aria-label":metric.label+"历史变化",role:"img",
+   preserveAspectRatio:"none"});
+  svg.append(make("line",{x1:12,y1:85,x2:228,y2:85,stroke:"#3a534c","stroke-width":1}));
+  if(points.length){
+   const values=points.map(p=>p.value),min=Math.min(...values),max=Math.max(...values);
+   const padding=Math.max((max-min)*0.35,Math.max(0.5,Math.abs(max)*0.008));
+   const lo=min-padding,hi=max+padding;
+   const start=Date.parse(points[0].date+"T00:00:00Z");
+   const end=Date.parse(points.at(-1).date+"T00:00:00Z");
+   const span=Math.max(86400000,end-start);
+   const xy=p=>[12+(Date.parse(p.date+"T00:00:00Z")-start)/span*216,
+    10+(hi-p.value)/(hi-lo)*65];
+   if(points.length>=2){
+    svg.append(make("polyline",{points:points.map(p=>xy(p).map(n=>n.toFixed(1)).join(",")).join(" "),
+      stroke:metric.color,"stroke-width":3.2,fill:"none","stroke-linecap":"round","stroke-linejoin":"round"}));
+   }
+   points.slice(-12).forEach(p=>{const [x,y]=xy(p);svg.append(make("circle",{cx:x,cy:y,r:3.3,fill:metric.color}));});
+   const axisLabel=(text,x,anchor)=>{const node=make("text",{x,y:101,"text-anchor":anchor,
+     fill:"#92a99e","font-size":12});node.textContent=text;svg.append(node);};
+   axisLabel(points[0].date.slice(5),12,"start");
+   if(points.length>1)axisLabel(points.at(-1).date.slice(5),228,"end");
+  }else{
+   const empty=make("text",{x:120,y:53,"text-anchor":"middle",fill:"#92ada0","font-size":13});
+   empty.textContent="暂无记录";svg.append(empty);
+  }
+  card.append(svg);
+  const info=document.createElement("span");info.className="body-trend-card-foot";
+  info.textContent=points.length>=2?points.length+"天记录 · 点按修改":
+    points.length===1?"仅一次记录 · 点按修改":"点按录入";
+  card.append(info);
+  card.onclick=()=>window.BodyTraceEditBodyMetric?.(metric.key);
+  root.append(card);
  }
- if(!count){const p=document.createElement("p");p.className="sub";
-  p.textContent="同一指标需要至少两个已记录日期才能绘制趋势。";root.append(p)}
 }
 
 function renderRawHistory(){
