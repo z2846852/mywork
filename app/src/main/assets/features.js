@@ -1574,7 +1574,12 @@ window.bodyTraceReceive=function(evt){
   }
   if(evt.type==="data"||evt.type==="local_saved"||evt.type==="nutrition_local_saved"){
     renderAllFeatures();
-    if(evt.type==="local_saved"&&evt.event?.exercise_id){
+    if(evt.type==="local_saved"&&
+       window.BodyTraceRestTimer?.shouldStayOnRecord?.(evt)){
+      // Live-session save + rest stays on the one-hand recording workbench.
+      // "Only save" continues to open the exercise's trend as before.
+      refreshPageScrollShortcuts();
+    }else if(evt.type==="local_saved"&&evt.event?.exercise_id){
       // After a new workout is saved, open this exercise's own historical
       // chart rather than returning to Overview or the combined trend plot.
       const exerciseId=evt.event.exercise_id;
