@@ -595,6 +595,7 @@
  const phoneLabels={suspected:"疑似睡眠",unknown:"未知",
   confirmed_sleep:"已确认睡眠",not_sleep:"不是睡眠"};
  let phoneReviewBusy=false,activePhonePrompt="";
+ const phoneExpanded=new Map();
  function phoneReview(id,decision){
   if(phoneReviewBusy)return;
   if(!bridge()?.reviewPhoneSleep){
@@ -631,7 +632,8 @@
    const status=report.sleep_status||"unknown";
    const wrapper=document.createElement("details");
    wrapper.className="phone-sleep-night phone-sleep-"+status;
-   wrapper.open=index===0;
+   wrapper.open=phoneExpanded.has(report.id)?phoneExpanded.get(report.id):index===0;
+   wrapper.addEventListener("toggle",()=>phoneExpanded.set(report.id,wrapper.open));
    const title=document.createElement("summary");
    title.textContent=report.day+" · "+phoneDuration(report.inactive_window_ms)+
     " · "+(phoneLabels[status]||"未知");
