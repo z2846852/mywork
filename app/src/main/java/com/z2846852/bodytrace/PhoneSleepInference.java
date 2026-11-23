@@ -59,10 +59,16 @@ final class PhoneSleepInference {
         return Instant.ofEpochMilli(ms).atZone(ZONE).toLocalDate().toString();
     }
 
-    private static boolean usualSleepStart(long start){
+    /**
+     * Default label is an algorithmic sleep entry, never a medically verified
+     * result. The user may override it manually at any time.
+     */
+    static String automaticStatus(long start,long end){
+        if(end<=start||end-start<MIN_GAP)return "unknown";
         int hour=Instant.ofEpochMilli(start).atZone(ZONE).getHour();
-        // 05:00-09:00 starts are valid even if waking after noon.
-        return hour>=18 || hour<9;
+        // Late sleepers (including 05:00) are normal; afternoon inactivity is not.
+        boolean typical=hour>=21 || hour<9;
+        return typical && end-start<=16*HOUR?"auto_sleep":"unknown";
     }
 
     private static Night report(long start,long end,long shortUse,int shortCount,
@@ -76,11 +82,11 @@ final class PhoneSleepInference {
             if(e.kind==SCREEN_OFF)offs++;
             if(e.kind==KEYGUARD_HIDDEN)unlocks++;
         }
-        boolean unusual=!usualSleepStart(start)||end-start>24*HOUR;
-        String state=unusual?"unknown":"candidate";
-        String reason=unusual?
-            "非典型时间或超长未使用：需要人工确认；不能认定为睡眠":
-            "手机长时间未明显使用：疑似睡眠，不等于真实睡眠";
+        boolean typical="auto_sleep".equals(automaticStatus(start,end));
+        String state=typical?"candidate":"unknown";
+        String reason=typical?
+            "睡眠（自动识别）：基于连续无明显手机使用记录，并非实测睡眠":
+            "异常时间或超长未使用：保持未知，可自行查看或修改";
         return new Night(date(end),state,start,end,end-start,shortUse,shortCount,
             ons,unlocks,offs,reason);
     }
