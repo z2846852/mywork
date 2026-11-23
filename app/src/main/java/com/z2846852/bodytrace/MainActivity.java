@@ -109,7 +109,9 @@ public final class MainActivity extends Activity {
 
     @Override @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     protected void onCreate(Bundle state) {
-        super.onCreate(state);
+        // Do not resurrect a stale WebView/task snapshot after APK replacement.
+        // UI navigation and the user draft are restored from durable preferences.
+        super.onCreate(null);
         IntentFilter analysisFilter=new IntentFilter(SleepAnalysisService.ACTION_EVENT);
         if(Build.VERSION.SDK_INT>=33)
             registerReceiver(sleepAnalysisReceiver,analysisFilter,Context.RECEIVER_NOT_EXPORTED);
@@ -148,6 +150,35 @@ public final class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return true; // Never navigate to a remote page with the privileged bridge.
             }
+            @Override public boolean onRenderProcessGone(WebView view,
+                    android.webkit.RenderProcessGoneDetail detail) {
+                // Android WebView renderer death normally closes the host app
+                // unless explicitly handled. Keep a one-time local diagnostic.
+                BodyTraceApp.record(MainActivity.this,"WebView renderer",
+                    detail.didCrash()?"renderer crashed":"renderer terminated");
+                if(view.getParent() instanceof android.view.ViewGroup)
+                    ((android.view.ViewGroup)view.getParent()).removeView(view);
+                view.destroy();
+                web=null;uiReady=false;
+                android.content.SharedPreferences p=getSharedPreferences(
+                    "bodytrace_renderer_recovery",MODE_PRIVATE);
+                long now=System.currentTimeMillis();
+                long last=p.getLong("last_ms",0L);
+                int attempts=(now-last<60_000L?p.getInt("attempts",0):0)+1;
+                p.edit().putLong("last_ms",now).putInt("attempts",attempts).apply();
+                if(attempts<=2){
+                    new Handler(Looper.getMainLooper()).post(()->{
+                        if(!isFinishing()&&!isDestroyed())recreate();
+                    });
+                }else{
+                    android.widget.TextView failure=new android.widget.TextView(MainActivity.this);
+                    failure.setText("界面启动异常。请从桌面重新打开，必要时到日志页查看本机诊断。");
+                    failure.setTextSize(17);
+                    failure.setPadding(36,60,36,36);
+                    setContentView(failure);
+                }
+                return true;
+            }
         });
         web.addJavascriptInterface(new Bridge(), "BodyTraceNative");
         setContentView(web);
@@ -167,6 +198,16 @@ public final class MainActivity extends Activity {
             web.loadDataWithBaseURL("https://bodytrace.invalid/", html, "text/html", "UTF-8", null);
         } catch (Exception error) {
             web.loadData("<h1>本地界面加载失败</h1>", "text/html", "UTF-8");
+        }
+    }
+
+    @Override protected void onNewIntent(Intent intent){
+        super.onNewIntent(intent);
+        setIntent(intent);
+        Uri shared=sharedImageUri(intent);
+        if(shared!=null){
+            pendingSharedAvatar=shared;
+            if(uiReady)worker.execute(this::consumePendingSharedAvatar);
         }
     }
 
@@ -1563,6 +1604,15 @@ public final class MainActivity extends Activity {
             worker.execute(() -> {
                 restore();
                 sendUiPreferences();
+                try{
+                    android.content.SharedPreferences diagnostic=getSharedPreferences(
+                        "bodytrace_startup_diagnostics",MODE_PRIVATE);
+                    String detail=diagnostic.getString("last_error","");
+                    if(!detail.isEmpty())
+                        reply(message("startup_diagnostic")
+                            .put("message",detail)
+                            .put("when_ms",diagnostic.getLong("last_error_ms",0L)));
+                }catch(Exception ignored){}
                 // Show the local installed version without fetching GitHub.
                 try{reply(message("apk_update").put("state","local_version")
                     .put("installed_version",apkUpdates.currentVersion()));}
