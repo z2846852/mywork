@@ -1,8 +1,6 @@
 name: Full BodyTrace regression tests (nightly)
 
 on:
-  push:
-    branches: [fix/sleep-autostatus-update-launch]
   schedule:
     # GitHub cron runs in UTC; 19:00 UTC = 03:00 Asia/Shanghai.
     - cron: '0 19 * * *'
