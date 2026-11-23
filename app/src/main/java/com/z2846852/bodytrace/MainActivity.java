@@ -201,16 +201,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    @Override protected void onNewIntent(Intent intent){
-        super.onNewIntent(intent);
-        setIntent(intent);
-        Uri shared=sharedImageUri(intent);
-        if(shared!=null){
-            pendingSharedAvatar=shared;
-            if(uiReady)worker.execute(this::consumePendingSharedAvatar);
-        }
-    }
-
     // Android share sheet: users can share the downloaded cartoon image
     // directly from a gallery or file app. Only an image URI is consumed.
     private static Uri sharedImageUri(Intent intent) {
