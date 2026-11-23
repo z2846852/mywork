@@ -132,6 +132,64 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 .overview-muscle-person svg{width:100%;height:auto;max-height:205px}
 .overview-muscle-person small{font-size:11px;color:var(--muted)}
 body.overview-muscle-open{overflow:hidden}
+/* Overview v2: preserve every existing control while removing wasted height. */
+#page-home .stats{margin-top:7px;gap:7px}
+#page-home .panel{margin-top:11px;padding:13px 14px;border-radius:16px}
+#page-home .overview-calendar-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+#page-home .overview-calendar-title{display:flex;align-items:center;gap:7px;min-width:0}
+#page-home .overview-calendar-title h2{font-size:16px;white-space:nowrap}
+#page-home .overview-calendar-range{color:var(--muted);font-size:10px;white-space:nowrap}
+#page-home .overview-calendar-top #filter{width:auto;min-width:116px;max-width:min(46%,160px);
+ margin:0;padding:7px 21px 7px 8px;font-size:11px;border-radius:8px}
+#page-home .overview-calendar-help{position:relative;flex-shrink:0}
+#page-home .overview-calendar-help summary{display:inline-flex;align-items:center;justify-content:center;
+ width:24px;height:24px;color:#94bfb0;cursor:pointer;font-size:15px;list-style:none}
+#page-home .overview-calendar-help summary::-webkit-details-marker{display:none}
+#page-home .overview-calendar-help p{position:absolute;top:24px;left:-130px;z-index:9;
+ width:min(290px,80vw);padding:10px 12px;line-height:1.5;font-size:11px;
+ border-radius:11px;border:1px solid #507e68;background:#213a33;color:#e4f5ec;
+ box-shadow:0 8px 24px #0007}
+#page-home #heatScroll{margin-top:8px;padding-bottom:3px;scrollbar-width:thin}
+#page-home #months{height:17px;width:1040px;font-size:10px}
+#page-home #heat{grid-template-rows:repeat(7,17px);grid-auto-columns:17px;gap:3px}
+#page-home #heat .cell{width:17px;height:17px;border-radius:3px}
+#page-home #heat .cell-quadrant{border-radius:1px}
+#page-home .legend{justify-content:flex-start;margin-top:8px;gap:3px 7px}
+#page-home .legend .region-filter{min-height:26px;padding:2px 6px;font-size:11px}
+#page-home .overview-day-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#page-home .overview-day-head h2{font-size:17px}
+#page-home .overview-day-head .sub{font-size:11px;margin-top:3px}
+#page-home .overview-day-actions{display:flex;gap:5px;flex-shrink:0}
+#page-home .overview-day-actions button{padding:7px 9px;min-height:31px;font-size:11px}
+#page-home .exercise{padding-top:9px;margin-top:8px}
+#page-home .exercise-name-actions{flex-wrap:nowrap}
+#page-home .exercise-trend-link{font-size:13px;max-width:100%;line-height:1.35}
+#page-home .exercise-name{flex-wrap:wrap;gap:4px}
+#page-home .exercise-count{font-size:11px}
+#page-home .sets{gap:5px;margin-top:7px}
+#page-home .set{min-width:unset;padding:7px 9px;border-radius:9px}
+#page-home .set b{font-size:12px;line-height:1.4}
+#page-home .set small{font-size:9px;line-height:1.4;margin-top:2px}
+#page-home .history-global-controls{margin:9px 0 0;padding:6px 8px;gap:6px;min-height:35px}
+#page-home .history-global-controls .sub{font-size:10px;line-height:1.25}
+#page-home #toggleHistory{padding:6px 8px;min-height:28px;font-size:10px}
+#page-home .overview-all-actions{margin-top:7px;min-height:34px}
+#page-home .overview-exercise-thumb{display:flex;align-items:center;justify-content:center;
+ flex-direction:column;flex-shrink:0;width:62px;min-width:62px;height:70px;
+ padding:2px 4px;gap:2px;border-color:#4f786a;background:#20392f}
+#page-home .overview-exercise-thumb-image{width:100%;height:52px;display:flex;align-items:center;justify-content:center}
+#page-home .overview-exercise-thumb-image .overview-muscle-person{width:25px;gap:0}
+#page-home .overview-exercise-thumb-image .overview-muscle-person svg{max-height:51px}
+#page-home .overview-exercise-thumb-image .overview-muscle-person small{display:none}
+#page-home .overview-exercise-thumb small{color:#c5ead7;font-size:9px;white-space:nowrap}
+#page-home .exercise-history{margin-top:8px;padding-top:7px}
+#page-home .exercise-history-date{padding:6px;margin-top:4px}
+#page-home #sourceLabel,#page-home #lastSyncHome{font-size:10px}
+@media(max-width:360px){
+ #page-home .overview-calendar-range{display:none}
+ #page-home .overview-calendar-top #filter{min-width:106px;max-width:42%}
+ #page-home .overview-day-actions button{padding:6px}
+}
 </style></head>
 <body>
 <main class="screen">
@@ -143,7 +201,12 @@ body.overview-muscle-open{overflow:hidden}
 <button type="button" class="stat stat-link" id="jumpTrainingSets" title="定位到选中日期的训练详情"><strong id="statSets">—</strong><span>总训练组</span></button>
 <button type="button" class="stat stat-link" id="jumpTrainingMovements" title="查看全部动作及独立趋势"><strong id="statMovements">—</strong><span>训练动作</span></button>
 </div>
-<div class="panel" id="heatPanel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，每天四分格：胸、肩、背、腿；亮起代表当天练过该部位</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
+<div class="panel" id="heatPanel">
+<div class="overview-calendar-top">
+ <div class="overview-calendar-title"><h2>训练日历</h2><span class="overview-calendar-range">近52周</span>
+ <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四分格分别表示胸、肩、背、腿；亮起表示当天有训练。横向滑动可回顾全年，点击日期查看该天全部记录；点下面的颜色筛选部位。</p></details></div>
+ <select class="select" id="filter" aria-label="筛选日历动作"><option value="">全部训练</option></select>
+</div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
 <div class="legend" aria-label="点击部位筛选日历和详情">
 <button type="button" class="region-key region-filter" data-region="胸" style="--key-color:var(--region-chest)" aria-pressed="false"><i></i>胸</button>
@@ -152,12 +215,15 @@ body.overview-muscle-open{overflow:hidden}
 <button type="button" class="region-key region-filter" data-region="腿" style="--key-color:var(--region-leg)" aria-pressed="false"><i></i>腿</button>
 <button type="button" class="region-key region-filter" data-region="其他" style="--key-color:#91a9a8" aria-pressed="false"><i></i>其他</button>
 </div></div>
-<div class="panel" id="trainingDetailsPanel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div>
-<div class="row wrap history-global-controls">
-  <span class="sub" id="historyVisibilityStatus">历史默认展开：每个动作最近 10 个训练日</span>
-  <button type="button" class="secondary mini" id="toggleHistory" aria-pressed="true">收起全部历史</button>
-</div>
-<div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
+<div class="panel" id="trainingDetailsPanel">
+<div class="overview-day-head"><div><h2 id="selectedDate">训练详情</h2>
+<p class="sub" id="selectedSummary">选中某天查看详细动作</p></div>
+<div class="overview-day-actions"><button type="button" id="homeTrendShortcut" class="mini secondary" aria-label="打开完整力量趋势">趋势 ↗</button><button id="goLatest" class="mini">最近一次</button></div></div>
+<div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div>
+<div class="row history-global-controls">
+ <span class="sub" id="historyVisibilityStatus">历史训练</span>
+ <button type="button" class="secondary mini" id="toggleHistory" aria-pressed="true">收起历史</button>
+</div></div>
 <div class="row wrap" style="margin-top:18px"><div><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><p class="sub" id="lastSyncHome">上次成功同步：读取中…</p></div><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
 </section>
 
@@ -1186,6 +1252,7 @@ $("jumpTrainingMovements").onclick=()=>{
  $("strengthDetailExpander").open=true;
  jumpToView("analytics",()=> $("strengthDetailExpander"));
 };
+$("homeTrendShortcut").onclick=()=>jumpToView("analytics",()=> $("regionTrendGrid"));
 $("syncTop").onclick=()=>{
  if(window.BodyTraceNative?.sync)$("syncHome").click();
  else toast("请在 Android App 内同步",true);
@@ -1307,6 +1374,8 @@ function summarizeHeatDays(rows){
 }
 function renderHeat(focusLatest=false){
  const byDay=summarizeHeatDays(filtered());
+ const monthTrack=$("months");
+ monthTrack.style.width=(52*20)+"px";
  const dateEnd=today>state.selected?today:state.selected;
  const monday=plus(dateEnd,-((parse(dateEnd).getUTCDay()+6)%7));
  const start=plus(monday,-51*7),heat=$("heat"),months=$("months");
@@ -1316,7 +1385,7 @@ function renderHeat(focusLatest=false){
   if(month!==lastMonth){
    const label=document.createElement("span");
    label.className="month";label.textContent=Number(first.slice(5,7))+"月";
-   label.style.left=(w*23)+"px";months.append(label);lastMonth=month;
+   label.style.left=(w*20)+"px";months.append(label);lastMonth=month;
   }
   for(let d=0;d<7;d++){
    const day=plus(first,d),counts=byDay.get(day)||{total:0,other:0,regions:{胸:0,肩:0,背:0,腿:0}};
@@ -1355,10 +1424,10 @@ function weight(r){if(r.assistance_kg)return "辅助 "+r.assistance_kg+"kg";if(r
 let showWorkoutHistory=true;
 function applyWorkoutHistoryVisibility(shown,render=true){
  showWorkoutHistory=shown!==false;
- $("toggleHistory").textContent=showWorkoutHistory?"收起全部历史":"展开全部历史";
+ $("toggleHistory").textContent=showWorkoutHistory?"收起历史 ↑":"展开历史 ↓";
  $("toggleHistory").setAttribute("aria-pressed",String(showWorkoutHistory));
  $("historyVisibilityStatus").textContent=showWorkoutHistory?
-  "已展开：每个动作最近 10 个训练日":"已收起：仅查看当天训练";
+  "每个动作最近10个训练日":"历史记录已收起";
  if(render)renderDay();
 }
 $("toggleHistory").onclick=()=>{
@@ -1407,7 +1476,7 @@ $("overviewMuscleTrend").onclick=()=>{
  window.BodyTraceFocusExerciseTrend?.(id);
 };
 function renderDay(){
- $("selectedDate").textContent=state.selected+" · 训练详情";
+ $("selectedDate").textContent=state.selected.slice(5).replace("-","/")+" · 训练详情";
  const list=filtered().filter(r=>r.session_date===state.selected);
  const failedCount=list.filter(isFailedAttempt).length;
  $("selectedSummary").textContent=(list.length-failedCount)+" 组"+
@@ -1441,9 +1510,16 @@ function renderDay(){
   controls.append(name);
   if(position===0){
    const art=document.createElement("button");art.type="button";
-   art.className="exercise-art-trigger";art.textContent="◉ 部位图";
-   art.title="查看该动作主要训练肌群的示意图";
-   art.onclick=()=>openOverviewIllustration(items[0].exercise_id||ex,exerciseLink.textContent);
+   art.className="exercise-art-trigger overview-exercise-thumb";
+   art.title="点击放大该动作的主要训练肌群示意图";
+   const pic=document.createElement("span");pic.className="overview-exercise-thumb-image";
+   const exerciseId=items[0].exercise_id||ex;
+   if(window.BodyTraceDrawExerciseTarget){
+    window.BodyTraceDrawExerciseTarget(exerciseId,pic);
+   }else pic.textContent="◉";
+   const title=document.createElement("small");title.textContent="部位示意";
+   art.append(pic,title);
+   art.onclick=()=>openOverviewIllustration(exerciseId,exerciseLink.textContent);
    controls.append(art);
   }
   const count=document.createElement("span");count.className="exercise-count";count.textContent=items.filter(r=>!isFailedAttempt(r)).length+" 组"+
