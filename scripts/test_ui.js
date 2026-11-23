@@ -1061,7 +1061,8 @@ assert.ok(html.includes('id="sleepFilterAdvanced"') &&
 assert.ok(sleepJS.includes('$("sleepAiScoreControls").hidden=!active;'));
 assert.ok(sleepJS.includes('" 段候选"'));
 assert.ok(sleepJS.includes('classList.toggle("active",pressed)'));
-assert.ok(features.includes('#page-sleep .sleep-ai-presets button.active'));
+assert.ok(fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8")
+ .includes('#page-sleep .sleep-ai-presets button.active'));
 assert.ok(html.includes('class="sleep-collection sleep-library-menu"'),
  "Audio collection is now a compact top-toolbar disclosure");
 assert.ok(html.includes('<details class="sleep-events-details"'));
