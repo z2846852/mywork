@@ -1026,6 +1026,7 @@ public final class MainActivity extends Activity {
             for(String page:new String[]{"home","analytics","record","body","sleep","voice","settings"})
                 scroll.put(page,Math.max(0,p.getInt("scroll_"+page,0)));
             event.put("page_scroll_positions",scroll);
+            event.put("rest_timer_state",p.getString("rest_timer_state","{}"));
             String lastPage=p.getString("last_main_page","home");
             if("home".equals(lastPage)&&"trends".equals(p.getString("overview_view","summary")))
                 lastPage="analytics"; // Upgrade from former nested Trends view.
@@ -1785,6 +1786,52 @@ public final class MainActivity extends Activity {
                  "settings".equals(mainPage)))return;
             getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
                 .edit().putInt("scroll_"+mainPage,Math.max(0,Math.min(top,2000000))).apply();
+        }
+
+        /** Keep rest timer and per-exercise rest presets after WebView recreation.
+         * Persist only when the user changes a timer or preset, never per tick. */
+        @JavascriptInterface public void setRestTimerState(String json){
+            try{
+                if(json==null||json.length()>12000)
+                    throw new IllegalArgumentException("休息设置过长");
+                JSONObject request=new JSONObject(json);
+                JSONObject safe=new JSONObject();
+                boolean running=request.optBoolean("running",false);
+                String exercise=request.optString("exercise_id","");
+                long deadline=request.optLong("deadline_ms",0L);
+                int seconds=request.optInt("duration_seconds",0);
+                if(running&&(!exercise.matches("[a-z][a-z0-9_]{1,63}")||
+                   seconds<30||seconds>600||deadline<=0||
+                   deadline>System.currentTimeMillis()+24L*3600000L))
+                    throw new IllegalArgumentException("无效的休息计时状态");
+                safe.put("running",running);
+                safe.put("deadline_ms",running?deadline:0L);
+                safe.put("duration_seconds",running?seconds:0);
+                safe.put("exercise_id",running?exercise:"");
+                for(String category:new String[]{"overrides","goals"}){
+                    JSONObject raw=request.optJSONObject(category);
+                    JSONObject clean=new JSONObject();
+                    if(raw!=null){
+                        if(raw.length()>128)throw new IllegalArgumentException("动作设置太多");
+                        java.util.Iterator<String> it=raw.keys();
+                        while(it.hasNext()){
+                            String key=it.next();
+                            if(!key.matches("[a-z][a-z0-9_]{1,63}"))
+                                throw new IllegalArgumentException("无效的动作编号");
+                            int value=raw.getInt(key);
+                            if("overrides".equals(category)?value<30||value>600:
+                               !(value==2||value==3||value==4||value==5||
+                                 value==6||value==8||value==10))
+                                throw new IllegalArgumentException("组间休息或目标组数无效");
+                            clean.put(key,value);
+                        }
+                    }
+                    safe.put(category,clean);
+                }
+                if(!getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
+                     .edit().putString("rest_timer_state",safe.toString()).commit())
+                    throw new IllegalStateException("休息设置写入失败");
+            }catch(Exception ex){error("休息计时保存失败："+safeMessage(ex));}
         }
 
         @JavascriptInterface public void setWorkoutHistoryVisible(boolean visible){
