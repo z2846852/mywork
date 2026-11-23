@@ -78,12 +78,30 @@ public final class PhoneSleepInferenceTest {
         // Three short wakes in half an hour must NOT all be fused.
         List<PhoneSleepInference.Event> repeated=List.of(
             e("2026-11-21",22,0,off),
-            e("2026-11-22",3,0,on),e("2026-11-22",3,1,off),
-            e("2026-11-22",3,10,on),e("2026-11-22",3,11,off),
-            e("2026-11-22",3,20,on),e("2026-11-22",3,21,off),
+            e("2026-11-22",3,0,on),e("2026-11-22",3,0,PhoneSleepInference.KEYGUARD_HIDDEN),
+            e("2026-11-22",3,1,off),
+            e("2026-11-22",3,10,on),e("2026-11-22",3,10,PhoneSleepInference.KEYGUARD_HIDDEN),
+            e("2026-11-22",3,11,off),
+            e("2026-11-22",3,20,on),e("2026-11-22",3,20,PhoneSleepInference.KEYGUARD_HIDDEN),
+            e("2026-11-22",3,21,off),
             e("2026-11-22",8,0,on));
         List<PhoneSleepInference.Night> repeatedReports=run(repeated,"2026-11-22",13);
         check(repeatedReports.size()==2,"Third repeated wake splits the sequence");
+
+        // Three brief notifications in half an hour without a user unlock
+        // must not be counted as three active wakeups.
+        List<PhoneSleepInference.Event> notifications=List.of(
+            e("2026-11-21",23,0,off),
+            e("2026-11-22",3,0,on),
+            new PhoneSleepInference.Event(t("2026-11-22",3,0)+20_000L,off),
+            e("2026-11-22",3,10,on),
+            new PhoneSleepInference.Event(t("2026-11-22",3,10)+20_000L,off),
+            e("2026-11-22",3,20,on),
+            new PhoneSleepInference.Event(t("2026-11-22",3,20)+20_000L,off),
+            e("2026-11-22",8,0,on));
+        List<PhoneSleepInference.Night> passive=run(notifications,"2026-11-22",13);
+        check(passive.size()==1&&passive.get(0).shortUseCount==3,
+            "Passive notification flashes must not fragment a long sleep candidate");
 
         List<PhoneSleepInference.Event> day=List.of(
             e("2026-11-22",14,0,off),e("2026-11-22",19,0,on));
