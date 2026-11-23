@@ -21,6 +21,7 @@
         <intent><action android:name="android.intent.action.TTS_SERVICE"/></intent>
     </queries>
     <application
+        android:name=".BodyTraceApp"
         android:label="体迹 · BodyTrace"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
@@ -30,6 +31,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
+            android:clearTaskOnLaunch="true"
             android:screenOrientation="unspecified">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
