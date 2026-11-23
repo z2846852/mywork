@@ -43,6 +43,13 @@
  let running=false,deadlineMs=0,durationSec=0,exerciseId="";
  let overrides={},goals={};
  let userTouched=false,preferenceRestored=false,pendingAuto="";
+ let advancedTouched=false,advancedKnownOpen=$("recordAdvancedTools").open;
+ $("recordAdvancedTools").addEventListener("toggle",()=>{
+  const open=$("recordAdvancedTools").open;
+  if(open===advancedKnownOpen)return;
+  advancedKnownOpen=open;advancedTouched=true;
+  window.BodyTraceNative?.setRecordAdvancedExpanded?.(open);
+ });
  const exercise=()=>$("recordExercise")?.value||"";
  const label=id=>exerciseLabels[id]||id||"未选择动作";
  const validId=id=>/^[a-z][a-z0-9_]{1,63}$/.test(id);
@@ -180,7 +187,13 @@
  window.bodyTraceReceive=function(evt){
   if(typeof previous==="function")previous(evt);
   if(!evt||!evt.type)return;
-  if(evt.type==="ui_preferences")restore(evt.rest_timer_state);
+  if(evt.type==="ui_preferences"){
+   if(!advancedTouched){
+    advancedKnownOpen=!!evt.record_advanced_expanded;
+    $("recordAdvancedTools").open=advancedKnownOpen;
+   }
+   restore(evt.rest_timer_state);
+  }
   if(evt.type==="data"||evt.type==="workout_edit_local_saved"||
      evt.type==="exercise_catalog")requestAnimationFrame(render);
   if(evt.type==="local_saved"){
