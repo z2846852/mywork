@@ -1254,13 +1254,21 @@ $("jumpTrainingMovements").onclick=()=>{
 };
 $("homeTrendShortcut").onclick=()=>jumpToView("analytics",()=> $("regionTrendGrid"));
 $("syncTop").onclick=()=>{
+ if(syncUiBusy)return;
  if(window.BodyTraceNative?.sync)$("syncHome").click();
  else toast("请在 Android App 内同步",true);
 };
+let syncUiBusy=false,syncUploadedCount=0;
 function renderStatus(){
  $("statusDot").classList.toggle("on",state.connected);
  $("statusText").textContent=state.connected?"已连接":"本地";
- $("pendingStatus").textContent=state.pending?" · 待传"+state.pending+"组":"";
+ $("pendingStatus").textContent=state.pending?" · 待传"+state.pending+"条":"";
+ const syncButton=$("syncTop");
+ syncButton.disabled=syncUiBusy;
+ syncButton.textContent=syncUiBusy?"◌":"↻";
+ syncButton.setAttribute("aria-label",syncUiBusy?"GitHub 正在批量同步":"一次同步全部待传记录");
+ $("syncHome").disabled=syncUiBusy;
+ $("syncHome").textContent=syncUiBusy?"正在批量同步…":"⇅ 同步 GitHub";
  $("saveHelp").style.display=state.connected?"none":"block";
 }
 function filtered(){return state.rows.filter(r=>
@@ -1737,7 +1745,12 @@ $("saveRecord").onclick=()=>{
 $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("请先粘贴 GitHub token",true);return}
  $("token").value="";BodyTraceNative.connect(token);toast("正在验证连接…")};
 $("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的原始 JSON 和未上传记录会保留。"))BodyTraceNative.disconnect()};
-const sync=()=>BodyTraceNative.sync();
+const sync=()=>{
+ if(syncUiBusy)return;
+ if(!window.BodyTraceNative?.sync){toast("当前环境不支持 GitHub 同步",true);return}
+ syncUiBusy=true;syncUploadedCount=0;renderStatus();
+ BodyTraceNative.sync();
+};
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
 $("checkApkVersion").onclick=checkApkVersionManual;
 $("checkApkVersionHelp").onclick=checkApkVersionManual;
@@ -1968,13 +1981,18 @@ window.bodyTraceReceive=function(evt){
  case "sync_status":
   renderSyncHistory(evt);
   if(evt.state==="started"){
-   $("sourceLabel").textContent="今日首次启动 · 正在同步 GitHub…";
+   syncUiBusy=true;syncUploadedCount=0;
+   $("sourceLabel").textContent="正在批量同步 GitHub…";
   }else if(evt.state==="complete"){
-   $("sourceLabel").textContent="今日已自动同步 GitHub";
+   syncUiBusy=false;
+   $("sourceLabel").textContent="GitHub 同步成功";
+   if(syncUploadedCount)toast("已批量上传 "+syncUploadedCount+" 条记录并完成同步");
   }else if(evt.state==="partial"){
-   $("sourceLabel").textContent="今日已尝试同步，部分失败 · 可手动重试";
-   toast("今日 GitHub 同步未全部完成，数据仍在本机待同步队列",true);
+   syncUiBusy=false;
+   $("sourceLabel").textContent="同步部分失败 · 未完成的记录保留本机";
+   toast("GitHub 同步未全部完成，未上传记录仍在手机，可手动重试",true);
   }
+  renderStatus();
   break;
  case "status":
   state.connected=!!evt.connected;renderStatus();
@@ -2053,9 +2071,13 @@ window.bodyTraceReceive=function(evt){
   clearTrainingEdits();refreshExerciseRecommendation(true);
   break;
  }
+ case "saved_batch":
+  syncUploadedCount+=Math.max(0,Number(evt.count)||0);
+  $("sourceLabel").textContent="已上传 "+syncUploadedCount+" 条 · 正在同步其他日期…";
+  break;
  case "saved":
   state.pendingEvents=state.pendingEvents.filter(e=>e.id!==evt.event?.id);
-  toast("已上传一组训练，正在同步其他记录");break;
+  break;
  case "data":{
   const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : normaliseDays(evt.days||[]);
   state.rows=parsed.rows;state.measurements=parsed.measurements;
