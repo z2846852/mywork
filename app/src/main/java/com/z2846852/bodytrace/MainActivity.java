@@ -1950,6 +1950,7 @@ public final class MainActivity extends Activity {
                     sendPhoneSleepReports();
                 }catch(Exception failure){
                     error("手机行为确认保存失败："+safeMessage(failure));
+                    sendPhoneSleepReports(); // Clear UI busy state even on failure.
                 }
             });
         }
