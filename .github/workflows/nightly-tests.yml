@@ -1,6 +1,8 @@
 name: Full BodyTrace regression tests (nightly)
 
 on:
+  push:
+    branches: [fix/sleep-autostatus-update-launch]
   schedule:
     # GitHub cron runs in UTC; 19:00 UTC = 03:00 Asia/Shanghai.
     - cron: '0 19 * * *'
@@ -46,6 +48,11 @@ jobs:
             com.z2846852.bodytrace.ApkDeltaPatchTest
       - name: Validate group-rest countdown and record workflow
         run: node scripts/test_rest_timer.js
+      - name: Validate sleep status UI and startup recovery integration
+        run: |
+          set -euo pipefail
+          node --check app/src/main/assets/sleep.js
+          node scripts/test_sleep_startup.js
       - name: Validate phone activity sleep inference (all retained event dates)
         run: |
           set -euo pipefail
