@@ -1422,6 +1422,36 @@ window.bodyTraceReceive=function(evt){
   }
   if(evt.type==="data"||evt.type==="local_saved"||evt.type==="nutrition_local_saved"){
     renderAllFeatures();
+    if(evt.type==="local_saved"&&evt.event?.exercise_id){
+      // After a new workout is saved, open this exercise's own historical
+      // chart rather than returning to Overview or the combined trend plot.
+      const exerciseId=evt.event.exercise_id;
+      const findCard=()=>[...$("strengthList").querySelectorAll(".strength-exercise-card")]
+        .find(card=>card.dataset.exerciseId===exerciseId);
+      if(findCard()){
+        $("strengthDetailExpander").open=true;
+        navigate("analytics");
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+          if(currentMainPage!=="analytics")return;
+          const target=findCard();
+          if(!target)return;
+          window.scrollTo(0,Math.max(0,Math.round(
+            target.getBoundingClientRect().top+window.scrollY-14)));
+          rememberPageScroll("analytics");
+          refreshPageScrollShortcuts();
+          target.classList.add("strength-exercise-jump-target");
+          setTimeout(()=>target.classList.remove("strength-exercise-jump-target"),1800);
+        }));
+      }else{
+        navigate("analytics");
+        toast("训练已保存，但尚未找到该动作的独立趋势图",true);
+      }
+    }else if(evt.type==="local_saved"){
+      navigate("analytics");
+    }else{
+      // Redraw may change page height without a corresponding scroll event.
+      refreshPageScrollShortcuts();
+    }
   }
 };
 renderAllFeatures();

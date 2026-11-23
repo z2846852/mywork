@@ -1018,11 +1018,14 @@ public final class MainActivity extends Activity {
      * or private GitHub repo. Persists between relaunches and APK upgrades. */
     private void sendUiPreferences(){
         try{
-            boolean show=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
-                .getBoolean("show_workout_history",true);
-            JSONObject event=message("ui_preferences");
-            event.put("show_workout_history",show);
             android.content.SharedPreferences p=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE);
+            JSONObject event=message("ui_preferences");
+            event.put("show_workout_history",p.getBoolean("show_workout_history",true));
+            event.put("strength_detail_expanded",p.getBoolean("strength_detail_expanded",false));
+            JSONObject scroll=new JSONObject();
+            for(String page:new String[]{"home","analytics","record","body","sleep","voice","settings"})
+                scroll.put(page,Math.max(0,p.getInt("scroll_"+page,0)));
+            event.put("page_scroll_positions",scroll);
             String lastPage=p.getString("last_main_page","home");
             if("home".equals(lastPage)&&"trends".equals(p.getString("overview_view","summary")))
                 lastPage="analytics"; // Upgrade from former nested Trends view.
@@ -1744,6 +1747,24 @@ public final class MainActivity extends Activity {
                 .edit().putString("last_main_page",mainPage)
                 .remove("overview_view").commit();
             if(!written)error("页面偏好保存失败");
+        }
+
+        /** Persist expansion of the per-exercise chart section across app restarts. */
+        @JavascriptInterface public void setStrengthDetailExpanded(boolean expanded){
+            boolean written=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
+                .edit().putBoolean("strength_detail_expanded",expanded).commit();
+            if(!written)error("单动作详情展开状态保存失败");
+        }
+
+        /** Save the page's document scroll offset when switching tabs or pausing.
+         * Do not write on every scroll frame. WebView DOM storage is disabled. */
+        @JavascriptInterface public void setUiScrollPosition(String mainPage,int top){
+            if(mainPage==null||!("home".equals(mainPage)||"analytics".equals(mainPage)||
+                 "record".equals(mainPage)||"body".equals(mainPage)||
+                 "sleep".equals(mainPage)||"voice".equals(mainPage)||
+                 "settings".equals(mainPage)))return;
+            getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
+                .edit().putInt("scroll_"+mainPage,Math.max(0,Math.min(top,2000000))).apply();
         }
 
         @JavascriptInterface public void setWorkoutHistoryVisible(boolean visible){

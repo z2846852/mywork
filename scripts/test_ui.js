@@ -781,6 +781,137 @@ assert.ok(html.includes('navigate(allowedMainPages.has(evt.last_main_page)?evt.l
 assert.ok(native.includes('@JavascriptInterface public void setUiNavigation(String mainPage)'));
 assert.ok(native.includes('.remove("overview_view").commit()'));
 assert.ok(native.includes('lastPage="analytics"'));
+// Tab scrolling uses document scroll offsets, not DOM Storage. Each tab
+// restores its own location; transient floating buttons avoid fixed nav/save.
+assert.ok(html.includes('id="pageScrollTop"')&&html.includes('id="pageScrollBottom"'));
+assert.ok(html.includes('id="pageScrollShortcuts"'));
+assert.ok(html.includes('id="strengthDetailExpander"'));
+assert.ok(html.includes('setStrengthDetailExpanded?.(expanded)'));
+assert.ok(html.includes('evt.strength_detail_expanded===true'));
+assert.ok(html.includes('pageScrollDirty.has(name)'));
+assert.ok(html.includes('rememberPageScroll(currentMainPage)'));
+assert.ok(html.includes('document.addEventListener("visibilitychange"'));
+assert.ok(native.includes('event.put("strength_detail_expanded"'));
+assert.ok(native.includes('event.put("page_scroll_positions",scroll)'));
+assert.ok(native.includes('@JavascriptInterface public void setStrengthDetailExpanded(boolean expanded)'));
+assert.ok(native.includes('@JavascriptInterface public void setUiScrollPosition(String mainPage,int top)'));
+assert.ok(native.includes('.putBoolean("strength_detail_expanded",expanded).commit()'));
+assert.ok(!html.includes('window.scrollTo(0,0);'));
+assert.ok(features.includes('if(evt.type==="local_saved"&&evt.event?.exercise_id)'));
+assert.ok(features.includes('const exerciseId=evt.event.exercise_id;'));
+assert.ok(features.includes('$("strengthDetailExpander").open=true;'));
+assert.ok(features.includes('target.getBoundingClientRect().top+window.scrollY-14'));
+assert.ok(features.includes('rememberPageScroll("analytics");'));
+assert.ok(fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8")
+ .includes('.page-scroll-shortcuts{position:fixed;'));
+const navCode=script.slice(script.indexOf('let currentMainPage='),
+ script.indexOf('function renderStatus(){'));
+assert.ok(navCode.includes('function navigate(')&&navCode.includes('function rememberPageScroll('));
+const fakeNodes={
+ pageScrollShortcuts:{hidden:true},
+ pageScrollTop:{hidden:true},
+ pageScrollBottom:{hidden:true},
+ strengthDetailExpander:{open:false,handlers:{},
+  addEventListener(type,fn){this.handlers[type]=fn}}
+};
+const pageIds=["home","analytics","record","body","sleep","voice","settings"];
+const fakePages=pageIds.map(name=>({id:"page-"+name,
+ classList:{toggle(){}}}));
+const fakeTabs=pageIds.map(page=>({dataset:{page},classList:{toggle(){}}}));
+const pendingFrames=[],nativePrefs=[];
+const fakeDocument={
+ body:{dataset:{}},documentElement:{scrollHeight:3000,scrollTop:0},
+ scrollingElement:{scrollHeight:3000},hidden:false,
+ addEventListener(){},
+ querySelectorAll(selector){return selector===".page"?fakePages:fakeTabs}
+};
+const fakeWindow={
+ scrollY:0,innerHeight:800,
+ BodyTraceNative:{
+  setUiScrollPosition:(page,top)=>nativePrefs.push({page,top}),
+  setUiNavigation:()=>{},
+  setStrengthDetailExpanded:open=>nativePrefs.push({expanded:open})
+ },
+ addEventListener(){},
+ scrollTo(a,b){this.scrollY=typeof a==="object"?a.top:b}
+};
+const fakeNav=vm.runInNewContext(navCode+"\n({navigate,pageScrollPositions,renderPageScrollShortcuts})",{
+ document:fakeDocument,window:fakeWindow,BodyTraceNative:fakeWindow.BodyTraceNative,
+ $:id=>fakeNodes[id],requestAnimationFrame:fn=>pendingFrames.push(fn)
+});
+function flushScrollFrames(){
+ for(let i=0;i<16&&pendingFrames.length;i++){
+  const jobs=pendingFrames.splice(0);
+  jobs.forEach(job=>job());
+ }
+ assert.equal(pendingFrames.length,0,"Scroll update must not schedule infinite animation frames");
+}
+// Restoring the already-active home tab on app startup must work.
+fakeNav.pageScrollPositions.set("home",135);
+fakeNav.navigate("home",false);flushScrollFrames();
+assert.equal(fakeWindow.scrollY,135);
+fakeNav.navigate("analytics");flushScrollFrames();
+fakeWindow.scrollY=345;
+fakeNav.navigate("record");flushScrollFrames();
+assert.equal(fakeNav.pageScrollPositions.get("analytics"),345);
+fakeWindow.scrollY=625;
+fakeNav.navigate("analytics");flushScrollFrames();
+assert.equal(fakeWindow.scrollY,345,"Returning to trends restores its old offset");
+assert.equal(fakeNav.pageScrollPositions.get("record"),625);
+fakeNav.navigate("record");flushScrollFrames();
+assert.equal(fakeWindow.scrollY,625,"Returning to records restores its independent offset");
+assert.ok(nativePrefs.some(x=>x.page==="analytics"&&x.top===345));
+assert.ok(nativePrefs.some(x=>x.page==="record"&&x.top===625));
+fakeWindow.scrollY=0;fakeNav.renderPageScrollShortcuts();
+assert.equal(fakeNodes.pageScrollTop.hidden,true);
+assert.equal(fakeNodes.pageScrollBottom.hidden,false);
+fakeWindow.scrollY=1100;fakeNav.renderPageScrollShortcuts();
+assert.equal(fakeNodes.pageScrollTop.hidden,false);
+assert.equal(fakeNodes.pageScrollBottom.hidden,false);
+fakeWindow.scrollY=2200;fakeNav.renderPageScrollShortcuts();
+assert.equal(fakeNodes.pageScrollBottom.hidden,true);
+fakeNodes.strengthDetailExpander.open=true;
+fakeNodes.strengthDetailExpander.handlers.toggle();
+assert.ok(nativePrefs.some(x=>x.expanded===true));
+fakeNodes.strengthDetailExpander.open=false;
+fakeNodes.strengthDetailExpander.handlers.toggle();
+assert.ok(nativePrefs.some(x=>x.expanded===false));
+const receiverStart=features.indexOf("const originalReceive = window.bodyTraceReceive;");
+const receiverEnd=features.indexOf("\nrenderAllFeatures();\nupdateFoodPreview();",receiverStart);
+assert.ok(receiverStart>=0&&receiverEnd>receiverStart);
+const receiverCode=features.slice(receiverStart,receiverEnd);
+const savedExerciseTarget={
+ dataset:{exerciseId:"row"},highlighted:false,
+ getBoundingClientRect:()=>({top:360}),
+ classList:{add(className){savedExerciseTarget.highlighted=className==="strength-exercise-jump-target"},
+  remove(){}}
+};
+const savedDetail={open:false},saveFrames=[],jumpMemory=[];
+const saveWindow={
+ scrollY:60,bodyTraceReceive:()=>{},
+ scrollTo(x,y){this.scrollY=y}
+};
+const savedReceiver=vm.runInNewContext(
+ 'let currentMainPage="record";const navigate=name=>{currentMainPage=name};\n'+
+ receiverCode+'\n({trigger:window.bodyTraceReceive,page:()=>currentMainPage})',{
+ window:saveWindow,
+ $:id=>id==="strengthList"?
+  {querySelectorAll:()=>[savedExerciseTarget]}:savedDetail,
+ requestAnimationFrame:fn=>saveFrames.push(fn),
+ setTimeout:()=>{},renderAllFeatures:()=>{},
+ rememberPageScroll:page=>jumpMemory.push(page),
+ refreshPageScrollShortcuts:()=>{},toast:()=>{}
+});
+savedReceiver.trigger({type:"local_saved",event:{exercise_id:"row"}});
+for(let i=0;i<5&&saveFrames.length;i++){
+ const jobs=saveFrames.splice(0);jobs.forEach(job=>job());
+}
+assert.equal(savedReceiver.page(),"analytics");
+assert.equal(savedDetail.open,true,"Save must open individual exercise charts");
+assert.equal(saveWindow.scrollY,406,"Scroll to saved exercise's individual chart");
+assert.deepEqual(jumpMemory,["analytics"]);
+assert.equal(savedExerciseTarget.highlighted,true);
+
 const ergonomicCss=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(ergonomicCss.includes('.tabs button{flex:1 1 0;min-width:0;max-width:none;min-height:48px'));
 const bodySection=html.slice(html.indexOf('id="page-body"'),html.indexOf('id="page-voice"'));

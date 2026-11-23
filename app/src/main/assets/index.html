@@ -835,7 +835,12 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 <button type="button" data-page="sleep"><span class="ico">☾</span>睡眠</button>
 <button type="button" data-page="voice"><span class="ico">♫</span>声音</button>
 <button type="button" data-page="settings"><span class="ico">≡</span>日志</button>
-</nav><div id="toast" role="status"></div>
+</nav>
+<div id="pageScrollShortcuts" class="page-scroll-shortcuts" role="group" aria-label="页面快速滚动" hidden>
+ <button type="button" id="pageScrollTop" aria-label="回到页面顶部" title="回顶部" hidden>↑</button>
+ <button type="button" id="pageScrollBottom" aria-label="跳到页面底部" title="到底部" hidden>↓</button>
+</div>
+<div id="toast" role="status"></div>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
@@ -985,19 +990,84 @@ function checkApkVersionManual(){
  $("apkUpdateStatus").textContent="仅检查 GitHub 版本，不下载文件…";
  BodyTraceNative.checkApkVersion();
 }
-let currentMainPage="home",navigationTouched=false;
+let currentMainPage="home",navigationTouched=false,initialPagePreferenceApplied=false;
+document.body.dataset.activePage="home";
 const allowedMainPages=new Set(["home","analytics","record","body","sleep","voice","settings"]);
+const pageScrollPositions=new Map([...allowedMainPages].map(name=>[name,0]));
+const pageScrollDirty=new Set();
+let scrollRestoreTicket=0,scrollButtonsFrame=false;
+function currentScrollTop(){
+ return Math.max(0,Math.round(window.scrollY||document.documentElement.scrollTop||0));
+}
+function maximumScrollTop(){
+ const scroller=document.scrollingElement||document.documentElement;
+ return Math.max(0,scroller.scrollHeight-window.innerHeight);
+}
+function rememberPageScroll(page=currentMainPage){
+ if(!allowedMainPages.has(page))return;
+ const top=currentScrollTop();
+ pageScrollPositions.set(page,top);
+ pageScrollDirty.add(page);
+ window.BodyTraceNative?.setUiScrollPosition?.(page,top);
+}
+function renderPageScrollShortcuts(){
+ const top=currentScrollTop(),bottom=maximumScrollTop();
+ const canGoUp=bottom>220&&top>90;
+ const canGoDown=bottom>220&&bottom-top>90;
+ $("pageScrollTop").hidden=!canGoUp;
+ $("pageScrollBottom").hidden=!canGoDown;
+ $("pageScrollShortcuts").hidden=!(canGoUp||canGoDown);
+}
+function refreshPageScrollShortcuts(){
+ if(scrollButtonsFrame)return;
+ scrollButtonsFrame=true;
+ requestAnimationFrame(()=>{
+  scrollButtonsFrame=false;
+  renderPageScrollShortcuts();
+ });
+}
+$("pageScrollTop").onclick=()=>window.scrollTo({top:0,behavior:"smooth"});
+$("pageScrollBottom").onclick=()=>window.scrollTo({top:maximumScrollTop(),behavior:"smooth"});
+window.addEventListener("scroll",refreshPageScrollShortcuts,{passive:true});
+window.addEventListener("resize",refreshPageScrollShortcuts);
+document.addEventListener("visibilitychange",()=>{
+ if(document.hidden)rememberPageScroll();
+});
+window.addEventListener("pagehide",()=>rememberPageScroll());
+const strengthDetailExpander=$("strengthDetailExpander");
+let strengthDetailStateTouched=false;
+let strengthDetailKnownOpen=strengthDetailExpander.open;
+strengthDetailExpander.addEventListener("toggle",()=>{
+ const expanded=strengthDetailExpander.open;
+ if(expanded!==strengthDetailKnownOpen){
+  strengthDetailKnownOpen=expanded;
+  strengthDetailStateTouched=true;
+  window.BodyTraceNative?.setStrengthDetailExpanded?.(expanded);
+ }
+ refreshPageScrollShortcuts();
+});
 function navigate(name,fromUser=true){
  if(!allowedMainPages.has(name))return;
+ const changed=name!==currentMainPage;
+ // Capture the outgoing page BEFORE hiding it, or scrollY collapses to zero.
+ if(changed)rememberPageScroll(currentMainPage);
  currentMainPage=name;
+ document.body.dataset.activePage=name;
  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+name));
  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
  // Entering Settings is entirely offline; public API calls require a tap.
  if(fromUser){
   navigationTouched=true;
   if(window.BodyTraceNative?.setUiNavigation)BodyTraceNative.setUiNavigation(name);
-  window.scrollTo(0,0);
  }
+ if(changed||!fromUser){
+  const ticket=++scrollRestoreTicket;
+  requestAnimationFrame(()=>{
+   if(ticket!==scrollRestoreTicket||currentMainPage!==name)return;
+   window.scrollTo(0,pageScrollPositions.get(name)||0);
+   refreshPageScrollShortcuts();
+  });
+ }else refreshPageScrollShortcuts();
 }
 document.querySelectorAll(".tabs button").forEach(btn=>btn.onclick=()=>navigate(btn.dataset.page));
 function renderStatus(){
@@ -1614,10 +1684,24 @@ window.bodyTraceReceive=function(evt){
   renderStatus();break;
  case "ui_preferences":
   applyWorkoutHistoryVisibility(evt.show_workout_history!==false);
+  if(!strengthDetailStateTouched){
+   strengthDetailKnownOpen=evt.strength_detail_expanded===true;
+   strengthDetailExpander.open=strengthDetailKnownOpen;
+  }
+  if(evt.page_scroll_positions&&typeof evt.page_scroll_positions==="object"){
+   for(const name of allowedMainPages){
+    // A delayed preference response must not clobber new local scroll offsets.
+    if(pageScrollDirty.has(name))continue;
+    const saved=Number(evt.page_scroll_positions[name]);
+    if(Number.isFinite(saved)&&saved>=0)
+     pageScrollPositions.set(name,Math.min(Math.floor(saved),2000000));
+   }
+  }
   // Restore only if the user has not navigated since this WebView started.
-  // A delayed native response must never override a recent tap.
-  if(!navigationTouched)
+  if(!navigationTouched&&!initialPagePreferenceApplied){
+   initialPagePreferenceApplied=true;
    navigate(allowedMainPages.has(evt.last_main_page)?evt.last_main_page:"home",false);
+  }
   break;
  case "raw_history":
   state.rawNotes=Array.isArray(evt.notes)?evt.notes:[];
@@ -1652,7 +1736,9 @@ window.bodyTraceReceive=function(evt){
   const parsed=evt.view_model?.view_schema_version===1 ? fromViewModel(evt.view_model) : normaliseDays(evt.days||[]);
   state.rows=parsed.rows;state.measurements=parsed.measurements;state.nutrition=parsed.nutrition;
   state.hasCache=true;state.calendarBrowsing=false;indexData();state.selected=evt.event.date;renderHeat();renderDay();renderBody();
-  renderStatus();navigate("home");
+  renderStatus();
+  // The feature module navigates to the newly recorded exercise's own chart
+  // AFTER the per-exercise charts have been re-rendered.
   $("sourceLabel").textContent="已保存本机 JSON · "+state.rows.length+"组";
   toast(added.length+"组训练已保存本机，等待每日或手动同步");
   clearTrainingEdits();refreshExerciseRecommendation(true);
@@ -1751,5 +1837,6 @@ $("workoutEditDelete").onclick=()=>{
  $("workoutEditFeedback").textContent="正在本地保存删除事件…";
 };
 refreshExerciseRecommendation(true);renderStatus();renderHeat(true);renderDay();renderRawHistory();
+refreshPageScrollShortcuts();
 if(window.BodyTraceNative)BodyTraceNative.ready();
 </script></body></html>
