@@ -15,7 +15,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parent.parent
 UI_FILES = (
     "index.html", "features.css", "wheel.js", "features.js",
-    "exercise_catalog.js", "git_log.js", "sleep.js", "sleep_visualization.js", "voice_lab.js",
+    "exercise_catalog.js", "git_log.js", "sleep.js", "rest_timer.js", "sleep_visualization.js", "voice_lab.js",
 )
 UI_ROOT = ROOT / "app/src/main/assets"
 NATIVE_ROOT = ROOT / "app/src/main"
