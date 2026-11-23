@@ -1501,16 +1501,17 @@ public final class MainActivity extends Activity {
         event.put("type", "measurement");
         event.put("id", UUID.randomUUID().toString());
         event.put("date", date);
-        final String[] keys = {"weight_kg", "shoulder_cm", "chest_cm", "waist_cm",
-                "upper_arm_cm", "hip_cm", "thigh_cm", "calf_cm"};
+        final String[] keys = {"weight_kg", "body_fat_pct", "shoulder_cm", "chest_cm",
+                "waist_cm", "upper_arm_cm", "abdomen_cm", "hip_cm", "thigh_cm",
+                "calf_cm", "muscle_mass_kg"};
         int supplied = 0;
         for (String key : keys) {
             if (!input.has(key) || input.isNull(key)) continue;
             Object raw = input.get(key);
             if (!(raw instanceof Number)) throw new IllegalArgumentException(key + " 需要数字");
             double value = ((Number) raw).doubleValue();
-            double min = key.equals("weight_kg") ? 20 : 10;
-            double max = key.equals("weight_kg") ? 300 : 300;
+            double min = key.equals("weight_kg") ? 20 : key.equals("body_fat_pct") ? 1 : 5;
+            double max = key.equals("body_fat_pct") ? 75 : 300;
             if (!Double.isFinite(value) || value < min || value > max ||
                     Math.abs(value * 10 - Math.rint(value * 10)) > 0.00001) {
                 throw new IllegalArgumentException(key + " 超出范围或不是0.1精度");
