@@ -612,14 +612,16 @@
   $("phoneSleepStatus").textContent=evt.message||"无法获取系统使用记录";
   $("phoneSleepGrant").hidden=state!=="permission_required";
   const history=$("phoneSleepHistory");history.replaceChildren();
-  if(state!=="ready"){
+  const hasSaved=Array.isArray(evt.history)&&evt.history.length>0;
+  if(state!=="ready"&&!(state==="no_events"&&hasSaved)){
    $("phoneSleepCoverage").hidden=true;
    return;
   }
   const reports=Array.isArray(evt.history)?evt.history:[];
   $("phoneSleepCoverage").hidden=false;
   $("phoneSleepCoverage").textContent=
-   "可读："+phoneStamp(evt.first_event_ms)+"—"+phoneStamp(evt.last_event_ms)+
+   (state==="no_events"?"仅显示本机已存历史":
+    "可读："+phoneStamp(evt.first_event_ms)+"—"+phoneStamp(evt.last_event_ms))+
    " · 扫描 "+(Number(evt.events_scanned)||0)+" 条"+
    " · 候选 "+reports.length+" · 已人工标记 "+
    reports.filter(r=>!!r.reviewed).length+
