@@ -559,23 +559,9 @@ body.overview-muscle-open{overflow:hidden}
   <details class="phone-sleep-help">
    <summary>ⓘ 数据来源和识别规则</summary>
    <p>读取 Android 当前仍保留的亮屏、熄屏、锁屏及开关机事件，不限定夜间或最近七天。系统可能清除旧事件，空白日期不能视为未睡。</p>
-   <p>连续四小时以上未明显使用才列为候选；短暂亮屏（每次最多两分钟、累计最多五分钟且不能太频繁）可合并。关机或重启会打断证据链。夜间或凌晨优先标为疑似，其他时间为未知。</p>
-   <p>通知亮屏和短暂看时间可能被容忍；无操作不能证明实际睡眠。你可选择“睡了／没睡／未知”，结果仅存手机本地，重新扫描不会覆盖人工判断。</p>
+   <p>连续四小时以上未明显使用才列为候选；短暂亮屏（每次最多两分钟、累计最多五分钟且不能太频繁）可合并。关机或重启会打断证据链。21:00–次日09:00开始、持续4–16小时的完整区间自动归为「睡眠」，包含凌晨5点才入睡；其他时段和超长区间为「未知」。</p>
+   <p>通知亮屏和短暂看时间可容忍；不再每天弹窗，异常条目由你自行查看。自动识别不是医学确认；可随时改为“睡了／没睡／未知”，人工修正会留在本机且扫描不覆盖。</p>
   </details>
-  <div id="phoneSleepPrompt" class="phone-sleep-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="phoneSleepPromptTitle">
-   <div class="phone-sleep-dialog-card">
-    <h3 id="phoneSleepPromptTitle">发现可能的休息区间</h3>
-    <p class="sub" id="phoneSleepPromptTime"></p>
-    <strong id="phoneSleepPromptDuration"></strong>
-    <p class="sub">没操作手机不代表一定睡了，请确认一次。其他候选可以直接在列表中修改。</p>
-    <div class="phone-sleep-dialog-actions">
-     <button type="button" id="phoneSleepPromptConfirm">✓ 确实睡了</button>
-     <button type="button" class="secondary" id="phoneSleepPromptNo">× 没睡</button>
-     <button type="button" class="secondary" id="phoneSleepPromptUnknown">? 未知</button>
-    </div>
-    <button type="button" class="secondary phone-sleep-dismiss" id="phoneSleepPromptLater">稍后再说</button>
-   </div>
-  </div>
  </div>
  <details class="sleep-watch-probe" id="vivoSleepPanel">
   <summary>vivo WATCH 5 · 睡眠数据 <span id="vivoSleepBadge">未检测</span></summary>
@@ -922,6 +908,11 @@ body.overview-muscle-open{overflow:hidden}
  <button type="button" id="syncSettings" class="primary settings-sync-button">⇅ 立即同步 GitHub</button>
  <div><span class="sub">每天首次打开自动同步一次；其他时候点此手动同步</span><p class="sub" id="lastSyncSettings" role="status">上次成功同步：读取中…</p></div>
 </div>
+<details class="panel" id="startupDiagnostic" hidden>
+ <summary>ⓘ 上次异常退出诊断（仅本机）</summary>
+ <p class="sub">更新安装会结束旧进程；只有实际异常记录才能进一步判断原因。日志不会上传。</p>
+ <pre id="startupDiagnosticDetails" style="white-space:pre-wrap;word-break:break-all;font-size:11px"></pre>
+</details>
 <div class="panel" id="apkUpdatePanel">
  <div class="row apk-update-heading">
   <h2>APP 版本更新</h2>
@@ -2212,7 +2203,16 @@ window.bodyTraceReceive=function(evt){
   pre.style.display="block";
   toast("已显示由 App 本地生成的 view_model.json");break;
  }
- case "error":
+ case "startup_diagnostic":{
+   const panel=$("startupDiagnostic");
+   if(panel&&evt.message){
+    panel.hidden=false;
+    $("startupDiagnosticDetails").textContent=
+     (evt.when_ms?formatSyncTime(evt.when_ms)+"\n":"")+String(evt.message);
+   }
+   break;
+  }
+  case "error":
   if(workoutEditBusy){workoutEditBusy=false;$("workoutEditFeedback").textContent=evt.message||"保存失败";}
   toast(evt.message||"操作失败",true);break;
  }
