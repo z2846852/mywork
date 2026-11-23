@@ -270,63 +270,108 @@ body.overview-muscle-open{overflow:hidden}
 </section>
 
 <section class="page" id="page-record">
-<div class="panel record-panel"><h2>记录训练</h2><p class="sub record-hint">本机即时保存；仅在每日首次启动或手动同步时访问 GitHub。 <span id="recordRegionBadge" class="record-region-badge">全部动作</span></p>
-<div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
-<div class="formgrid exercise-top-row">
- <div class="field"><label for="recordGroup">训练部位</label>
- <select id="recordGroup" aria-label="先选训练部位">
- <option value="">全部动作</option>
- <option value="胸">胸</option><option value="肩">肩</option><option value="背">背</option>
- <option value="腿">腿</option><option value="其他">其他（手臂、核心等）</option></select></div>
- <div class="field"><label for="recordExercise">训练动作</label>
- <select id="recordExercise" aria-label="再选训练动作"></select></div>
- </div>
- <div class="row wrap exercise-actions-row" aria-label="动作列表增删操作">
-   <button type="button" class="secondary mini exercise-quick-add" id="quickAddExercise">＋ 新增动作</button>
-   <button type="button" class="secondary mini exercise-quick-remove" id="manageExercises">－ 删除 / 恢复动作</button>
-   <select id="recordSortMode" class="select" aria-label="动作排序" style="width:auto;max-width:120px">
-    <option value="recent">最近使用</option><option value="region">按部位</option>
-   </select>
- </div>
- <p class="sub">四大训练部位为胸、肩、背、腿；手臂与核心等独立动作归入“其他”，不挤占四分格。</p>
- <div id="exerciseManager" class="exercise-manager panel inner" hidden>
- <div class="row"><h3>动作管理</h3><button type="button" id="closeExerciseManager" class="mini">完成</button></div>
- <p class="sub">内置动作可隐藏/恢复；自定义动作可移出目录（需要二次确认）。这只影响可选动作，不会删除训练历史。</p>
- <div class="formgrid">
-  <div class="field"><label for="customActionName">新增动作名称</label><input id="customActionName" maxlength="60" placeholder="例如：单臂哑铃划船"></div>
-  <div class="field"><label for="customActionRegion">训练部位</label>
-   <select id="customActionRegion">
-    <option value="胸">胸</option><option value="肩">肩</option><option value="背">背</option>
-    <option value="腿">腿</option><option value="其他">其他（手臂、核心等）</option>
-   </select>
+ <div class="panel record-panel">
+  <div class="record-top-heading">
+   <div><h2>训练记录</h2><p class="sub">一组一记 · 离线保存</p></div>
+   <span id="recordRegionBadge" class="record-region-badge">全部动作</span>
   </div>
+  <div class="formgrid exercise-top-row record-exercise-pick">
+   <div class="field"><label for="recordGroup">部位</label>
+    <select id="recordGroup" aria-label="先选训练部位">
+     <option value="">全部动作</option>
+     <option value="胸">胸</option><option value="肩">肩</option><option value="背">背</option>
+     <option value="腿">腿</option><option value="其他">其他（手臂、核心等）</option>
+    </select></div>
+   <div class="field"><label for="recordExercise">动作</label>
+    <select id="recordExercise" aria-label="再选训练动作"></select></div>
+  </div>
+  <div class="record-session-strip">
+   <div class="record-progress-main"><span>今日本动作</span><strong id="recordProgress">0 / 4 组</strong></div>
+   <div id="recordSetDots" class="record-set-dots" aria-label="今天已保存的训练组"></div>
+   <label class="record-target-label" for="recordTargetSets">目标
+    <select id="recordTargetSets" aria-label="本动作目标组数">
+     <option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+     <option value="5">5</option><option value="6">6</option><option value="8">8</option><option value="10">10</option>
+    </select>
+   </label>
+  </div>
+  <div class="formgrid record-number-row">
+   <div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label>
+    <div class="wheel-entry"><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="点此用滚轮选择" readonly aria-label="选择器械重量"><button type="button" id="wheelKgOpen" class="wheel-open" aria-label="打开重量滚轮">▥</button></div></div>
+   <div class="field"><label for="recordReps">每组次数（0 = 未完成）</label>
+    <div class="wheel-entry"><input id="recordReps" type="number" min="0" max="200" step="1" inputmode="numeric" value="10" readonly aria-label="选择次数"><button type="button" id="wheelRepsOpen" class="wheel-open" aria-label="打开次数滚轮">▥</button></div></div>
+  </div>
+  <section class="record-rest-card" id="recordRestCard" aria-label="组间休息计时器">
+   <div class="record-rest-top">
+    <span>组间休息 <small id="recordRestExercise">默认动作</small></span>
+    <div class="record-rest-config" aria-label="调整此动作的默认组间休息">
+     <button type="button" id="recordRestShorter" class="secondary mini" aria-label="该动作休息时间减少15秒">−15</button>
+     <strong id="recordRestPreset">02:00</strong>
+     <button type="button" id="recordRestLonger" class="secondary mini" aria-label="该动作休息时间增加15秒">+15</button>
+    </div>
+   </div>
+   <div class="record-rest-time-row">
+    <strong id="recordRestClock" class="record-rest-clock" aria-live="off">02:00</strong>
+    <div class="record-rest-description"><b id="recordRestState">尚未开始</b>
+     <span id="recordRestHint">保存一组后自动计时，也可直接开始</span>
+    </div>
+   </div>
+   <div class="record-rest-actions">
+    <button type="button" id="recordRestStart" class="secondary">▶ 开始休息</button>
+    <button type="button" id="recordRestStop" class="secondary" disabled>结束计时</button>
+   </div>
+  </section>
+  <div class="record-save-dock">
+   <button class="primary" id="saveRecord">✓ 保存本组并休息</button>
+   <button class="secondary" id="saveRecordOnly">只保存</button>
+  </div>
+  <details class="record-advanced-tools" id="recordAdvancedTools">
+   <summary>更多设置 <small>日期 · 批量组数 · 动作管理 · 备注</small></summary>
+   <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
+   <div class="row wrap exercise-actions-row" aria-label="动作列表增删操作">
+    <button type="button" class="secondary mini exercise-quick-add" id="quickAddExercise">＋ 新增动作</button>
+    <button type="button" class="secondary mini exercise-quick-remove" id="manageExercises">－ 删除 / 恢复动作</button>
+    <select id="recordSortMode" class="select" aria-label="动作排序" style="width:auto;max-width:120px">
+     <option value="recent">最近使用</option><option value="region">按部位</option>
+    </select>
+   </div>
+   <div id="exerciseManager" class="exercise-manager panel inner" hidden>
+    <div class="row"><h3>动作管理</h3><button type="button" id="closeExerciseManager" class="mini">完成</button></div>
+    <p class="sub">内置动作可隐藏/恢复；自定义动作可移出目录。这些操作不会删除已有训练历史。</p>
+    <div class="formgrid">
+     <div class="field"><label for="customActionName">新增动作名称</label><input id="customActionName" maxlength="60" placeholder="例如：单臂哑铃划船"></div>
+     <div class="field"><label for="customActionRegion">训练部位</label>
+      <select id="customActionRegion"><option value="胸">胸</option><option value="肩">肩</option>
+       <option value="背">背</option><option value="腿">腿</option>
+       <option value="其他">其他（手臂、核心等）</option></select>
+     </div>
+    </div>
+    <button type="button" id="addCustomExercise" class="primary">＋ 新增到动作列表</button>
+    <div id="exerciseManageList" class="exercise-manage-list"></div>
+    <p class="note">动作目录本机保存，随后同步到 GitHub；不删除训练组。</p>
+   </div>
+   <div class="field"><label for="recordSets">批量保存相同重量和次数的组数（默认1组）</label>
+    <div class="wheel-entry"><input id="recordSets" type="number" min="1" max="10" step="1" value="1" readonly aria-label="选择组数"><button type="button" class="wheel-open" id="wheelSetsOpen" aria-label="打开组数滚轮">▥</button></div></div>
+   <p class="sub">批量保存多组不会伪造中间休息时间。0次表示本组尝试失败，趋势里仍可查看。</p>
+   <details class="record-extra"><summary>重量单位与训练备注（可选）</summary>
+    <div class="field"><label for="recordLoadBasis">重量记录方式</label>
+     <select id="recordLoadBasis"><option value="machine">器械标称重量</option>
+      <option value="per_side">每侧重量</option><option value="bodyweight">自重动作（仅记录外加重量）</option>
+      <option value="unspecified">重量标注方式待确认</option></select></div>
+    <div class="field"><label for="recordNote">训练备注（最多200字）</label>
+     <input id="recordNote" maxlength="200" placeholder="例如：手腕酸痛、未完成原因"></div>
+   </details>
+   <div class="row wrap record-default-tools">
+    <p class="sub" id="suggestedLoad" role="status">默认沿用上次保存的重量和次数。</p>
+    <button type="button" class="secondary mini" id="resetTrainingDefault">Reset · 旧版10组</button>
+   </div>
+   <details class="record-advanced-help"><summary>ⓘ 保存规则和休息时间</summary>
+    <p>所有训练组先离线写入本地 JSON，之后按现有规则同步。目标4组只是进度提示，不会自动新增组。休息计时依据时钟时间，切换页面或短暂切到后台后仍按真实经过时间显示；归零后显示负数。不同动作使用预设休息间隔，随时可按 ±15 秒微调。组间休息不是强制时间，恢复不足时可延长。</p>
+   </details>
+   <div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
+  </details>
  </div>
- <button type="button" id="addCustomExercise" class="primary">＋ 新增到动作列表</button>
- <div id="exerciseManageList" class="exercise-manage-list"></div>
- <p class="note">动作设置本机即时保存，并同步至 GitHub <span class="code">data/exercise_catalog.json</span>。仅管理动作目录，不删除按天保存的训练组。</p>
-</div>
-<div class="formgrid">
- <div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label>
- <div class="wheel-entry"><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="点此用滚轮选择" readonly aria-label="选择器械重量"><button type="button" id="wheelKgOpen" class="wheel-open" aria-label="打开重量滚轮">▥</button></div></div>
- <div class="field"><label for="recordReps">每组次数（0 = 未完成）</label>
- <div class="wheel-entry"><input id="recordReps" type="number" min="0" max="200" step="1" inputmode="numeric" value="10" readonly aria-label="选择次数"><button type="button" id="wheelRepsOpen" class="wheel-open" aria-label="打开次数滚轮">▥</button></div></div>
-</div>
-<div class="field"><label for="recordSets">连续保存相同重量和次数的组数</label><div class="wheel-entry"><input id="recordSets" type="number" min="1" max="10" step="1" value="1" readonly aria-label="选择组数"><button type="button" class="wheel-open" id="wheelSetsOpen" aria-label="打开组数滚轮">▥</button></div></div>
-<p class="sub">次数为 0 表示尝试失败，在趋势图底部显示可点击红点；其他训练正常统计。</p>
-<details class="record-extra"><summary>重量单位与训练备注（可选）</summary>
-<div class="field"><label for="recordLoadBasis">重量记录方式</label>
-<select id="recordLoadBasis"><option value="machine">器械标称重量</option><option value="per_side">每侧重量</option><option value="bodyweight">自重动作（仅记录外加重量）</option><option value="unspecified">重量标注方式待确认</option></select></div>
-<div class="field"><label for="recordNote">训练备注（最多200字）</label>
-<input id="recordNote" maxlength="200" placeholder="例如：手腕酸痛、未完成原因"></div>
-</details>
-<div class="row wrap" style="gap:8px;margin-top:8px">
- <p class="sub" id="suggestedLoad" role="status" style="flex:1;min-width:160px;margin:0">默认沿用上次保存的重量和次数。</p>
- <button type="button" class="secondary mini" id="resetTrainingDefault">Reset · 旧版10组</button>
- </div>
- <div class="record-save-dock"><button class="primary" id="saveRecord">＋ 保存本组训练</button></div>
-<p class="note">保存不需要网络，数据首先按原样 JSON 保存；记录只入本地待同步队列；每日首次打开或点击同步时才统一上传及拉取。辅助引体的重量代表器械标称辅助量。少于15次按你的记录约定推定 RIR0，不等于独立验证力竭。</p>
-<div id="saveHelp" class="alert" style="display:none">未连接 GitHub 时只保存本地，连接并同步后上传。</div>
-</div></section>
+</section>
 
 <section class="page" id="page-sleep">
  <div class="panel sleep-workbench">
