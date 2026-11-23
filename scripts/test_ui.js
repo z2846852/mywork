@@ -1118,7 +1118,18 @@ assert.ok(features.includes('clear.textContent="显示全部曲线"'));
 assert.ok(featureStyles.includes('min-width:0!important;height:auto'));
 assert.ok(html.includes('aria-label="胸肩背腿所有动作同一纵轴、同一完整图，点击动作后纵轴放大"'));
 assert.ok(features.includes('const trendColorShades='));
-assert.ok(featureStyles.includes('.combined-trend-legend-item{display:inline-flex'));
+assert.ok(featureStyles.includes('.combined-trend-legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))'));
+assert.ok(featureStyles.includes('text-overflow:ellipsis;text-align:center'));
+assert.ok(!features.includes('combined-trend-legend-region'));
+assert.ok(features.includes('const columns=trendLegendColumns(all);'));
+assert.ok(features.includes('const maxRows=Math.max(...columns.map(items=>items.length))'));
+assert.ok(features.includes('button.append(name,key)'));
+assert.ok(features.includes('name.textContent=fullName;'));
+assert.ok(features.includes('key.append(sample,svgMarker(group.marker,36,8,group.color,4.2));'));
+assert.ok(features.includes('button.onclick=()=>setFocus(group.key,null);'));
+assert.ok(features.includes('root.append(legend,details);'));
+assert.ok(features.includes('help.className="combined-trend-help"'));
+assert.ok(html.includes('点击曲线或下方动作查看趋势；再次点击恢复全图。'));
 assert.ok(!html.includes('aria-label="胸肩背腿四个训练趋势图"'));
 assert.ok(html.includes('id="muscleLegend"'));
 const chartStart=features.indexOf("const dashboardRegions=");
@@ -1164,6 +1175,21 @@ assert.equal(new Set(Object.values(trendPalettes).flat()).size,
  Object.values(trendPalettes).flat().length);
 const estimateJs=features.slice(features.indexOf('const trendColorShades='),
  features.indexOf('function renderRegionDashboard(){'));
+const orderedColumns=vm.runInNewContext(estimateJs+'\ntrendLegendColumns',{
+ dashboardRegions:["胸","肩","背","腿"]
+});
+const mockSeries=[
+ {region:"背",name:"老划船",key:"back-old",points:[{date:"2026-11-01"}]},
+ {region:"胸",name:"旧胸推",key:"chest-old",points:[{date:"2026-11-02"}]},
+ {region:"腿",name:"深蹲",key:"leg-a",points:[{date:"2026-11-18"}]},
+ {region:"胸",name:"新胸推",key:"chest-new",points:[{date:"2026-11-19"}]},
+ {region:"背",name:"新划船",key:"back-new",points:[{date:"2026-11-20"}]},
+ {region:"胸",name:"中间胸推",key:"chest-mid",points:[{date:"2026-11-15"}]}
+];
+assert.deepEqual(JSON.parse(JSON.stringify(orderedColumns(mockSeries).map(
+ column=>column.map(group=>group.key)))),
+ [["chest-new","chest-mid","chest-old"],[],["back-new","back-old"],["leg-a"]],
+ "Columns stay fixed while each region is sorted by latest training");
 const estimate=vm.runInNewContext(estimateJs+'\ntrendData',{
  dashboardRegions:["胸","肩","背","腿"],
  categoryForRow:r=>({hip_thrust:"腿",adductor:"腿",abductor:"腿",assisted_pullup:"背",
