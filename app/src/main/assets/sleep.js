@@ -124,6 +124,7 @@
   const mode=$("sleepDetectionMode").value;
   const active=selectedAiActive();
   $("sleepAiControls").hidden=!active;
+  $("sleepAiScoreControls").hidden=!active;
   $("sleepThresholdWorkbench").hidden=mode!=="level";
   $("sleepDetectionMode").disabled=!aiAvailable()&&!speechAvailable();
   const missing=mode==="speech"&&!speechAvailable();
@@ -393,9 +394,12 @@
  }
  function renderEvents(){
   const root=$("sleepAnalysis");root.replaceChildren();
-  if(!analysis||analysis.id!==selectedId)return;
+  if(!analysis||analysis.id!==selectedId){
+   $("sleepQuickSummary").textContent="暂无候选片段";return;
+  }
   const head=document.createElement("p");head.className="sleep-analysis-summary";
   const events=Array.isArray(analysis.events)?analysis.events:[];
+  $("sleepQuickSummary").textContent=events.length+" 段候选";
   const total=events.reduce((sum,e)=>sum+(Number(e.active_sec)||0),0);
   const mode=analysis.detection_mode==="speech"?"疑似梦话（人声候选）":
    analysis.detection_mode==="ai"?"AI 鼾声候选":"响度候选";
