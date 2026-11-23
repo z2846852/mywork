@@ -50,6 +50,24 @@ jobs:
           PY
       - name: Fetch and SHA256-verify offline YAMNet model
         run: bash scripts/fetch_yamnet.sh
+      - name: Reuse previously verified human IPA Ogg audio from latest signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ipa-previous" app/src/main/assets/ipa_audio
+          if gh release download --pattern 'BodyTrace-release.apk' \
+            --dir "$RUNNER_TEMP/ipa-previous" --clobber; then
+            for name in retroflex_sh.ogg central_i.ogg; do
+              target="app/src/main/assets/ipa_audio/$name"
+              unzip -p "$RUNNER_TEMP/ipa-previous/BodyTrace-release.apk" \
+                "assets/ipa_audio/$name" > "$target" || rm -f "$target"
+              if [[ -f "$target" && "$(head -c 4 "$target")" != "OggS" ]]; then
+                rm -f "$target"
+              fi
+            done
+          fi
       - name: Bundle pinned human IPA samples (Wikimedia Commons, CC BY-SA)
         run: |
           python3 scripts/fetch_ipa_samples.py
