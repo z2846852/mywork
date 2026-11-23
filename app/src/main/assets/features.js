@@ -456,6 +456,9 @@ function renderRegionDashboard(){
  if(!valid){root.textContent="起始日期不能晚于结束日期";return}
  const dataset=trendData(state.rows,from,end,trendAssistBase);
  const all=dataset.series;
+ const focusedForCaption=all.find(group=>group.key===trendFocusKey);
+ if(focusedForCaption)caption.textContent=caption.textContent.replace("全部动作",
+  focusedForCaption.name);
  const actionCount=document.createElement("span");actionCount.className="trend-overview-curves";
  actionCount.textContent=all.length+" 条曲线";
  aside.append(actionCount);
