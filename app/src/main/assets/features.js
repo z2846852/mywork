@@ -479,7 +479,7 @@ function renderRegionDashboard(){
  weightJump.textContent=trendAssistBase===null?"体重 未记录 ↗":"体重 "+round1(trendAssistBase)+" kg ↗";
  weightJump.title="读取「身体」最新体重；点击查看或更新身体指标";
  weightJump.setAttribute("aria-label","当前体重 "+(trendAssistBase===null?"未记录":round1(trendAssistBase)+" 千克")+"，查看身体指标");
- weightJump.onclick=()=>window.BodyTraceJumpTo?.("body",()=>$("bodyMetrics"));
+ weightJump.onclick=()=>window.BodyTraceEditBodyMetric?.("weight_kg");
  aside.append(weightJump);
  // A reference is established from the first recorded session for THIS
  // exercise, regardless of the currently selected viewing window.
@@ -948,9 +948,9 @@ function drawMuscleMap(){
    path.setAttribute("aria-label",label+"：最近28天"+counts[label]+"组");
    const labelEl=document.createElementNS("http://www.w3.org/2000/svg","title");
    labelEl.textContent=label+" · 最近28天 "+counts[label]+"组";path.append(labelEl);
-   path.addEventListener("click",()=>{selectedRegion=label;drawMuscleMap()});
+   path.addEventListener("click",()=>{selectedRegion=label;drawMuscleMap();$("bodyMuscleDetail").open=true});
    path.addEventListener("keydown",e=>{
-    if(e.key==="Enter"||e.key===" "){e.preventDefault();selectedRegion=label;drawMuscleMap()}
+    if(e.key==="Enter"||e.key===" "){e.preventDefault();selectedRegion=label;drawMuscleMap();$("bodyMuscleDetail").open=true}
    });
    svg.append(path);
   }
@@ -965,7 +965,7 @@ function drawMuscleMap(){
   const name=document.createElement("span");name.textContent=label;
   const qty=document.createElement("strong");qty.textContent=counts[label];
   chip.append(name,qty);
-  chip.addEventListener("click",()=>{selectedRegion=label;drawMuscleMap()});
+  chip.addEventListener("click",()=>{selectedRegion=label;drawMuscleMap();$("bodyMuscleDetail").open=true});
   legend.append(chip);
  }
  const key=selectedRegion,n=counts[key]||0;
@@ -979,23 +979,21 @@ function latestMetric(key) {
   return r?Number(r[key]):null;
 }
 function renderProfile(){
-  const list=$("profileStats");list.replaceChildren();
-  const weight=latestMetric("weight_kg"),waist=latestMetric("waist_cm"),
-    chest=latestMetric("chest_cm");
-  const entries=[
-    ["身高",FIXED_HEIGHT_CM+"cm"],
-    ["体重",weight===null?"—":weight+"kg"],
-    ["BMI参考",weight===null?"—":round1(weight/(FIXED_HEIGHT_CM/100)**2)],
-    ["腰围",waist===null?"—":waist+"cm"],
-    ["胸围",chest===null?"—":chest+"cm"],
-    ["腰高比",waist===null?"—":(waist/FIXED_HEIGHT_CM).toFixed(3)]
-  ];
-  for(const [label,val] of entries){
-    const card=document.createElement("div");card.className="profile-stat";
-    const strong=document.createElement("strong");strong.textContent=val;
-    const small=document.createElement("small");small.textContent=label;
-    card.append(strong,small);list.append(card);
-  }
+ const list=$("profileStats");list.replaceChildren();
+ const weight=latestMetric("weight_kg"),waist=latestMetric("waist_cm");
+ const entries=[
+  ["体重",weight===null?"—":round1(weight)+"kg"],
+  ["BMI",weight===null?"—":round1(weight/(FIXED_HEIGHT_CM/100)**2)],
+  ["腰高比",waist===null?"—":(waist/FIXED_HEIGHT_CM).toFixed(3)]
+ ];
+ for(const [label,value] of entries){
+  const card=document.createElement(label==="体重"?"button":"div");
+  card.className="profile-stat"+(label==="体重"?" profile-stat-link":"");
+  if(label==="体重"){card.type="button";card.title="快速编辑体重";card.onclick=()=>window.BodyTraceEditBodyMetric?.("weight_kg");}
+  const main=document.createElement("strong");main.textContent=value;
+  const caption=document.createElement("small");caption.textContent=label+(label==="体重"?" ↗":"");
+  card.append(main,caption);list.append(card);
+ }
 }
 // Recent means latest workout date per exercise; within the same day, use
 // source created_at if available, then stable input insertion order.
@@ -1323,7 +1321,7 @@ function avatarShowDetail(){
      (diff===0?"":Math.abs(diff).toFixed(1)+unit);
   }
  }
- $("avatarSelectedDetail").textContent=message+"。人物外形并未由围度精确重建。";
+ $("avatarSelectedDetail").textContent=message+"。";
 }
 function renderAvatar(){
  const dates=measuredDates();
@@ -1365,23 +1363,10 @@ function renderAvatar(){
     if(now.date!==selectedAvatarDate)delta.textContent+=" · "+now.date.slice(5);
    }
    button.append(label,value,delta);
-   button.onclick=()=>{selectedAvatarMetric=def.key;renderAvatar()};
+   button.onclick=()=>{selectedAvatarMetric=def.key;renderAvatar();$("bodyMeasureDetail").open=true};
    root.append(button);
   }
  }
- const weight=selectedAvatarDate?metricAt("weight_kg",selectedAvatarDate):null;
- const wprevious=weight?metricPrevious("weight_kg",weight.date):null;
- const w=$("avatarWeightSummary");w.replaceChildren();
- const name=document.createElement("span");name.textContent="体重";
- const value=document.createElement("strong");
- value.textContent=weight?metricText(weight.value)+"kg":"—";
- const change=document.createElement("span");
- if(weight&&wprevious){
-  const difference=weight.value-wprevious.value;
-  change.textContent=(difference>0?" ↑ ":difference<0?" ↓ ":" → ")+
-    Math.abs(difference).toFixed(1)+"kg";
- }
- w.append(name,value,change);
  avatarShowDetail();
  
 }
@@ -1390,13 +1375,16 @@ function renderAvatar(){
 // Values shown from earlier dates are recommendations, NOT new observations.
 const bodyEntryFields=[
  {key:"weight_kg",label:"体重",unit:"kg",min:20,max:300,step:0.1},
+ {key:"body_fat_pct",label:"体脂率",unit:"%",min:1,max:75,step:0.1},
  {key:"shoulder_cm",label:"肩围",unit:"cm",min:30,max:200,step:0.1},
  {key:"chest_cm",label:"胸围",unit:"cm",min:30,max:200,step:0.1},
  {key:"waist_cm",label:"腰围",unit:"cm",min:30,max:200,step:0.1},
  {key:"upper_arm_cm",label:"手臂围",unit:"cm",min:10,max:90,step:0.1},
+ {key:"abdomen_cm",label:"腹围",unit:"cm",min:30,max:200,step:0.1},
  {key:"hip_cm",label:"臀围",unit:"cm",min:30,max:200,step:0.1},
  {key:"thigh_cm",label:"大腿围",unit:"cm",min:20,max:120,step:0.1},
- {key:"calf_cm",label:"小腿围",unit:"cm",min:10,max:100,step:0.1}
+ {key:"calf_cm",label:"小腿围",unit:"cm",min:10,max:100,step:0.1},
+ {key:"muscle_mass_kg",label:"肌肉量",unit:"kg",min:5,max:200,step:0.1}
 ];
 let bodyEdited=new Map();
 $("bodyEntryDate").value=today;
@@ -1413,7 +1401,7 @@ function renderBodyEntry(){
   const reported=metricAt(def.key,date);
   const edited=bodyEdited.has(def.key),value=edited?bodyEdited.get(def.key):reported?.value;
   const button=document.createElement("button");
-  button.type="button";button.className="body-entry-metric";
+  button.type="button";button.className="body-entry-metric";button.dataset.metric=def.key;
   button.classList.toggle("changed",edited);
   const label=document.createElement("small");label.textContent=def.label;
   const current=document.createElement("strong");current.textContent=bodyEntryDisplay(def,value);
@@ -1442,6 +1430,11 @@ function renderBodyEntry(){
  const count=bodyEdited.size;
  $("bodyChangedCount").textContent=count?count+" 项待保存":"尚未选择本次测量项目";
 }
+window.BodyTraceOpenBodyMetric=function(key){
+ const tile=[...$("bodyEntryGrid").querySelectorAll(".body-entry-metric")]
+  .find(node=>node.dataset.metric===key);
+ if(tile)tile.click();
+};
 $("bodyEntryDate").addEventListener("change",()=>{
  bodyEdited.clear();renderBodyEntry();
 });
