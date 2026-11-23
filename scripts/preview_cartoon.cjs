@@ -269,7 +269,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     key:n.getAttribute("data-key")
    })));
   const symbols=await page.locator("#regionTrendGrid .combined-trend-legend-item")
-   .evaluateAll(nodes=>nodes.filter((_,i)=>i%4===3)
+   .evaluateAll(nodes=>nodes.filter(n=>/髋内收|髋外展/.test(n.textContent))
     .map(n=>n.querySelector(".combined-trend-marker")?.getAttribute("data-marker"))
     .filter(Boolean));
   if(legPairs.length!==2||new Set(legPairs.map(p=>p.dash)).size!==2||
