@@ -990,7 +990,8 @@ function checkApkVersionManual(){
  $("apkUpdateStatus").textContent="仅检查 GitHub 版本，不下载文件…";
  BodyTraceNative.checkApkVersion();
 }
-let currentMainPage="home",navigationTouched=false;
+let currentMainPage="home",navigationTouched=false,initialPagePreferenceApplied=false;
+document.body.dataset.activePage="home";
 const allowedMainPages=new Set(["home","analytics","record","body","sleep","voice","settings"]);
 const pageScrollPositions=new Map([...allowedMainPages].map(name=>[name,0]));
 const pageScrollDirty=new Set();
@@ -1051,6 +1052,7 @@ function navigate(name,fromUser=true){
  // Capture the outgoing page BEFORE hiding it, or scrollY collapses to zero.
  if(changed)rememberPageScroll(currentMainPage);
  currentMainPage=name;
+ document.body.dataset.activePage=name;
  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+name));
  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
  // Entering Settings is entirely offline; public API calls require a tap.
@@ -1058,7 +1060,7 @@ function navigate(name,fromUser=true){
   navigationTouched=true;
   if(window.BodyTraceNative?.setUiNavigation)BodyTraceNative.setUiNavigation(name);
  }
- if(changed){
+ if(changed||!fromUser){
   const ticket=++scrollRestoreTicket;
   requestAnimationFrame(()=>{
    if(ticket!==scrollRestoreTicket||currentMainPage!==name)return;
@@ -1696,8 +1698,10 @@ window.bodyTraceReceive=function(evt){
    }
   }
   // Restore only if the user has not navigated since this WebView started.
-  if(!navigationTouched)
+  if(!navigationTouched&&!initialPagePreferenceApplied){
+   initialPagePreferenceApplied=true;
    navigate(allowedMainPages.has(evt.last_main_page)?evt.last_main_page:"home",false);
+  }
   break;
  case "raw_history":
   state.rawNotes=Array.isArray(evt.notes)?evt.notes:[];
