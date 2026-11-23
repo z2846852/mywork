@@ -61,6 +61,18 @@ assert.equal(scroll.scrollLeft,900);
 const features=fs.readFileSync(path.join(root,"app/src/main/assets/features.js"),"utf8");
 const native=fs.readFileSync(path.join(root,
   "app/src/main/java/com/z2846852/bodytrace/MainActivity.java"),"utf8");
+const bodyCss=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
+assert.ok(html.indexOf('id="bodyTrendsPanel"')<html.indexOf('class="panel panel-avatar"'),
+ "Body trend cards should precede the large body schematic");
+assert.ok(html.indexOf('id="bodyEntryPanel"')>html.indexOf('class="panel panel-avatar"'),
+ "Body editor should be below the body overview");
+assert.match(bodyCss,/#page-body \.body-trend-grid\{display:grid;grid-template-columns:repeat\(2,/);
+assert.equal((html.match(/id="bodyTrends"/g)||[]).length,1);
+assert.equal((html.match(/id="bodyMetrics"/g)||[]).length,1);
+assert.ok(script.includes("window.BodyTraceEditBodyMetric=function(key)"));
+assert.ok(features.includes('weightJump.onclick=()=>window.BodyTraceEditBodyMetric?.("weight_kg")'));
+assert.ok(features.includes("window.BodyTraceOpenBodyMetric=function(key)"));
+
 const workflow=fs.readFileSync(path.join(root,".github/workflows/android.yml"),"utf8");
 new vm.Script(features,{filename:"features.js"});
 const wheel=fs.readFileSync(path.join(root,"app/src/main/assets/wheel.js"),"utf8");
