@@ -1809,3 +1809,28 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
  #page-analytics .training-overview-main strong{font-size:21px}
  #page-analytics .trend-region-pulse-item{font-size:9px;padding:3px 1px}
 }
+
+/* Phone activity review: short labels, full-width decisions, one-time prompt. */
+#page-sleep .phone-sleep-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:6px;padding:4px 9px 10px}
+#page-sleep .phone-sleep-actions button{padding:7px 3px;min-height:32px;font-size:10.5px;
+ border-radius:8px}
+#page-sleep .phone-sleep-actions button[aria-pressed="true"]{background:#275d43;
+ color:#dcffeb;border-color:#71cc9d}
+#page-sleep .phone-sleep-not_sleep{opacity:.7}
+#page-sleep .phone-sleep-confirmed_sleep>summary{color:#92ebbb}
+#page-sleep .phone-sleep-unknown>summary{color:#e7c88b}
+#page-sleep .phone-sleep-dialog[hidden]{display:none!important}
+#page-sleep .phone-sleep-dialog{position:fixed;inset:0;z-index:10000;
+ background:#000b;display:flex;align-items:center;justify-content:center;
+ padding:20px;overflow-y:auto}
+#page-sleep .phone-sleep-dialog-card{width:min(100%,410px);border:1px solid #4d7d64;
+ border-radius:18px;background:#192a26;box-shadow:0 20px 70px #0009;padding:18px}
+#page-sleep .phone-sleep-dialog-card h3{margin:0 0 8px;font-size:16px}
+#page-sleep .phone-sleep-dialog-card>strong{font-size:21px;display:block;margin:12px 0}
+#page-sleep .phone-sleep-dialog-card .sub{font-size:12px;line-height:1.55}
+#page-sleep .phone-sleep-dialog-actions{display:grid;grid-template-columns:repeat(3,1fr);
+ gap:6px;margin-top:12px}
+#page-sleep .phone-sleep-dialog-actions button{min-height:38px;padding:8px 3px;font-size:11px}
+#page-sleep .phone-sleep-dismiss{display:block;margin:10px auto 0;
+ min-height:33px;font-size:11px}
