@@ -1027,6 +1027,7 @@ public final class MainActivity extends Activity {
                 scroll.put(page,Math.max(0,p.getInt("scroll_"+page,0)));
             event.put("page_scroll_positions",scroll);
             event.put("rest_timer_state",p.getString("rest_timer_state","{}"));
+            event.put("record_advanced_expanded",p.getBoolean("record_advanced_expanded",false));
             String lastPage=p.getString("last_main_page","home");
             if("home".equals(lastPage)&&"trends".equals(p.getString("overview_view","summary")))
                 lastPage="analytics"; // Upgrade from former nested Trends view.
@@ -1790,6 +1791,12 @@ public final class MainActivity extends Activity {
 
         /** Keep rest timer and per-exercise rest presets after WebView recreation.
          * Persist only when the user changes a timer or preset, never per tick. */
+        /** Keep optional recording settings collapsed/expanded between launches. */
+        @JavascriptInterface public void setRecordAdvancedExpanded(boolean expanded){
+            getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)
+                .edit().putBoolean("record_advanced_expanded",expanded).apply();
+        }
+
         @JavascriptInterface public void setRestTimerState(String json){
             try{
                 if(json==null||json.length()>12000)
