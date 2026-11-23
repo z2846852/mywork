@@ -876,6 +876,42 @@ assert.ok(nativePrefs.some(x=>x.expanded===true));
 fakeNodes.strengthDetailExpander.open=false;
 fakeNodes.strengthDetailExpander.handlers.toggle();
 assert.ok(nativePrefs.some(x=>x.expanded===false));
+const receiverStart=features.indexOf("const originalReceive = window.bodyTraceReceive;");
+const receiverEnd=features.indexOf("\nrenderAllFeatures();\nupdateFoodPreview();",receiverStart);
+assert.ok(receiverStart>=0&&receiverEnd>receiverStart);
+const receiverCode=features.slice(receiverStart,receiverEnd);
+const savedExerciseTarget={
+ dataset:{exerciseId:"row"},highlighted:false,
+ getBoundingClientRect:()=>({top:360}),
+ classList:{add(className){savedExerciseTarget.highlighted=className==="strength-exercise-jump-target"},
+  remove(){}}
+};
+const savedDetail={open:false},saveFrames=[],jumpMemory=[];
+const saveWindow={
+ scrollY:60,bodyTraceReceive:()=>{},
+ scrollTo(x,y){this.scrollY=y}
+};
+const savedReceiver=vm.runInNewContext(
+ 'let currentMainPage="record";const navigate=name=>{currentMainPage=name};\n'+
+ receiverCode+'\n({trigger:window.bodyTraceReceive,page:()=>currentMainPage})',{
+ window:saveWindow,
+ $:id=>id==="strengthList"?
+  {querySelectorAll:()=>[savedExerciseTarget]}:savedDetail,
+ requestAnimationFrame:fn=>saveFrames.push(fn),
+ setTimeout:()=>{},renderAllFeatures:()=>{},
+ rememberPageScroll:page=>jumpMemory.push(page),
+ refreshPageScrollShortcuts:()=>{},toast:()=>{}
+});
+savedReceiver.trigger({type:"local_saved",event:{exercise_id:"row"}});
+for(let i=0;i<5&&saveFrames.length;i++){
+ const jobs=saveFrames.splice(0);jobs.forEach(job=>job());
+}
+assert.equal(savedReceiver.page(),"analytics");
+assert.equal(savedDetail.open,true,"Save must open individual exercise charts");
+assert.equal(saveWindow.scrollY,406,"Scroll to saved exercise's individual chart");
+assert.deepEqual(jumpMemory,["analytics"]);
+assert.equal(savedExerciseTarget.highlighted,true);
+
 const ergonomicCss=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(ergonomicCss.includes('.tabs button{flex:1 1 0;min-width:0;max-width:none;min-height:48px'));
 const bodySection=html.slice(html.indexOf('id="page-body"'),html.indexOf('id="page-voice"'));
