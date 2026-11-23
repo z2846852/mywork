@@ -1015,6 +1015,8 @@ body.workout-edit-open{overflow:hidden}
 #page-sleep .sleep-filter-advanced .sleep-quick-constraints{margin:3px 0 0}
 #page-sleep .sleep-ai-presets button{min-height:32px;margin:0;
  padding:4px 8px;font-size:10px;white-space:nowrap;border-radius:7px}
+#page-sleep .sleep-ai-presets button.active{background:#397866;border-color:#95d5b4;
+ color:#fff;font-weight:750}
 #page-sleep .sleep-ai-controls [hidden]{display:none!important}
 #page-sleep .sleep-wave-controls{margin:4px 0 5px;gap:3px}
 #page-sleep .sleep-wave-controls .mini{min-height:34px;padding:5px 4px;
