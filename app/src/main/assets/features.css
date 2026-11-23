@@ -499,7 +499,7 @@
  border-radius:50%;padding:0;border:1px solid #52735f;background:#1b332de8;
  box-shadow:0 4px 14px #0007;color:#d1f4df;font-size:19px;line-height:1}
 .page-scroll-shortcuts button:active{background:#326e54;color:#fff}
-body:has(#page-record.active) .page-scroll-shortcuts{
+body[data-active-page="record"] .page-scroll-shortcuts{
  bottom:calc(155px + env(safe-area-inset-bottom,0px))}
 @media(min-width:740px){.page-scroll-shortcuts{
  right:max(14px,calc((100vw - 940px) / 2))}}
