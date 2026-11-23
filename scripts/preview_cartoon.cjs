@@ -202,8 +202,11 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    throw Error("Legacy four-panel bars must not remain");
   const curves=await page.locator("#regionTrendGrid polyline").count();
   if(curves!==4)throw Error("Demo should create four color-family curves: "+curves);
-  const names=await page.locator(".combined-trend-legend-region > strong").allTextContents();
-  if(JSON.stringify(names)!==JSON.stringify(["胸 · 1项","肩 · 1项","背 · 1项","腿 · 1项"]))
+  const legendPanel=page.locator("#regionTrendGrid .trend-legend-expander");
+  if(!(await legendPanel.count()))throw Error("Dashboard lost collapsible line legend");
+  await legendPanel.locator("> summary").click();
+  const names=await page.locator("#regionTrendGrid .combined-trend-legend-heading").allTextContents();
+  if(JSON.stringify(names)!==JSON.stringify(["胸","肩","背","腿"]))
    throw Error("All four muscle families should appear automatically: "+names);
   const lineColors=await page.locator("#regionTrendGrid polyline").evaluateAll(
    nodes=>nodes.map(n=>n.getAttribute("stroke")));
@@ -265,9 +268,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     dash:n.getAttribute("stroke-dasharray")||"",
     key:n.getAttribute("data-key")
    })));
-  const symbols=await page.locator("#regionTrendGrid .combined-trend-legend-region")
-   .last().locator(".combined-trend-legend-symbol .combined-trend-marker")
-   .evaluateAll(nodes=>nodes.map(n=>n.getAttribute("data-marker")));
+  const symbols=await page.locator("#regionTrendGrid .combined-trend-legend-item")
+   .evaluateAll(nodes=>nodes.filter((_,i)=>i%4===3)
+    .map(n=>n.querySelector(".combined-trend-marker")?.getAttribute("data-marker"))
+    .filter(Boolean));
   if(legPairs.length!==2||new Set(legPairs.map(p=>p.dash)).size!==2||
      new Set(symbols).size!==2)
    throw Error("Leg lines must differ by dash and point shape: "+
@@ -281,6 +285,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.locator('.trend-period[data-period="30"]').click();
   if((await page.locator("#trendEndDate").inputValue())!==(await page.evaluate(()=>today)))
    throw Error("End date should use the local app calendar date");
+  await page.locator("#trendAdvancedSettings > summary").click();
   await page.locator("#trendStartDate").fill("2026-11-15");
   await page.locator("#trendStartDate").dispatchEvent("change");
   if(!(await page.locator('.trend-period[data-period="custom"]').getAttribute("class")).includes("active"))
