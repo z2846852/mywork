@@ -1403,8 +1403,8 @@ function refreshExerciseRecommendation(force=false){
  $("weightLabel").textContent=id==="assisted_pullup"||id==="assisted_dip"?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
  const last=loadRecommendation(state.rows,id);
  if(force||!weightEditedByUser)$("recordKg").value=last?String(last.amount):"";
- if(force||!repsEditedByUser)$("recordReps").value=last?String(last.reps):"10";
- $("suggestedLoad").textContent=last?"沿用上次 "+last.amount+"kg × "+last.reps+"次（非训练建议）；Reset 使用旧版10组规则。":"无历史重量，请手动填写；次数默认10次。";
+ if(force||!repsEditedByUser)$("recordReps").value=last?String(last.reps):"12";
+ $("suggestedLoad").textContent=last?"沿用上次 "+last.amount+"kg × "+last.reps+"次（非训练建议）；Reset 使用旧版10组规则。":"无历史重量，请手动填写；次数默认12次。";
 }
 $("recordKg").addEventListener("input",()=>{weightEditedByUser=true;trainingFormDirty=true;});
 $("recordReps").addEventListener("input",()=>{repsEditedByUser=true;trainingFormDirty=true;});
@@ -1813,7 +1813,7 @@ $("goLatest").onclick=()=>{
  renderHeat(true);renderDay();
  jumpToView("home",()=> $("trainingDetailsPanel"));
 };
-$("recordExercise").onchange=()=>{recordExerciseTouched=true;clearTrainingEdits();refreshExerciseRecommendation(true)};
+$("recordExercise").onchange=()=>{recordExerciseTouched=true;clearTrainingEdits();refreshExerciseRecommendation(true);window.BodyTraceRestTimer?.render?.()};
 function openTrainingWheel(elementId, title, min, max, step, unit){
  if(!window.BodyTraceWheel){toast("滚轮尚未初始化，请重新打开 App",true);return}
  const input=$(elementId);
@@ -1829,7 +1829,7 @@ $("recordReps").onclick=$("wheelRepsOpen").onclick=()=>
  openTrainingWheel("recordReps","每组次数（0 = 尝试失败）",0,200,1,"次");
 $("recordSets").onclick=$("wheelSetsOpen").onclick=()=>
  openTrainingWheel("recordSets","连续保存组数",1,10,1,"组");
-$("saveRecord").onclick=()=>{
+function submitTrainingRecord(startRestAfterSave){
  const date=$("recordDate").value,exercise_id=$("recordExercise").value,
    kg=Number($("recordKg").value),reps=Number($("recordReps").value),
    sets=Number($("recordSets").value),load_basis=$("recordLoadBasis").value,
@@ -1842,12 +1842,21 @@ $("saveRecord").onclick=()=>{
    toast("检查日期、重量、次数（0–200）和组数；重量最多一位小数。",true);return
  }
  if(!window.BodyTraceNative){toast("请在 Android App 内使用此功能。",true);return}
+ const startAfterNativeSave=startRestAfterSave&&sets===1&&!!window.BodyTraceRestTimer;
+ if(startAfterNativeSave)window.BodyTraceRestTimer.armAfterSave(exercise_id);
  if(typeof BodyTraceNative.saveBatch!=="function"){
    if(sets!==1){toast("请安装支持批量训练组的最新 App",true);return}
    BodyTraceNative.save(JSON.stringify({date,exercise_id,kg,reps,load_basis,note}));
  }else BodyTraceNative.saveBatch(JSON.stringify({date,exercise_id,kg,reps,sets,load_basis,note}));
- $("saveRecord").disabled=true;setTimeout(()=>$("saveRecord").disabled=false,1200);
-};
+ $("saveRecord").disabled=true;$("saveRecordOnly").disabled=true;
+ setTimeout(()=>{$("saveRecord").disabled=false;$("saveRecordOnly").disabled=false},1200);
+}
+$("saveRecord").onclick=()=>submitTrainingRecord(true);
+$("saveRecordOnly").onclick=()=>submitTrainingRecord(false);
+$("recordSets").addEventListener("input",()=>{
+ const many=Number($("recordSets").value)>1;
+ $("saveRecord").textContent=many?"✓ 批量保存（不自动计时）":"✓ 保存本组并休息";
+});
 $("connect").onclick=()=>{const token=$("token").value.trim();if(!token){toast("请先粘贴 GitHub token",true);return}
  $("token").value="";BodyTraceNative.connect(token);toast("正在验证连接…")};
 $("disconnect").onclick=()=>{if(confirm("解除 GitHub 授权？手机中的原始 JSON 和未上传记录会保留。"))BodyTraceNative.disconnect()};
