@@ -1696,6 +1696,30 @@ body.workout-edit-open{overflow:hidden}
 #page-voice .voice-reference-example button{margin:0;padding:5px 8px;
  min-height:29px;font-size:10px}
 
+/* Focused line and action history share one compact chart-to-detail flow. */
+#page-analytics .trend-focused-detail[hidden]{display:none!important}
+#page-analytics .trend-focused-detail{
+ margin:7px 0 0;padding:5px;border:1px solid #527f68;border-radius:11px;
+ background:linear-gradient(165deg,#16392d,#152c28);
+}
+#page-analytics .trend-focused-detail .strength-exercise-card{
+ margin:0;padding:8px;border:0;border-top:3px solid var(--region-accent,#85c9a4);
+ border-radius:7px;background:transparent;
+}
+#page-analytics .trend-focused-detail .feature-chart{margin-top:3px;min-height:0}
+#page-analytics .trend-focused-detail .feature-chart svg{max-height:165px}
+#page-analytics .trend-focused-detail .strength-exercise-range{margin-top:5px}
+#page-analytics .trend-focused-detail .strength-point-detail{padding:6px 8px;margin-bottom:5px;min-height:0}
+#page-analytics .trend-focused-detail .strength-exercise-note{margin-top:4px}
+#page-analytics .trend-legend-area{margin-top:4px}
+#page-analytics .trend-weight-jump{font:inherit;font-size:9px;color:#7ce8b0;
+ padding:0 2px;line-height:1.5;border:0;background:transparent;cursor:pointer;
+ text-decoration:underline;text-decoration-color:#479974;text-underline-offset:2px}
+#page-analytics .trend-weight-jump:focus-visible{outline:2px solid #8cefb6;outline-offset:2px}
+#page-analytics .trend-region-pulse-item{padding:3px 2px}
+#page-analytics .combined-trend-status{margin-bottom:4px}
+#page-analytics .trend-support-panel{margin-top:6px}
+
 /* === Trends dashboard: data first, no wasted persistent chrome === */
 body[data-active-page="analytics"] .quick-head{display:none}
 body[data-active-page="analytics"] .screen{padding-top:7px}
