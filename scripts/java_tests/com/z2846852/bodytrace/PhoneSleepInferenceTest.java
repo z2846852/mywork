@@ -4,78 +4,116 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Plain JDK regression: no invented sleep duration, no arbitrary 7-day cut. */
+/** Plain-JDK regressions for all-day phone inactivity detection. */
 public final class PhoneSleepInferenceTest {
     private static long t(String date,int hour,int minute){
         return LocalDate.parse(date).atTime(hour,minute)
             .atZone(PhoneSleepInference.ZONE).toInstant().toEpochMilli();
     }
-    private static PhoneSleepInference.Event event(String day,int h,int m,int kind){
+    private static PhoneSleepInference.Event e(String day,int h,int m,int kind){
         return new PhoneSleepInference.Event(t(day,h,m),kind);
     }
-    private static void check(boolean v,String reason){
-        if(!v)throw new AssertionError(reason);
+    private static void check(boolean ok,String reason){
+        if(!ok)throw new AssertionError(reason);
     }
-    private static PhoneSleepInference.Night find(List<PhoneSleepInference.Night> nights,String day){
-        for(PhoneSleepInference.Night n:nights)if(day.equals(n.day))return n;
-        throw new AssertionError("Missing "+day);
+    private static PhoneSleepInference.Night find(List<PhoneSleepInference.Night> items,
+                                                  String day){
+        for(PhoneSleepInference.Night item:items)
+            if(day.equals(item.day)&&!"pending".equals(item.state))return item;
+        throw new AssertionError("Missing completed window for "+day);
     }
+    private static List<PhoneSleepInference.Night> run(List<PhoneSleepInference.Event> events,
+                                                       String day,int hour){
+        return PhoneSleepInference.infer(events,t(day,hour,0));
+    }
+
     public static void main(String[] args){
-        List<PhoneSleepInference.Event> data=new ArrayList<>();
-        data.add(event("2026-11-20",23,30,PhoneSleepInference.SCREEN_OFF));
-        data.add(event("2026-11-21",7,30,PhoneSleepInference.SCREEN_ON));
-        data.add(event("2026-11-21",7,31,PhoneSleepInference.KEYGUARD_HIDDEN));
-        data.add(event("2026-11-21",23,10,PhoneSleepInference.SCREEN_OFF));
-        data.add(event("2026-11-22",7,15,PhoneSleepInference.SCREEN_ON));
-        List<PhoneSleepInference.Night> nights=PhoneSleepInference.infer(
-            data,t("2026-11-22",10,0));
-        PhoneSleepInference.Night first=find(nights,"2026-11-21");
-        check("candidate".equals(first.state),"Must find paired off/on window");
-        check(first.offMs==t("2026-11-20",23,30),"Correct screen off start");
-        check(first.onMs==t("2026-11-21",7,30),"Correct morning screen on end");
-        check(first.gapMs==8*PhoneSleepInference.HOUR,"Eight-hour inactivity");
-        check(first.unlock==1,"Count keyguard unlock separately from screen activation");
-        check(first.reason.contains("不等于真实睡眠"),
-            "Must never assert phone inactivity proves sleep");
-        PhoneSleepInference.Night next=find(nights,"2026-11-22");
-        check(next.gapMs==8*PhoneSleepInference.HOUR+5*60000L,
-            "Second night should be inferred independently");
-        check(first.day.equals("2026-11-21")&&next.day.equals("2026-11-22"),
-            "Night assigned to morning date");
-        List<PhoneSleepInference.Event> disconnected=new ArrayList<>();
-        disconnected.add(event("2026-11-20",23,0,PhoneSleepInference.SCREEN_OFF));
-        disconnected.add(event("2026-11-21",3,0,PhoneSleepInference.SHUTDOWN));
-        disconnected.add(event("2026-11-21",7,0,PhoneSleepInference.STARTUP));
-        disconnected.add(event("2026-11-21",7,1,PhoneSleepInference.SCREEN_ON));
-        PhoneSleepInference.Night off=find(PhoneSleepInference.infer(disconnected,
-            t("2026-11-21",13,0)),"2026-11-21");
-        check("insufficient".equals(off.state),
-            "Shutdown must not be misread as a continuous screen-off night");
-        List<PhoneSleepInference.Event> unpaired=new ArrayList<>();
-        unpaired.add(event("2026-11-20",21,0,PhoneSleepInference.KEYGUARD_SHOWN));
-        unpaired.add(event("2026-11-21",7,0,PhoneSleepInference.KEYGUARD_HIDDEN));
-        check("insufficient".equals(find(PhoneSleepInference.infer(unpaired,
-            t("2026-11-21",13,0)),"2026-11-21").state),
-            "Unpaired keyguard events must not create fabricated time windows");
-        // No app-imposed recent N-day history: an old event is processed if
-        // Android's queryEvents actually returns it.
-        List<PhoneSleepInference.Event> older=new ArrayList<>();
-        older.add(event("2026-10-20",23,0,PhoneSleepInference.SCREEN_OFF));
-        older.add(event("2026-10-21",7,0,PhoneSleepInference.SCREEN_ON));
-        check("candidate".equals(find(PhoneSleepInference.infer(older,
-            t("2026-11-22",10,0)),"2026-10-21").state),
-            "Old retained events must not be discarded by a seven-day cutoff");
-        check(PhoneSleepInference.infer(older,t("2026-11-22",10,0)).size()==1,
-            "Days without events must NOT be listed as missing nights");
-        List<PhoneSleepInference.Event> unfinished=new ArrayList<>();
-        unfinished.add(event("2026-11-21",23,0,PhoneSleepInference.SCREEN_OFF));
-        PhoneSleepInference.Night pending=find(PhoneSleepInference.infer(
-            unfinished,t("2026-11-22",3,0)),"2026-11-22");
-        check("pending".equals(pending.state),
-            "The night still in progress is pending, not failed or measured");
-        check(PhoneSleepInference.infer(List.of(),t("2026-11-22",10,0)).isEmpty(),
-            "No events must not create a fabricated report");
-        System.out.println("PhoneSleepInferenceTest passed: multiple nights, clock, "
-            +"missing pairs, shutdown, historical range, non-medical semantics");
+        final int off=PhoneSleepInference.SCREEN_OFF;
+        final int on=PhoneSleepInference.SCREEN_ON;
+        List<PhoneSleepInference.Event> normal=List.of(
+            e("2026-11-20",23,30,off),
+            e("2026-11-21",7,30,on));
+        PhoneSleepInference.Night first=find(run(normal,"2026-11-21",13),"2026-11-21");
+        check("candidate".equals(first.state),"Normal night should be suspected");
+        check(first.gapMs==8*PhoneSleepInference.HOUR,"Normal eight-hour interval");
+        check(first.reason.contains("不等于真实睡眠"),"Never assert actual sleep");
+
+        // The old hardcoded 04:00 bedtime and 12:00 wake cutoffs excluded this.
+        List<PhoneSleepInference.Event> late=List.of(
+            e("2026-11-22",5,20,off),
+            e("2026-11-22",13,5,on));
+        PhoneSleepInference.Night lateNight=find(run(late,"2026-11-22",16),"2026-11-22");
+        check(lateNight.offMs==t("2026-11-22",5,20),"Must accept late bedtime");
+        check(lateNight.gapMs==7*PhoneSleepInference.HOUR+45*60_000L,
+            "Late-morning wake can extend past noon");
+
+        // Two short screen activations: clock/notification and a brief unlock.
+        List<PhoneSleepInference.Event> brief=new ArrayList<>();
+        brief.add(e("2026-11-21",23,0,off));
+        brief.add(e("2026-11-22",1,0,on));
+        brief.add(new PhoneSleepInference.Event(t("2026-11-22",1,0)+20_000L,off));
+        brief.add(e("2026-11-22",3,0,on));
+        brief.add(e("2026-11-22",3,0,PhoneSleepInference.KEYGUARD_HIDDEN));
+        brief.add(e("2026-11-22",3,1,off));
+        brief.add(e("2026-11-22",8,0,on));
+        PhoneSleepInference.Night joined=find(run(brief,"2026-11-22",13),"2026-11-22");
+        check(joined.offMs==t("2026-11-21",23,0),"Merge starts at original off");
+        check(joined.onMs==t("2026-11-22",8,0),"Merge ends at final wake");
+        check(joined.shortUseCount==2,"Track two short interruptions");
+        check(joined.shortUseMs==80_000L,"Track exact short-use duration");
+        check(joined.gapMs==9*PhoneSleepInference.HOUR,"Wall-clock interval");
+        check(joined.unlock==1,"Unlock evidence should be preserved");
+
+        // Meaningful >2-minute awake period splits two independent candidates.
+        List<PhoneSleepInference.Event> split=List.of(
+            e("2026-11-21",23,0,off),e("2026-11-22",3,10,on),
+            e("2026-11-22",3,20,off),e("2026-11-22",9,0,on));
+        List<PhoneSleepInference.Night> splitReports=run(split,"2026-11-22",13);
+        check(splitReports.size()==2,"Two long windows on the same day are retained");
+        check(splitReports.get(0).onMs==t("2026-11-22",3,10),
+            "Long screen-on period ends the first candidate");
+        check(splitReports.get(1).offMs==t("2026-11-22",3,20),
+            "Second candidate starts at the next screen off");
+
+        // Three short wakes in half an hour must NOT all be fused.
+        List<PhoneSleepInference.Event> repeated=List.of(
+            e("2026-11-21",22,0,off),
+            e("2026-11-22",3,0,on),e("2026-11-22",3,1,off),
+            e("2026-11-22",3,10,on),e("2026-11-22",3,11,off),
+            e("2026-11-22",3,20,on),e("2026-11-22",3,21,off),
+            e("2026-11-22",8,0,on));
+        List<PhoneSleepInference.Night> repeatedReports=run(repeated,"2026-11-22",13);
+        check(repeatedReports.size()==2,"Third repeated wake splits the sequence");
+
+        List<PhoneSleepInference.Event> day=List.of(
+            e("2026-11-22",14,0,off),e("2026-11-22",19,0,on));
+        check("unknown".equals(find(run(day,"2026-11-22",21),
+            "2026-11-22").state),"Nonstandard daytime gap requires review");
+
+        List<PhoneSleepInference.Event> shutdown=List.of(
+            e("2026-11-20",23,0,off),
+            e("2026-11-21",3,0,PhoneSleepInference.SHUTDOWN),
+            e("2026-11-21",7,0,PhoneSleepInference.STARTUP),
+            e("2026-11-21",7,1,on));
+        check(run(shutdown,"2026-11-21",13).isEmpty(),
+            "Power cycle cannot create a continuous sleep interval");
+        check(run(List.of(
+            e("2026-11-20",21,0,PhoneSleepInference.KEYGUARD_SHOWN),
+            e("2026-11-21",7,0,PhoneSleepInference.KEYGUARD_HIDDEN)),
+            "2026-11-21",13).isEmpty(),
+            "Unpaired keyguard events cannot invent sleep");
+
+        List<PhoneSleepInference.Event> old=List.of(
+            e("2026-10-20",23,0,off),e("2026-10-21",7,0,on));
+        check(run(old,"2026-11-22",13).size()==1,
+            "Retained old events must work without a fixed 7-day cutoff");
+        List<PhoneSleepInference.Night> pending=run(
+            List.of(e("2026-11-21",23,0,off)),"2026-11-22",3);
+        check(pending.size()==1&&"pending".equals(pending.get(0).state)&&
+              pending.get(0).gapMs==0,
+            "Unfinished observation must not claim any measured duration");
+        check(run(List.of(),"2026-11-22",13).isEmpty(),
+            "No events must never create a fake record");
+        System.out.println("PhoneSleepInferenceTest passed");
     }
 }
