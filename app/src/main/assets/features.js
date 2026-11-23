@@ -329,6 +329,8 @@ const trendColorShades={
 };
 let trendSelectedPeriod="30",trendStart="",trendEnd="",trendAssistBase=70;
 let trendFocusKey=null;
+let trendLegendExpanded=false;
+try{trendLegendExpanded=localStorage.getItem("bodytrace.trendLegendExpanded")==="true";}catch(_){}
 // All exercises use the SAME y-axis in the SAME plot, without per-region lanes.
 const trendDashStyles=["","10 6","3 6","15 5 3 5","2 3","11 4 2 4"];
 const trendMarkerStyles=["circle","square","diamond","triangle","cross","hexagon"];
@@ -425,12 +427,28 @@ function renderRegionDashboard(){
  dashboard.replaceChildren();root.replaceChildren();
  const summary=computeRegionDashboard(state.rows);
  const main=document.createElement("div");main.className="training-overview-main";
- const label=document.createElement("span");label.textContent="最近28天有效训练";
- const number=document.createElement("strong");number.textContent=summary.total28+" 组";
- main.append(label,number);
+ const label=document.createElement("span");label.textContent="近28天";
+ const number=document.createElement("strong");number.textContent=summary.total28+"组";
+ main.append(number,label);
  const aside=document.createElement("div");aside.className="training-overview-stat";
- aside.textContent="活跃 "+summary.activeDays+" 天";dashboard.append(main,aside);
- for(const button of document.querySelectorAll("#trendPeriodToolbar .trend-period")){
+ const active=document.createElement("strong");active.textContent=summary.activeDays;
+ const activeLabel=document.createElement("span");activeLabel.textContent="活跃天数";
+ aside.append(active,activeLabel);
+ const family=document.createElement("div");family.className="trend-region-pulse";
+ for(const card of summary.cards){
+  const metric=document.createElement("span");metric.className="trend-region-pulse-item";
+  metric.style.setProperty("--pulse-color",regionThemeColors[card.region]);
+  metric.textContent=card.region+" "+card.total28;
+  metric.title="最近28天 "+card.region+" "+card.total28+"组";
+  family.append(metric);
+ }
+ dashboard.append(main,aside,family);
+ const caption=$("trendPeriodCaption");
+ caption.textContent=(trendSelectedPeriod==="custom"?"自定义":
+  trendSelectedPeriod==="30"?"近30天":
+  trendSelectedPeriod==="90"?"近90天":
+  trendSelectedPeriod==="365"?"近1年":"全部历史")+" · 全部动作";
+ for(const button of document.querySelectorAll("#page-analytics .trend-period")){
   button.classList.toggle("active",button.dataset.period===trendSelectedPeriod);
   button.setAttribute("aria-pressed",String(button.dataset.period===trendSelectedPeriod));
  }
@@ -438,6 +456,9 @@ function renderRegionDashboard(){
  if(!valid){root.textContent="起始日期不能晚于结束日期";return}
  const dataset=trendData(state.rows,from,end,trendAssistBase);
  const all=dataset.series;
+ const actionCount=document.createElement("span");actionCount.className="trend-overview-curves";
+ actionCount.textContent=all.length+" 条曲线";
+ aside.append(actionCount);
  // A reference is established from the first recorded session for THIS
  // exercise, regardless of the currently selected viewing window.
  const history=trendData(state.rows,"1900-01-01",end,trendAssistBase).series;
@@ -712,7 +733,19 @@ function renderRegionDashboard(){
    legend.append(button);
   }
  }
- root.append(legend,details);
+ const legendPanel=document.createElement("details");
+ legendPanel.className="trend-legend-expander";
+ legendPanel.open=trendLegendExpanded;
+ const summaryLine=document.createElement("summary");
+ summaryLine.textContent="曲线名称与线型 · "+all.length+"项";
+ legendPanel.append(summaryLine,legend);
+ legendPanel.addEventListener("toggle",()=>{
+  if(!root.contains(legendPanel))return;
+  trendLegendExpanded=legendPanel.open;
+  try{localStorage.setItem("bodytrace.trendLegendExpanded",
+   String(trendLegendExpanded));}catch(_){}
+ });
+ root.append(details,legendPanel);
  if(trendFocusKey){
   const clear=document.createElement("button");clear.type="button";
   clear.className="secondary mini combined-trend-clear";
@@ -742,7 +775,7 @@ function updateTrendPreference(){
  trendAssistBase=weight;
  renderRegionDashboard();
 }
-for(const button of document.querySelectorAll("#trendPeriodToolbar .trend-period")){
+for(const button of document.querySelectorAll("#page-analytics .trend-period")){
  button.onclick=()=>{
   trendSelectedPeriod=button.dataset.period;
   if(trendSelectedPeriod!=="custom"){
@@ -750,12 +783,26 @@ for(const button of document.querySelectorAll("#trendPeriodToolbar .trend-period
    trendStart=range.from;trendEnd=range.end;
    $("trendStartDate").value=trendStart;
    $("trendEndDate").value=trendEnd;
+   $("trendAdvancedSettings").open=false;
+  }else{
+   $("trendAdvancedSettings").open=true;
   }
   updateTrendPreference();
  };
 }
 for(const name of ["trendStartDate","trendEndDate"])
- $(name).onchange=()=>{trendSelectedPeriod="custom";updateTrendPreference();};
+ $(name).onchange=()=>{
+  trendSelectedPeriod="custom";$("trendAdvancedSettings").open=true;
+  updateTrendPreference();
+ };
+$("trendLegendShortcut").onclick=()=>{
+ const panel=$("regionTrendGrid").querySelector(".trend-legend-expander");
+ if(!panel)return;
+ panel.open=!panel.open;
+ trendLegendExpanded=panel.open;
+ try{localStorage.setItem("bodytrace.trendLegendExpanded",String(panel.open));}catch(_){}
+ if(panel.open)window.BodyTraceJumpTo?.("analytics",()=>panel);
+ };
 $("trendAssistWeight").onchange=updateTrendPreference;
 ({from:trendStart,end:trendEnd}=trendInitialDates("30"));
 $("trendStartDate").value=trendStart;
