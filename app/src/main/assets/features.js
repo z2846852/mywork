@@ -1412,8 +1412,11 @@ function renderBodyEntry(){
   button.onclick=()=>{
    if(!window.BodyTraceWheel){toast("滚轮尚未初始化",true);return}
    const jin=def.key==="weight_kg"&&$("bodyWeightUnit").value==="jin";
+   const defaults={weight_kg:70,body_fat_pct:20,muscle_mass_kg:35,
+    shoulder_cm:100,chest_cm:90,waist_cm:85,upper_arm_cm:30,
+    abdomen_cm:85,hip_cm:95,thigh_cm:50,calf_cm:35};
    const start=Number.isFinite(Number(value))&&value!==null&&value!==undefined?
-    Number(value):(def.key==="weight_kg"?70:def.key==="waist_cm"?85:90);
+    Number(value):(defaults[def.key]??def.min);
    const startValue=jin?start*2:start;
    BodyTraceWheel.open({
     title:"记录"+def.label,min:jin?40:def.min,max:jin?600:def.max,
