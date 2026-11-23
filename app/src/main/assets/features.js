@@ -1379,6 +1379,71 @@ function renderAllFeatures(){
 // Expose a narrow redraw callback after catalog updates; the function itself
 // remains inside this module, and rendering never changes source JSON.
 window.BodyTraceRenderFeatures=renderAllFeatures;
+// Overview action names jump to the matching exercise's focused combined
+// trend. If the current period has no points, widen the range to all history;
+// never silently focus a different exercise.
+window.BodyTraceFocusExerciseTrend=function(exerciseId){
+ if(!exerciseId)return;
+ let {from,end,valid}=trendRange();
+ let matches=valid?trendData(state.rows,from,end,trendAssistBase).series
+  .filter(group=>group.id===exerciseId):[];
+ if(!matches.length){
+  trendSelectedPeriod="all";
+  ({from:trendStart,end:trendEnd}=trendInitialDates("all"));
+  $("trendStartDate").value=trendStart;
+  $("trendEndDate").value=trendEnd;
+  matches=trendData(state.rows,trendStart,trendEnd,trendAssistBase).series
+   .filter(group=>group.id===exerciseId);
+ }
+ if(matches.length){
+  matches.sort((a,b)=>(b.points.at(-1)?.date||"").localeCompare(
+   a.points.at(-1)?.date||"")||b.points.length-a.points.length);
+  trendFocusKey=matches[0].key;
+  renderRegionDashboard();
+  window.BodyTraceJumpTo?.("analytics",()=> $("regionTrendGrid"));
+ }else{
+  trendFocusKey=null;
+  renderRegionDashboard();
+  $("strengthDetailExpander").open=true;
+  window.BodyTraceJumpTo?.("analytics",()=>
+   [...$("strengthList").querySelectorAll(".strength-exercise-card")]
+    .find(card=>card.dataset.exerciseId===exerciseId)||$("strengthDetailExpander"));
+  toast("该动作暂无可用的估算力量曲线，已定位原始记录",true);
+ }
+};
+// Build an honest, offline target-muscle diagram from the SAME anatomical
+// paths as the existing body page. This is not a machine/exercise photo.
+window.BodyTraceDrawExerciseTarget=function(exerciseId,container){
+ if(!container)return;
+ container.replaceChildren();
+ const target=targetForExercise(exerciseId);
+ const region=exerciseRegionById[exerciseId]||"其他";
+ const color=regionThemeColors[region]||"#8fb0a5";
+ const ns="http://www.w3.org/2000/svg";
+ const el=(tag,attrs={})=>{
+  const node=document.createElementNS(ns,tag);
+  for(const [k,v] of Object.entries(attrs))node.setAttribute(k,String(v));
+  return node;
+ };
+ for(const side of ["front","back"]){
+  const frame=document.createElement("div");frame.className="overview-muscle-person";
+  const svg=el("svg",{viewBox:"0 0 150 250",role:"img",
+   "aria-label":(side==="front"?"正面":"背面")+"目标肌群示意"});
+  svg.append(el("path",{d:"M51 40 L43 51 L27 55 L13 91 L7 128 L25 140 L42 95 L48 145 L49 184 L53 238 L72 238 L75 181 L78 238 L97 238 L101 184 L102 145 L108 95 L125 140 L143 128 L137 91 L123 55 L107 51 L99 40 Z",
+   fill:"#1e3c37",stroke:"#50766a","stroke-width":"1.4"}));
+  svg.append(el("ellipse",{cx:75,cy:23,rx:18,ry:22,fill:"#36564b"}));
+  for(const [label,d] of musclePaths[side]){
+   const selected=target?label===target:muscleMacroRegion(label)===region;
+   svg.append(el("path",{d,fill:selected?color:"#31534b",
+    "fill-opacity":selected?1:0.65,stroke:selected?"#f2fff6":"#47645d",
+    "stroke-width":selected?1.2:0.5}));
+  }
+  const caption=document.createElement("small");
+  caption.textContent=side==="front"?"正面":"背面";
+  frame.append(svg,caption);container.append(frame);
+ }
+ return target||region;
+};
 const originalReceive = window.bodyTraceReceive;
 window.bodyTraceReceive=function(evt){
   if(typeof originalReceive==="function") originalReceive(evt);
