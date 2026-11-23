@@ -81,17 +81,78 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 #toast.warn{background:#452d29;border-color:#ab6656;color:#ffe0d6}
 .note{font-size:12px;line-height:1.7;color:#9ab5ab}
 @media(min-width:740px){.screen{padding:38px 28px 112px}.top h1{font-size:42px}.tabs{width:480px;left:50%;transform:translateX(-50%);border-radius:18px 18px 0 0;border:1px solid #2b4c40}.stat{padding:20px}.cardgrid{display:grid;grid-template-columns:3fr 2fr;gap:16px}}
+/* Compact colored overview metrics: a single row, not three large cards. */
+#page-home .stats{margin-top:9px;gap:7px}
+#page-home .stat.stat-link{display:flex;align-items:baseline;justify-content:center;gap:5px;
+ width:100%;min-width:0;padding:9px 5px;min-height:46px;text-align:center;cursor:pointer;
+ border-radius:11px;transition:transform .12s,filter .12s}
+#page-home .stat.stat-link strong{display:inline;font-size:clamp(19px,4.7vw,25px);
+ line-height:1.1;letter-spacing:-.6px;white-space:nowrap}
+#page-home .stat.stat-link span{display:inline;margin:0;font-size:10px;white-space:nowrap}
+#page-home .stat.stat-link:nth-child(1){background:#204337;border-color:#34795c}
+#page-home .stat.stat-link:nth-child(1) strong{color:#70ebac}
+#page-home .stat.stat-link:nth-child(2){background:#203749;border-color:#426b90}
+#page-home .stat.stat-link:nth-child(2) strong{color:#7bc8ff}
+#page-home .stat.stat-link:nth-child(3){background:#3a2b46;border-color:#6b4e81}
+#page-home .stat.stat-link:nth-child(3) strong{color:#dcafff}
+#page-home .stat.stat-link:active{transform:scale(.97)}
+.overview-sync-top{border:0;background:transparent;color:var(--green);font-size:19px;
+ padding:4px;line-height:1;border-radius:6px}
+#page-home .legend .region-filter{display:inline-flex;align-items:center;gap:4px;
+ border:1px solid transparent;background:transparent;border-radius:7px;
+ color:var(--muted);font-size:11px;min-height:29px;padding:3px 5px}
+#page-home .legend .region-filter[aria-pressed="true"]{
+ border-color:var(--key-color);color:var(--key-color);
+ background:color-mix(in srgb,var(--key-color) 16%,transparent)}
+#page-home .exercise-name{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
+#page-home .exercise-name-actions{display:flex;align-items:center;gap:7px;min-width:0;flex:1;flex-wrap:wrap}
+#page-home .exercise-trend-link{border:0;background:transparent;color:var(--white);
+ font-weight:700;font-size:14px;text-align:left;padding:4px 1px;text-decoration:underline;
+ text-decoration-color:#547768;text-underline-offset:3px}
+#page-home .exercise-region-label{cursor:pointer}
+#page-home .exercise-art-trigger{border:1px solid #426a60;border-radius:8px;
+ background:#223c34;color:#d5efdf;font-size:11px;padding:6px 8px;white-space:nowrap}
+#page-home .set{color:var(--white);font:inherit;text-align:left;cursor:pointer}
+#page-home .set:active,#page-home .exercise-art-trigger:active{filter:brightness(1.23)}
+#page-home .exercise-history-set{border:1px solid #3f5c4e;cursor:pointer;font:inherit}
+#page-home .exercise-history-date-head{width:100%;border:0;background:transparent;
+ color:inherit;padding:0;text-align:left;cursor:pointer}
+#page-home .overview-all-actions{margin-top:12px;width:100%;min-height:37px;
+ border:1px solid #4b7566;background:#203d32;color:#bdedd4;border-radius:9px;
+ font-size:12px;font-weight:700}
+#page-home .overview-jump-target{animation:overviewTargetPulse 1.5s ease-out}
+@keyframes overviewTargetPulse{0%{outline:2px solid var(--green);outline-offset:3px}100%{outline:2px solid transparent;outline-offset:3px}}
+.overview-muscle-overlay[hidden]{display:none!important}
+.overview-muscle-overlay{position:fixed;inset:0;z-index:49;display:flex;align-items:center;
+ justify-content:center;padding:18px;background:#000b}
+.overview-muscle-dialog{width:min(100%,420px);max-height:88dvh;overflow-y:auto;
+ background:#192c29;border:1px solid #628b76;border-radius:16px;padding:16px}
+.overview-muscle-diagram{display:flex;justify-content:center;align-items:center;gap:20px;margin:12px 0}
+.overview-muscle-person{display:flex;flex-direction:column;align-items:center;gap:3px;width:118px}
+.overview-muscle-person svg{width:100%;height:auto;max-height:205px}
+.overview-muscle-person small{font-size:11px;color:var(--muted)}
+body.overview-muscle-open{overflow:hidden}
 </style></head>
 <body>
 <main class="screen">
-<header class="quick-head"><span class="quick-head-intro">体迹 · 训练 / 身体 / 摄入</span><div class="status" aria-label="同步状态"><i id="statusDot" class="dot"></i><span id="statusText">本地</span><span id="pendingStatus"></span></div></header>
+<header class="quick-head"><span class="quick-head-intro">体迹 · 训练 / 身体 / 摄入</span><div class="status" aria-label="同步状态"><i id="statusDot" class="dot"></i><span id="statusText">本地</span><span id="pendingStatus"></span><button type="button" id="syncTop" class="overview-sync-top" title="立即同步 GitHub" aria-label="立即同步 GitHub">↻</button></div></header>
 
 <section class="page active" id="page-home">
-<div class="stats"><div class="stat"><strong id="statDays">—</strong><span>训练天数</span></div><div class="stat"><strong id="statSets">—</strong><span>总训练组</span></div><div class="stat"><strong id="statMovements">—</strong><span>训练动作</span></div></div>
-<div class="panel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，每天四分格：胸、肩、背、腿；亮起代表当天练过该部位</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
+<div class="stats" aria-label="概况快捷跳转">
+<button type="button" class="stat stat-link" id="jumpTrainingDays" title="定位到训练贡献日历"><strong id="statDays">—</strong><span>训练天数</span></button>
+<button type="button" class="stat stat-link" id="jumpTrainingSets" title="定位到选中日期的训练详情"><strong id="statSets">—</strong><span>总训练组</span></button>
+<button type="button" class="stat stat-link" id="jumpTrainingMovements" title="查看全部动作及独立趋势"><strong id="statMovements">—</strong><span>训练动作</span></button>
+</div>
+<div class="panel" id="heatPanel"><div class="row wrap"><div><h2>训练贡献日历</h2><p class="sub">近52周，每天四分格：胸、肩、背、腿；亮起代表当天练过该部位</p></div><select class="select" id="filter"><option value="">全部训练</option></select></div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
-<div class="legend" aria-label="四分日历图例"><span class="region-key" style="--key-color:var(--region-chest)"><i></i>胸</span><span class="region-key" style="--key-color:var(--region-shoulder)"><i></i>肩</span><span class="region-key" style="--key-color:var(--region-back)"><i></i>背</span><span class="region-key" style="--key-color:var(--region-leg)"><i></i>腿</span><span>灰点：其他</span></div></div>
-<div class="panel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div>
+<div class="legend" aria-label="点击部位筛选日历和详情">
+<button type="button" class="region-key region-filter" data-region="胸" style="--key-color:var(--region-chest)" aria-pressed="false"><i></i>胸</button>
+<button type="button" class="region-key region-filter" data-region="肩" style="--key-color:var(--region-shoulder)" aria-pressed="false"><i></i>肩</button>
+<button type="button" class="region-key region-filter" data-region="背" style="--key-color:var(--region-back)" aria-pressed="false"><i></i>背</button>
+<button type="button" class="region-key region-filter" data-region="腿" style="--key-color:var(--region-leg)" aria-pressed="false"><i></i>腿</button>
+<button type="button" class="region-key region-filter" data-region="其他" style="--key-color:#91a9a8" aria-pressed="false"><i></i>其他</button>
+</div></div>
+<div class="panel" id="trainingDetailsPanel"><div class="row"><div><h2 id="selectedDate">训练详情</h2><p class="sub" id="selectedSummary">选中某天查看详细动作</p></div><button id="goLatest" class="mini">最近一次</button></div>
 <div class="row wrap history-global-controls">
   <span class="sub" id="historyVisibilityStatus">历史默认展开：每个动作最近 10 个训练日</span>
   <button type="button" class="secondary mini" id="toggleHistory" aria-pressed="true">收起全部历史</button>
@@ -861,10 +922,19 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
  <button type="button" id="pageScrollBottom" aria-label="跳到页面底部" title="到底部" hidden>↓</button>
 </div>
 <div id="toast" role="status"></div>
+<div id="overviewMuscleOverlay" class="overview-muscle-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="overviewMuscleTitle">
+ <div class="overview-muscle-dialog">
+  <div class="row"><h2 id="overviewMuscleTitle">训练目标部位</h2><button type="button" id="overviewMuscleClose" class="mini" aria-label="关闭目标部位示意">关闭 ×</button></div>
+  <div id="overviewMuscleDiagram" class="overview-muscle-diagram"></div>
+  <p id="overviewMuscleTarget" class="sub"></p>
+  <p class="sub">这是本地肌群位置示意，不是器械动作教学照片。</p>
+  <button type="button" id="overviewMuscleTrend" class="mini">查看该动作趋势 ↗</button>
+ </div>
+</div>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-const state={rows:[],measurements:[],nutrition:[],filter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[],rawNotes:[],calendarBrowsing:false};
+const state={rows:[],measurements:[],nutrition:[],filter:"",regionFilter:"",selected:"",connected:false,hasCache:false,pending:0,pendingEvents:[],rawNotes:[],calendarBrowsing:false};
 function isFailedAttempt(row){return row.attempt_status==="failed"||String(row.reps).trim()==="0"}
 const regionThemeColors=Object.freeze({胸:"#F28B82",肩:"#F2C66D",背:"#67B7F7",腿:"#B9A9DD"});
 const majorRegions=Object.keys(regionThemeColors);
@@ -1090,13 +1160,67 @@ function navigate(name,fromUser=true){
  }else refreshPageScrollShortcuts();
 }
 document.querySelectorAll(".tabs button").forEach(btn=>btn.onclick=()=>navigate(btn.dataset.page));
+// Shared, exact destination scroll. The outgoing page is remembered by
+// navigate(); the destination is saved after the jump for reliable return.
+function jumpToView(page,findTarget){
+ navigate(page);
+ requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  if(currentMainPage!==page)return;
+  const target=findTarget();
+  if(!target)return;
+  const top=Math.max(0,Math.round(target.getBoundingClientRect().top+window.scrollY-12));
+  window.scrollTo(0,top);
+  pageScrollPositions.set(page,top);pageScrollDirty.add(page);
+  window.BodyTraceNative?.setUiScrollPosition?.(page,top);
+  target.classList.remove("overview-jump-target");
+  void target.offsetWidth;
+  target.classList.add("overview-jump-target");
+  setTimeout(()=>target.classList.remove("overview-jump-target"),1650);
+  refreshPageScrollShortcuts();
+ }));
+}
+window.BodyTraceJumpTo=jumpToView;
+$("jumpTrainingDays").onclick=()=>jumpToView("home",()=> $("heatPanel"));
+$("jumpTrainingSets").onclick=()=>jumpToView("home",()=> $("trainingDetailsPanel"));
+$("jumpTrainingMovements").onclick=()=>{
+ $("strengthDetailExpander").open=true;
+ jumpToView("analytics",()=> $("strengthDetailExpander"));
+};
+$("syncTop").onclick=()=>{
+ if(window.BodyTraceNative?.sync)$("syncHome").click();
+ else toast("请在 Android App 内同步",true);
+};
 function renderStatus(){
  $("statusDot").classList.toggle("on",state.connected);
  $("statusText").textContent=state.connected?"已连接":"本地";
  $("pendingStatus").textContent=state.pending?" · 待传"+state.pending+"组":"";
  $("saveHelp").style.display=state.connected?"none":"block";
 }
-function filtered(){return state.rows.filter(r=>!state.filter||r.exercise===state.filter)}
+function filtered(){return state.rows.filter(r=>
+ (!state.filter||r.exercise===state.filter)&&
+ (!state.regionFilter||primaryRegionForRow(r)===state.regionFilter));
+}
+function refreshRegionFilterButtons(){
+ document.querySelectorAll("#page-home .region-filter").forEach(button=>
+  button.setAttribute("aria-pressed",String(state.regionFilter===button.dataset.region)));
+}
+function toggleRegionFilter(region){
+ state.regionFilter=state.regionFilter===region?"":region;
+ // An exercise dropdown and a region chip must never silently conflict.
+ if(state.filter&&state.regionFilter){
+  const sample=state.rows.find(r=>r.exercise===state.filter);
+  if(sample&&primaryRegionForRow(sample)!==state.regionFilter){
+   state.filter="";$("filter").value="";
+  }
+ }
+ refreshRegionFilterButtons();renderHeat();renderDay();
+}
+document.querySelectorAll("#page-home .region-filter").forEach(button=>
+ button.onclick=()=>toggleRegionFilter(button.dataset.region));
+function selectTrainingDay(day,scroll=true){
+ state.calendarBrowsing=true;state.selected=day;renderHeat();renderDay();
+ if(scroll)jumpToView("home",()=> $("trainingDetailsPanel"));
+}
 // Latest saved record is the next default; no need for a separate preference file.
 let weightEditedByUser=false,repsEditedByUser=false;
 let trainingFormDirty=false;
@@ -1213,7 +1337,7 @@ function renderHeat(focusLatest=false){
     quadrant.setAttribute("aria-hidden","true");
     cell.append(quadrant);
    }
-   cell.onclick=()=>{state.calendarBrowsing=true;state.selected=day;renderHeat();renderDay()};
+   cell.onclick=()=>selectTrainingDay(day);
    heat.append(cell);
   }
  }
@@ -1251,6 +1375,37 @@ try{
  const fallback=localStorage.getItem("bodytrace.showWorkoutHistory");
  if(fallback==="false")applyWorkoutHistoryVisibility(false,false);
 }catch(_){}
+// Day summary is short by default; expanded/collapsed choice survives re-render
+// and page navigation. The original complete records stay in the DOM when shown.
+let showAllDayActions=false;
+try{showAllDayActions=localStorage.getItem("bodytrace.showAllDayActions")==="true";}catch(_){}
+function persistAllDayActions(){
+ try{localStorage.setItem("bodytrace.showAllDayActions",String(showAllDayActions));}catch(_){}
+}
+let overviewIllustratedExerciseId="";
+function closeOverviewIllustration(){
+ $("overviewMuscleOverlay").hidden=true;
+ document.body.classList.remove("overview-muscle-open");
+}
+function openOverviewIllustration(exerciseId,exerciseName){
+ overviewIllustratedExerciseId=exerciseId;
+ $("overviewMuscleTitle").textContent=exerciseName;
+ const target=window.BodyTraceDrawExerciseTarget?.(exerciseId,$("overviewMuscleDiagram"));
+ $("overviewMuscleTarget").textContent="主要目标："+(target||"未建立肌群细分映射");
+ $("overviewMuscleOverlay").hidden=false;
+ document.body.classList.add("overview-muscle-open");
+}
+$("overviewMuscleClose").onclick=closeOverviewIllustration;
+$("overviewMuscleOverlay").onclick=e=>{
+ if(e.target===$("overviewMuscleOverlay"))closeOverviewIllustration();
+};
+document.addEventListener("keydown",e=>{
+ if(e.key==="Escape"&&!$("overviewMuscleOverlay").hidden)closeOverviewIllustration();
+});
+$("overviewMuscleTrend").onclick=()=>{
+ const id=overviewIllustratedExerciseId;closeOverviewIllustration();
+ window.BodyTraceFocusExerciseTrend?.(id);
+};
 function renderDay(){
  $("selectedDate").textContent=state.selected+" · 训练详情";
  const list=filtered().filter(r=>r.session_date===state.selected);
@@ -1262,17 +1417,44 @@ function renderDay(){
  if(!list.length){view.className="empty";view.textContent="该日期暂无匹配训练记录。";return}
  view.className="";
  const byEx=new Map();for(const r of list){const key=r.exercise_id||r.exercise;if(!byEx.has(key))byEx.set(key,[]);byEx.get(key).push(r)}
- for(const [ex,items] of byEx){
+ // Most recently entered exercise first, while retaining every historical set.
+ const newestOrder=new Map();
+ list.forEach((r,i)=>newestOrder.set(r.exercise_id||r.exercise,i));
+ const ordered=[...byEx].sort((a,b)=>(newestOrder.get(b[0])||0)-(newestOrder.get(a[0])||0));
+ for(const [position,[ex,items]] of ordered.entries()){
+  if(!showAllDayActions&&position>=2)continue;
   const section=document.createElement("section");section.className="exercise";section.dataset.exerciseId=ex;
   section.dataset.region=primaryRegionForRow(items[0]);
-  const header=document.createElement("div");header.className="row";const name=document.createElement("span");name.className="exercise-name";name.textContent=exerciseLabels[ex]||items[0].exercise||ex;
-  const regionLabel=document.createElement("span");regionLabel.className="exercise-region-label";
-  regionLabel.textContent=section.dataset.region;name.prepend(regionLabel);
+  const header=document.createElement("div");header.className="row";
+  const name=document.createElement("div");name.className="exercise-name";
+  const regionLabel=document.createElement("button");regionLabel.type="button";
+  regionLabel.className="exercise-region-label";regionLabel.textContent=section.dataset.region;
+  regionLabel.title="筛选 "+section.dataset.region+" 部位";
+  regionLabel.onclick=()=>toggleRegionFilter(section.dataset.region);
+  const exerciseLink=document.createElement("button");exerciseLink.type="button";
+  exerciseLink.className="exercise-trend-link";
+  exerciseLink.textContent=exerciseLabels[ex]||items[0].exercise||ex;
+  exerciseLink.title="定位到该动作的专属趋势";
+  exerciseLink.onclick=()=>window.BodyTraceFocusExerciseTrend?.(items[0].exercise_id||ex);
+  name.append(regionLabel,exerciseLink);
+  const controls=document.createElement("div");controls.className="exercise-name-actions";
+  controls.append(name);
+  if(position===0){
+   const art=document.createElement("button");art.type="button";
+   art.className="exercise-art-trigger";art.textContent="◉ 部位图";
+   art.title="查看该动作主要训练肌群的示意图";
+   art.onclick=()=>openOverviewIllustration(items[0].exercise_id||ex,exerciseLink.textContent);
+   controls.append(art);
+  }
   const count=document.createElement("span");count.className="exercise-count";count.textContent=items.filter(r=>!isFailedAttempt(r)).length+" 组"+
-  (items.some(isFailedAttempt)?" / "+items.filter(isFailedAttempt).length+" 次失败":"");header.append(name,count);section.append(header);
+  (items.some(isFailedAttempt)?" / "+items.filter(isFailedAttempt).length+" 次失败":"");
+  header.append(controls,count);section.append(header);
   const sets=document.createElement("div");sets.className="sets";
   items.forEach((r,i)=>{
-   const p=document.createElement("div");p.className="set"+(isFailedAttempt(r)?" failed-attempt":"");const b=document.createElement("b");
+   const p=document.createElement("button");p.type="button";
+   p.className="set"+(isFailedAttempt(r)?" failed-attempt":"");
+   p.title="查看并编辑这一组训练";p.onclick=()=>workoutEditOpen(r);
+   const b=document.createElement("b");
    const approx=r.approx===true;
    b.textContent=weight(r)+(r.load_basis==="per_side"?" / 每侧":r.load_basis==="bodyweight"?" / 外加重量（自重）":r.load_basis==="unspecified"?" / 重量标注待确认":"")+
   (isFailedAttempt(r)?" · 未完成（0 次）":" × "+(approx?"约":"")+r.reps+"次");p.append(b);
@@ -1310,12 +1492,16 @@ function renderDay(){
     const stats=document.createElement("small");
     stats.textContent=completed+" 组"+(entries.length>completed?
       " · 失败 "+(entries.length-completed)+" 次":"");
-    const dateHead=document.createElement("div");dateHead.className="exercise-history-date-head";
+    const dateHead=document.createElement("button");dateHead.type="button";
+    dateHead.className="exercise-history-date-head";
+    dateHead.title="查看 "+date+" 的训练详情";
+    dateHead.onclick=()=>selectTrainingDay(date);
     dateHead.append(dayTitle,stats);log.append(dateHead);
     const mini=document.createElement("div");mini.className="exercise-history-sets";
     for(const r of entries){
-     const item=document.createElement("span");item.className="exercise-history-set"+
-       (isFailedAttempt(r)?" failed":"");
+     const item=document.createElement("button");item.type="button";
+     item.className="exercise-history-set"+(isFailedAttempt(r)?" failed":"");
+     item.title="查看并编辑历史训练组";item.onclick=()=>workoutEditOpen(r);
      item.textContent=weight(r)+(r.load_basis==="per_side"?"（每侧）":"")+
       " × "+r.reps+" 次";
      mini.append(item);
@@ -1325,6 +1511,22 @@ function renderDay(){
    section.append(history);
   }
   view.append(section);
+ }
+ if(ordered.length>2){
+  const more=document.createElement("button");more.type="button";
+  more.className="overview-all-actions";
+  more.textContent=showAllDayActions?"收起其他动作 ↑":"展开全部 "+ordered.length+" 个动作 ↓";
+  more.setAttribute("aria-expanded",String(showAllDayActions));
+  more.onclick=()=>{
+   showAllDayActions=!showAllDayActions;persistAllDayActions();
+   const before=currentScrollTop();
+   renderDay();
+   if(!showAllDayActions){
+    window.scrollTo(0,Math.min(before,maximumScrollTop()));
+    rememberPageScroll("home");
+   }
+  };
+  view.append(more);
  }
 }
 function renderBody(){
@@ -1411,8 +1613,16 @@ $("saveRaw").onclick=()=>{
  if(!window.BodyTraceNative){toast("请在 Android App 内保存",true);return}
  BodyTraceNative.saveRaw(value);
 };
-$("filter").onchange=e=>{state.filter=e.target.value;renderHeat();renderDay()};
-$("goLatest").onclick=()=>{const ds=filtered().map(r=>r.session_date).sort();state.calendarBrowsing=false;state.selected=ds.at(-1)||today;renderHeat(true);renderDay()};
+$("filter").onchange=e=>{
+ state.filter=e.target.value;state.regionFilter="";
+ refreshRegionFilterButtons();renderHeat();renderDay();
+};
+$("goLatest").onclick=()=>{
+ const ds=filtered().map(r=>r.session_date).sort();
+ state.calendarBrowsing=false;state.selected=ds.at(-1)||today;
+ renderHeat(true);renderDay();
+ jumpToView("home",()=> $("trainingDetailsPanel"));
+};
 $("recordExercise").onchange=()=>{recordExerciseTouched=true;clearTrainingEdits();refreshExerciseRecommendation(true)};
 function openTrainingWheel(elementId, title, min, max, step, unit){
  if(!window.BodyTraceWheel){toast("滚轮尚未初始化，请重新打开 App",true);return}
