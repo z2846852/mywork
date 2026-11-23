@@ -1,7 +1,6 @@
 package com.z2846852.bodytrace;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -9,21 +8,21 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Conservative, deterministic phone-activity inference.
- *
- * Only reports a SCREEN-OFF -> subsequent SCREEN-ON inactivity window.
- * This is NOT actual sleep: screen-off audiobook listening, nocturnal
- * awakenings without device use and an alarm can all bias this estimate.
- * A full night is labeled insufficient when it has no paired evidence.
- * No fixed rolling-day retention limit: Android decides queryEvents storage.
+ * Conservative phone-inactivity detection, NOT a measurement of actual sleep.
+ * Uses complete screen-off -> screen-on evidence without a fixed bedtime cutoff.
+ * Short, paired screen-on periods are tolerated; power loss is a hard barrier.
+ * Never infers a duration from the first/last event to the scan boundary.
  */
 final class PhoneSleepInference {
-    static final int SCREEN_ON=15,SCREEN_OFF=16;
-    static final int KEYGUARD_SHOWN=17,KEYGUARD_HIDDEN=18;
-    static final int SHUTDOWN=26,STARTUP=27;
-    static final long HOUR=3600000L;
-    static final long MIN_GAP=2*HOUR;
-    static final long MAX_GAP=16*HOUR;
+    static final int SCREEN_ON=15, SCREEN_OFF=16;
+    static final int KEYGUARD_SHOWN=17, KEYGUARD_HIDDEN=18;
+    static final int SHUTDOWN=26, STARTUP=27;
+    static final long MINUTE=60_000L, HOUR=60*MINUTE;
+    static final long MIN_GAP=4*HOUR;
+    static final long QUICK_CHECK=30_000L;
+    static final long MAX_SHORT_USE=2*MINUTE;
+    static final long MAX_TOTAL_SHORT_USE=5*MINUTE;
+    static final long REPEATED_WINDOW=30*MINUTE;
     static final ZoneId ZONE=ZoneId.of("Asia/Shanghai");
 
     static final class Event {
@@ -33,86 +32,120 @@ final class PhoneSleepInference {
     }
 
     static final class Night {
-        final String day;
-        final String state;
-        final long offMs,onMs,gapMs;
-        final int screenOn,unlock,screenOff;
-        final String reason;
+        final String day, state, reason;
+        final long offMs,onMs,gapMs,shortUseMs;
+        final int screenOn,unlock,screenOff,shortUseCount;
         Night(String day,String state,long off,long on,long gap,
-              int screenOn,int unlock,int screenOff,String reason){
+              long shortUseMs,int shortUseCount,int screenOn,int unlock,
+              int screenOff,String reason){
             this.day=day;this.state=state;offMs=off;onMs=on;gapMs=gap;
+            this.shortUseMs=shortUseMs;this.shortUseCount=shortUseCount;
             this.screenOn=screenOn;this.unlock=unlock;this.screenOff=screenOff;
             this.reason=reason;
         }
     }
-    private PhoneSleepInference(){}
-    private static long clock(LocalDate day,int hour){
-        return day.atTime(hour,0).atZone(ZONE).toInstant().toEpochMilli();
+
+    private static final class Interval {
+        final long from,to;
+        final int epoch;
+        Interval(long from,long to,int epoch){
+            this.from=from;this.to=to;this.epoch=epoch;
+        }
     }
+
+    private PhoneSleepInference(){}
     static String date(long ms){
         return Instant.ofEpochMilli(ms).atZone(ZONE).toLocalDate().toString();
     }
 
+    private static boolean usualSleepStart(long start){
+        int hour=Instant.ofEpochMilli(start).atZone(ZONE).getHour();
+        // 05:00-09:00 starts are valid even if waking after noon.
+        return hour>=18 || hour<9;
+    }
+
+    private static Night report(long start,long end,long shortUse,int shortCount,
+                                List<Event> events){
+        if(end-start<MIN_GAP)return null;
+        int ons=0,offs=0,unlocks=0;
+        for(Event e:events){
+            if(e.ms<start)continue;
+            if(e.ms>end)break;
+            if(e.kind==SCREEN_ON)ons++;
+            if(e.kind==SCREEN_OFF)offs++;
+            if(e.kind==KEYGUARD_HIDDEN)unlocks++;
+        }
+        boolean unusual=!usualSleepStart(start)||end-start>24*HOUR;
+        String state=unusual?"unknown":"candidate";
+        String reason=unusual?
+            "非典型时间或超长未使用：需要人工确认；不能认定为睡眠":
+            "手机长时间未明显使用：疑似睡眠，不等于真实睡眠";
+        return new Night(date(end),state,start,end,end-start,shortUse,shortCount,
+            ons,unlocks,offs,reason);
+    }
+
     static List<Night> infer(List<Event> input,long now){
-        ArrayList<Night> reports=new ArrayList<>();
-        if(input.isEmpty())return reports;
-        ArrayList<Event> data=new ArrayList<>(input);
-        data.sort(Comparator.comparingLong(e->e.ms));
-        LocalDate oldest=Instant.ofEpochMilli(data.get(0).ms)
-            .atZone(ZONE).toLocalDate();
-        LocalDate current=Instant.ofEpochMilli(now).atZone(ZONE).toLocalDate();
-        // Examine all dates between the first retained event and now. Days with
-        // zero actual event evidence are skipped below, not labeled "missing".
-        // A last event at bedtime yesterday can yield a pending night today.
-        for(LocalDate date=oldest;!date.isAfter(current);date=date.plusDays(1)){
-            long begin=clock(date.minusDays(1),18);
-            long end=clock(date,12);
-            long wakeBegin=clock(date,4);
-            long lastBedtime=clock(date,4);
-            long bestGap=0,bestOff=0,bestOn=0;
-            int screenOn=0,unlock=0,screenOff=0,incidentCount=0;
-            long lastOff=-1;
-            boolean interrupted=false;
-            for(Event event:data){
-                if(event.ms<begin)continue;
-                if(event.ms>=end)break;
-                int type=event.kind;
-                incidentCount++;
-                if(type==SCREEN_OFF){
-                    screenOff++;
-                    lastOff=event.ms;
-                    interrupted=false;
-                }else if(type==SCREEN_ON){
-                    screenOn++;
-                    if(lastOff>=begin&&lastOff<=lastBedtime&&
-                       event.ms>=wakeBegin&&event.ms<end&&!interrupted){
-                        long gap=event.ms-lastOff;
-                        if(gap>=MIN_GAP&&gap<=MAX_GAP&&gap>bestGap){
-                            bestGap=gap;bestOff=lastOff;bestOn=event.ms;
-                        }
-                    }
-                    lastOff=-1;interrupted=false;
-                }else if(type==KEYGUARD_HIDDEN){
-                    unlock++;
-                    // An unlock is evidence of wakeful interaction, not itself
-                    // a screen-on. Do NOT manufacture a missing pair.
-                }else if(type==SHUTDOWN||type==STARTUP){
-                    interrupted=true;
-                    lastOff=-1;
+        ArrayList<Night> result=new ArrayList<>();
+        if(input==null||input.isEmpty())return result;
+        ArrayList<Event> events=new ArrayList<>();
+        for(Event event:input){
+            if(event.ms>0&&event.ms<=now)events.add(event);
+        }
+        if(events.isEmpty())return result;
+        events.sort(Comparator.comparingLong(e->e.ms));
+        ArrayList<Interval> intervals=new ArrayList<>();
+        long lastOff=-1;
+        int epoch=0;
+        for(Event event:events){
+            if(event.kind==SHUTDOWN||event.kind==STARTUP){
+                lastOff=-1;
+                epoch++; // Never merge across a reboot or event discontinuity.
+            }else if(event.kind==SCREEN_OFF){
+                if(lastOff<0)lastOff=event.ms;
+            }else if(event.kind==SCREEN_ON){
+                if(lastOff>=0&&event.ms>lastOff)
+                    intervals.add(new Interval(lastOff,event.ms,epoch));
+                lastOff=-1;
+            }
+        }
+
+        if(!intervals.isEmpty()){
+            Interval first=intervals.get(0);
+            long start=first.from,end=first.to,totalShort=0;
+            int count=0,activeEpoch=first.epoch;
+            ArrayList<Long> wakeTimes=new ArrayList<>();
+            for(int i=1;i<intervals.size();i++){
+                Interval next=intervals.get(i);
+                long awake=next.from-end;
+                int recent=0;
+                for(long wake:wakeTimes)
+                    if(next.from-wake<=REPEATED_WINDOW)recent++;
+                boolean canMerge=next.epoch==activeEpoch &&
+                    awake>=0 && awake<=MAX_SHORT_USE &&
+                    totalShort+awake<=MAX_TOTAL_SHORT_USE && recent<2;
+                if(canMerge){
+                    totalShort+=awake;
+                    count++;
+                    wakeTimes.add(end);
+                    end=next.to;
+                }else{
+                    Night night=report(start,end,totalShort,count,events);
+                    if(night!=null)result.add(night);
+                    start=next.from;end=next.to;totalShort=0;count=0;
+                    activeEpoch=next.epoch;
+                    wakeTimes.clear();
                 }
             }
-            // Never manufacture an "insufficient" date without ANY events.
-            if(incidentCount==0)continue;
-            boolean inProgress=date.equals(current)&&
-                now<clock(date,12)&&bestGap==0;
-            String state=bestGap>0?"candidate":inProgress?"pending":"insufficient";
-            String reason=bestGap>0?
-                "最长连续熄屏窗口：可作为休息机会的参考，不等于真实睡眠":
-                inProgress?"尚未观察到可确认的早晨亮屏，当前夜晚可能还未结束":
-                "缺少可配对的夜间熄屏与早晨亮屏事件";
-            reports.add(new Night(date.toString(),state,bestOff,bestOn,
-                bestGap,screenOn,unlock,screenOff,reason));
+            Night night=report(start,end,totalShort,count,events);
+            if(night!=null)result.add(night);
         }
-        return reports;
+        // The last OFF without a subsequent ON is an unfinished observation.
+        // It has no measured end time and must not be saved as completed sleep.
+        if(lastOff>=0&&now>lastOff){
+            result.add(new Night(date(now),"pending",lastOff,0,0,0,0,0,0,1,
+                "仍未观察到后续亮屏，区间尚未结束，不推测睡眠时长"));
+        }
+        result.sort(Comparator.comparingLong(n->n.offMs));
+        return result;
     }
 }
