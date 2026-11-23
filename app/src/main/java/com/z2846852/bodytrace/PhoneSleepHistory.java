@@ -17,6 +17,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 
@@ -124,8 +126,10 @@ final class PhoneSleepHistory {
     }
 
     private static JSONObject overlapping(Map<String,JSONObject> saved,
-                                          PhoneSleepInference.Night window){
+                                          PhoneSleepInference.Night window,
+                                          Set<String> claimed){
         for(JSONObject record:saved.values()){
+            if(claimed.contains(record.optString("id")))continue;
             long a=record.optLong("screen_off_ms");
             long b=record.optLong("next_screen_on_ms");
             long overlap=Math.min(b,window.onMs)-Math.max(a,window.offMs);
@@ -218,6 +222,7 @@ final class PhoneSleepHistory {
         List<PhoneSleepInference.Night> windows=
             PhoneSleepInference.infer(relevant,now);
         int created=0;
+        Set<String> claimed=new HashSet<>();
         boolean dirty=stored.optInt("schema")!=2;
         JSONArray incomplete=new JSONArray();
         for(PhoneSleepInference.Night window:windows){
@@ -229,7 +234,7 @@ final class PhoneSleepHistory {
             }
             if(window.gapMs<PhoneSleepInference.MIN_GAP)continue;
             JSONObject record=saved.get(idFor(window.offMs));
-            if(record==null)record=overlapping(saved,window);
+            if(record==null)record=overlapping(saved,window,claimed);
             if(record==null){
                 record=new JSONObject()
                     .put("id",idFor(window.offMs))
@@ -241,6 +246,7 @@ final class PhoneSleepHistory {
                 created++;
                 dirty=true;
             }
+            claimed.add(record.optString("id"));
             if(record.optBoolean("reviewed",false)){
                 // Preserve both the manually selected label and its evidence.
                 continue;
