@@ -1045,6 +1045,9 @@ function syncFocusedStrengthCard(){
  for(const card of cards)list.append(card);
  const exerciseId=trendFocusKey?trendFocusKey.split("|")[0]:null;
  const selected=cards.find(card=>card.dataset.exerciseId===exerciseId);
+ const summary=$("strengthDetailExpander").querySelector("summary");
+ if(summary?.firstChild?.nodeType===3)
+  summary.firstChild.textContent=selected?"其余动作详情与编辑 ":"全部动作详情与编辑 ";
  slot.hidden=!selected;
  if(!selected){slot.replaceChildren();return;}
  selected.classList.add("selected-trend-exercise");
@@ -1494,7 +1497,7 @@ window.BodyTraceFocusExerciseTrend=function(exerciseId){
   renderRegionDashboard();
   $("strengthDetailExpander").open=true;
   window.BodyTraceJumpTo?.("analytics",()=>
-   [...$("strengthList").querySelectorAll(".strength-exercise-card")]
+   [...document.querySelectorAll("#strengthList .strength-exercise-card, #trendFocusedDetail .strength-exercise-card")]
     .find(card=>card.dataset.exerciseId===exerciseId)||$("strengthDetailExpander"));
   toast("该动作暂无可用的估算力量曲线，已定位原始记录",true);
  }
@@ -1579,7 +1582,7 @@ window.bodyTraceReceive=function(evt){
       // After a new workout is saved, open this exercise's own historical
       // chart rather than returning to Overview or the combined trend plot.
       const exerciseId=evt.event.exercise_id;
-      const findCard=()=>[...$("strengthList").querySelectorAll(".strength-exercise-card")]
+      const findCard=()=>[...document.querySelectorAll("#strengthList .strength-exercise-card, #trendFocusedDetail .strength-exercise-card")]
         .find(card=>card.dataset.exerciseId===exerciseId);
       if(findCard()){
         $("strengthDetailExpander").open=true;
