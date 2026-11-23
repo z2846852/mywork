@@ -413,6 +413,13 @@ function trendData(rows,from,end,bodyWeight=70){
  }
  return {series,ignored};
 }
+function trendLegendColumns(series){
+ // The columns are fixed; sort each one by its most recent recorded workout.
+ const latest=group=>group.points[group.points.length-1]?.date||"";
+ return dashboardRegions.map(region=>series.filter(group=>group.region===region)
+  .sort((a,b)=>latest(b).localeCompare(latest(a))||
+   a.name.localeCompare(b.name,"zh-CN")||a.key.localeCompare(b.key)));
+}
 function renderRegionDashboard(){
  const dashboard=$("trainingOverview"),root=$("regionTrendGrid");
  dashboard.replaceChildren();root.replaceChildren();
@@ -596,7 +603,7 @@ function renderRegionDashboard(){
   details.textContent="已选 "+selection.name+" · 最近 "+latest.date+" · "+
    (delta>0.05?"进步":delta<-.05?"下降":"基本持平")+" "+
    round1(Math.abs(delta))+" kg（相对历史首条记录）";
- }else details.textContent="点击某条曲线或下方动作名称：突出该动作，其他曲线变淡；再次点击恢复全部";
+ }else details.textContent="";
  for(const curve of curves){
   const {group,pts}=curve;
   const focused=trendFocusKey===group.key;
@@ -659,7 +666,53 @@ function renderRegionDashboard(){
    setFocus(chosen.curve.group.key,chosen.pt.point);
  });
  section.append(svg);
- root.append(section,details);
+ root.append(section);
+ const columns=trendLegendColumns(all);
+ const legend=document.createElement("div");legend.className="combined-trend-legend";
+ legend.setAttribute("role","group");
+ legend.setAttribute("aria-label","胸、肩、背、腿四列动作曲线图例");
+ for(const region of dashboardRegions){
+  const title=document.createElement("strong");
+  title.className="combined-trend-legend-heading";
+  title.textContent=region;
+  title.style.color=regionThemeColors[region];
+  legend.append(title);
+ }
+ // Row-major DOM order preserves four fixed region columns as a table.
+ const maxRows=Math.max(...columns.map(items=>items.length));
+ for(let row=0;row<maxRows;row++){
+  for(const part of columns){
+   const group=part[row];
+   if(!group){
+    const empty=document.createElement("span");
+    empty.className="combined-trend-legend-empty";
+    empty.setAttribute("aria-hidden","true");
+    legend.append(empty);continue;
+   }
+   const button=document.createElement("button");
+   button.type="button";button.className="combined-trend-legend-item";
+   const chosen=trendFocusKey===group.key;
+   button.classList.toggle("selected",chosen);
+   button.classList.toggle("muted",!!trendFocusKey&&!chosen);
+   button.setAttribute("aria-pressed",String(chosen));
+   const fullName=group.name+(group.basis==="per_side"?"（每侧）":"");
+   button.setAttribute("title",fullName);
+   button.setAttribute("aria-label","查看 "+fullName+" 趋势，再次点击恢复全部");
+   const name=document.createElement("span");
+   name.className="combined-trend-legend-name";
+   name.textContent=fullName;
+   const key=el("svg",{viewBox:"0 0 72 16",width:68,height:16,
+    "aria-hidden":"true",class:"combined-trend-legend-symbol"});
+   const sample=el("line",{x1:3,y1:8,x2:69,y2:8,
+    stroke:group.color,"stroke-width":3});
+   if(group.dash)sample.setAttribute("stroke-dasharray",group.dash);
+   key.append(sample,svgMarker(group.marker,36,8,group.color,4.2));
+   button.append(name,key); // Name above its exact chart line and marker.
+   button.onclick=()=>setFocus(group.key,null);
+   legend.append(button);
+  }
+ }
+ root.append(legend,details);
  if(trendFocusKey){
   const clear=document.createElement("button");clear.type="button";
   clear.className="secondary mini combined-trend-clear";
@@ -667,48 +720,15 @@ function renderRegionDashboard(){
   clear.onclick=()=>setFocus(trendFocusKey,null);
   root.append(clear);
  }
- const legend=document.createElement("div");legend.className="combined-trend-legend";
- for(const region of ["胸","肩","背","腿"]){
-  const part=all.filter(s=>s.region===region);
-  if(!part.length)continue;
-  const wrapper=document.createElement("div");
-  wrapper.className="combined-trend-legend-region";
-  const title=document.createElement("strong");
-  title.textContent=region+" · "+part.length+"项";
-  title.style.color=regionThemeColors[region];wrapper.append(title);
-  const items=document.createElement("div");
-  items.className="combined-trend-legend-items";
-  for(const group of part){
-   const button=document.createElement("button");
-   button.type="button";button.className="combined-trend-legend-item";
-   const chosen=trendFocusKey===group.key;
-   button.classList.toggle("selected",chosen);
-   button.classList.toggle("muted",!!trendFocusKey&&!chosen);
-   button.setAttribute("aria-pressed",String(chosen));
-   button.setAttribute("title","查看 "+group.name+"；再次点击恢复所有曲线");
-   const key=el("svg",{viewBox:"0 0 48 20",width:46,height:20,
-    "aria-hidden":"true",class:"combined-trend-legend-symbol"});
-   const sample=el("line",{x1:2,y1:10,x2:46,y2:10,
-    stroke:group.color,"stroke-width":3});
-   if(group.dash)sample.setAttribute("stroke-dasharray",group.dash);
-   key.append(sample,svgMarker(group.marker,24,10,group.color,5));
-   const name=document.createElement("span");
-   name.textContent=group.name.split("（")[0]+
-    (group.basis==="per_side"?"·每侧":"");
-   button.append(key,name);
-   button.onclick=()=>setFocus(group.key,null);
-   items.append(button);
-  }
-  wrapper.append(items);legend.append(wrapper);
- }
- root.append(legend);
+ const help=document.createElement("details");
+ help.className="combined-trend-help";
+ const heading=document.createElement("summary");
+ heading.textContent="ⓘ 表现指数说明";
  const note=document.createElement("p");
- note.className="note combined-trend-note";
- note.textContent="全部动作共用一张图和一条表现指数纵轴（首条有效记录=100）。"+
-  "点选动作后会自动放大该动作的上下波动，其他曲线仍保留为淡色背景。"+
-  "这是便于观察趋势的相对指标，不是跨器械可比的肌肉力量。"+
-  "未训练日不补点，辅助动作沿用 "+round1(trendAssistBase)+" kg 体重基准。";
- root.append(note);
+ note.textContent="全部动作共用一个纵轴，单动作首条有效记录对应指数100。"+
+  "点选动作后放大其波动，其他曲线淡化；这是相对变化，不能用于跨器械比较力量。"+
+  "未训练日不补点；辅助动作使用 "+round1(trendAssistBase)+" kg 体重基准。";
+ help.append(heading,note);root.append(help);
 }
 function updateTrendPreference(){
  const from=$("trendStartDate").value,to=$("trendEndDate").value;
