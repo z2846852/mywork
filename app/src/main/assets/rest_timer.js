@@ -27,7 +27,7 @@
   if(/划船|下拉|row|traction/.test(name))return 150;
   return 120; // Unknown custom movement: editable, not a false precise prescription.
  }
- function remainingSeconds(deadline,now){return Math.ceil((deadline-now)/H);}
+ function remainingSeconds(deadline,now){const n=Math.ceil((deadline-now)/H);return n===0?0:n;}
  function clock(seconds){
   const negative=seconds<0;
   let a=Math.abs(Math.trunc(seconds));
