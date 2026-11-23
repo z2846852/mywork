@@ -42,6 +42,26 @@ h2{margin:0;font-size:17px}h3{margin:0 0 12px;font-size:15px}
 .exercise{border-top:1px solid #2e4240;padding:14px 0 0;margin-top:15px}.exercise-name{font-size:14px;font-weight:700}.exercise-count{font-size:12px;color:var(--muted)}
 .sets{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.set{background:#173629;border:1px solid #305a45;border-radius:12px;padding:9px 11px;min-width:98px}
 .set b{display:block;font-size:14px}.set small{display:block;font-size:10px;color:#9bb7a8;margin-top:4px}
+/* Selected-day sets use the same muscle-region palette as the calendar/trends. */
+#dayDetails .exercise{--exercise-region-color:#91a9a8;
+ border-top-color:color-mix(in srgb,var(--exercise-region-color) 55%,#2e4240)}
+#dayDetails .exercise[data-region="胸"]{--exercise-region-color:var(--region-chest)}
+#dayDetails .exercise[data-region="肩"]{--exercise-region-color:var(--region-shoulder)}
+#dayDetails .exercise[data-region="背"]{--exercise-region-color:var(--region-back)}
+#dayDetails .exercise[data-region="腿"]{--exercise-region-color:var(--region-leg)}
+#dayDetails .exercise-name{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
+#dayDetails .exercise-region-label{display:inline-flex;align-items:center;justify-content:center;
+ flex-shrink:0;border:1px solid var(--exercise-region-color);border-radius:6px;
+ padding:2px 6px;background:color-mix(in srgb,var(--exercise-region-color) 19%,#172729);
+ color:var(--exercise-region-color);font-size:11px;font-weight:800}
+#dayDetails .exercise-count{flex-shrink:0}
+#dayDetails .set:not(.failed-attempt){background:color-mix(in srgb,var(--exercise-region-color) 29%,#142622);
+ border-color:color-mix(in srgb,var(--exercise-region-color) 76%,#305a45)}
+#dayDetails .set:not(.failed-attempt) small{color:#d7e3df}
+#dayDetails .exercise-history{border-top-color:color-mix(in srgb,var(--exercise-region-color) 50%,#38524a)}
+#dayDetails .exercise-history-heading{color:var(--exercise-region-color)}
+#dayDetails .exercise-history-date{border-left:3px solid var(--exercise-region-color);
+ background:color-mix(in srgb,var(--exercise-region-color) 10%,#182a28)}
 .empty{text-align:center;color:#87a29c;padding:30px 12px;line-height:1.6;font-size:13px}
 .tabs{position:fixed;bottom:0;left:0;right:0;background:#121c20eF;backdrop-filter:blur(16px);border-top:1px solid #294440;display:flex;justify-content:center;padding:8px max(5px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom));z-index:5}
 .tabs button{border:0;background:transparent;color:#819895;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 8px;flex:1;max-width:165px;font-size:10px;border-radius:12px}
@@ -1244,7 +1264,10 @@ function renderDay(){
  const byEx=new Map();for(const r of list){const key=r.exercise_id||r.exercise;if(!byEx.has(key))byEx.set(key,[]);byEx.get(key).push(r)}
  for(const [ex,items] of byEx){
   const section=document.createElement("section");section.className="exercise";section.dataset.exerciseId=ex;
+  section.dataset.region=primaryRegionForRow(items[0]);
   const header=document.createElement("div");header.className="row";const name=document.createElement("span");name.className="exercise-name";name.textContent=exerciseLabels[ex]||items[0].exercise||ex;
+  const regionLabel=document.createElement("span");regionLabel.className="exercise-region-label";
+  regionLabel.textContent=section.dataset.region;name.prepend(regionLabel);
   const count=document.createElement("span");count.className="exercise-count";count.textContent=items.filter(r=>!isFailedAttempt(r)).length+" 组"+
   (items.some(isFailedAttempt)?" / "+items.filter(isFailedAttempt).length+" 次失败":"");header.append(name,count);section.append(header);
   const sets=document.createElement("div");sets.className="sets";
