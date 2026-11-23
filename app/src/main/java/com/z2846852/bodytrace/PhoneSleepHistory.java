@@ -191,6 +191,7 @@ final class PhoneSleepHistory {
             scanned++;
             int type=event.getEventType();
             if(type!=PhoneSleepInference.SCREEN_ON &&
+               type!=PhoneSleepInference.USER_INTERACTION &&
                type!=PhoneSleepInference.SCREEN_OFF &&
                type!=PhoneSleepInference.KEYGUARD_HIDDEN &&
                type!=PhoneSleepInference.KEYGUARD_SHOWN &&
