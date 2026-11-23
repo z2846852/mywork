@@ -52,7 +52,7 @@
  }
  function countToday(id){
   const date=$("recordDate")?.value;
-  if(!id||!date||!window.state)return 0;
+  if(!id||!date||typeof state==="undefined")return 0;
   return state.rows.filter(row=>row.exercise_id===id&&row.session_date===date).length;
  }
  function renderProgress(){
