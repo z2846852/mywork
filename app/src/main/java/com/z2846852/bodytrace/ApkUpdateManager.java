@@ -413,6 +413,7 @@ final class ApkUpdateManager {
                                     download(expectedUrl(tag,filename),patchFile,MAX_PATCH,
                                         patchDigest,reporter,"差分补丁");
                                     progress(reporter,"applying","正在本地还原已签名 APK…");
+                                    Files.deleteIfExists(staged.toPath());
                                     ApkDeltaPatch.apply(installed,patchFile,staged);
                                     if(!ApkDeltaPatch.sha256(staged).equals(fullDigest))
                                         throw new SecurityException("还原结果与最新版不符");
@@ -422,7 +423,10 @@ final class ApkUpdateManager {
                                     Files.deleteIfExists(staged.toPath());
                                     note="差分补丁不可用，改下载完整 APK（"+
                                         safeError(e)+"）";
-                                }finally{Files.deleteIfExists(patchFile.toPath());}
+                                }finally{
+                                    // Preserve incomplete patch only after a transport failure.
+                                    if(patched)Files.deleteIfExists(patchFile.toPath());
+                                }
                             }
                         }
                     }
@@ -448,7 +452,7 @@ final class ApkUpdateManager {
             result.put("size_bytes",finalApk.length());
             return result;
         }finally{
-            // Keep incomplete downloads for a later Range request.
+            // Partial downloads and their digest markers survive failed attempts.
         }
     }
 
