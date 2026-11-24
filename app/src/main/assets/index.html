@@ -231,8 +231,8 @@ body.overview-muscle-open{overflow:hidden}
 <div class="panel overview-panel">
  <div class="trend-dashboard-title">
   <h2>力量趋势</h2>
-  <span id="trendPeriodCaption" class="trend-dashboard-caption">最近30天 · 全部动作</span>
-  <button type="button" id="trendLegendShortcut" class="trend-dashboard-legend-shortcut" aria-label="查看曲线名称和线型">曲线说明 <span>⌄</span></button>
+  <span id="trendPeriodCaption" class="trend-dashboard-caption" hidden>最近30天 · 全部动作</span>
+  <button type="button" id="trendLegendShortcut" class="trend-dashboard-legend-shortcut" aria-label="查看曲线名称和线型">ⓘ</button>
  </div>
  <div class="trend-dashboard-tools">
   <div class="trend-period-toolbar" role="group" aria-label="力量趋势时间范围" id="trendPeriodToolbar">
@@ -255,13 +255,12 @@ body.overview-muscle-open{overflow:hidden}
  <div id="trainingOverview" class="training-overview" aria-label="近28天训练概况"></div>
  <div id="regionTrendGrid" class="combined-trend" aria-label="胸肩背腿所有动作同一纵轴、同一完整图，点击动作后纵轴放大并查看详情"></div>
  <div id="trendFocusedDetail" class="trend-focused-detail" hidden aria-live="polite"></div>
- <div id="trendLegendArea" class="trend-legend-area"></div>
 </div>
-<div class="panel trend-support-panel"><details id="strengthDetailExpander" class="strength-detail-expander">
- <summary>全部动作详情与编辑 <small>原始重量 · 失败尝试 · 历史记录</small></summary>
- <p class="sub">按动作查看组数、记录和估算力量曲线。失败尝试不计入估算1RM。</p>
+<div class="panel trend-support-panel"><details id="strengthDetailExpander" class="strength-detail-expander" open>
+ <summary>全部动作趋势与编辑</summary>
  <div id="strengthList" class="strength-list" aria-label="全部已记录训练动作趋势"></div>
 </details></div>
+<div id="trendLegendArea" class="trend-legend-area"></div>
 <div class="panel trend-support-panel"><details id="regionDistributionExpander" class="trend-region-distribution">
  <summary>训练部位分布 <small>最近28天各部位训练组数</small></summary>
  <p class="sub">训练组数不代表肌肉大小或训练效果。</p>
