@@ -785,7 +785,7 @@ function renderRegionDashboard(){
   "点选动作后放大其波动，其他曲线淡化；这是相对变化，不能用于跨器械比较力量。"+
   "未训练日不补点；辅助动作使用身体页最新体重作为统一换算基准"+
   (trendAssistBase===null?"（尚无体重，暂不绘制辅助动作）":"（"+round1(trendAssistBase)+" kg，非各训练日体重）")+"。";
- help.append(heading,note);root.append(help);
+ help.append(heading,note);legendHost.append(help);
  syncFocusedStrengthCard();
 }
 function updateTrendPreference(){
