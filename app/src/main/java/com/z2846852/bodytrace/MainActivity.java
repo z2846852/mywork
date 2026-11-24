@@ -55,11 +55,8 @@ public final class MainActivity extends Activity {
     private static final int VOICE_LAB_MIC_PERMISSION_REQUEST=7206;
     private VoiceLabController voiceLab;
     private IpaSamplePlayer ipaSamplePlayer;
-    // Android's installed TTS engine reads complete words, not isolated IPA symbols.
-    private android.speech.tts.TextToSpeech ipaExampleTts;
-    private boolean ipaExampleTtsReady=false;
-    private String ipaExamplePendingWord="";
-    private java.util.Locale ipaExamplePendingLocale=java.util.Locale.UK;
+    // Whole example words use Google audio with local cache and system TTS fallback.
+    private ExampleSpeechPlayer exampleSpeechPlayer;
     private PhoneModelPacks phoneModels;
     private String pendingVoiceLabMode="";
     private static final int PICK_SLEEP_AUDIO_REQUEST=7204;
@@ -2460,55 +2457,10 @@ public final class MainActivity extends Activity {
         }catch(Exception ignored){}
     }
 
-    private void speakVoiceIpaPending(){
-        String word=ipaExamplePendingWord;
-        if(!ipaExampleTtsReady||ipaExampleTts==null||word.isEmpty())return;
-        ipaExamplePendingWord="";
-        int supported=ipaExampleTts.setLanguage(ipaExamplePendingLocale);
-        if(supported==android.speech.tts.TextToSpeech.LANG_MISSING_DATA||
-           supported==android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED){
-            voiceIpaTtsReport("当前系统 TTS 缺少"+(java.util.Locale.CHINESE.getLanguage()
-                .equals(ipaExamplePendingLocale.getLanguage())?"中文":"英式英语")+"语音包");
-            return;
-        }
-        ipaExampleTts.setSpeechRate(0.87f);
-        android.os.Bundle params=new android.os.Bundle();
-        params.putFloat(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_VOLUME,0.58f);
-        int result=ipaExampleTts.speak(word,
-            android.speech.tts.TextToSpeech.QUEUE_FLUSH,params,
-            "bodytrace_ipa_"+System.currentTimeMillis());
-        voiceIpaTtsReport(result==android.speech.tts.TextToSpeech.SUCCESS?
-            "正在朗读英式例词："+word:
-            "系统语音引擎朗读失败，请检查系统 TTS 语言包");
-    }
-
-    private void playVoiceIpaWord(String word,java.util.Locale locale){
-        ipaExamplePendingWord=word;
-        ipaExamplePendingLocale=locale;
-        if(ipaExampleTtsReady){speakVoiceIpaPending();return;}
-        if(ipaExampleTts!=null){
-            voiceIpaTtsReport("系统英式 TTS 初始化中…");
-            return;
-        }
-        voiceIpaTtsReport("首次使用，正在初始化系统英式 TTS…");
-        ipaExampleTts=new android.speech.tts.TextToSpeech(
-            getApplicationContext(),status->runOnUiThread(()->{
-                if(ipaExampleTts==null)return;
-                if(status!=android.speech.tts.TextToSpeech.SUCCESS){
-                    ipaExampleTts.shutdown();ipaExampleTts=null;
-                    voiceIpaTtsReport("手机未能启动系统 TTS，请安装或启用语音引擎");
-                    return;
-                }
-                int supported=ipaExampleTts.setLanguage(ipaExamplePendingLocale);
-                if(supported==android.speech.tts.TextToSpeech.LANG_MISSING_DATA||
-                   supported==android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED){
-                    ipaExampleTts.shutdown();ipaExampleTts=null;
-                    voiceIpaTtsReport("本机缺少英式英语 TTS 语音数据，需在系统设置中安装");
-                    return;
-                }
-                ipaExampleTtsReady=true;
-                speakVoiceIpaPending();
-            }));
+    private void playVoiceIpaWord(String word, java.util.Locale locale){
+        if(exampleSpeechPlayer==null)
+            exampleSpeechPlayer=new ExampleSpeechPlayer(this,this::voiceIpaTtsReport);
+        exampleSpeechPlayer.speak(word,locale);
     }
 
     @Override protected void onPause() {
@@ -2520,9 +2472,9 @@ public final class MainActivity extends Activity {
     @Override protected void onDestroy() {
         if(ipaSamplePlayer!=null)ipaSamplePlayer.stop();
         if(voiceLab!=null)voiceLab.cancel(false);
-        if(ipaExampleTts!=null){
-            ipaExampleTts.stop();ipaExampleTts.shutdown();
-            ipaExampleTts=null;ipaExampleTtsReady=false;
+        if(exampleSpeechPlayer!=null){
+            exampleSpeechPlayer.close();
+            exampleSpeechPlayer=null;
         }
         unregisterReceiver(sleepAnalysisReceiver);
         stopSleepPlayback();
