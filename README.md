@@ -1,321 +1,112 @@
-# 体迹 · BodyTrace
+# 体迹 · BodyTrace / MyWork
 
-## 免费离线音素引擎扩展包（2026-11-22）
+个人使用的 Android 数据看板：**健身记录、身体趋势、饮食、睡眠录音与声音分析**。数据优先在手机本地保存，GitHub 用作按需同步和版本化备份。此 README 是跨 ChatGPT / Codex 窗口接手项目的**唯一概要入口**。
 
-**资源安装简化：** 进入「声音 → 音素 / 口音」后自动核验本地 3 个 ZIPA 模型文件（SHA256）和 APK 内置的英汉发音词典，显示完整数量。点击一次「下载缺失资源（全部模型）」会跳过完整模型，顺序下载缺失/损坏的模型；默认启用 CC BY 4.0 的 500k 模型。切换和删除留在高级设置，模型文件仍保留在 App 私有目录。**词典已内置 APK，不需要额外联网下载**；若词典缺失则需要安装修复后的 APK。模型 Release 不可用、推理错误或缺乏词典匹配时，界面必须提示实际错误，不应伪造单词。当前尚未通过 Android 真机对模型加载、识别与完整词典匹配做端到端验收。
+[下载最新 APK](https://github.com/z2846852/mywork/releases/latest) · [正式构建 Actions](https://github.com/z2846852/mywork/actions/workflows/android.yml) · [夜间回归](https://github.com/z2846852/mywork/actions/workflows/nightly-tests.yml) · [代码提交记录](https://github.com/z2846852/mywork/commits/main)
 
+> **阅读规则：** 先读此 README，再检查 `main` 的实时源码、Actions、Release；它记录当前目标和已确认的默认行为，不是未来改动的强制需求。本文避免按日期堆砌版本流水账，过去的变更在 Git 历史和 Release 中查看。代码实现、CI 成功、APK 发布、手机真机验证是四件不同的事，不能互相替代。
 
-**不使用收费 API，不转写文字后反推音标。** APK 只内置开源 sherpa-onnx Android JNI 推理运行时（官方 v2.0.1 AAR SHA256 固定；仅 arm64），ZIPA 音素模型权重和 tokens.txt 完全不放在 APK。用户在「声音 → 音素 / 口音 → 免费离线音素引擎」按需选择下载，保存在 Android 私有 `files/voice_models`，正常覆盖升级 APK、跨版本二进制差分升级或 UI-only ZIP 更新均无需重新下载。可切换、删除每个模型。删除后不改变 APK，亦不会触发外部付费接口。
+## 个人开发约定
 
-独立 GitHub Release `voice-models-v1` 由 `.github/workflows/voice-models.yml` 在 CI 中从原始 Hugging Face 仓库下载、打包、计算 SHA256，并发布模型 ZIP。它不是最新 APK Release，也不会增加 APK 差分体积。APP 通过 GitHub Release API 提供的 `sha256:` 摘要校验 ZIP，再校验 ZIP 中的 `pack.json` 所记录的每个权重、词表的 SHA256。拒绝不可信 URL、任意 ZIP 路径和超大文件；只在校验通过后原子迁移目录。联网仅在首次下载/更新模型时需要，实际音素推理完全离线。**不要把 ZIPA 的模型授权与项目源码 MIT 混淆。**
+| 事项 | 规则 |
+| --- | --- |
+| 分支 | **默认只操作 `main`**，修改后直接提交，由 Actions 出包；未经用户明确要求，不创建功能分支或 PR |
+| 需求优先级 | 用户当前明确要求 > 本 README 的旧摘要 > 旧聊天/注释/历史方案。需求有歧义、技术不确定时应直接说明 |
+| 工程约束 | 以能正确运行、数据安全为主，不因纯格式、缩写或原作者协作风格制造门禁；但不能跳过实际必要的编译、签名、完整性及数据兼容验证 |
+| 功能删改 | 不擅自隐藏或删除“不常用”功能；用户明确决定后，优先修改实际行为与默认值，不做形式上的隐藏 |
+| 数据 | **保留原始记录和历史**，编辑/删除通过明确的记录逻辑处理，不能直接清空整个日期文件或覆盖他端更改 |
+| 文档 | 影响默认行为、数据协议、同步、更新、主要页面和工程工作流的修改，**同步更新此 README 的对应摘要**；不要再新增长篇“某天更新了什么”的章节 |
+| 发布 | 当前正式版本、下载地址和构建结果以 GitHub 动态页面为准，README 不写死“最新版版本号”或宣称真机已通过 |
 
-按需选择的三个神经音素引擎（都以音频直接输出 IPA phones，不输出英文单词）：
-- ZIPA small CRCTC 300k：`anyspeech/zipa-small-crctc-300k`，CC BY 4.0；
-- ZIPA small CRCTC 500k：`anyspeech/zipa-small-crctc-500k`，CC BY 4.0；
-- ZIPA small CRCTC NS 700k：`anyspeech/zipa-small-crctc-ns-700k`，CC BY-NC-SA 4.0，**仅非商业使用**。
-原作者模型、权重和标注来自 [ZIPA](https://github.com/lingjzhu/zipa) / [AnySpeech](https://huggingface.co/anyspeech/models)；sherpa-onnx 运行时来自 [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)，不复制训练代码。用户可选择旧版 F1/F2 + 擦音实验探针作为不下载时的保底参考，但会明确标识为非神经模型。三个神经模型独立可下载、切换、删除，方便真实发音逐个比较。
+## 当前页面及功能
 
-对于 `think` 和 `can't`，神经模型会尝试直接输出整段 IPA 音素而不是静态字典词条。候选音素仅是模型的**实际声学预测**，不一定反映真实口音差异，也不能当作专业纠音评分。英语界面显示 IPA 与对应例词（例词不代表识别到的单词）；普通话界面显示同一多语言模型输出的 IPA 与类似拼音声学例子，**并不可靠识别完整拼音、汉字或声调**。普通话音节及声调专项需独立有监督模型。默认不上传发音录音到 GitHub 或第三方服务。首次加载/推理延迟尚需 Android 实机实测，不承诺 0.x 秒。
+| 页面 | 主要用途和行为 |
+| --- | --- |
+| **概况** | 快捷数据、年度训练热力图、日期选择及各页面跳转；看板数据来自手机已保存的训练记录 |
+| **趋势** | 胸/肩/背/腿的训练频率概览、细分肌群和各动作力量趋势；支持时间范围、点选曲线/动作、详情展开及快捷跳转。**训练组数不等于肌肉增长，器械重量不可跨动作直接相加** |
+| **记录** | 按肌群/动作选择、最近一组重量与次数带入、滚轮输入、独立保存每组、批量录入、修改/删除历史记录；休息倒计时支持各动作预设和超时负数，记录页保持操作状态 |
+| **身体** | 体重及围度趋势、快捷录入、按日期查看测量、身体部位训练分布。身体示意为记录可视化，**不推断真实体型或肌肉变化** |
+| **睡眠** | 长时录音/导入、后台分析、波形与噪声阈值、疑似鼾声/语音片段筛选、时间线与回放；YAMNet 分类辅助，不是医学诊断 |
+| **声音** | 音高连续轨迹、五线谱参考、IPA 教学和易混音练习；按住说话分析 PCM 音频，实验性 ZIPA 神经音素识别与英汉词典反查 |
+| **饮食** | 每日饮食、热量和营养素记录及统计；数据以实际录入内容为准 |
+| **日志** | 最近 Git 提交、可获取的文件 diff、Raw 想法收件箱、GitHub 连接/同步、版本历史、更新和其他设置 |
 
-构建 Android APK：先运行 `bash scripts/fetch_sherpa_aar.sh` 下载并 SHA256 验证官方 Android AAR，再执行 `gradle :app:assembleRelease`。CI 自动完成此步骤，且仅生成纯 APK；模型包通过独立 workflow 发布，正常 CI 不访问权重，未将模型包打包进 APK。
+页面实际结构见 [index.html](app/src/main/assets/index.html)。底部导航按代码的「概况、趋势、记录、身体、睡眠、声音、日志」为准；饮食入口集成在页面中，并非独立底部 Tab。
 
-## 离线音素 → 英汉词典反查（2026-11-22）
+### 重要的实际交互
 
-**Android 资源打包修复：** 压缩词典文件使用 `.tsv.gzdata` 扩展名而不是 `.gz`，防止 AAPT 自动去掉 `.gz` 后导致 `AssetManager.open()` 找不到文件；内容仍为 gzip 流，Java 继续使用 `GZIPInputStream` 解压。CI 在 APK 签名后检查包内实际资源路径和 gzip 内容，不再只检查源码目录文件。
+- **本地优先**：离线也能记录训练、身体和 Raw；后台同步不应改动正在填写的表单、已选动作、手动选择的历史日期或用户正在查看的滚动位置。
+- **每组独立**：训练按 UUID 保存；可追加修改/删除事件来更正历史，保留原始记录及操作痕迹。辅助量 `assistance_kg` 与普通负重 `load_kg` 不混淆。
+- **趋势与入口联动**：优先让一屏展示高信息密度看板；可点击指标/曲线直达相关录入或详情，不重复显示无用信息。
+- **休息计时**：默认参考动作类型；计时超出预定休息时显示负数。用户可以手动调整、停止或重新开始。
+- **睡眠推算**：Android 使用情况事件只能推测不使用手机的窗口；允许短暂亮屏的容忍逻辑，仍**不能证明已经入睡**。vivo 健康私有接口只是只读兼容性实验，不假定任意机型可用。
+- **声音分析**：IPA 来自声学模型的候选预测，不是“语音转文字再生成音标”；词典相似度、神经网络输出与真正发音准确率是三种不同概念，**不能混作口音评分**。
 
-**不要混淆三个量**：ZIPA 从真实 PCM 声音解码出的 IPA 音素（声学模型的预测）、音素到词典 IPA 的编辑距离（词典字词匹配）、以及人类发音标准度（尚未衡量）。本功能不使用 ASR 把声音直接变成文字，不使用已知目标词强制修正 ZIPA 输出，也**不把词典相似度当作口音评分**。
-
-- 英语模式：在原始 ZIPA IPA 序列下独立显示“整段音素的英语词典匹配”。每项包含英语词形、词典美式 IPA、ECDICT 中文释义，以及“完整音素匹配”或“音素相似 x%”。候选匹配采用整个音素序列的可容错编辑距离，再以 BNC/COCA/牛津等词频数据做低权重排序；允许一定替音、少音。示例：ZIPA `θ ɪ ŋ k` → `think /θɪŋk/：认为；思考`，而不会列出随机的 `thin、sit、ship、cat` 等各音素示例词作为识别结果。
-- 常见单词与中文释义从两份现成、MIT 来源词典在 GitHub Actions APK 构建期间自动生成：`open-dict-data/ipa-dict` 的美式 IPA（CMU 派生），`skywind3000/ECDICT` 的 `ecdict.csv` 英汉释义、词频。生成器 `scripts/build_pronunciation_lexicon.py` 指定固定上游 commit，选取至多约 55,000 个常见有翻译词条，压缩为 `app/src/main/assets/en_pronunciation_zh.tsv.gzdata`；构建时生成并嵌入 APK，**无需用户每天下载，也不需要 GitHub token**。新 APK 会比之前稍大。原大词典不会提交或保存到项目 Git 历史。
-- 词典检索实现在 `PhoneticLexicon.java`，在首次使用英语 ZIPA 后离线读取并缓存，普通话音频**不进入英语词典**。如果字典不在 APK 中、加载失败或没有合理候选，保留原始 ZIPA 音素并显示失败原因，不使用旧的单音素例词映射伪造结果。
-- 普通话模式：只展示模型实际 IPA 预测；**停止把各个音素错误地映射成“你、衣、妈”等独立示例字**。IPA `x` 与拼音 `x` 不是同一套符号，可能更接近普通话拼音 `h`；当前模型没有可靠的声调/声母韵母解码，不据此假定“你好”的汉字或声调。
-- 数据与许可说明见 `app/src/main/assets/phonetic_lexicon_sources.txt`；自动化测试分别验证词典构建、英汉词义、 `think` 全音素匹配、`can't` 中撇号、替音容错、没有 IPA 时不编造单词，以及 UI 整体展示。
-
-## 声音实验室：双音高视图与英语 IPA 专项练习（2026-11-22）
-
-- 音高新增「连续频率 / 五线谱练习」切换。两者共用原有 YIN 实时采样和结果缓存：连续频率只绘制一条完整曲线，纵轴是对数 Hz 刻度，首次实际有效采样后固定范围，可上移/下移半个八度；无目标音时绝不因为调外音变红。五线谱按音名字母间隔严格等距绘制五条实线，稳定相同的发声音符合并显示，按所选调号标注升降号与谱外加线。乐谱模式可指定 C2–C6 的一个目标半音及 cents 容差，**仅此时**用红色提示超出目标频率范围；不读取现成歌曲、不解析时值节拍，不提供完整旋律打分。
-- 音素页新增 44 个传统英式英语入门参考音标（12 单元音、8 双元音、24 辅音）的点选卡片，包含中文发音动作要领、IPA 例词、易混音一键切换。点击「听例词」由系统 Android 英式英语 TTS 朗读完整单词（如 thin、sin、sit、see、bed），**不假装能够直接合成孤立 IPA 音**；手机缺少对应 TTS 引擎/语音包时明确提示。
-- 点选音标之后按住原有「按住说话」按钮，会锁定本次目标例词；松开继续使用本机 ZIPA 神经声学模型识别。UI 使用原始输出音素与目标例词的人工参考音素序列进行编辑距离对齐，提示关注音素是否被模型输出、可能的替换，不直接把一次声学识别当成发音准确度或口音评分。没有神经模型、非英语模式、过短/错误识别时不虚构评价。
-- 本项目已经使用 `open-dict-data/ipa-dict` 的美式词典作为字词反查，不重复导入其他词库。音标表与入门练习的设计调研参考了 [Schwa](https://github.com/Nico-Sanchez/schwa) 的互动音标图和最小对立音训练概念；没有复制对方的源代码或 Wikimedia 音频。本功能的参考词与中文说明为本仓库独立整理。传统英式 IPA（尤其 /ɒ/、/ɜː/、/ɪə/、/eə/、/ʊə/）与美式词典、实际 TTS 和 ZIPA 模型可能存在口音与转写体系差异，不能盲目当成发错。
-- 因为新增 Android 原生 TTS 桥接和 TTS 服务查询，**首次需要安装完整 APK**。UI-only 小包不能给旧原生 APK 增加 TTS。录音沿用原有仅在内存暂存的短音频，未新增上传或音频存档。
-
-## 独立「声音」Tab：音高轨迹与按住发音（2026-11-22）
-
-从睡眠页拆出全新的底部「♫ 声音」Tab，并拆成两个独立子页面。旧版「声音实验室」出现的大块白色空图是因为旧 Canvas 与 UI 样式未同步加载；本版改成固定深色 SVG，不依赖 Canvas/WebGL。
-
-- **音高 / 唱歌**：点击「开始演唱」持续使用麦克风。Java YIN 只发出达到能量/清晰度门槛的有效基频样本（大致 >= -40 dBFS），静音时绝不发送空样本；前端保留最后音符、频率、偏差和轨迹。横轴是**有效发声采样序列**，不随真实墙上时间推进；停声后冻结，继续唱则接着延长。纵轴是 MIDI 半音且保留浮点音分变化，连续唱 do/re/mi 会出现不同高度的音段，并且能看到颤音。点击「结束」保留图表，只有显式「清空」才重置历史。
-- **音素 / 口音**：按住大按钮开始捕获 PCM（仅内存，最多 5 秒），松开后 Android 原生后台线程对刚才整段音频进行离线分帧，调用已有 F1/F2 和擦音频谱探针，聚合连续候选音素后**一次返回**。展示候选 IPA 和英语/拼音例子；停止采集、短暂静音或切换子页面都不会自动抹掉上次结果。第一次授权麦克风时不会偷偷录音，授权后需要再按住。
-- **严格能力边界**：这里不是 ASR→文字→IPA。当前只有实验性元音与部分擦音线索，不能可靠识别 think 的 /θɪŋk/、普通话声调、完整句子，也不能给出准确率评分。会对没有稳定声学分类的短音频明确标「无法归类」，而非捏造单词。Allosaurus / ZIPA / voicesu 仅为已研究的现成项目参考，并未打包模型；下一阶段可移植合适的音素网络。
-- **架构**：`VoiceLabController.java` 持有 AudioRecord，分别负责 pitch voiced-only 流与 phoneme hold→release→analyse。独立 `voice_lab.js` 只处理声音 Tab 的 UI，睡眠页 `sleep.js` 不再含任何声音实验室代码。版本内置和 UI-only ZIP 共同包含新文件，指纹变更时自动改用完整 APK。离开 Tab 或退到后台立即停止麦克风，夜间长录音不会与实验室并行。
-- **回归验证**：合成纯音 Java 测试；浏览器检查独立导航、黑色 SVG、C4/D4/E4 三段声学曲线、静音保持、停止保持、按住/松开触发完整分析、结果在关麦之后仍存在。Android 实机麦克风、口音声学准确度仍需真实样本验证。
-
-## 手机行为睡眠报告：系统实际历史、逐夜补全（2026-11-22）
-
-「睡眠 → 手机行为 · 睡眠报告」提供一键开启 Android **使用情况访问权限**（特殊访问权限，需要用户在系统设置中手动允许），随后在手机本地查询 `UsageStatsManager.queryEvents(0, now)`。**不硬编码最近 7 天/30 天**，直接读取 Android 当前还保存的全部可访问事件；Android 官方只保证事件保留“数天”，vivo 的实际可读时间范围需以手机返回的首尾时间戳为准。启动时进入睡眠页会自动扫描；也可以随时点击「扫描并补全」。
-
-- 只提取 `SCREEN_NON_INTERACTIVE`、`SCREEN_INTERACTIVE`、`KEYGUARD_HIDDEN/SHOWN`、`DEVICE_SHUTDOWN/STARTUP` 的时间戳；不读取应用名称、操作内容、小说内容或消息文本。
-- 夜晚归属到次日早晨（北京时间）；仅将晚上 18:00 到次日凌晨 04:00 的熄屏，与次日早晨 04:00–12:00 的后续亮屏配对，且连续间隔在 2–16 小时、期间没有关机时，生成一条**候选休息窗口**。这不是入睡时间，也不是实际睡眠时长：锁屏听小说、早晨看闹钟和不使用手机的清醒时间都可能被包含。不能把该间隔写成“睡了 X 小时”。
-- 本地原子保存已生成的候选窗口在 `files/phone_sleep_reports.json`，按夜晚日期去重、保留历史；下一次扫描按系统当前可读日期补生成缺失的夜晚。系统事件历史过期后，已经保存的报告仍可看。候选证据不足的夜晚不会生成虚假记录，仅提示“事件不足”。因系统并不保证保留所有记录，缺失日期不代表手机未使用。
-- UI 显示系统实际读到的最早/最晚相关事件时间、事件条数、已生成夜晚和本次新增数；如果系统返回的事件过多而保护性截断，会明确提示。手机行为报告默认存本地，不推送 GitHub。
-- 声音浏览器顶部单行工具栏收纳录音选择、开始录音、停止保存、导入音频和录音管理；录音管理下拉包含刷新、历史文件、导入时的可选时间。原音频、AI 分析、播放和历史删除接口不改变。
-- CI `PhoneSleepInferenceTest.java` 验证跨午夜两晚推断、没有完整事件不造数、跨关机不误判、历史超过 7 天不丢弃等条件。
-
-## vivo WATCH 5 / vivo 健康只读睡眠接口试验（2026-11-22）
-
-在 BodyTrace「睡眠」页面折叠的「vivo WATCH 5 · 睡眠数据」面板内，按需点击「检测并读取最近一晚」。仅从**手机已同步的 vivo 健康 APP**查询，不直接连接手环蓝牙；不需要也不请求 Health Connect。
-
-- 背景：参考 [Akari Pulse](https://github.com/yoruuuchan/akari-pulse) 对 vivo X200 Pro / Android 15 上私有 `content://com.vivo.health.provider/sleep` 的 2026-08-14 真机验证。**原案例使用 vivo WATCH GT，尚未证明 vivo WATCH 5 与用户的 ROM 可以复现**。BodyTrace 独立实现最低限度的 Java 只读诊断，并不复制上游 AGPL 源码。
-- 首先检查手机 `com.vivo.health.provider` 是否可见，随后检查 `com.vivo.health.widget.permission` 是否真已授权；仅两者通过时才执行 `ContentResolver.query`。允许状态：`UNSUPPORTED`、`NOT_GRANTED`、`NO_DATA`、`PASS`、`ERROR`。绝不伪造缺失的记录或把 UI 中显示的时间作为原始传感器读数。
-- 成功时只显示第一行睡眠记录的 `ENTER_TIME`、`EXIT_TIME`、`TOTAL_DURATION`、可能存在的 `LIGHT_SLEEP_DURATION` / `DEEP_SLEEP_DURATION` / `REM_SLEEP_DURATION` / `AWAKE_SLEEP_DURATION` 及 `SCORE`，用北京时间显示，不上传、不自动保存，也不影响录音和 YAMNet 缓存。
-- 权限属于 vivo 私有 `signature|privileged`，正常第三方安装后不能通过运行时授权弹窗得到。Windows PowerShell 只读检测：`powershell -ExecutionPolicy Bypass -File scripts/probe_vivo_health.ps1`。若你**主动选择**尝试 ADB 授权，则加 `-Grant` 参数；系统可能拒绝，此时确认为 `NOT_GRANTED`，不尝试 Root、Shizuku 或绕过厂商限制。每次完整 APK 覆盖安装后授权可能失效，需重新检查。
-- 该试验是按需查询，不代表已接入 WATCH 5 的全部睡眠历史。验证成功之后才能规划长期本地缓存、睡眠音频/手机行为融合与日期选择。
-
-## 低频界面更新入口收纳（2026-11-22）
-
-「设置 → APP 版本更新」右上角的 **「!」** 展开低频「仅界面更新」功能。其原有三个操作（下载小型 UI 包 / 重新加载 / 恢复 APK 内置界面）、版本状态、原生兼容性验证与自动回退逻辑均保留，不再单独占一个设置页区块。日常使用者仍只看到“本机版本 / GitHub 最新版本 / 检查并升级”主流程。
-
-## 设置页面自动检查版本（2026-11-22）
-
-不再设计“检查版本”和“检查并下载”两个按钮。每次进入「设置」时自动调用 Android PackageManager 获取本机安装 `versionCode`，并仅请求 GitHub `releases/latest` 元数据获取最新正式版。左侧直接显示“本机 v0.2.NNN / 最新 v0.2.MMM”；这是**只读轻量请求，不下载 APK、补丁或 UI 更新包**，没有安装行为。
-
-右侧始终只保留一个「检查并升级」按钮：用户主动点击后才执行原来的“直达差分优先 / 完整 APK 兜底 / 校验 / 系统安装”流程。检测到已是最新版时，按钮显示“已是最新版”并禁用；网络异常时保留已读取的本机版本、提示最新版本查询失败，仍允许主动升级尝试；更新已下载但系统安装被取消时，同一按钮变成“继续安装”，不再显示额外的安装按钮。
-
-## Android 完整 APK 差分升级（2026-11-22）
-
-在「设置 → APP 一键升级」点击「检查并更新 APP」。APP 访问官方 GitHub Release 查询最新版；自动检测已安装的 versionCode 和 base.apk SHA256。若最新版本的 `BodyTrace-updates.json` 含有**当前 APK 精确 SHA256** 对应的直达补丁，则下载 `BodyTrace-from-v0.2.NNN.btpatch`，用已安装 APK 在本机流式还原目标的**完整已签名 APK**；若用户跨版本、补丁缺失、大小不划算、旧 APK 字节不同或补丁验证失败，则自动下载完整 `BodyTrace-release.apk`。不需要逐版本安装补丁。
-
-- GitHub Actions 先照常生成固定签名 Release APK，再对最近最多 10 个已有 Release 的完整 APK 生成独立直达差分。补丁内容是基于固定 4KiB 块的滚动 Adler32 匹配、字节级复核、复制命令与压缩字面量。格式标记 `BTDPAT01`。超过完整包 85% 的补丁不发布，直接用整包更省事。
-- Release 同时包含 `BodyTrace-updates.json`、各旧版的 `BodyTrace-from-v0.2.NNN.btpatch` 和完整 APK，均带 SHA256。客户端校验所下载补丁、旧 APK SHA256、重建后完整 APK SHA256、包名、版本号和签名证书，再通过只读的 `ApkInstallProvider` 将本地 APK 交给 Android 系统安装器。
-- APP **不会直接安装二进制差分文件**，它先还原出 APK。Android 8+ 可能要求允许此应用「安装未知应用」，安装时系统仍会弹出用户确认；普通 APP 不能绕过 Android 系统实现静默安装。
-- 首次引入差分更新器，必须安装一次带原生更新功能的完整 APK；之后 APP 可以在旧版本与最新版本之间直接升级，如 `v161 → v167`。超过 10 个旧 Release 的历史版本没有匹配补丁时，自动下载完整 APK。
-- 后端生成脚本 `scripts/apk_delta.py`、数据往返测试 `scripts/test_apk_delta.py`、与 Android 同源的 Java 流式还原器 `ApkDeltaPatch.java` 和 JDK 测试 `ApkDeltaPatchTest.java`。
-- 这个仓库的 Android 签名私钥随公开项目发布，因此签名一致性不应被解释为对抗仓库被入侵的高强度身份验证。用户应当只信任 GitHub Release 的官方来源；SHA256 和 Android PackageInstaller 的签名检查用于防止损坏、不匹配或误装。下载需要网络及应用私有目录的额外空间（约一个完整 APK）。
-
-## 睡眠页面紧凑布局与按需说明（2026-11-22）
-
-- 将原来常驻页面的录制/缓存、AI 阈值、手势、日期与后台权限说明移到标题右侧的「!」可展开帮助，不遮挡日常波形操作。
-- 日常可见内容优先为：当前录音、开始时间/日期来源、音频文件大小及总时长、AI 分析/缓存状态、实时进度、波形与候选结果；真正异常（未知录制时间、媒体 DATE 不可靠、阈值警告）仍显式显示。
-- 识别模式和时间轴模式并排；AI 标准/高召回按钮简化；播放按钮缩写但保留 aria-label；常用触控目标保持约 34–36 px，不以极小点击区域交换空间。
-- 导入时的原始时间输入、选中录音的时间校正都默认收起；固定说明通过「!」展开，动态状态不折叠。此版本仅变更 HTML/CSS/JS，不涉及任何 Java、AI 模型、录音存储或缓存格式，适合用现有小包增量更新。
-
-## 修复导入录音开始时间：按文件名推断（2026-11-22）
-
-对于 `20260728_020555.m4a`，文件名内 `20260728_020555` 表示推定录音开始时间 **2026-07-28 02:05:55（北京时间）**。音频时长 `05:24:38`，对应结束时间 `07:30:33`；截图中 M4A 的媒体日期 `07:30:34` 与结束时间仅差 1 秒，极可能是容器写入完成时刻，不能拿来当录制起点。
-
-- 规则优先级：用户手动输入的时间 > 格式明确且有效的文件名时间戳 > 未经验证的 M4A 媒体 DATE > 未知起始时间（仅显示相对轴）。文件名识别支持 `YYYYMMDD_HHMMSS`、`YYYYMMDDHHMMSS`、`YYYY-MM-DD_HH-MM-SS` 等形式；拒绝非法日期、未来日期和不完整时间。
-- 对文件名推断的录音，使用已知时长检验媒体 DATE 是否更接近结束时间（允许容器封装造成的小幅误差）；在界面明确标注“文件名推断”或“文件名与预计结束时间吻合”，不宣称能从媒体元数据证明实际起点。文件名时间暂按北京时间解析，异地录音须手动修正时区/时间。
-- **兼容已经分析过的旧录音**：当用户重新选择已有 YAMNet 缓存的导入文件时，仅更新原有 JSON 中的 started_ms/date_basis 并原样保留波形和 AI 分数。一次迁移后打标记，避免每次重复猜测；`user_supplied` 的用户手动指定时间绝不覆盖。
-- CI 在 Android 构建前以纯 Java 单元测试验证截图实例（开始 `02:05:55`、结束 `07:30:33`、媒体日期 `07:30:34`），同时测试其他格式、非法/未来日期和低置信度标注。
-
-## 睡眠录音自动分析、保存与真实时间轴（2026-11-22）
-
-- 首次选择尚未分析的录音，自动在本机后台解码并运行 YAMNet；再次选择已经缓存的文件，直接读取 app 私有的 sleep_envelopes 波形与 AI 分数，不会重新执行长录音推理。旧版缓存缺 AI 分数时升级一次，分析失败保留“手动重试 AI 分析”入口。
-- APP 麦克风录音原始 AAC/M4A 位于私有 files/sleep_audio/；停止录音时，MediaRecorder 完成收尾后原子保存 session 的实际时长（duration_ms）和大小（audio_bytes），通过睡眠事件通道立即刷新 UI，不依赖固定 1.2s 的刷新竞态。波形顶部和历史列表都展示文件大小。私有目录在某些系统文件管理器不可见，用户可以点击“导出 M4A 到手机”并通过 Android ACTION_CREATE_DOCUMENT 选择目标文件。APP 内原件不会被删除；导出不需要存储写权限。
-- 移除 AI 波形图底部的一排小红柱。它们原本是独立的、归一化的模型分数条，不代表 dB，也不属于波形；用户仍可点击图表时间点查看精确的 YAMNet 得分。
-- 横轴默认显示真实钟表时间（Asia/Shanghai，跨午夜显示次日凌晨），允许切换到相对于录音开始的 +00:00:00。APP 自录音的 started_ms 是真实起点。外部文件优先使用明确提供的开始时间；否则尝试读取 MediaMetadataRetriever.METADATA_KEY_DATE。如果无可解析时区的媒体日期，则只能使用相对时间，直到用户手动填写录制开始时间。**媒体 DATE 可能代表创建或修改时间**，不能保证是开始录音的时间，故标注为“媒体日期（未核实）”。原有导入录音在首次重新选中时只检查一次媒体日期，并保留已分析的 AI 缓存。
-- 外部录音可在顶部“实际开始时间”直接修正日期，原生只修改 session 元数据，不重新解码音频；设置过程如果正在跑同录音 AI，则要求先完成分析，避免并发覆盖。部分音频无可读取的时间元数据时，需要用户手动填入录制开始时间。
-
-## 小包界面增量更新（2026-11-22）
-
-首次安装内置 UI 更新器的 APK 后，后续若**只改 HTML/CSS/JS**，不必重复下载约 20 MB 的完整 APK。在「设置 → 界面增量更新」里，由用户主动点击「检查并下载界面更新」，再点「重新加载界面」。不会后台自动检查或下载。GitHub Release 始终保留完整 APK。
-
-- 允许小包更新的文件严格限定为 8 个：index.html、features.css、wheel.js、features.js、exercise_catalog.js、git_log.js、sleep.js、sleep_visualization.js。
-- 每次 Actions 构建先生成随 APK 内置的 ui_base.json，再发布 BodyTrace-ui.zip 压缩包。构建脚本 scripts/build_ui_bundle.py；验证脚本 scripts/test_ui_bundle.py。
-- 原生兼容指纹覆盖 app/src/main 中全部非上述 UI 文件，包括 Java、Manifest、res、YAMNet 模型，以及相关构建脚本。最新小包指纹必须与本 APK 一致，否则明确要求下载完整 APK，不尝试在手机上热替换原生代码、so 或模型。
-- 每个资源有 SHA256；ZIP 最大 2 MiB、解压最多 3 MiB、单文件最多 1 MiB，拒绝未知路径和重复条目。仅从官方 z2846852/mywork 的 HTTPS GitHub Release 获取，由用户点击触发；网络断开不影响 APP。
-- 更新资源写入 App 私有目录并用 AtomicFile 原子切换；新版 UI 若未正常调用 native ready()，下次启动回退到内置 UI。用户也可在设置主动恢复。原始 M4A、训练 JSON 和 GitHub PAT 不变。
-- **安全边界：**更新后的页面 JavaScript 仍能调用高权限 BodyTraceNative，因此 GitHub Release 是高信任更新来源。SHA256 用于完整性校验，不等于独立发布者数字签名。项目公开的 APK 签名密钥也不能被当作强身份认证。
-- 第一次启用仍须完整 APK 覆盖安装一次。此后的界面修改可下载小包，原生/AI 模型改动仍必须下载完整 APK。
-
-## 睡眠音频：离线 YAMNet 声音分类（2026-11-21）
-
-- 睡眠页支持 **AI 鼾声候选（默认）/传统响度候选** 两种模式。AI 模式基于 YAMNet/classification TFLite，按约每秒一个 0.975 秒窗口对本地 PCM 分类；Snoring 类索引 38、Snort 类索引 41，取二者最高得分。模型得分**不是校准后的概率**，不能诊断鼾声、睡眠呼吸暂停或其他疾病。
-- 解码流程：MediaExtractor/MediaCodec 逐块读取原 M4A，在 Java 侧转为 16 kHz 单声道 float32；只保留约 0.975 秒的环形音频缓冲区，支持长达 24 小时的文件而不把 PCM 全部放进 RAM。原录音不会上传服务器。
-- 事件筛选可调：AI 模型分数阈值默认 **0.15**（无个人数据校准）、有效累计 2 秒、允许空隙 3 秒；旧 dB 阈值不参与 AI 分类。图表底部显示模型分数短柱，红色候选区域来自当前筛选模式。可以回听验证误报、漏报。
-- 会在 App 私有目录的会话缓存中新增 ai_snore_scores（每秒得分数组）及 ai_model: yamnet-classification-v1，老音频缓存保留；点“运行 AI 鼾声识别”对旧 M4A 重新解码一次即可升级，后续修改阈值无需重复推理。外部文件如果已被删除或 SAF 授权失效，则无法重新分析。
-- Android APK **自带模型、运行时离线**。为了避免把二进制模型直接上传公开 GitHub，GitHub Actions 在每次 Release 编译前运行 bash scripts/fetch_yamnet.sh，从固定的 Hugging Face revision 下载 Google 的 Apache-2.0 YAMNet/classification TFLite 镜像并强制校验 SHA256（10c95ea3eb9a7bb4cb8bddf6feb023250381008177ac162ce169694d05c317de）。本地 Gradle 编译前也需要先运行此脚本。模型来源：<https://www.kaggle.com/models/google/yamnet/tfLite/classification-tflite/1>。
-- 2026-11-22 显示优化：红色候选范围改成沿 200ms 短时 RMS 波形的窄红线与浅红填充，不再遮挡整张图；初始固定纵轴也以短时 RMS 而非瞬时 Peak 的 99.5% 分位数估计（双指手动调节纵轴仍保留）。黄色竖线为手动选择游标、红色竖线为实际播放进度，不代表 AI 分类。AI 筛选提供「标准筛选」(0.15/累计2秒) 与「高召回测试」(0.05/累计1秒) 一键切换，直接在缓存分数上重新筛选，不再解码，降低阈值可能显著增加误报。对于模型得分完全低于 0.05 的真实鼾声仍会漏检，需要单独标注音频验证、再比较模型或微调。
-- 这是**未经过真实枕边录音标定的候选声音筛选器**。建议分别在已人工回听标注的鼾声与非鼾声时段评估事件级召回率和误报率。模型或阈值不能从 dB 高低推出准确率。
-
-
-Android 个人健康与训练记录实验应用：**本地优先，GitHub 按需同步**。未来逐步扩展饮食、体重、围度和力量趋势。参考 [better](https://github.com/z2846852/better) 的 Java + Gradle + GitHub Actions 自动构建方式。
-
-**[下载最新固定签名 Release APK](https://github.com/z2846852/mywork/releases/latest/download/BodyTrace-release.apk)** · [Actions 构建状态](https://github.com/z2846852/mywork/actions) · [全部版本](https://github.com/z2846852/mywork/releases)
-
-> **Android 签名已改为固定公开密钥。** 从首次 Release 安装起，后续同包名、同签名且 versionCode 递增的 APK 可直接覆盖升级。**旧 Debug 签名与新 Release 不兼容，第一次可能要卸载旧版**：卸载前先将本机未同步数据推送到 GitHub。
-
-## 固定公开签名（个人实验用途）
-
-仓库内 `signing/bodytrace-release.p12.b64` 是完整签名密钥库的 Base64 文本（**包含私钥**），不是公开证书；密码为 `bodytrace-public-signing-v1`，别名 `bodytrace`。这套签名专供 BodyTrace 使用，**不要**用于其他应用，也不要重新生成：更换签名会导致老版本无法覆盖升级。
-
-选择公开密钥是为减少个人实验项目的配置步骤，意味着任何拿到密钥的人都能签名一个 Android 视为同一开发者的 APK。不要安装非自己仓库发布的不可信安装包；APK 签名不等于 GitHub PAT，但安装恶意升级包仍可能威胁已存储 PAT。
-
-`mywork` 的 Actions 不需要任何额外 Secrets，使用这个静态密钥签名 Release。GitHub PAT 依然只能在手机里保存，不能上传到仓库。
-
-## 本地优先架构
-
-- **Android App** 是随时可用的录入、清洗和可视化入口：不联网即可保存新训练组。手机在应用私有目录保存**明文 UTF-8 JSON**，包括每天的原始数据、Raw 收件箱和待上传队列；仅 GitHub PAT 使用 Android Keystore 加密。
-- **私有 [z2846852/-](https://github.com/z2846852/-)** 保存每天一个 JSON 文件：`data/daily/YYYY-MM-DD.json`。ChatGPT 继续直接写这里。App 在保存训练组/Raw 后，只要已配置 PAT 就立即尝试上传；断网失败进入待上传队列。用户点击「同步 GitHub」时会重试上传并拉取 ChatGPT 新增的所有每日 JSON，按 UUID 合并。
-- **公共 [mywork](https://github.com/z2846852/mywork)** 保存 APK 源码、构建和经用户允许的历史演示快照 `data/demo/*.json`。演示快照不自动同步真实私有仓库，不包含个人备注或 PAT。
-- **GitHub Actions：使用仓库内固定的公开签名证书，自动编译并发布可持续覆盖升级的 Release APK。** 旧 TXT/CSV/SVG 兼容图表流程不是日常录入依赖，也不由 App 自动触发；如需重建旧报表，可在私有仓库 Actions 手动执行。
+## 数据结构与同步
 
 ```text
-  [手机 BodyTrace]         [ChatGPT]
-        |                     |
-        | 本机明文每日 JSON    | 直接提交 JSON
-        |                     v
-        |  <== 手动同步 ==> 私有 GitHub data/daily/*.json
-        |      先推后拉
-        v
-  Android 本地解析/计算/画图
-  （不需要等待旧图表 Actions）
-
-  ChatGPT 改 mywork 源码 → GitHub Actions 构建 APK
+Android 应用私有 files/bodytrace/
+├── daily/YYYY-MM-DD.json    # 原始每日记录，schema_version: 2
+├── raw_entries.json         # Raw 收件箱（本地原文与状态）
+├── pending.json             # 待同步操作队列
+├── exercise_catalog.json    # 动作目录、自定义/隐藏项
+└── view_model.json          # 可重新生成的图表数据，非原始事实
 ```
 
-## 数值滚轮与身体测量录入（2026-11-17）
+- `daily/*.json` 内可含 `workouts`、`measurements`、`nutrition` 等条目。**以每条记录的 UUID 和实际字段为准**，不把某个演示日期当成真实用户数据。
+- `JsonStore.java` 使用 `AtomicFile` 写入私有 JSON；`ViewProjector.java` 根据原始记录重建 `view_model.json`，不得反向覆盖原始 JSON。
+- 连接私有 GitHub 数据仓库需要用户在手机上配置 **fine-grained PAT**；PAT 经 `SecureStore.java` 和 Android Keystore 保护，不能写入源码、README、日志或聊天。其他本地 JSON 位于 App 沙箱内，**并非端到端加密**。
+- 训练、身体及 Raw 等数据先本地保存，再尝试同步；断网保留待上传项。每日 JSON 用 UUID 合并与远端 SHA 乐观并发保护，遇到冲突应重试/报告，**不可直接覆盖远端全部数据**。
+- 手动解除 GitHub 授权只清除凭据，不应删除手机记录。GitHub 仓库承担备份/多端协作，不代表开启实时跨设备全自动同步。
+- 私有数据仓库与公开源码仓库分离。公开源码仓库的 `data/demo/` 是演示样例，**不要在公开仓库提交实际健康、录音或训练隐私数据**。
 
-- 训练记录的重量/辅助量、每组次数、组数均可点击数字打开横向刻度滚轮；重量刻度 0.5kg、次数/组数刻度 1，滚轮大数字允许直接键盘输入至 0.1kg。组数 1–10 会生成互不相同 UUID 的独立训练 JSON，而不是伪造一条合并记录。
-- 身体页有「记录身体围度」表单，支持体重、肩、胸、腰、上臂、臀、大腿、小腿围。围度滚轮每格 0.1cm；体重可显示 kg 或斤，统一写入 weight_kg（斤按 1斤 = 0.5kg 换算）。每项首次显示历史值作为参考，但**只有用户点击滚轮确认的字段才会作为本次测量存档**，避免把旧数字误写为新测量。
-- App 本机优先保存，连上 GitHub 后通过原来的 SHA 乐观并发控制自动追加到 `data/daily/YYYY-MM-DD.json` 的 workouts / measurements 数组。记录具有 UUID，网络失败后队列重试幂等；ChatGPT 同步不受影响。
-- 同日存在多次测量时，图表选取同一日期最近一次的对应指标；历史记录完整保留，没有覆盖和删除。
-- 身体展示已回退为轻量的正面／背面训练部位示意图。围度数值、日期比较、体重趋势仍按 JSON 直接显示；旧二维人物图片与形变实验代码保留在仓库作历史参考，但 APK 不再载入。
-- Chromium 验收脚本检查 27.5kg ×3 组的批量 JSON、仅修改体重的测量 JSON、部位示意图、所有动作的趋势、最近训练排序以及滚轮交互。
+核心代码：[JsonStore](app/src/main/java/com/z2846852/bodytrace/JsonStore.java) · [GitHubApi](app/src/main/java/com/z2846852/bodytrace/GitHubApi.java) · [ViewProjector](app/src/main/java/com/z2846852/bodytrace/ViewProjector.java) · [WorkoutEdits](app/src/main/java/com/z2846852/bodytrace/WorkoutEdits.java)。
 
-## 身体展示：基础部位示意图（当前默认）
+## 架构与代码定位
 
-- 正面与背面两幅简洁的身体轮廓，按照最近28天记录组数突出胸、肩、背、腿、手臂和核心；点选可查看相关动作。此图不使用真实人体照片、卡通人物或者虚假的身体围度形变。
-- 身高默认 173.5cm；身体日期、体重、胸腰臀等围度全部来自本机缓存的 GitHub 每日 JSON。支持 2026-04-15 等历史数据。
-- 「记录身体围度」滚轮、按日 JSON 上传、训练/饮食/Raw 同步都保持原功能，不删除旧数据。
-- 旧 2D/3D 资源仍留在仓库作为参考；当前 APK 不加载人物素材。此前导入到手机的图片不主动删除，但身体主页不会再展示。
+**Android 原生层：** Java 17 + 少量 Kotlin；`MainActivity.java` 提供 WebView、受控 `BodyTraceNative` 桥接、权限和系统生命周期。HTML/CSS/JS 前端来自 APK 内置资源，不是远程网页。最低 Android API 26（Android 8.0），当前 `targetSdk 34`，`compileSdk 35`；以 [app/build.gradle](app/build.gradle) 为准。
 
-## 动作库管理与排序（2026-11-18）
+| 任务 | 主要文件 |
+| --- | --- |
+| 全局页面、样式、导航 | [index.html](app/src/main/assets/index.html)、[features.css](app/src/main/assets/features.css)、[features.js](app/src/main/assets/features.js) |
+| 训练动作、休息倒计时 | [exercise_catalog.js](app/src/main/assets/exercise_catalog.js)、[rest_timer.js](app/src/main/assets/rest_timer.js) |
+| 睡眠前端与波形交互 | [sleep.js](app/src/main/assets/sleep.js)、[sleep_visualization.js](app/src/main/assets/sleep_visualization.js) |
+| 睡眠录音、离线分析 | [SleepRecorderService](app/src/main/java/com/z2846852/bodytrace/SleepRecorderService.java)、[SleepAnalysisService](app/src/main/java/com/z2846852/bodytrace/SleepAnalysisService.java)、[SleepYamnetClassifier](app/src/main/java/com/z2846852/bodytrace/SleepYamnetClassifier.java) |
+| 手机行为睡眠推算 / vivo 实验 | [PhoneSleepInference](app/src/main/java/com/z2846852/bodytrace/PhoneSleepInference.java)、[VivoSleepProbe](app/src/main/java/com/z2846852/bodytrace/VivoSleepProbe.java) |
+| 音高、音素、词典 | [voice_lab.js](app/src/main/assets/voice_lab.js)、[VoiceLabController](app/src/main/java/com/z2846852/bodytrace/VoiceLabController.java)、[PhonemeNeuralEngine](app/src/main/java/com/z2846852/bodytrace/PhonemeNeuralEngine.kt)、[PhoneticLexicon](app/src/main/java/com/z2846852/bodytrace/PhoneticLexicon.java) |
+| APK/差分/UI 小包更新 | [ApkUpdateManager](app/src/main/java/com/z2846852/bodytrace/ApkUpdateManager.java)、[ApkDeltaPatch](app/src/main/java/com/z2846852/bodytrace/ApkDeltaPatch.java)、[UiBundleManager](app/src/main/java/com/z2846852/bodytrace/UiBundleManager.java) |
+| Git 变更与版本历史 | [git_log.js](app/src/main/assets/git_log.js)、[ReleaseHistory](app/src/main/java/com/z2846852/bodytrace/ReleaseHistory.java) |
 
-- **新增训练：** `data/daily/2026-11-18.json` 已记录 `leg_extension`（坐姿腿屈伸）25kg × 15 次 × 1 组；数据保存在私有 `z2846852/-`，不是测试数据。
-- **内置动作扩充：** 坐姿腿屈伸、坐姿腿弯举、常见平板/上斜/下斜卧推、45°倒蹬与单腿倒蹬、三角肌前束前平举/后束飞鸟、哑铃肩推、杠铃推举、面拉等。录入时显示 `【胸】`、`【肩】`、`【腿】` 等前缀，动作内部 ID 不变。
-- **排序切换：** 记录页提供 `最近使用 / 按部位`。最近使用按动作最新训练日期排序，同一天以创建时间和记录序列作为后备顺序；按部位先按胸、肩、背、腿、手臂、核心、其他分组，每组内再按最近使用排序。切换排序不会意外改变已经选择的动作。
-- **管理 / 删除动作：** 可以新增自定义动作（名称、部位），隐藏或恢复内置动作；自定义动作提供二次确认后删除。隐藏或删除动作只影响**动作目录**，不删除或改写任何历史训练记录。
-- **持久化与同步：** 管理设置保存到 App 私有 `exercise_catalog.json`（明文），通过已经配置的 PAT 同步至 `z2846852/-/data/exercise_catalog.json`。掉线时本地状态标记未同步，下次点击 GitHub 同步先上传再拉取。自定义动作的 `exercise_label` / `exercise_region` 同时记录在每日 JSON，方便未来升级继续识别历史动作。
-- **兼容性：** 内置动作不需要手工修改 GitHub JSON。训练组历史按日期存储不变；新增动作及隐藏列表不改变过去的训练数据。
-## 训练趋势与动作排序
+`MainActivity.java` 和 `index.html` 体量较大，修改跨页面事件时优先定位已有独立 JS/Java 类，避免把所有逻辑继续堆到入口文件。
 
-- 趋势页不再有动作下拉菜单：所有存在训练记录的动作都以独立卡片连续展示；无有效重量时保留卡片并显示缺失提示。每张卡片仍保留历史训练趋势、标称重量/辅助量与估算参考说明。
-- 顺序按该动作**最近一次训练日期**由新到旧，同日以创建时间、记录顺序为后备排序规则。新近练习的动作始终在前，久未更新的动作在后。
-- 记录页与日历动作下拉选项增加 `【胸】`、`【肩】`、`【背】`、`【腿】` 等部位前缀，展示字号略小；已练动作按最近训练日期排列，从未练过的动作排到后面。
-- 动作的内部 `exercise_id` 不变，旧版 `schema_version:2` 每日 JSON 与现有同步规则完全兼容。
-## 当前已实现
+## 更新、构建与验证
 
-- 无需 PAT、无需联网即可录入训练组与 Raw；本机 JSON 原样保存、立即更新视图。连接 GitHub 后保存即尝试上传，失败不丢本地记录。
-- 训练日历按照每日组数显示深浅，支持按日期查看所有组、按动作过滤。
-- 身体指标、体重、腰围、胸围和体脂趋势均由 App 从 JSON 本机计算；身体页显示基础部位示意及按日期更新的真实围度数值。
-- **GitHub fine-grained PAT 是唯一需要 Keystore 加密的应用字段**；普通训练、身体指标和 Raw JSON 在 App 私有目录明文存储，无需第三方存储权限。
-- 「同步 GitHub」：重试上传待提交的训练及 Raw，再读取 ChatGPT 写入的每日 JSON，按 UUID 合并，远端同 ID 项优先；GitHub 文件写入携带 SHA 并在冲突时重试。
-- 「解除授权」只清除 PAT，**不删除本地数据和待同步队列**。
-- Raw 模式把原话记录为 JSON，上传到私有仓库 `data/raw_inbox/YYYY-MM-DD/UUID.json`，默认 `unprocessed`；未来由 ChatGPT 读取并判断是否新增功能或转化成结构化数据，不会自动执行原文。饮食模块已支持录入份量、热量/100g和可选营养素，并按已录入数据计算摄入热量。
+**正式发行路径：** 直接提交 `main` 中的应用、构建脚本或相关工作流文件 → [Android fast workflow](.github/workflows/android.yml) 编译固定签名 APK → 签名及 APK 资源检查 → [GitHub Release](https://github.com/z2846852/mywork/releases/latest)。
 
-## 已处理的 Raw UI 反馈（2026-11-17）
+- **版本号**使用 `0.2.<GitHub Actions run number>`；实际可安装版本、资产体积、差分补丁和成功状态必须实时查 Releases/Actions，不写死在 README。
+- 安装包 `BodyTrace-release.apk`；支持以已安装 APK 为基准的 `.btpatch` 差分升级，校验还原后 APK 的 SHA256、包名、版本及证书。校验不满足时改用完整包或报告错误，绝不安装未验证文件。
+- 纯前端变化可使用 `BodyTrace-ui.zip` 小包；**仅当原生指纹兼容且每个文件哈希均通过**才允许覆盖 WebView 资源，否则回退 APK 内置 UI。新增 Java 桥接/原生权限/模型运行时需要完整 APK。
+- ZIPA 模型权重**不内置 APK**：在声音页按需一次下载缺失资源，三种模型可单独选择/删除，下载与安装检查 SHA256。内置英文 IPA/中文释义词典在打包时生成，缺失应修复 APK，不伪造结果。
+- 主要模型：ZIPA 300k 和 500k（**CC BY 4.0**），NS 700k（**CC BY-NC-SA 4.0，限非商业用途**）；相关出处见 [ZIPA](https://github.com/lingjzhu/zipa) 和 [AnySpeech](https://huggingface.co/anyspeech/models)。YAMNet 用于睡眠声学分类，不能作为医疗检测。
+- [nightly-tests.yml](.github/workflows/nightly-tests.yml) 每夜运行回归，也可手动运行；声音模型发布有独立的 [voice-models.yml](.github/workflows/voice-models.yml)，不会替代正式 APK。**有失败的测试必须如实报告，不将“发布成功”称为“全部测试通过”。**
+- `README.md` **仅修改文档时通常不会触发 APK 出包**，因为 `android.yml` 使用了路径过滤。这是预期行为；需要新 APK 时应有实际程序改动或用户明确手动触发工作流。
+- 公共仓库内的固定签名材料是个人实验的**公开签名**，不能据此证明发行来源可信。Android 仍可能要求用户确认安装未知应用；不要依赖无交互静默安装。
 
-- **日历最新日期定位**：首次进入、读取本地历史或 GitHub 同步数据后，热力图横向滚动到最右侧（近52周的最新一周）；点击日期主动浏览过去的记录时不强制回弹。「最近一次」按钮会重新定位到最右侧。
-- **训练默认值（2026-11-18 更新）**：改为每个动作最近一次记录的标称重量（辅助引体使用辅助量）与次数，选择动作自动填入。可以通过「Reset · 旧版10组」临时回到最近10组低中位重量 + 10次，避免使用历史平均档位覆盖明确保存的最后一组。无历史组时重量需要手动输入。
-- **回归检查**：`scripts/test_ui.js` 验证真实示例数据上的最近组推荐、默认次数和热力图右端定位；Android Actions 构建前自动执行。
+### 更换窗口时的操作顺序
 
-## 双级动作选择、保存参数与 Git log（2026-11-18）
+1. 读本 README，确认用户当前要求的默认行为与目标。
+2. 检查 `main` 的实际源码和数据协议，**不要按旧聊天或历史版本补写不存在的功能**。
+3. 只在 `main` 修改所需文件；不擅自建立 PR、功能分支或隐藏功能。
+4. 根据修改类型执行相称的测试，提交后查询真实 Actions / Release 结果；说明代码提交、构建、发布、真机测试各自状态。
+5. 若改变了页面默认行为、数据结构、更新机制、主要算法或工作流，同步维护本 README 的相关段落，**直接替换过期描述**。
 
-- **先选择部位，再选择动作**：胸、肩、背、腿、手臂、核心、其他。自定义动作沿用其所属部位；原来的最近使用排序和动作管理继续存在。
-- **下一组默认值**来自该动作最后一条有重量的训练 JSON：默认重量和次数都沿用实际保存值，例如侧平举最近为 `32kg × 7`，下次选择侧平举就自动带入 `32` 和 `7`。新组首先本机保存，因此离线也会更新默认值；同步拉取后可以用私有 GitHub 记录恢复。不是训练处方。
-- **Reset · 旧版10组**：仅把当前表单恢复为该动作最近10条标称重量的低中位数及10次；不会删除记录，切换动作或保存后仍按最近一组恢复默认。
-- **日志 → Git log**：通过已配置的 PAT 读取**私有 `z2846852/-`** 的 main 分支最近10条提交和每次的文件级新增、修改、删除、diff；直接显示全部可获取的补丁行，不需要逐个展开。新增行绿色背景、删除行红色背景；每次进入日志页都会重新读取。数据文件中的“删除行”不等于删除训练记录，需要看 UUID 级变化才能确认。GitHub 可能不提供过大的补丁；App 对超长补丁也有显式截断提示。
-- **训练 JSON 并发安全边界**：APP 的上传先 GET 最新 JSON，以 UUID 去重追加，并带远端 SHA 提交；收到409/422会重新读取再追加，重试失败就保留本机待同步事件。只保护 APP 正常追加操作，不禁止别的有写权限的程序或人删除内容。
-- **动作目录保护**：`data/exercise_catalog.json` 现在本机保留上次读到的远端 blob SHA；如果远端已被另一端改变，则拒绝静默覆盖，保留本机修改并提示手工比较。这一保护与每日训练 JSON 的 UUID 合并不同。
+## 重要边界与已知不确定项
 
-## 动作总览与同步时表单保护（2026-11-18）
+- 睡眠行为推算只是手机事件推断；录音中的“鼾声候选”和模型分数并不等于医学确诊。读取 vivo 健康私有接口会受 ROM/权限影响，未经实机验证不能宣称可用。
+- 音高 YIN 与 ZIPA 音素模型的声学推断均有局限；IPA 字典匹配不等于发音标准，普通话声调和完整汉字识别不应由英语词典结果推测。
+- 麦克风权限仅在相关录音/声音实验场景使用；后台录音按 Android 前台服务及实际权限要求运行。录音默认留在设备本地，不默认上传 GitHub。
+- 用户数据迁移、签名一致性、升级中断恢复、断网同步和实际 vivo 输入法交互需要真机验证。**当前结论始终以最新代码和真实运行证据为准**。
 
-- **默认「全部动作」**：打开记录页时部位筛选默认显示全部，最近使用的动作排列在前面；按「胸、肩、背、腿、手臂、核心、其他」二级筛选。切换为「按部位」排序时，全部动作可按肌群分组，再按最近练习排序；具体部位下只按最近使用排序。
-- **保持当前工作状态**：用户已经选择的动作，在 GitHub 同步、动作目录读取或排序切换后不再自动换成另一个动作；已修改重量、次数、组数、训练日期后，后台同步不得覆盖填写内容。
-- **避免错误动作记录**：如果后台目录更改隐藏了正在填写的动作，则保留填写数值，但将动作变成“请选择”，直至用户重新选择，不将组数错误归属给其他动作。
-- **历史日期保持**：主动选中热力图的某一天后，拉取远端数据不会强制跳至最新训练日期。只有主动点击「最近一次」或保存新组时，才恢复最新定位。
-- **测试**：新增动作总览顺序、肌群筛选、表单锁定、后台目录变更、隐藏动作防误保存，以及历史日期保持的自动回归测试。
-- **借鉴的交互方法**：Hevy 和 FitNotes 的动作搜索、部位筛选、最近训练优先与上次成绩参考。暂不增加额外的搜索栏、训练模板和定时器，保持录入页简洁；后续根据真机使用反馈再决定。
+## 历史与来源
 
-## Git log 可读性与连接位置（2026-11-18）
-
-- 日志页改为第一屏直接显示最近 10 次 Git 提交及每个文件的行级 diff（无需展开）。新增行绿色背景，删除行红色背景，`@@` 行和上下文行采用中性色，所有内容以纯文本插入 WebView，避免把仓库文本作为 HTML 执行。
-- GitHub 授权 Token、解除授权、手动同步入口仍保留，但整个授权面板移到日志页底部；导航名从「连接」改为「日志」。不会更改原有的自动上传规则。
-- 私有仓库的 GitHub commit API 可能对大文件省略 patch；App 最大显示长度为每文件 20,000 字符并标记 App 端截断。不会假装截断的 diff 已完整显示。
-
-## 录入与统计易用性（2026-11-18）
-
-- **单行抬头**：全局只保留「体迹 · 训练 / 饮食 / 身体」和连接状态指示灯，不再占用大面积屏幕高度。
-- **训练保存按钮始终可见**：录入页底部固定「＋ 保存本组训练」，位于主导航上方，支持系统安全区。滚轮弹层仍高于保存按钮，避免误触。离线、本机优先、即时同步及最近一次输入默认值逻辑不变。
-- **胸、肩、背、腿四张总览图**：趋势页最上方展示这四类各自最近 8 个连续 7 天区间的训练组数，以及最近 28 天总组数、最近 7 天组数、与此前 28 天之差、常练动作。只比较训练**次数/频率**，不把不同器械标称重量直接相加，更不把组数当成肌肉增长指标。原有每个动作的单独力量趋势保留。
-- **细分肌群图**：按内收肌群（大腿内侧）、外展肌群（髋外侧、臀中/臀小肌等）、股四头肌、腘绳肌、背阔肌、上背肌群、三角肌前/中/后束等独立示意区域。正/背 SVG 可点选，另有文字选择按钮，展示最近 28 天关联动作的组数。预定义动作按主要训练目标**一组只分配一个目标**；不估算肌电激活、不假定只有一个肌肉参与、不对自定义动作猜测目标，原始 JSON 不改变。
-- **自动化检查**：验证 8 周统计窗口、内收/外展独立映射、单行抬头和浮动保存按钮，并使用 Chromium 检查保存按钮不会被主导航遮挡。
-
-## App 内置 JSON 转换（替代数据可视化 Actions）
-
-本机分层保存，无需把图表计算写入 GitHub 工作流：
-
-```text
-/files/bodytrace/
-├── daily/
-│   ├── 2026-11-16.json    # 原始 JSON（明文）
-│   └── 2026-11-17.json
-├── raw_entries.json       # Raw 原文和上传状态（明文）
-├── pending.json           # 待同步事件（明文）
-└── view_model.json        # App 重新生成的可视化 JSON（明文）
-```
-
-`ViewProjector.java` 读取全部每日原始 JSON，生成版本化 `view_model.json`：包含 `view_schema_version:1`、平铺训练组 `workouts`、身体测量 `measurements`、`heatmap` 日期计数和 `metric_series` 变化序列。WebView 使用这个中间 JSON 渲染界面，原始 JSON 始终保留，不被派生算法覆盖。可以在 App 的「连接」页面点击「查看生成的 view_model.json」检查实际内容。
-
-**协议扩展：** 原始 JSON 保持 `schema_version:2`，新增非破坏性字段可直接添加；旧 App 忽略不认识的可选字段，拉取与合并时保存原样。若未来发生不兼容结构变化，再引入明确的 schema 迁移，不要暗自覆盖旧文件。派生 JSON 单独版本管理，随 App 升级重建。
-
-**计算边界：** 已实现训练组清洗、热力图、饮食营养素/热量录入计算、简化e1RM参考、身体围度趋势以及训练部位示意。e1RM不是实测最大力量；部位高亮仅代表训练记录数量，不是解剖学或体型推测。
-
-## 每天一个 JSON · schema v2
-
-```json
-{
-  "schema_version": 2,
-  "date": "2026-11-17",
-  "workouts": [
-    {
-      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      "exercise_id": "row",
-      "load_kg": 27.5,
-      "reps": 8,
-      "source": "chatgpt"
-    }
-  ],
-  "measurements": [],
-  "nutrition": []
-}
-```
-
-例子中的 UUID 是示意。每组必须有独立 UUID，辅助引体用 `assistance_kg`，其他动作用 `load_kg`；均为器械标称值而非标定后的实际作用力。次数低于15而未明确 RIR 时，界面按用户个人规则显示「RIR0（规则）」，并非实际测试力竭。
-
-## 首次测试步骤
-
-1. 安装 APK。**不需要登录**，进入「记录」完成一组真实训练；返回「概览」，应立即看见本地日期和组数。
-2. 在 GitHub 创建 fine-grained PAT，仅授权私有 `z2846852/-`，权限为 Contents Read/write。到 App「连接」粘贴，不要发到聊天里。
-3. 已配置 PAT 时，新增训练组或 Raw 会**先本地保存、再即时上传**；断网时保留队列。点击「同步 GitHub」拉取 ChatGPT 的新 JSON 并更新本机可视化。
-4. 请 ChatGPT 写入另一组，然后回 App 点击「同步 GitHub」，确认两端都能看到完整记录。
-5. 「解除授权」后验证本机数据仍存在、仍可离线录入。
-6. 固定签名 Release APK 支持后续覆盖安装升级（签名与包名一致、versionCode递增）；升级前仍建议先同步未上传记录。
-
-## 范围与验证限制
-
-Android Actions 已用于编译与签名检查；但是 **真机上的 PAT 授权、离线录入持久化、同步及断线恢复仍需实际设备验收**。
-
-当前版本暂不支持编辑、删除已存在的某一组，也没有跨设备自动同步和后台自动计划任务。当前本地是**按天独立的明文 JSON 文件**（App 沙箱目录），远端 GitHub 同样按天一个 JSON。旧版加密缓存首次启动时尝试迁移，PAT 继续单独加密。大量历史文件时可以再按年份分目录并做增量同步。
-
-## 版本更新查询与复盘（2026-11-22）
-
-- 设置中的「检查」只查询 GitHub 最新版本元数据，不下载文件；「更新」仅在确认新版本后启用，沿用校验和 Android 系统安装器。进入设置不再自动检查，不消耗 GitHub API 请求。
-- 标题旁「!」包含按需加载的版本历史，20 个实际发布的正式 Release 为一页，缺版本号不等于丢版本。旧 Release 没有明确更新说明时，可单独查询两次正式发布版本之间的 Git 提交；不会批量调用 Compare 接口。
-- 新的 Release 由 GitHub Actions 自动写入相对于上次正式版的真实提交标题和 GitHub Compare 链接。这些是源码变更证据，不代表性能改善已由测量证实。
-
-## 开发与更新
-
-Java 17、Android SDK 35、Gradle 8.9、AGP 8.7.3。原生 Java + 只加载内置 HTML 的 WebView，本地界面不访问外站，所有 GitHub 网络操作通过原生 Java HTTPS 完成。
-
-源码在 `app/src/main/`，自动构建位于 `.github/workflows/android.yml`。ChatGPT 后续修改界面/新增字段时提交源码，Actions 自动发布新 APK，无需在手机里手动运行图表生成器。
+长期保留且优先参考的历史是 [main 提交记录](https://github.com/z2846852/mywork/commits/main) 与 [Release 历史](https://github.com/z2846852/mywork/releases)。README 不再保留按日期排列的几十个历史更新章节。需要考察特定版本为什么变化时，使用 GitHub Commit / Compare 和对应源码，避免历史叙述与当前行为互相矛盾。
