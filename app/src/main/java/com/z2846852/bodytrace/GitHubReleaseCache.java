@@ -23,6 +23,7 @@ final class GitHubReleaseCache {
     private static final long MAX_BACKOFF_MS=6*60*60*1000L;
     private static final int MAX_JSON=512*1024;
     private final SharedPreferences prefs;
+    private final Context context;
 
     static final class Snapshot {
         final JSONObject release;
@@ -39,7 +40,8 @@ final class GitHubReleaseCache {
     }
 
     GitHubReleaseCache(Context context){
-        prefs=context.getApplicationContext().getSharedPreferences(PREFS,Context.MODE_PRIVATE);
+        this.context=context.getApplicationContext();
+        prefs=this.context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
     }
     private static long number(String value){
         try{return Long.parseLong(value);}catch(Exception ignored){return -1;}
@@ -96,6 +98,7 @@ final class GitHubReleaseCache {
         c.setRequestProperty("X-GitHub-Api-Version","2022-11-28");
         try{
             int status=c.getResponseCode();
+            GitHubRequestStats.record(context,"Release API",status);
             if(status==200){
                 String json;
                 try(InputStream stream=c.getInputStream()){json=read(stream);}
