@@ -154,6 +154,15 @@ body.overview-muscle-open{overflow:hidden}
 #page-home #heat{grid-template-rows:repeat(7,17px);grid-auto-columns:17px;gap:3px}
 #page-home #heat .cell{width:17px;height:17px;border-radius:3px}
 #page-home #heat .cell-quadrant{border-radius:1px}
+#page-home #heat .cell{--heat-bg:#253034;--heat-border:#354342;
+ background:var(--heat-bg);border-color:var(--heat-border)}
+#page-home #heat .cell[data-level="1"]{--heat-bg:#234c3b;--heat-border:#396c51}
+#page-home #heat .cell[data-level="2"]{--heat-bg:#337d50;--heat-border:#4b9d66}
+#page-home #heat .cell[data-level="3"]{--heat-bg:#4cbf67;--heat-border:#75d986}
+#page-home #heat .cell[data-level="4"]{--heat-bg:#85ec8e;--heat-border:#a6f3ad}
+#page-home #heat .cell[data-level]:not([data-level="0"]) .cell-quadrant:not(.active){
+ background:color-mix(in srgb,var(--heat-bg) 72%,#172d29)}
+
 #page-home .legend{justify-content:flex-start;margin-top:8px;gap:3px 7px}
 #page-home .legend .region-filter{min-height:26px;padding:2px 6px;font-size:11px}
 #page-home .overview-day-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -204,7 +213,7 @@ body.overview-muscle-open{overflow:hidden}
 <div class="panel" id="heatPanel">
 <div class="overview-calendar-top">
  <div class="overview-calendar-title"><h2>训练日历</h2><span class="overview-calendar-range">近52周</span>
- <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四分格分别表示胸、肩、背、腿；亮起表示当天有训练。横向滑动可回顾全年，点击日期查看该天全部记录；点下面的颜色筛选部位。</p></details></div>
+ <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四分格分别表示胸、肩、背、腿；亮起表示当天有训练。底色由淡绿到亮绿表示当天训练组数（1–2、3–5、6–8、9组以上），不是跨器械重量或真实生理负荷。横向滑动可回顾全年，点击日期查看该天全部记录；点下面的颜色筛选部位。</p></details></div>
  <select class="select" id="filter" aria-label="筛选日历动作"><option value="">全部训练</option></select>
 </div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
