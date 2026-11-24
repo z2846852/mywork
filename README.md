@@ -2,7 +2,7 @@
 
 个人使用的 Android 数据看板：**健身记录、身体趋势、饮食、睡眠录音与声音分析**。数据优先在手机本地保存，GitHub 用作按需同步和版本化备份。此 README 是跨 ChatGPT / Codex 窗口接手项目的**唯一概要入口**。
 
-[下载最新 APK](https://github.com/z2846852/mywork/releases/latest) · [正式构建 Actions](https://github.com/z2846852/mywork/actions/workflows/android.yml) · [夜间回归](https://github.com/z2846852/mywork/actions/workflows/nightly-tests.yml) · [代码提交记录](https://github.com/z2846852/mywork/commits/main)
+[下载最新 APK](https://github.com/z2846852/mywork/releases/latest) · [最新成功发布状态](build-status.json) · [正式构建 Actions](https://github.com/z2846852/mywork/actions/workflows/android.yml) · [夜间回归](https://github.com/z2846852/mywork/actions/workflows/nightly-tests.yml) · [代码提交记录](https://github.com/z2846852/mywork/commits/main)
 
 > **阅读规则：** 先读此 README，再检查 `main` 的实时源码、Actions、Release；它记录当前目标和已确认的默认行为，不是未来改动的强制需求。本文避免按日期堆砌版本流水账，过去的变更在 Git 历史和 Release 中查看。代码实现、CI 成功、APK 发布、手机真机验证是四件不同的事，不能互相替代。
 
@@ -16,7 +16,7 @@
 | 功能删改 | 不擅自隐藏或删除“不常用”功能；用户明确决定后，优先修改实际行为与默认值，不做形式上的隐藏 |
 | 数据 | **保留原始记录和历史**，编辑/删除通过明确的记录逻辑处理，不能直接清空整个日期文件或覆盖他端更改 |
 | 文档 | 影响默认行为、数据协议、同步、更新、主要页面和工程工作流的修改，**同步更新此 README 的对应摘要**；不要再新增长篇“某天更新了什么”的章节 |
-| 发布 | 当前正式版本、下载地址和构建结果以 GitHub 动态页面为准，README 不写死“最新版版本号”或宣称真机已通过 |
+| 发布 | **优先读取仓库根目录 `build-status.json`** 查询最近一次已成功发布的 APK 版本、构建编号和源码提交；必要时再核对 Release/Actions。README 不写死最新版号，更不把发布成功当作真机验证通过 |
 
 ## 当前页面及功能
 
@@ -81,15 +81,23 @@ Android 应用私有 files/bodytrace/
 
 ## 更新、构建与验证
 
-**正式发行路径：** 直接提交 `main` 中的应用、构建脚本或相关工作流文件 → [Android fast workflow](.github/workflows/android.yml) 编译固定签名 APK → 签名及 APK 资源检查 → [GitHub Release](https://github.com/z2846852/mywork/releases/latest)。
+**正式发行路径：** 直接提交 `main` 中的应用、构建脚本或相关工作流文件 → [Android fast workflow](.github/workflows/android.yml) 编译固定签名 APK → 签名及 APK 资源检查 → [GitHub Release](https://github.com/z2846852/mywork/releases/latest) 发布成功 → **自动写回根目录 [`build-status.json`](build-status.json)**。
 
-- **版本号**使用 `0.2.<GitHub Actions run number>`；实际可安装版本、资产体积、差分补丁和成功状态必须实时查 Releases/Actions，不写死在 README。
+- **版本号**使用 `0.2.<GitHub Actions run number>`；发布标签为 `v0.2.<run number>`。每次**成功发布 Release 之后**，Actions 使用当前令牌将 `build-status.json` 写入 `main`，记录 `status: published`、`version`、`version_code`、`run_number`、`run_id`、`source_commit`、`published_at`、`actions_url`、`release_url`、`apk_download_url`。发布失败或编译失败**不得**写入成功状态。
 - 安装包 `BodyTrace-release.apk`；支持以已安装 APK 为基准的 `.btpatch` 差分升级，也可从更新页手动导入本地 `.btpatch` 离线还原并安装（首次使用须先安装含该入口的新版 APK）；校验还原后 APK 的 SHA256、包名、版本及证书。校验不满足时改用完整包或报告错误，绝不安装未验证文件。
 - 纯前端变化可使用 `BodyTrace-ui.zip` 小包；**仅当原生指纹兼容且每个文件哈希均通过**才允许覆盖 WebView 资源，否则回退 APK 内置 UI。新增 Java 桥接/原生权限/模型运行时需要完整 APK。
 - ZIPA 模型权重**不内置 APK**：在声音页按需一次下载缺失资源，三种模型可单独选择/删除，下载与安装检查 SHA256。内置英文 IPA/中文释义词典在打包时生成，缺失应修复 APK，不伪造结果。
 - 主要模型：ZIPA 300k 和 500k（**CC BY 4.0**），NS 700k（**CC BY-NC-SA 4.0，限非商业用途**）；相关出处见 [ZIPA](https://github.com/lingjzhu/zipa) 和 [AnySpeech](https://huggingface.co/anyspeech/models)。YAMNet 用于睡眠声学分类，不能作为医疗检测。
 - [nightly-tests.yml](.github/workflows/nightly-tests.yml) 每夜运行回归，也可手动运行；声音模型发布有独立的 [voice-models.yml](.github/workflows/voice-models.yml)，不会替代正式 APK。**有失败的测试必须如实报告，不将“发布成功”称为“全部测试通过”。**
 - `README.md` **仅修改文档时通常不会触发 APK 出包**，因为 `android.yml` 使用了路径过滤。这是预期行为；需要新 APK 时应有实际程序改动或用户明确手动触发工作流。
+
+### APK 版本查询与交付核对（后续窗口必须遵循）
+
+1. 用户要求“完成后告诉我版本号”或需要核实出包时，**先读取 `main` 的 [`build-status.json`](build-status.json)**，获取最新一次**成功发布**的具体版本号、`run_id`、`source_commit` 和带版本标签的 APK 下载地址；**不要**只根据最近一次代码提交或猜测 Actions 编号报版本。
+2. 比较 `source_commit` 与本次功能提交是否有包含关系（可用 Git Compare）；**状态文件的 HEAD 提交是发布记录，不是构建 APK 的源提交**。若状态仍对应旧代码，必须说“新版本尚未证实发布”，不能把旧版号报告为本次新版。
+3. 通过状态中的 `release_url` 与 `apk_download_url` 交叉核对是否存在对应 Release 和资产；需要确认正在运行/失败的构建时再查 `actions_url` 或 Actions 页面。此 JSON 仅记录**最近一次成功发布**，不能证明没有后续排队、失败或取消的运行，也不能证明真机安装成功。
+4. 若状态文件缺失、暂未更新、无法读取或与 Release 不一致，改查真实 Release/Actions；仍查不到时直接说明“版本号/构建状态无法确认”，**绝不编造**。首次写入依赖此工作流成功执行；不会凭空回填过去的版本。
+5. 写回仅在发行成功之后进行，采用 GitHub Contents API 的 `sha` 乐观并发重试；`build-status.json` 与 README 均不在正式 APK 的 push 构建路径过滤中，避免状态写回触发无限打包。
 - 公共仓库内的固定签名材料是个人实验的**公开签名**，不能据此证明发行来源可信。Android 仍可能要求用户确认安装未知应用；不要依赖无交互静默安装。
 
 ### 更换窗口时的操作顺序
@@ -97,7 +105,7 @@ Android 应用私有 files/bodytrace/
 1. 读本 README，确认用户当前要求的默认行为与目标。
 2. 检查 `main` 的实际源码和数据协议，**不要按旧聊天或历史版本补写不存在的功能**。
 3. 只在 `main` 修改所需文件；不擅自建立 PR、功能分支或隐藏功能。
-4. 根据修改类型执行相称的测试，提交后查询真实 Actions / Release 结果；说明代码提交、构建、发布、真机测试各自状态。
+4. 根据修改类型执行相称的测试，提交后**优先读取 `build-status.json`**，检查 `source_commit` 和本次修改的对应关系，必要时核对真实 Actions / Release 结果；分别说明代码提交、构建、发布、真机测试各自状态；确认成功时给出**实际版本号**。
 5. 若改变了页面默认行为、数据结构、更新机制、主要算法或工作流，同步维护本 README 的相关段落，**直接替换过期描述**。
 
 ## 重要边界与已知不确定项
