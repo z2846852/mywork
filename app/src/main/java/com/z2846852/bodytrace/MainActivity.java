@@ -1674,6 +1674,12 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+        @JavascriptInterface public void githubRequestStats(){
+            worker.execute(()->{
+                try{reply(GitHubRequestStats.snapshot(MainActivity.this));}
+                catch(Exception e){error("读取请求统计失败："+safeMessage(e));}
+            });
+        }
         @JavascriptInterface public void checkApkUpdate(){
             worker.execute(()->{
                 try{
