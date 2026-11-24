@@ -80,6 +80,7 @@ public final class MainActivity extends Activity {
     private final GitHubApi github = new GitHubApi();
     private static final ZoneOffset BEIJING = ZoneOffset.ofHours(8);
     private static final int PICK_AVATAR_REQUEST = 7005;
+    private static final int PICK_APK_PATCH_REQUEST = 7210;
     private static final int AVATAR_MAX_BYTES = 12 * 1024 * 1024;
     private volatile Uri pendingSharedAvatar = null;
     private volatile boolean uiReady = false;
@@ -345,6 +346,22 @@ public final class MainActivity extends Activity {
             return;
         }
         Uri uri=data==null?null:data.getData();
+        if(requestCode==PICK_APK_PATCH_REQUEST){
+            if(uri==null){error("未选择差分补丁");return;}
+            worker.execute(()->{
+                try{
+                    JSONObject status=apkUpdates.prepareLocalPatch(uri,MainActivity.this::reply);
+                    reply(status);
+                    if("ready".equals(status.optString("state")))
+                        runOnUiThread(()->openVerifiedApkInstaller());
+                }catch(Exception e){
+                    try{reply(message("apk_update").put("state","error")
+                        .put("message","本地补丁安装失败："+safeMessage(e)));}
+                    catch(Exception ignored){}
+                }
+            });
+            return;
+        }
         if(requestCode==EXPORT_SLEEP_AUDIO_REQUEST){
             String sourceId=pendingSleepExportId;
             pendingSleepExportId="";
@@ -1671,6 +1688,17 @@ public final class MainActivity extends Activity {
                             .put("message","APK 更新失败："+safeMessage(e)));
                     }catch(Exception ignored){}
                 }
+            });
+        }
+        @JavascriptInterface public void importApkPatch(){
+            runOnUiThread(()->{
+                try{
+                    Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    pick.addCategory(Intent.CATEGORY_OPENABLE);
+                    pick.setType("*/*");
+                    pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(pick,PICK_APK_PATCH_REQUEST);
+                }catch(Exception e){error("无法选择补丁："+safeMessage(e));}
             });
         }
         @JavascriptInterface public void installPendingApk(){
