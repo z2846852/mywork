@@ -84,7 +84,7 @@ Android 应用私有 files/bodytrace/
 **正式发行路径：** 直接提交 `main` 中的应用、构建脚本或相关工作流文件 → [Android fast workflow](.github/workflows/android.yml) 编译固定签名 APK → 签名及 APK 资源检查 → [GitHub Release](https://github.com/z2846852/mywork/releases/latest)。
 
 - **版本号**使用 `0.2.<GitHub Actions run number>`；实际可安装版本、资产体积、差分补丁和成功状态必须实时查 Releases/Actions，不写死在 README。
-- 安装包 `BodyTrace-release.apk`；支持以已安装 APK 为基准的 `.btpatch` 差分升级，校验还原后 APK 的 SHA256、包名、版本及证书。校验不满足时改用完整包或报告错误，绝不安装未验证文件。
+- 安装包 `BodyTrace-release.apk`；支持以已安装 APK 为基准的 `.btpatch` 差分升级，也可从更新页手动导入本地 `.btpatch` 离线还原并安装（首次使用须先安装含该入口的新版 APK）；校验还原后 APK 的 SHA256、包名、版本及证书。校验不满足时改用完整包或报告错误，绝不安装未验证文件。
 - 纯前端变化可使用 `BodyTrace-ui.zip` 小包；**仅当原生指纹兼容且每个文件哈希均通过**才允许覆盖 WebView 资源，否则回退 APK 内置 UI。新增 Java 桥接/原生权限/模型运行时需要完整 APK。
 - ZIPA 模型权重**不内置 APK**：在声音页按需一次下载缺失资源，三种模型可单独选择/删除，下载与安装检查 SHA256。内置英文 IPA/中文释义词典在打包时生成，缺失应修复 APK，不伪造结果。
 - 主要模型：ZIPA 300k 和 500k（**CC BY 4.0**），NS 700k（**CC BY-NC-SA 4.0，限非商业用途**）；相关出处见 [ZIPA](https://github.com/lingjzhu/zipa) 和 [AnySpeech](https://huggingface.co/anyspeech/models)。YAMNet 用于睡眠声学分类，不能作为医疗检测。
