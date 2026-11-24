@@ -966,6 +966,14 @@ body.overview-muscle-open{overflow:hidden}
    <button type="button" class="secondary mini" id="importApkPatch">导入补丁</button>
   </div>
  </div>
+ <div class="row wrap" style="gap:8px;margin-top:6px">
+  <span class="sub" id="githubRequestSummary">GitHub 更新请求：等待读取</span>
+  <button type="button" class="secondary mini" id="refreshGithubRequests">刷新次数</button>
+ </div>
+ <details><summary class="sub">最近 GitHub 更新请求明细</summary>
+  <div id="githubRequestHistory" class="sub" style="white-space:pre-line"></div>
+  <p class="sub">只统计此版本开始的更新模块 HTTP 请求，不含数据同步；不代表 GitHub 全局额度。</p>
+ </details>
  <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">左边只检查版本；发现新版后右边直接更新、不重复查询；未发现新版时右边检查并更新。</p>
 </div>
 <div class="panel" id="gitHistoryPanel">
@@ -1877,6 +1885,10 @@ $("importApkPatch").onclick=()=>{
  $("apkUpdateStatus").textContent="请选择与本机已安装 APK 匹配的 .btpatch 文件；无需联网。";
  BodyTraceNative.importApkPatch();
 };
+$("refreshGithubRequests").onclick=()=>{
+ if(window.BodyTraceNative?.githubRequestStats)BodyTraceNative.githubRequestStats();
+ else $("githubRequestSummary").textContent="需安装新版 APK 才能统计";
+};
 $("checkApkUpdate").onclick=()=>{
  if(apkUpdating||apkChecking)return;
  if(apkReady&&window.BodyTraceNative?.installPendingApk){
@@ -2080,6 +2092,13 @@ window.bodyTraceReceive=function(evt){
    $("checkApkUpdate").disabled=false;
    toast(evt.message||"APK 更新失败",true);
   }
+  break;
+ }
+ case "github_request_stats":{
+  $("githubRequestSummary").textContent="GitHub 更新请求：近1小时 "+evt.hour+
+   " 次 · 24小时 "+evt.day+" 次 · 7天 "+evt.week+" 次 · 失败 "+evt.errors+" 次";
+  $("githubRequestHistory").textContent=(evt.recent||[]).map(x=>
+   new Date(x.time).toLocaleString()+" · "+x.kind+" · HTTP "+x.status).join("\\n")||"暂无记录";
   break;
  }
  case "ui_update":
