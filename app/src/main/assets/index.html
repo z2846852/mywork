@@ -156,10 +156,10 @@ body.overview-muscle-open{overflow:hidden}
 #page-home #heat .cell-quadrant{border-radius:1px}
 #page-home #heat .cell{--heat-bg:#253034;--heat-border:#354342;
  background:var(--heat-bg);border-color:var(--heat-border)}
-#page-home #heat .cell[data-level="1"]{--heat-bg:#234c3b;--heat-border:#396c51}
-#page-home #heat .cell[data-level="2"]{--heat-bg:#337d50;--heat-border:#4b9d66}
-#page-home #heat .cell[data-level="3"]{--heat-bg:#4cbf67;--heat-border:#75d986}
-#page-home #heat .cell[data-level="4"]{--heat-bg:#85ec8e;--heat-border:#a6f3ad}
+#page-home #heat .cell[data-level="1"]{--heat-bg:#203a33;--heat-border:#355448}
+#page-home #heat .cell[data-level="2"]{--heat-bg:#28573e;--heat-border:#467152}
+#page-home #heat .cell[data-level="3"]{--heat-bg:#3f8455;--heat-border:#5c9c69}
+#page-home #heat .cell[data-level="4"]{--heat-bg:#7bd18a;--heat-border:#a0e5aa}
 #page-home #heat .cell[data-level]:not([data-level="0"]) .cell-quadrant:not(.active){
  background:color-mix(in srgb,var(--heat-bg) 72%,#172d29)}
 
@@ -213,7 +213,7 @@ body.overview-muscle-open{overflow:hidden}
 <div class="panel" id="heatPanel">
 <div class="overview-calendar-top">
  <div class="overview-calendar-title"><h2>训练日历</h2><span class="overview-calendar-range">近52周</span>
- <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四分格分别表示胸、肩、背、腿；亮起表示当天有训练。底色由淡绿到亮绿表示当天训练组数（1–2、3–5、6–8、9组以上），不是跨器械重量或真实生理负荷。横向滑动可回顾全年，点击日期查看该天全部记录；点下面的颜色筛选部位。</p></details></div>
+ <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四分格分别表示胸、肩、背、腿；亮起表示当天有训练。绿色底色按当前筛选下的历史每日完成组数相对分级，只有明显超出个人日常水平且至少16组的日期才可能达到最亮；它不是实际用力程度、肌肉疲劳或重量负荷。横向滑动回顾全年，点击日期只刷新下方详情，不会自动跳走；下方颜色可筛选部位。</p></details></div>
  <select class="select" id="filter" aria-label="筛选日历动作"><option value="">全部训练</option></select>
 </div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
@@ -1378,9 +1378,9 @@ function toggleRegionFilter(region){
 }
 document.querySelectorAll("#page-home .region-filter").forEach(button=>
  button.onclick=()=>toggleRegionFilter(button.dataset.region));
-function selectTrainingDay(day,scroll=true){
+function selectTrainingDay(day){
+ // Updating a selected date must not move the viewport or switch tabs.
  state.calendarBrowsing=true;state.selected=day;renderHeat();renderDay();
- if(scroll)jumpToView("home",()=> $("trainingDetailsPanel"));
 }
 // Latest saved record is the next default; no need for a separate preference file.
 let weightEditedByUser=false,repsEditedByUser=false;
@@ -1466,8 +1466,29 @@ function summarizeHeatDays(rows){
  }
  return byDay;
 }
+// Completed sets are a volume proxy; they cannot establish true exertion.
+// Compare with the user's own days under the active exercise/region filter.
+function heatIntensityThresholds(byDay){
+ const totals=[...byDay.values()].map(x=>x.total).filter(n=>n>0).sort((a,b)=>a-b);
+ if(!totals.length)return {quiet:1,normal:2,peak:16};
+ const median=totals[Math.floor((totals.length-1)/2)];
+ const p90=totals[Math.ceil(totals.length*0.9)-1];
+ return {
+  quiet:Math.max(1,Math.floor(median/2)),
+  normal:median,
+  // Bright green is exceptional, not the default for an ordinary workout.
+  peak:Math.max(16,Math.ceil(median*1.5),p90+1)
+ };
+}
+function heatIntensityLevel(total,thresholds){
+ if(total<=0)return 0;
+ if(total<=thresholds.quiet)return 1;
+ if(total<=thresholds.normal)return 2;
+ return total<thresholds.peak?3:4;
+}
 function renderHeat(focusLatest=false){
  const byDay=summarizeHeatDays(filtered());
+ const intensity=heatIntensityThresholds(byDay);
  const monthTrack=$("months");
  monthTrack.style.width=(52*20)+"px";
  const dateEnd=today>state.selected?today:state.selected;
@@ -1485,13 +1506,14 @@ function renderHeat(focusLatest=false){
    const day=plus(first,d),counts=byDay.get(day)||{total:0,other:0,regions:{胸:0,肩:0,背:0,腿:0}};
    const cell=document.createElement("button");
    cell.type="button";cell.className="cell"+(state.selected===day?" active":"")+(day>today?" dim":"");
-   cell.dataset.level=String(counts.total===0?0:counts.total<=2?1:counts.total<=5?2:counts.total<=8?3:4);
+   cell.dataset.level=String(heatIntensityLevel(counts.total,intensity));
    if(counts.other)cell.dataset.other="true";
    if(counts.failures)cell.dataset.failed="true";
    const detail=majorRegions.map(region=>region+counts.regions[region]+"组").join(" / ")+
     (counts.other?" / 其他"+counts.other+"组":"")+
     (counts.failures?" / 失败尝试"+counts.failures+"次":"");
-   cell.title=day+" · "+counts.total+"组（"+detail+"）";
+   const intensityLabel=["无训练","少量","日常范围","较多","明显高于日常"][Number(cell.dataset.level)];
+   cell.title=day+" · "+counts.total+"组 · "+intensityLabel+"（"+detail+"）";
    cell.setAttribute("aria-label",cell.title);
    for(const region of majorRegions){
     const quadrant=document.createElement("span");
@@ -1819,7 +1841,6 @@ $("goLatest").onclick=()=>{
  const ds=filtered().map(r=>r.session_date).sort();
  state.calendarBrowsing=false;state.selected=ds.at(-1)||today;
  renderHeat(true);renderDay();
- jumpToView("home",()=> $("trainingDetailsPanel"));
 };
 $("recordExercise").onchange=()=>{recordExerciseTouched=true;clearTrainingEdits();refreshExerciseRecommendation(true);window.BodyTraceRestTimer?.render?.()};
 function openTrainingWheel(elementId, title, min, max, step, unit){
