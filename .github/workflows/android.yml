@@ -196,3 +196,51 @@ jobs:
             --notes-file release-notes.md \
             --latest
           echo "https://github.com/$GH_REPO/releases/latest/download/BodyTrace-release.apk"
+
+      - name: Record latest successfully published APK in build-status.json
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Runs only after gh release create succeeds. This file is the
+          # durable record of the last published build, not the latest commit.
+          version="v0.2.$GITHUB_RUN_NUMBER"
+          published_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          status_json="$(jq -n \
+            --arg version "$version" \
+            --arg sha "$GITHUB_SHA" \
+            --arg published_at "$published_at" \
+            --arg run_url "https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID" \
+            --arg release_url "https://github.com/$GH_REPO/releases/tag/$version" \
+            --arg apk_url "https://github.com/$GH_REPO/releases/download/$version/BodyTrace-release.apk" \
+            --argjson run_number "$GITHUB_RUN_NUMBER" \
+            --argjson run_id "$GITHUB_RUN_ID" \
+            '{schema_version:1,status:"published",version:$version,
+              version_code:$run_number,run_number:$run_number,run_id:$run_id,
+              source_commit:$sha,published_at:$published_at,
+              actions_url:$run_url,release_url:$release_url,
+              apk_download_url:$apk_url}')"
+          encoded="$(printf '%s\n' "$status_json" | base64 -w0)"
+          # The main branch may advance while the APK is building. Use the
+          # current content SHA and retry optimistic conflicts.
+          for attempt in 1 2 3 4 5; do
+            current_sha="$(gh api "repos/$GH_REPO/contents/build-status.json?ref=main" \
+              --jq '.sha' 2>/dev/null || true)"
+            jq -n --arg body "$encoded" --arg sha "$current_sha" \
+              --arg version "$version" \
+              '{message:("chore: record successful APK "+$version),
+                content:$body,branch:"main"} +
+                (if $sha == "" then {} else {sha:$sha} end)' \
+              > "$RUNNER_TEMP/build-status-request.json"
+            if gh api --method PUT "repos/$GH_REPO/contents/build-status.json" \
+                --input "$RUNNER_TEMP/build-status-request.json" >/dev/null; then
+              echo "Recorded $version ($GITHUB_SHA) in build-status.json"
+              exit 0
+            fi
+            echo "Status write attempt $attempt failed; retrying latest main SHA"
+            sleep 3
+          done
+          echo "::error::Release $version published but build-status.json could not be updated."
+          exit 1
