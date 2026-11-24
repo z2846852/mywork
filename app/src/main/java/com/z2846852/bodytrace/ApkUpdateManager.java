@@ -279,47 +279,61 @@ final class ApkUpdateManager {
      * One click: check, choose applicable direct delta, download, reconstruct,
      * verify, return a ready status. Caller launches system installer on UI.
      */
+    private JSONObject staticUpdateIndex()throws Exception {
+        byte[] bytes=readJson(REPO+"/releases/latest/download/"+MANIFEST,MAX_JSON);
+        JSONObject index=new JSONObject(new String(bytes,java.nio.charset.StandardCharsets.UTF_8));
+        int version=index.optInt("target_version_code");
+        if(index.optInt("schema")!=1||version<=0||
+            !FULL.equals(index.optString("apk_asset"))||
+            !validHash(index.optString("target_sha256"))||
+            index.optJSONArray("patches")==null)
+            throw new SecurityException("静态更新索引格式无效");
+        return index;
+    }
+
     synchronized JSONObject checkAndPrepare(Reporter reporter)throws Exception {
         long installedVersion=currentVersion();
-        GitHubReleaseCache.Snapshot snapshot;
-        if(checkedRelease!=null &&
-            checkedRelease.optString("tag_name").matches("v0\\.2\\.[0-9]{1,7}") &&
-            Integer.parseInt(checkedRelease.optString("tag_name").substring(5))>installedVersion){
-            // Reuse the exact release + assets just verified by the left button.
-            // The subsequent download still verifies SHA256, version and signature.
-            progress(reporter,"checking","沿用刚检查的新版元数据，直接准备更新…");
-            snapshot=new GitHubReleaseCache.Snapshot(checkedRelease,false,0);
-        }else{
-            // No known newer version: one fresh Release lookup is required.
-            progress(reporter,"checking","尚无已确认的新版本，正在查询 GitHub…");
-            snapshot=new GitHubReleaseCache(context).get(true);
-        }
-        JSONObject release=snapshot.release;
-        String tag=release.getString("tag_name");
-        if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
-            throw new SecurityException("GitHub Release 版本格式无效");
-        int targetVersion=Integer.parseInt(tag.substring(5));
-        if(!snapshot.stale && targetVersion>installedVersion)
+        JSONObject release=null, staticIndex=null;
+        String tag;
+        int targetVersion;
+        String staticError="";
+        try{
+            progress(reporter,"checking","正在读取 Release 静态索引（不占用 REST API 额度）…");
+            staticIndex=staticUpdateIndex();
+            targetVersion=staticIndex.getInt("target_version_code");
+            tag="v0.2."+targetVersion;
+        }catch(Exception e){
+            staticError=safeError(e);
+            progress(reporter,"checking","静态索引不可用，尝试 GitHub API："+staticError);
+            GitHubReleaseCache.Snapshot snapshot;
+            if(checkedRelease!=null&&
+                checkedRelease.optString("tag_name").matches("v0\\\\.2\\\\.[0-9]{1,7}")&&
+                Integer.parseInt(checkedRelease.optString("tag_name").substring(5))>installedVersion)
+                snapshot=new GitHubReleaseCache.Snapshot(checkedRelease,false,0);
+            else snapshot=new GitHubReleaseCache(context).get(true);
+            if(snapshot.stale)
+                return status("version_deferred",snapshot.note())
+                    .put("latest_version",snapshot.release.optString("tag_name"));
+            release=snapshot.release;
+            tag=release.getString("tag_name");
+            if(!tag.matches("v0\\\\.2\\\\.[0-9]{1,7}"))
+                throw new SecurityException("GitHub Release 版本格式无效");
+            targetVersion=Integer.parseInt(tag.substring(5));
             checkedRelease=release;
+        }
         JSONObject result=status("checking","发现最新版 "+tag);
         result.put("latest_version",targetVersion);
         if(targetVersion<=installedVersion){
             checkedRelease=null;
-            result.put("state",snapshot.stale?"version_deferred":"up_to_date");
-            result.put("message",snapshot.stale?snapshot.note():
-                "当前已是最新 APK v0.2."+installedVersion);
+            result.put("state","up_to_date");
+            result.put("message","当前已是最新 APK v0.2."+installedVersion);
             return result;
         }
-        if(snapshot.stale)
-            return status("version_deferred",snapshot.note()+
-                "；未确认最新版前不会下载旧缓存 APK")
-                .put("installed_version",installedVersion)
-                .put("latest_version",targetVersion);
         if(!dir.exists()&&!dir.mkdirs())
             throw new IllegalStateException("无法创建 APK 下载目录");
-        JSONArray assets=release.getJSONArray("assets");
-        JSONObject fullAsset=asset(assets,FULL);
-        String fullDigest=githubDigest(fullAsset);
+        JSONArray assets=release==null?null:release.getJSONArray("assets");
+        String fullDigest=staticIndex!=null?
+            staticIndex.getString("target_sha256"):githubDigest(asset(assets,FULL));
         File staged=new File(dir,"incoming-"+targetVersion+".apk");
         File finalApk=new File(dir,"verified.apk");
         Files.deleteIfExists(staged.toPath());
@@ -329,16 +343,16 @@ final class ApkUpdateManager {
         boolean patched=false;
         String note="";
         try{
-            JSONObject indexAsset=asset(assets,MANIFEST);
-            if(indexAsset!=null){
-                String indexDigest=githubDigest(indexAsset);
+            JSONObject indexAsset=assets==null?null:asset(assets,MANIFEST);
+            if(staticIndex!=null||indexAsset!=null){
+                String indexDigest=indexAsset==null?null:githubDigest(indexAsset);
                 // The Release API is not an independently signed update feed;
                 // the SHA check guards bytes in transit and the OS later verifies
                 // the installed APK signing certificate.
-                byte[] indexBytes=readJson(expectedUrl(tag,MANIFEST),MAX_JSON);
-                if(hex(MessageDigest.getInstance("SHA-256").digest(indexBytes))
+                byte[] indexBytes=staticIndex==null?readJson(expectedUrl(tag,MANIFEST),MAX_JSON):null;
+                if(staticIndex!=null||hex(MessageDigest.getInstance("SHA-256").digest(indexBytes))
                         .equals(indexDigest)){
-                    JSONObject index=new JSONObject(new String(indexBytes,
+                    JSONObject index=staticIndex!=null?staticIndex:new JSONObject(new String(indexBytes,
                         java.nio.charset.StandardCharsets.UTF_8));
                     if(index.optInt("schema")==1&&
                         index.optInt("target_version_code")==targetVersion&&
@@ -356,9 +370,9 @@ final class ApkUpdateManager {
                                 if(!filename.equals("BodyTrace-from-v0.2."+
                                         installedVersion+".btpatch")||
                                    !validHash(patchDigest))continue;
-                                JSONObject patchAsset=asset(assets,filename);
-                                if(patchAsset==null||!patchDigest.equals(githubDigest(patchAsset)))
-                                    continue;
+                                JSONObject patchAsset=assets==null?null:asset(assets,filename);
+                                if(assets!=null&&(patchAsset==null||
+                                    !patchDigest.equals(githubDigest(patchAsset))))continue;
                                 try{
                                     progress(reporter,"checking","已匹配 v0.2."+
                                         installedVersion+" → "+tag+" 差分补丁");
