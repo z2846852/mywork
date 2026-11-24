@@ -128,6 +128,7 @@ final class ApkUpdateManager {
 
     private static byte[] readJson(String url,long limit)throws Exception {
         HttpURLConnection conn=open(url);
+        GitHubRequestStats.record(context,"更新索引",conn.getResponseCode());
         try(InputStream in=new BufferedInputStream(conn.getInputStream());
             java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
             byte[] bytes=new byte[BUFFER];int n;
@@ -160,6 +161,7 @@ final class ApkUpdateManager {
                 conn.setRequestProperty("User-Agent","BodyTrace-ApkUpdater/1");
                 if(have>0)conn.setRequestProperty("Range","bytes="+have+"-");
                 int code=conn.getResponseCode();
+                GitHubRequestStats.record(context,"APK/补丁下载",code);
                 if(!allowedUrl(conn.getURL()))throw new SecurityException("不可信的下载跳转");
                 if(code!=200&&code!=206){
                     if(code==403||code==429)
