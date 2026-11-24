@@ -963,6 +963,7 @@ body.overview-muscle-open{overflow:hidden}
   <div class="apk-update-actions">
    <button type="button" class="secondary mini" id="checkApkVersion">检查</button>
    <button type="button" class="primary mini" id="checkApkUpdate">检查并更新</button>
+   <button type="button" class="secondary mini" id="importApkPatch">导入补丁</button>
   </div>
  </div>
  <p id="apkUpdateStatus" class="sub" role="status" aria-live="polite">左边只检查版本；发现新版后右边直接更新、不重复查询；未发现新版时右边检查并更新。</p>
@@ -1868,6 +1869,14 @@ const sync=()=>{
 $("syncHome").onclick=sync;$("syncSettings").onclick=sync;
 $("checkApkVersion").onclick=checkApkVersionManual;
 $("checkApkVersionHelp").onclick=checkApkVersionManual;
+$("importApkPatch").onclick=()=>{
+ if(!window.BodyTraceNative?.importApkPatch){
+  toast("当前 APK 不支持本地补丁导入，需要先完整安装此功能发布后的 APK",true);
+  return;
+ }
+ $("apkUpdateStatus").textContent="请选择与本机已安装 APK 匹配的 .btpatch 文件；无需联网。";
+ BodyTraceNative.importApkPatch();
+};
 $("checkApkUpdate").onclick=()=>{
  if(apkUpdating||apkChecking)return;
  if(apkReady&&window.BodyTraceNative?.installPendingApk){
