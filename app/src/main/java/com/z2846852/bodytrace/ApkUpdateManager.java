@@ -405,6 +405,54 @@ final class ApkUpdateManager {
         }
     }
 
+    /** Offline import: BTDPAT01 carries exact old/new APK SHA256 hashes.
+     * No GitHub request is needed; APK package, version and signer are checked.
+     */
+    synchronized JSONObject prepareLocalPatch(android.net.Uri uri,Reporter reporter)throws Exception {
+        if(uri==null||!"content".equals(uri.getScheme()))
+            throw new IllegalArgumentException("请选择文件管理器中的 .btpatch 文件");
+        if(!dir.exists()&&!dir.mkdirs())
+            throw new IllegalStateException("无法创建更新缓存目录");
+        File patch=new File(dir,"local-import.btpatch");
+        File staged=new File(dir,"local-reconstructed.apk");
+        File verified=new File(dir,"verified.apk");
+        Files.deleteIfExists(patch.toPath());
+        Files.deleteIfExists(staged.toPath());
+        try{
+            progress(reporter,"applying","正在读取本地补丁，不访问 GitHub…");
+            long count=0;
+            try(java.io.InputStream input=context.getContentResolver().openInputStream(uri);
+                java.io.OutputStream output=new java.io.FileOutputStream(patch)){
+                if(input==null)throw new IllegalArgumentException("无法打开补丁文件");
+                byte[] buffer=new byte[BUFFER];int n;
+                while((n=input.read(buffer))!=-1){
+                    count+=n;
+                    if(count>MAX_PATCH)throw new SecurityException("补丁超过允许大小");
+                    output.write(buffer,0,n);
+                }
+            }
+            if(count<80)throw new SecurityException("补丁文件过短");
+            ApkDeltaPatch.apply(baseApk(),patch,staged);
+            progress(reporter,"verifying","补丁已还原，正在验证 APK 版本、哈希和签名…");
+            PackageInfo archive=context.getPackageManager().getPackageArchiveInfo(
+                staged.getAbsolutePath(),0);
+            if(archive==null)throw new SecurityException("还原结果不是有效 APK");
+            long version=Build.VERSION.SDK_INT>=28?
+                archive.getLongVersionCode():archive.versionCode;
+            validateApk(staged,version,ApkDeltaPatch.sha256(staged));
+            Files.deleteIfExists(verified.toPath());
+            if(!staged.renameTo(verified))
+                throw new IllegalStateException("保存已验证的 APK 失败");
+            pendingApk=verified;
+            pendingVersion=version;
+            return status("ready","本地差分补丁已验证，准备安装 v0.2."+version)
+                .put("method","local_delta").put("latest_version",version);
+        }finally{
+            Files.deleteIfExists(patch.toPath());
+            Files.deleteIfExists(staged.toPath());
+        }
+    }
+
     synchronized boolean hasPendingInstall(){
         return pendingApk!=null&&pendingApk.isFile()&&pendingVersion>0;
     }
