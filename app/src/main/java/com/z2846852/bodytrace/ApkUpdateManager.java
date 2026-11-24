@@ -307,7 +307,7 @@ final class ApkUpdateManager {
             progress(reporter,"checking","静态索引不可用，尝试 GitHub API："+staticError);
             GitHubReleaseCache.Snapshot snapshot;
             if(checkedRelease!=null&&
-                checkedRelease.optString("tag_name").matches("v0\\\\.2\\\\.[0-9]{1,7}")&&
+                checkedRelease.optString("tag_name").matches("v0\\.2\\.[0-9]{1,7}")&&
                 Integer.parseInt(checkedRelease.optString("tag_name").substring(5))>installedVersion)
                 snapshot=new GitHubReleaseCache.Snapshot(checkedRelease,false,0);
             else snapshot=new GitHubReleaseCache(context).get(true);
@@ -316,7 +316,7 @@ final class ApkUpdateManager {
                     .put("latest_version",snapshot.release.optString("tag_name"));
             release=snapshot.release;
             tag=release.getString("tag_name");
-            if(!tag.matches("v0\\\\.2\\\\.[0-9]{1,7}"))
+            if(!tag.matches("v0\\.2\\.[0-9]{1,7}"))
                 throw new SecurityException("GitHub Release 版本格式无效");
             targetVersion=Integer.parseInt(tag.substring(5));
             checkedRelease=release;
