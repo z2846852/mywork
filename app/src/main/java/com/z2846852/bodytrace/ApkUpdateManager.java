@@ -139,41 +139,77 @@ final class ApkUpdateManager {
         }finally{conn.disconnect();}
     }
 
+    /** Resumable download. A partial file is reused only for the same expected SHA256. */
     private void download(String url,File file,long limit,String digest,
             Reporter reporter,String label) throws Exception {
         if(!validHash(digest))throw new SecurityException("缺少更新文件 SHA256");
-        HttpURLConnection conn=open(url);
-        long expectedBytes=conn.getContentLengthLong();
-        if(expectedBytes>limit){
-            conn.disconnect();
-            throw new SecurityException("更新文件过大");
+        File marker=new File(file.getAbsolutePath()+".sha256");
+        if(!marker.isFile()||!digest.equals(new String(Files.readAllBytes(marker.toPath()),
+                java.nio.charset.StandardCharsets.US_ASCII).trim())){
+            Files.deleteIfExists(file.toPath());
+            Files.write(marker.toPath(),digest.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
         }
-        MessageDigest md=MessageDigest.getInstance("SHA-256");
-        long read=0,nextNotify=0;
-        try(InputStream in=new BufferedInputStream(conn.getInputStream());
-            FileOutputStream raw=new FileOutputStream(file);
-            java.io.OutputStream out=new BufferedOutputStream(raw)){
-            byte[] bytes=new byte[BUFFER];int n;
-            while((n=in.read(bytes))!=-1){
-                read+=n;
-                if(read>limit)throw new SecurityException("更新下载超出限制");
-                out.write(bytes,0,n);
-                md.update(bytes,0,n);
-                if(read>=nextNotify){
-                    String progress=expectedBytes>0?
-                        Math.min(100,read*100/expectedBytes)+"%":
-                        String.format(Locale.ROOT,"%.1f MB",read/1048576.0);
-                    progress(reporter,"downloading",label+" "+progress);
-                    nextNotify=read+512*1024;
+        long have=file.isFile()?file.length():0;
+        if(have>limit){Files.deleteIfExists(file.toPath());have=0;}
+        for(int attempt=0;attempt<3;attempt++){
+            HttpURLConnection conn=null;
+            try{
+                conn=(HttpURLConnection)new URL(url).openConnection();
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(60000);
+                conn.setRequestProperty("User-Agent","BodyTrace-ApkUpdater/1");
+                if(have>0)conn.setRequestProperty("Range","bytes="+have+"-");
+                int code=conn.getResponseCode();
+                if(!allowedUrl(conn.getURL()))throw new SecurityException("不可信的下载跳转");
+                if(code!=200&&code!=206){
+                    if(code==403||code==429)
+                        throw new IllegalStateException("GitHub HTTP "+code+
+                            "：请求受限，请稍后重试或导入本地补丁");
+                    throw new IllegalStateException("GitHub 下载 HTTP "+code);
                 }
-            }
-            out.flush();
-            raw.getFD().sync();
-            if(expectedBytes>=0&&read!=expectedBytes)
-                throw new IllegalStateException("下载字节数与服务器声明不匹配");
-            if(!hex(md.digest()).equals(digest))
-                throw new SecurityException("APK 更新文件 SHA256 校验失败");
-        }finally{conn.disconnect();}
+                boolean resume=have>0&&code==206&&
+                    conn.getHeaderField("Content-Range")!=null&&
+                    conn.getHeaderField("Content-Range").startsWith("bytes "+have+"-");
+                if(code==206&&!resume)throw new SecurityException("服务器返回错误的续传区间");
+                if(!resume){have=0;Files.deleteIfExists(file.toPath());}
+                long length=conn.getContentLengthLong();
+                if(length>limit-have)throw new SecurityException("更新文件超过大小限制");
+                long read=have,nextNotify=have;
+                try(InputStream in=new BufferedInputStream(conn.getInputStream());
+                    FileOutputStream out=new FileOutputStream(file,resume)){
+                    byte[] bytes=new byte[BUFFER];int n;
+                    while((n=in.read(bytes))!=-1){
+                        read+=n;
+                        if(read>limit)throw new SecurityException("更新文件超过大小限制");
+                        out.write(bytes,0,n);
+                        if(read>=nextNotify){
+                            long total=length>=0?have+length:-1;
+                            String percent=total>0?Math.min(100,read*100/total)+"%":
+                                String.format(Locale.ROOT,"%.1f MB",read/1048576.0);
+                            progress(reporter,"downloading",label+" "+percent);
+                            nextNotify=read+512*1024;
+                        }
+                    }
+                    out.getFD().sync();
+                }
+                if(length>=0&&read-have!=length)
+                    throw new java.io.IOException("下载提前中断");
+                if(!digest.equals(ApkDeltaPatch.sha256(file))){
+                    Files.deleteIfExists(file.toPath());
+                    throw new SecurityException("更新文件 SHA256 校验失败");
+                }
+                Files.deleteIfExists(marker.toPath());
+                return;
+            }catch(java.io.IOException e){
+                have=file.isFile()?file.length():0;
+                if(attempt==2)throw new java.io.IOException("下载中断，已保留 "+
+                    (have/1024)+" KB，下次继续："+safeError(e),e);
+                try{Thread.sleep(attempt==0?2000:5000);}
+                catch(InterruptedException interrupted){
+                    Thread.currentThread().interrupt();throw interrupted;
+                }
+            }finally{if(conn!=null)conn.disconnect();}
+        }
     }
 
     private static JSONObject asset(JSONArray assets,String name)throws Exception {
@@ -336,9 +372,7 @@ final class ApkUpdateManager {
             staticIndex.getString("target_sha256"):githubDigest(asset(assets,FULL));
         File staged=new File(dir,"incoming-"+targetVersion+".apk");
         File finalApk=new File(dir,"verified.apk");
-        Files.deleteIfExists(staged.toPath());
         File patchFile=new File(dir,"incoming.btpatch");
-        Files.deleteIfExists(patchFile.toPath());
         File installed=baseApk();
         boolean patched=false;
         String note="";
@@ -414,8 +448,7 @@ final class ApkUpdateManager {
             result.put("size_bytes",finalApk.length());
             return result;
         }finally{
-            Files.deleteIfExists(staged.toPath());
-            Files.deleteIfExists(patchFile.toPath());
+            // Keep incomplete downloads for a later Range request.
         }
     }
 
