@@ -1985,3 +1985,24 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
  #page-record .record-number-row .field label{font-size:10px}
  #page-record .record-rest-description span{font-size:9px}
 }
+
+/* Trend density: keep all headline metrics, prioritize first exercise trend. */
+#page-analytics .overview-panel{padding:8px 10px 9px}
+#page-analytics .trend-dashboard-caption[hidden]{display:none}
+#page-analytics .trend-dashboard-title{align-items:center}
+#page-analytics .trend-dashboard-legend-shortcut{margin-left:auto;font-size:15px;
+ width:28px;height:27px;border:1px solid #467667;border-radius:50%;padding:0}
+#page-analytics .trend-dashboard-tools{margin-top:5px}
+#page-analytics .trend-period-toolbar button{min-height:29px;padding:3px}
+#page-analytics .training-overview{margin-top:5px;min-height:0;padding:6px 8px;gap:7px}
+#page-analytics .training-overview-main strong{font-size:22px}
+#page-analytics .training-overview-stat{line-height:1.2}
+#page-analytics .training-overview-stat strong{font-size:17px}
+#page-analytics .trend-region-pulse{gap:3px}
+#page-analytics .trend-region-pulse-item{padding:2px;font-size:10px}
+#page-analytics .combined-trend{margin-top:4px}
+#page-analytics .trend-support-panel{margin-top:5px;padding:6px 10px}
+#page-analytics .trend-support-panel>details>summary{min-height:27px;padding:2px 0}
+#page-analytics .trend-legend-area{margin:6px 10px}
+#page-analytics .combined-trend-help{margin-top:2px}
+#page-analytics .trend-support-panel>details>.sub{display:none}
