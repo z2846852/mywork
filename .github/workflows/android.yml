@@ -5,6 +5,7 @@ on:
     paths:
       - 'app/**'
       - 'scripts/build_ui_bundle.py'
+      - 'scripts/test_workout_date_heat.js'
       - 'scripts/apk_delta.py'
       - 'scripts/build_pronunciation_lexicon.py'
       - 'scripts/fetch_yamnet.sh'
