@@ -1852,6 +1852,66 @@ public final class MainActivity extends Activity {
             if(!written)error("页面偏好保存失败");
         }
 
+        /** Reference goals are local training preferences, not uploaded workout
+         * entries. DOM storage is deliberately disabled in this WebView. */
+        @JavascriptInterface public String loadStrengthGoals(){
+            return getSharedPreferences("bodytrace_strength_goals",MODE_PRIVATE)
+                .getString("v1","{}");
+        }
+
+        @JavascriptInterface public boolean saveStrengthGoals(String payload){
+            try{
+                if(payload==null||payload.length()>64000)
+                    throw new IllegalArgumentException("目标设置过大");
+                JSONObject input=new JSONObject(payload);
+                if(input.length()>300)
+                    throw new IllegalArgumentException("目标动作过多");
+                JSONObject clean=new JSONObject();
+                java.util.Iterator<String> keys=input.keys();
+                while(keys.hasNext()){
+                    String key=keys.next();
+                    if(!key.matches("[a-zA-Z0-9_\\-]{1,72}\\|(machine|per_side|assisted|bodyweight)"))
+                        throw new IllegalArgumentException("目标动作编号无效");
+                    JSONObject item=input.optJSONObject(key);
+                    if(item==null)throw new IllegalArgumentException("无效的目标数据");
+                    Object rawKg=item.opt("kg");
+                    double kg=rawKg==null||rawKg==JSONObject.NULL?0:item.optDouble("kg",0);
+                    int reps=item.optInt("reps",8);
+                    if(!Double.isFinite(kg)||kg<0||kg>1000||reps<1||reps>15)
+                        throw new IllegalArgumentException("目标重量或次数无效");
+                    String origin=item.optString("origin","manual");
+                    if(!("manual".equals(origin)||"generated".equals(origin)||
+                         "personal".equals(origin)||"device".equals(origin)))
+                        throw new IllegalArgumentException("目标来源无效");
+                    JSONObject saved=new JSONObject();
+                    if(kg>0)saved.put("kg",kg);
+                    else saved.put("kg",JSONObject.NULL);
+                    saved.put("reps",reps);
+                    saved.put("hidden",item.optBoolean("hidden",false));
+                    saved.put("origin",origin);
+                    clean.put(key,saved);
+                }
+                return getSharedPreferences("bodytrace_strength_goals",MODE_PRIVATE)
+                    .edit().putString("v1",clean.toString()).commit();
+            }catch(Exception e){
+                error("保存力量参考设置失败："+safeMessage(e));
+                return false;
+            }
+        }
+
+        /** External standards are opened OUTSIDE the bridge-enabled WebView.
+         * The slug is restricted to a fixed HTTPS path. */
+        @JavascriptInterface public void openStrengthGuide(String slug){
+            if(slug==null||slug.length()>70||!slug.matches("[a-z]+(-[a-z]+)*"))return;
+            Uri destination=Uri.parse(
+                "https://strengthlevel.com/strength-standards/"+slug+"/kg");
+            runOnUiThread(()->{
+                try{startActivity(new Intent(Intent.ACTION_VIEW,destination)
+                    .addCategory(Intent.CATEGORY_BROWSABLE));}
+                catch(Exception e){error("无法打开标准查询网页："+safeMessage(e));}
+            });
+        }
+
         /** Persist expansion of the per-exercise chart section across app restarts. */
         @JavascriptInterface public void setStrengthDetailExpanded(boolean expanded){
             boolean written=getSharedPreferences("bodytrace_ui_prefs",MODE_PRIVATE)

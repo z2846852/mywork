@@ -341,7 +341,10 @@ const trendMarkerStyles=["circle","square","diamond","triangle","cross","hexagon
 const strengthGoalStorageKey="bodytrace.strengthGoals.v1";
 const strengthGoalStore=(()=>{
  try{
-  const saved=JSON.parse(localStorage.getItem(strengthGoalStorageKey)||"{}");
+  const native=window.BodyTraceNative;
+  const raw=typeof native?.loadStrengthGoals==="function"?
+   native.loadStrengthGoals():localStorage.getItem(strengthGoalStorageKey);
+  const saved=JSON.parse(raw||"{}");
   return saved&&typeof saved==="object"&&!Array.isArray(saved)?saved:{};
  }catch(_){return {};}
 })();
@@ -353,8 +356,14 @@ function strengthGoalBasis(row){
 }
 const strengthGoalKey=(id,basis)=>id+"|"+basis;
 function saveStrengthGoals(){
- try{localStorage.setItem(strengthGoalStorageKey,JSON.stringify(strengthGoalStore));}
- catch(_){/* Still editable offline for this WebView session. */}
+ try{
+  const json=JSON.stringify(strengthGoalStore);
+  const native=window.BodyTraceNative;
+  if(typeof native?.saveStrengthGoals==="function"){
+   if(native.saveStrengthGoals(json)!==true)
+    toast("参考设置暂未保存到本机，请检查日志",true);
+  }else localStorage.setItem(strengthGoalStorageKey,json);
+ }catch(_){/* Still editable in-memory if storage is not available. */}
 }
 function strengthGoalFor(exerciseId,basis="machine"){
  const key=strengthGoalKey(exerciseId,basis);
@@ -1267,11 +1276,16 @@ function renderStrengthPlot(group,chart,range,disclaimer,region,benchmark){
   abductor:"hip-abduction",seated_leg_curl:"seated-leg-curl",
   prone_leg_curl:"lying-leg-curl",vertical_traction:"lat-pulldown"};
  if(matchSlugs[ex]){
-  const link=document.createElement("a");
-  link.href="https://strengthlevel.com/strength-standards/"+matchSlugs[ex]+"/kg";
-  link.target="_blank";link.rel="noopener noreferrer";
-  link.textContent="查看外部训练者标准（网页）";
-  link.title="仅链接查询；该站数据不在本 App 内重用，器械型号和人群可能不同";
+  const link=document.createElement("button");link.type="button";
+  link.className="mini secondary";
+  link.textContent="查看外部训练者标准 ↗";
+  link.title="在系统浏览器打开；并非成年平均值，机器型号可能不同";
+  link.onclick=()=>{
+   if(typeof window.BodyTraceNative?.openStrengthGuide==="function")
+    window.BodyTraceNative.openStrengthGuide(matchSlugs[ex]);
+   else window.open("https://strengthlevel.com/strength-standards/"+
+    matchSlugs[ex]+"/kg","_blank","noopener");
+  };
   editor.append(link);
  }
  benchmark.append(status,edit,toggle,editor);

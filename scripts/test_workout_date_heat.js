@@ -157,6 +157,7 @@ const goalCtx={
   getItem:key=>stored[key]||null,
   setItem:(key,value)=>{stored[key]=value;}
  },
+ window:{BodyTraceNative:null},
  state:{rows:[
   {exercise_id:"chest_press",load_kg:30,reps:10},
   {exercise_id:"chest_press",load_kg:40,reps:8},
@@ -193,5 +194,11 @@ assert.equal(goalApi.strengthGoalFor("chest_press","machine").kg,chest.kg,
 assert.ok(trends.includes('class:"strength-reference-line"'));
 assert.ok(trends.includes('toggle.textContent=goal.hidden?"显示参考":"隐藏参考"'));
 assert.ok(trends.includes('origin:"manual"')&&trends.includes('strengthGoalStore[goalKey]'));
+const nativeSource=read("app/src/main/java/com/z2846852/bodytrace/MainActivity.java");
+assert.ok(nativeSource.includes("@JavascriptInterface public String loadStrengthGoals()"));
+assert.ok(nativeSource.includes("@JavascriptInterface public boolean saveStrengthGoals(String payload)"));
+assert.ok(nativeSource.includes('getSharedPreferences("bodytrace_strength_goals",MODE_PRIVATE)'));
+assert.ok(nativeSource.includes("@JavascriptInterface public void openStrengthGuide(String slug)"));
+assert.ok(trends.includes('native.loadStrengthGoals()')&&trends.includes('native.saveStrengthGoals(json)'));
 assert.ok(!trends.includes("trendIndexGrowthFactors"));
 console.log("PASS workout dates, four-region heatmap, trend linkage, benchmark controls");
