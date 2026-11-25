@@ -1025,6 +1025,8 @@ body.overview-muscle-open{overflow:hidden}
    <button type="button" class="secondary mini" id="workoutEditClose">关闭</button>
   </div>
   <p id="workoutEditIdentity" class="sub"></p>
+  <div class="field"><label for="workoutEditDate">训练日期（北京时间）</label>
+   <input id="workoutEditDate" type="date"></div>
   <div class="formgrid">
    <div class="field"><label for="workoutEditKg">重量（kg）</label>
     <input id="workoutEditKg" inputmode="decimal" type="number" min="0" max="500" step="0.1"></div>
@@ -1188,7 +1190,33 @@ function iso(d){return d.getUTCFullYear()+"-"+pad(d.getUTCMonth()+1)+"-"+pad(d.g
 function parse(s){return new Date(s+"T12:00:00Z")}
 function plus(s,n){let d=parse(s);d.setUTCDate(d.getUTCDate()+n);return iso(d)}
 function todayShanghai(){return new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:"Asia/Shanghai"}).format(new Date())}
-const today=todayShanghai();$("recordDate").value=today;state.selected=today;
+let today=todayShanghai();$("recordDate").value=today;state.selected=today;
+// Date inputs default to the current Beijing day, but explicit historical
+// selections are never rewritten when the calendar day rolls over.
+const dateInputsAutoReset=["recordDate","intakeDate","foodDate","bodyEntryDate"];
+const dateManuallyChosen=new Set();
+for(const id of dateInputsAutoReset)
+ $(id)?.addEventListener("input",()=>dateManuallyChosen.add(id));
+function refreshToday(){
+ const current=todayShanghai();
+ if(current===today)return false;
+ const previous=today;
+ today=current;
+ for(const id of dateInputsAutoReset){
+  const field=$(id);
+  if(field&&!dateManuallyChosen.has(id)&&field.value===previous)
+   field.value=current;
+ }
+ if(!state.calendarBrowsing&&state.selected===previous)state.selected=current;
+ renderHeat();renderDay();
+ window.BodyTraceRenderFeatures?.();
+ return true;
+}
+window.addEventListener("focus",refreshToday);
+document.addEventListener("visibilitychange",()=>{
+ if(!document.hidden)refreshToday();
+});
+window.setInterval(refreshToday,60000);
 function toast(msg,bad=false){let e=$("toast");e.textContent=msg;e.className=bad?"warn":"";e.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.style.display="none",4300)}
 // GitHub data sync timestamps come from durable Android preferences, not
 // APK release dates or commit timestamps.
@@ -1285,6 +1313,7 @@ strengthDetailExpander.addEventListener("toggle",()=>{
 });
 function navigate(name,fromUser=true){
  if(!allowedMainPages.has(name))return;
+ refreshToday();
  const changed=name!==currentMainPage;
  // Capture the outgoing page BEFORE hiding it, or scrollY collapses to zero.
  if(changed)rememberPageScroll(currentMainPage);
@@ -1859,6 +1888,7 @@ $("recordReps").onclick=$("wheelRepsOpen").onclick=()=>
 $("recordSets").onclick=$("wheelSetsOpen").onclick=()=>
  openTrainingWheel("recordSets","连续保存组数",1,10,1,"组");
 function submitTrainingRecord(startRestAfterSave){
+ refreshToday();
  const date=$("recordDate").value,exercise_id=$("recordExercise").value,
    kg=Number($("recordKg").value),reps=Number($("recordReps").value),
    sets=Number($("recordSets").value),load_basis=$("recordLoadBasis").value,
@@ -2291,6 +2321,7 @@ function workoutEditOpen(row){
  const assisted=row.exercise_id==="assisted_pullup"||row.exercise_id==="assisted_dip";
  $("workoutEditKg").value=assisted?row.assistance_kg:row.load_kg;
  $("workoutEditReps").value=row.reps;
+ $("workoutEditDate").value=row.session_date;
  $("workoutEditCopies").value="1";
  $("workoutEditNote").value=row.note||"";
  $("workoutEditFeedback").textContent="只修改当前选中的组；0 次表示尝试失败。";
@@ -2306,7 +2337,13 @@ $("workoutEditOverlay").addEventListener("click",evt=>{
 $("workoutEditSave").onclick=()=>{
  if(workoutEditBusy||!activeWorkoutEdit)return;
  const kg=Number($("workoutEditKg").value),reps=Number($("workoutEditReps").value),
-  copies=Number($("workoutEditCopies").value),note=$("workoutEditNote").value.trim();
+  copies=Number($("workoutEditCopies").value),note=$("workoutEditNote").value.trim(),
+  correctedDate=$("workoutEditDate").value;
+ if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(correctedDate)||
+    correctedDate>plus(todayShanghai(),1)){
+  $("workoutEditFeedback").textContent="请选择有效的训练日期（北京时间，最多允许明天）。";
+  return;
+ }
  if($("workoutEditKg").value===""||!Number.isFinite(kg)||kg<0||kg>500||
     Math.abs(kg*10-Math.round(kg*10))>0.00001||
     $("workoutEditReps").value===""||!Number.isInteger(reps)||reps<0||reps>200||
@@ -2317,8 +2354,9 @@ $("workoutEditSave").onclick=()=>{
  if(!window.BodyTraceNative?.editWorkout){toast("请升级 APP 后再编辑训练",true);return}
  const assisted=activeWorkoutEdit.exercise_id==="assisted_pullup"||
   activeWorkoutEdit.exercise_id==="assisted_dip";
- const payload={action:"replace",date:activeWorkoutEdit.session_date,
-  target_id:activeWorkoutEdit.id,load_key:assisted?"assistance_kg":"load_kg",
+ const payload={action:"replace",date:activeWorkoutEdit.source_date||activeWorkoutEdit.session_date,
+  session_date:correctedDate,target_id:activeWorkoutEdit.id,
+  load_key:assisted?"assistance_kg":"load_kg",
   load_kg:kg,reps,copies,note};
  workoutEditBusy=true;
  $("workoutEditFeedback").textContent="正在本地保存修正…";
@@ -2335,7 +2373,8 @@ $("workoutEditDelete").onclick=()=>{
  if(!window.BodyTraceNative?.editWorkout){toast("请升级 APP 后再删除训练",true);return}
  workoutEditBusy=true;
  BodyTraceNative.editWorkout(JSON.stringify({
-  action:"delete",date:activeWorkoutEdit.session_date,target_id:activeWorkoutEdit.id
+  action:"delete",date:activeWorkoutEdit.source_date||activeWorkoutEdit.session_date,
+  target_id:activeWorkoutEdit.id
  }));
  $("workoutEditFeedback").textContent="正在本地保存删除事件…";
 };

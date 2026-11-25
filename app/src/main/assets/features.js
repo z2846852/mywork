@@ -133,6 +133,7 @@ function renderIntakeCheckin(force=false){
 $("intakeDate").value=today;
 $("intakeDate").addEventListener("change",()=>renderIntakeCheckin(true));
 $("intakeToday").onclick=()=>{
+ dateManuallyChosen.delete("intakeDate");
  $("intakeDate").value=today;renderIntakeCheckin(true);
  $("intakeCalendarScroll").scrollLeft=$("intakeCalendarScroll").scrollWidth;
 };

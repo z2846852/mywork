@@ -1441,6 +1441,14 @@ public final class MainActivity extends Activity {
         event.put("target_id",target);
         event.put("action",action);
         if("replace".equals(action)){
+            // The edit is stored next to the original row; the effective session
+            // day can move without losing its stable UUID or creating a second row.
+            String sessionDate=input.optString("session_date",date);
+            LocalDate sessionDay=LocalDate.parse(sessionDate);
+            if(!sessionDate.equals(sessionDay.toString()) ||
+               sessionDay.isAfter(LocalDate.now(BEIJING).plusDays(1)))
+                throw new IllegalArgumentException("修改后的训练日期不合法");
+            event.put("session_date",sessionDate);
             String loadKey=input.getString("load_key");
             if(!"load_kg".equals(loadKey) && !"assistance_kg".equals(loadKey))
                 throw new IllegalArgumentException("无效的负重字段");

@@ -76,9 +76,13 @@ final class ViewProjector {
                 for (int i = 0; i < training.length(); i++) {
                     JSONObject src = training.optJSONObject(i);
                     if (src == null) continue;
+                    String effectiveDate=src.optString("session_date",date);
+                    if(!effectiveDate.matches("\\\\d{4}-\\\\d{2}-\\\\d{2}"))
+                        effectiveDate=date;
                     JSONObject item = new JSONObject();
                     item.put("id", src.optString("id", ""));
-                    item.put("session_date", date);
+                    item.put("source_date",date);
+                    item.put("session_date", effectiveDate);
                     String ex = src.optString("exercise_id", "unknown");
                     item.put("exercise_id", ex);
                     item.put("exercise", src.optString("exercise_label", label(ex)));
@@ -105,7 +109,7 @@ final class ViewProjector {
                     }
                     item.put("rir_source", rirSource);
                     workouts.put(item);
-                    counts.put(date, counts.getOrDefault(date, 0) + 1);
+                    counts.put(effectiveDate, counts.getOrDefault(effectiveDate, 0) + 1);
                     String region = src.optString("exercise_region", "");
                     if (region.isEmpty()) switch (ex) {
                         case "chest_press": case "smith_bench": case "pec_deck":
@@ -136,7 +140,7 @@ final class ViewProjector {
                         if (Double.isFinite(load) && load >= 0 && reps > 0 && reps <= 15) {
                             strengthPoints.put(new JSONObject()
                                     .put("id", src.optString("id"))
-                                    .put("date", date)
+                                    .put("date", effectiveDate)
                                     .put("exercise_id", ex)
                                     .put("load_kg", load)
                                     .put("reps", reps)

@@ -47,6 +47,29 @@ assert.ok(html.includes('id="recordReps" type="number" min="0" max="200" step="1
 assert.ok(html.includes('id="recordSets" type="number" min="1" max="10"'));
 assert.ok(html.includes('id="wheelCanvas"')&&html.includes('id="wheelOverlay"'));
 assert.ok(html.includes('id="bodyEntryPanel"')&&html.includes('id="bodySaveMeasurement"'));
+assert.ok(html.includes('id="workoutEditDate"')&&
+  script.includes('session_date:correctedDate')&&
+  script.includes('activeWorkoutEdit.source_date||activeWorkoutEdit.session_date'),
+  "Historical workout date edits must keep their original source-day anchor");
+const dateLogic=script.slice(script.indexOf("function refreshToday(){"),
+ script.indexOf('window.addEventListener("focus",refreshToday);'));
+assert.ok(dateLogic.startsWith("function refreshToday()"));
+const dateFields=Object.fromEntries(["recordDate","intakeDate","foodDate","bodyEntryDate"]
+ .map(id=>[id,{value:"2026-11-24"}]));
+const dateScope={
+ today:"2026-11-24",todayShanghai:()=>"2026-11-25",
+ dateInputsAutoReset:Object.keys(dateFields),dateManuallyChosen:new Set(["foodDate"]),
+ $:id=>dateFields[id],
+ state:{calendarBrowsing:false,selected:"2026-11-24"},
+ renderHeat(){},renderDay(){},
+ window:{BodyTraceRenderFeatures(){}}
+};
+vm.runInNewContext(dateLogic+"\\nrefreshToday();",dateScope);
+assert.equal(dateFields.recordDate.value,"2026-11-25");
+assert.equal(dateFields.bodyEntryDate.value,"2026-11-25");
+assert.equal(dateFields.foodDate.value,"2026-11-24",
+ "Manual historical date must survive midnight");
+assert.equal(dateScope.state.selected,"2026-11-25");
 assert.ok(html.includes('id="bodyWeightUnit"'));
 assert.ok(html.includes('id="heatScroll"'));
 assert.ok(html.includes('state.selected=ds.at(-1)||today;renderHeat(true)'));
@@ -61,6 +84,18 @@ assert.equal(scroll.scrollLeft,900);
 const features=fs.readFileSync(path.join(root,"app/src/main/assets/features.js"),"utf8");
 const native=fs.readFileSync(path.join(root,
   "app/src/main/java/com/z2846852/bodytrace/MainActivity.java"),"utf8");
+const workoutEdits=fs.readFileSync(path.join(root,
+  "app/src/main/java/com/z2846852/bodytrace/WorkoutEdits.java"),"utf8");
+const projector=fs.readFileSync(path.join(root,
+  "app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
+const githubApi=fs.readFileSync(path.join(root,
+  "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
+assert.ok(native.includes('event.put("session_date",sessionDate)')&&
+  workoutEdits.includes('revised.put("session_date",sessionDate)')&&
+  projector.includes('item.put("session_date", effectiveDate)')&&
+  projector.includes('counts.put(effectiveDate,')&&
+  githubApi.includes('"action", "session_date", "load_key"'),
+  "Workout date corrections must survive offline projection and GitHub upload");
 const bodyCss=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
 assert.ok(html.indexOf('id="bodyTrendsPanel"')<html.indexOf('class="panel panel-avatar"'),
  "Body trend cards should precede the large body schematic");

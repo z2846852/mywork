@@ -61,6 +61,16 @@ final class WorkoutEdits {
                     !("load_kg".equals(loadKey)||"assistance_kg".equals(loadKey)) ||
                     !Double.isFinite(load) || load<0 || load>500) continue;
             JSONObject revised = new JSONObject(original.toString());
+            // An edit remains in the original date's immutable event stream.
+            // Projection uses session_date to display/aggregate the corrected day.
+            String sessionDate=op.optString("session_date","");
+            if(!sessionDate.isEmpty()){
+                try{
+                    java.time.LocalDate parsed=java.time.LocalDate.parse(sessionDate);
+                    if(parsed.toString().equals(sessionDate))
+                        revised.put("session_date",sessionDate);
+                }catch(java.time.format.DateTimeParseException ignored){}
+            }
             revised.put("reps",reps);
             revised.remove("load_kg");
             revised.remove("assistance_kg");

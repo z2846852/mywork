@@ -163,7 +163,7 @@ final class GitHubApi {
                             "upper_arm_cm", "hip_cm", "thigh_cm", "calf_cm",
                             "source", "created_at"} :
                         isWorkoutEdit ?
-                        new String[]{"id", "target_id", "action", "load_key", "load_kg",
+                        new String[]{"id", "target_id", "action", "session_date", "load_key", "load_kg",
                             "reps", "copies", "note", "source", "created_at"} :
                         new String[]{"id", "exercise_id", "exercise_label", "exercise_region",
                             "reps", "load_kg", "assistance_kg", "attempt_status",
