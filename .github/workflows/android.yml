@@ -36,8 +36,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate WebView UI and Beijing date rollover
-        run: node scripts/test_ui.js
+      - name: Validate Beijing date rollover, workout edits and heatmap
+        run: node scripts/test_workout_date_heat.js
       - name: Build pinned offline American IPA and English-Chinese dictionary
         run: |
           set -euo pipefail
