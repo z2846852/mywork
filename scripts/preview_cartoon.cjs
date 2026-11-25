@@ -368,6 +368,23 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    };
    navigate("record");
   });
+  const recordHeader=await page.evaluate(()=>{
+   const date=document.getElementById("recordDate");
+   const header=document.querySelector("#page-record .record-top-heading");
+   return {inside:header.contains(date),visible:date.getBoundingClientRect().width>0,
+    selected:date.value,today:today,collapsed:document.getElementById("e1rmTool").hidden};
+  });
+  if(!recordHeader.inside||!recordHeader.visible||
+     recordHeader.selected!==recordHeader.today||!recordHeader.collapsed)
+   throw Error("Record header must show Beijing date and hide e1RM initially: "+
+    JSON.stringify(recordHeader));
+  await page.locator("#e1rmToolToggle").click();
+  if(await page.locator("#e1rmTool").isHidden())
+   throw Error("e1RM ! should expand the existing prediction controls");
+  await page.locator("#e1rmToolToggle").click();
+  if(!(await page.locator("#e1rmTool").isHidden()))
+   throw Error("e1RM ! must also collapse the prediction controls");
+  await page.locator("#e1rmToolToggle").click();
   const docked=await page.evaluate(()=>{
    const dock=document.querySelector(".record-save-dock"),tabs=document.querySelector(".tabs");
    const action=document.getElementById("saveRecord").getBoundingClientRect();

@@ -44,7 +44,7 @@ const ctx = {
  dateManuallyChosen:new Set(["foodDate"]),
  $:id=>dateFields[id],
  state:{selected:"2026-11-24",calendarBrowsing:false},
- renderHeat(){},renderDay(){},
+ renderHeat(){},renderDay(){},updateRecordDateFlag(){},
  window:{BodyTraceRenderFeatures(){}}
 };
 vm.runInNewContext(datePart+"\nrefreshToday();",ctx);
@@ -53,6 +53,23 @@ for(const id of ["recordDate","intakeDate","bodyEntryDate"])
 assert.equal(dateFields.foodDate.value,"2026-11-24",
  "Explicit historical date must not be overwritten");
 assert.equal(ctx.state.selected,"2026-11-25");
+const header=html.slice(html.indexOf('class="record-top-heading"'),
+ html.indexOf('class="formgrid exercise-top-row'));
+const advanced=html.slice(html.indexOf('id="recordAdvancedTools"'),
+ html.indexOf('id="exerciseManager"'));
+assert.ok(header.includes('id="recordDate" type="date"'));
+assert.ok(header.indexOf("训练记录")<header.indexOf('id="recordDate"'));
+assert.ok(!advanced.includes('id="recordDate"'));
+assert.ok(header.includes('id="recordDateStatus"'));
+assert.ok(script.includes('if(id==="recordDate"&&$(id).value===today)dateManuallyChosen.delete(id)'));
+assert.ok(script.includes('updateRecordDateFlag();'));
+const predictor=html.slice(html.indexOf('class="record-reps-heading"'),
+ html.indexOf('id="recordRestCard"'));
+assert.ok(predictor.includes('id="e1rmToolToggle"'));
+assert.ok(predictor.includes('id="e1rmTool"')&&predictor.includes("hidden>"));
+assert.ok(script.includes("setToolOpen(false)")&&
+ script.includes('toggle.addEventListener("click",()=>setToolOpen(tool.hidden))'));
+assert.ok(html.includes('.e1rm-tool[hidden]{display:none!important}'));
 assert.ok(script.includes('session_date:correctedDate'));
 assert.ok(script.includes('activeWorkoutEdit.source_date||activeWorkoutEdit.session_date'));
 assert.ok(html.includes('id="workoutEditDate" type="date"'));
