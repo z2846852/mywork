@@ -194,6 +194,34 @@ body.overview-muscle-open{overflow:hidden}
  #page-home .overview-calendar-top #filter{min-width:106px;max-width:42%}
  #page-home .overview-day-actions button{padding:6px}
 }
+
+/* Independent e1RM projection; never writes training inputs without an explicit action. */
+.e1rm-tool{margin:10px 0 4px;padding:10px 11px;border:1px solid #34584e;
+ background:#132724;border-radius:12px}
+.e1rm-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.e1rm-head strong{font-size:13px;color:#c8ffe1}
+.e1rm-head output{font-size:17px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums}
+.e1rm-formula{display:block;font-size:11px;line-height:1.5;color:#afccc0;
+ margin-top:5px;overflow-wrap:anywhere}
+.e1rm-help{margin-left:auto;border:1px solid #588b72;color:#b6f6d3;background:#1c4133;
+ border-radius:50%;width:25px;height:25px;padding:0;font-size:14px;font-weight:800}
+.e1rm-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.e1rm-fields label{display:block;font-size:11px;color:#c7dbd1;margin:0}
+.e1rm-fields input[type=number]{font-size:15px;font-weight:700;padding:7px 9px;margin-top:4px;height:36px}
+.e1rm-fields input[type=range]{margin-top:7px;padding:0;height:24px;border:0;accent-color:var(--green);background:transparent}
+.e1rm-fields input:disabled{opacity:.4}
+.e1rm-hint{margin:5px 0 0;color:#96b8a8;font-size:10px;line-height:1.45}
+.e1rm-hint.warn{color:#edb98c}
+.e1rm-config{margin-top:9px;padding:10px;border-radius:10px;border:1px solid #476052;background:#192e29}
+.e1rm-config[hidden]{display:none}
+.e1rm-config-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.e1rm-config-grid label{font-size:10px;line-height:1.4}
+.e1rm-config-grid input{font-size:13px;margin-top:4px;padding:7px 5px;height:34px}
+.e1rm-config-actions{display:flex;align-items:center;gap:7px;margin-top:10px}
+.e1rm-config-actions button{padding:7px 9px;font-size:11px}
+.e1rm-config .e1rm-hint{margin-top:8px}
+@media(max-width:350px){.e1rm-config-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.e1rm-head output{font-size:15px}}
 </style></head>
 <body>
 <main class="screen">
@@ -301,6 +329,43 @@ body.overview-muscle-open{overflow:hidden}
    <div class="field"><label for="recordReps">每组次数（0 = 未完成）</label>
     <div class="wheel-entry"><input id="recordReps" type="number" min="0" max="200" step="1" inputmode="numeric" value="10" readonly aria-label="选择次数"><button type="button" id="wheelRepsOpen" class="wheel-open" aria-label="打开次数滚轮">▥</button></div></div>
   </div>
+  <section class="e1rm-tool" id="e1rmTool" aria-label="估算最大力量与重量次数试算">
+   <div class="e1rm-head">
+    <strong>当前 e1RM</strong><output id="e1rmValue">—</output>
+    <button type="button" class="e1rm-help" id="e1rmInfo" title="校准当前动作公式" aria-label="查看公式并校准当前动作" aria-expanded="false">!</button>
+   </div>
+   <span class="e1rm-formula" id="e1rmFormula">按当前重量和次数估算，假设接近力竭。</span>
+   <div class="e1rm-fields">
+    <label>理论器械重量 · kg
+     <input type="number" id="e1rmTrialKg" inputmode="decimal" min="0" max="500" step="0.1" aria-label="理论器械重量（千克）">
+     <input type="range" id="e1rmTrialKgSlider" min="0" max="500" step="0.5" aria-label="拖动理论器械重量">
+    </label>
+    <label>预计能做 · 次（不是组）
+     <input type="number" id="e1rmTrialReps" inputmode="decimal" min="0" max="15" step="0.1" aria-label="预计可做次数">
+     <input type="range" id="e1rmTrialRepsSlider" min="1" max="15" step="1" aria-label="拖动预计次数">
+    </label>
+   </div>
+   <p class="e1rm-hint" id="e1rmHint" role="status">试算不会修改上方待保存的重量和次数。</p>
+   <div class="e1rm-config" id="e1rmConfig" hidden>
+    <div class="e1rm-config-grid">
+     <label>次数系数 C
+      <input id="e1rmCoeff" type="number" inputmode="decimal" min="15" max="60" step="0.5" value="30">
+     </label>
+     <label id="e1rmGainLabel">器械倍率 a
+      <input id="e1rmGain" type="number" inputmode="decimal" min="0.05" max="5" step="0.05" value="1">
+     </label>
+     <label id="e1rmOffsetLabel">刻度偏移 b（kg）
+      <input id="e1rmOffset" type="number" inputmode="decimal" min="-200" max="500" step="0.5" value="0">
+     </label>
+    </div>
+    <p class="e1rm-hint" id="e1rmConfigNote"></p>
+    <div class="e1rm-config-actions">
+     <button type="button" class="mini" id="e1rmSaveCalibration">保存本动作校准</button>
+     <button type="button" class="secondary mini" id="e1rmResetCalibration">恢复默认</button>
+    </div>
+    <p class="e1rm-hint">校准参数仅保存在本机，按动作独立记忆；不会修改训练记录，也不会自动更改历史趋势。</p>
+   </div>
+  </section>
   <section class="record-rest-card" id="recordRestCard" aria-label="组间休息计时器">
    <div class="record-rest-top">
     <span>组间休息 <small id="recordRestExercise">默认动作</small></span>
@@ -1434,6 +1499,7 @@ function refreshExerciseRecommendation(force=false){
  if(force||!weightEditedByUser)$("recordKg").value=last?String(last.amount):"";
  if(force||!repsEditedByUser)$("recordReps").value=last?String(last.reps):"12";
  $("suggestedLoad").textContent=last?"沿用上次 "+last.amount+"kg × "+last.reps+"次（非训练建议）；Reset 使用旧版10组规则。":"无历史重量，请手动填写；次数默认12次。";
+ window.BodyTraceE1rmPreview?.refresh?.(true);
 }
 $("recordKg").addEventListener("input",()=>{weightEditedByUser=true;trainingFormDirty=true;});
 $("recordReps").addEventListener("input",()=>{repsEditedByUser=true;trainingFormDirty=true;});
@@ -1444,6 +1510,7 @@ $("resetTrainingDefault").onclick=()=>{
  $("recordKg").value=old?String(old.amount):"";$("recordReps").value="10";
  weightEditedByUser=true;repsEditedByUser=true;trainingFormDirty=true;
  $("suggestedLoad").textContent=old?"Reset：最近"+old.count+"组低中位 "+old.amount+"kg × 10次（仅本次输入）。":"Reset：无历史重量，次数恢复10次。";
+ window.BodyTraceE1rmPreview?.refresh?.(true);
 };
 function indexData(){
  const valid=state.rows.filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date)&&r.exercise);
@@ -2329,7 +2396,203 @@ $("workoutEditDelete").onclick=()=>{
  }));
  $("workoutEditFeedback").textContent="正在本地保存删除事件…";
 };
+
+// Local-only per-exercise calibrated Epley projection. The two trial fields
+// are sandbox inputs: they cannot alter the saved workout form on drag.
+(function initialiseRecordE1rm(){
+ const key="bodytrace.e1rmCalibration.v1";
+ const $p=id=>document.getElementById(id);
+ const isAssist=id=>id==="assisted_pullup"||id==="assisted_dip";
+ const num=x=>x!==""&&x!==null&&x!==undefined&&Number.isFinite(Number(x))?Number(x):null;
+ const round=(x,d=1)=>Number(x.toFixed(d));
+ const bound=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
+ const format=x=>Number.isFinite(x)?round(x).toFixed(1):"—";
+ let saved={};
+ try{
+  const parsed=JSON.parse(localStorage.getItem(key)||"{}");
+  if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))saved=parsed;
+ }catch(_){}
+ let selected="",current=null,editing=false;
+ const node={
+  output:$p("e1rmValue"),formula:$p("e1rmFormula"),hint:$p("e1rmHint"),
+  kg:$p("e1rmTrialKg"),kgSlider:$p("e1rmTrialKgSlider"),
+  reps:$p("e1rmTrialReps"),repsSlider:$p("e1rmTrialRepsSlider"),
+  info:$p("e1rmInfo"),config:$p("e1rmConfig"),
+  coeff:$p("e1rmCoeff"),gain:$p("e1rmGain"),offset:$p("e1rmOffset"),
+  gainLabel:$p("e1rmGainLabel"),offsetLabel:$p("e1rmOffsetLabel"),
+  configNote:$p("e1rmConfigNote")
+ };
+ function measuredBodyWeight(){
+  const weights=state.measurements.filter(v=>v.reported_date&&
+   v.reported_date<=today&&num(v.weight_kg)>0)
+   .sort((a,b)=>a.reported_date.localeCompare(b.reported_date));
+  return weights.length?Number(weights.at(-1).weight_kg):null;
+ }
+ function defaults(id){
+  return {coeff:30,gain:1,offset:isAssist(id)?measuredBodyWeight():0};
+ }
+ function calibration(id){
+  const config={...defaults(id),...(saved[id]||{})};
+  if(!Number.isFinite(config.coeff)||config.coeff<15||config.coeff>60)config.coeff=30;
+  if(!Number.isFinite(config.gain)||config.gain<0.05||config.gain>5)config.gain=1;
+  if(!Number.isFinite(config.offset))config.offset=defaults(id).offset;
+  return config;
+ }
+ function effective(load,config,assisted){
+  if(!Number.isFinite(load)||load<0||!config||!Number.isFinite(config.offset))return null;
+  return assisted?(config.offset-load)*config.gain:load*config.gain+config.offset;
+ }
+ function fromEffective(e,config,assisted){
+  return assisted?config.offset-e/config.gain:(e-config.offset)/config.gain;
+ }
+ function showHint(message,warning=false){
+  node.hint.textContent=message;
+  node.hint.classList.toggle("warn",warning);
+ }
+ function settings(){
+  const assisted=isAssist(selected),c=calibration(selected);
+  node.coeff.value=String(c.coeff);node.gain.value=String(c.gain);
+  node.offset.value=c.offset===null?"":String(c.offset);
+  node.gainLabel.firstChild.textContent=assisted?"负荷倍率 a ":"器械倍率 a ";
+  node.offsetLabel.firstChild.textContent=assisted?"空载平衡刻度 N（kg） ":"零点偏移 b（kg） ";
+  node.offset.min=assisted?"0":"-200";
+  node.offset.max="500";
+  node.configNote.textContent=assisted?
+   "辅助动作：有效负荷=(N−标称辅助kg)×a；N为你坐上机器时恰好不升不降的刻度。默认暂借体重，可能与实际器械不符。":
+   "普通动作：有效负荷=标称kg×a+b。C 调整不同次数的预测斜率；a 主要校正等效重量，不能单独改变同机次数预测。";
+ }
+ function clear(reason){
+  current=null;node.output.textContent="—";
+  node.formula.textContent=reason;
+  for(const item of [node.kg,node.kgSlider,node.reps,node.repsSlider]){
+   item.disabled=true;
+   if(item===node.kg||item===node.reps)item.value="";
+  }
+  showHint("填写上方有效重量和 1–15 次后开始试算；试算值不会写入训练记录。",true);
+ }
+ function formulaText(load,reps,c,assisted){
+  const l=format(load),a=format(c.gain),b=format(c.offset);
+  const effectiveExpr=assisted?"("+b+"−"+l+")×"+a:l+"×"+a+(c.offset>=0?"+":"")+b;
+  return (assisted?"辅助机 ":"")+"e1RM = ["+effectiveExpr+"] × (1 + "+reps+" ÷ "+format(c.coeff)+")；近力竭估算";
+ }
+ function syncRange(slider,input,value){
+  const lo=Number(slider.min),hi=Number(slider.max);
+  slider.value=String(bound(value,lo,hi));
+  input.value=String(round(value));
+ }
+ function setRepsFromKg(){
+  if(!current)return;
+  const m=num(node.kg.value);
+  if(m===null||m<0||m>500){showHint("重量应在 0–500 kg 之间。",true);return}
+  node.kgSlider.value=String(bound(m,0,500));
+  const effort=effective(m,current.cfg,current.assisted);
+  if(effort===null||effort<=0){
+   node.reps.value="";node.repsSlider.value="15";
+   showHint(current.assisted?"已到达或超过空载平衡刻度：当前模型不适用，需重新校准 N。":
+    "等效重量不为正，无法预测次数。",true);
+   return;
+  }
+  const raw=current.e1rm/effort;
+  const reps=current.cfg.coeff*(raw-1);
+  if(!Number.isFinite(reps)){node.reps.value="";showHint("预测超出可计算范围。",true);return}
+  node.reps.value=String(round(bound(reps,0,15)));
+  node.repsSlider.value=String(bound(Math.round(reps),1,15));
+  if(reps<1)showHint("当前重量高于理论可完成1次的重量（估计不足1次）；不是失败尝试的记录。",true);
+  else if(reps>15)showHint("预计超过15次，已截断显示；高次数区间不能可靠使用这个模型。",true);
+  else showHint("预计约 "+format(reps)+" 次（假设接近力竭）。试算不会改动训练记录。");
+ }
+ function setKgFromReps(){
+  if(!current)return;
+  const reps=num(node.reps.value);
+  if(reps===null||reps<1||reps>15){
+   showHint("次数范围是 1–15 次；0次失败不能用于 e1RM 反推。",true);
+   return;
+  }
+  node.repsSlider.value=String(bound(Math.round(reps),1,15));
+  const force=current.e1rm/(1+reps/current.cfg.coeff);
+  const weight=fromEffective(force,current.cfg,current.assisted);
+  if(!Number.isFinite(weight)||weight<0||weight>500){
+   node.kg.value="";
+   showHint("推算标称重量超出 0–500 kg，请检查本动作校准参数。",true);
+   return;
+  }
+  syncRange(node.kgSlider,node.kg,weight);
+  showHint("按约 "+format(reps)+" 次，理论标称重量 "+format(weight)+" kg。辅助机的重量越大，助力通常越大。");
+ }
+ function refresh(reset=true){
+  const id=$p("recordExercise").value;
+  if(id!==selected){
+   selected=id;settings();reset=true;editing=false;
+   node.config.hidden=true;node.info.setAttribute("aria-expanded","false");
+  }
+  if(!id){clear("请先选择动作。");return}
+  const load=num($p("recordKg").value),reps=num($p("recordReps").value);
+  if($p("recordLoadBasis").value==="bodyweight"||$p("recordLoadBasis").value==="unspecified"){
+   clear("仅外加体重或未确定负重口径时，不能安全反推 e1RM。");return;
+  }
+  if(load===null||load<0||load>500||reps===null||reps<1||reps>15){
+   clear("e1RM 需当前动作有效重量与 1–15 次记录；0次和超过15次不估算。");
+   return;
+  }
+  const assisted=isAssist(id),cfg=calibration(id);
+  const force=effective(load,cfg,assisted);
+  if(force===null||force<=0){
+   clear(assisted?"当前辅助机标称量不低于空载平衡刻度，无法估算。点 ! 校准 N。":
+    "校准后有效负荷不为正，点 ! 检查系数。");return;
+  }
+  const e1rm=force*(1+reps/cfg.coeff);
+  current={e1rm,cfg,assisted};
+  node.output.textContent=format(e1rm)+" kg";
+  node.formula.textContent=formulaText(load,reps,cfg,assisted);
+  for(const item of [node.kg,node.kgSlider,node.reps,node.repsSlider])item.disabled=false;
+  if(reset||!editing){
+   node.kg.value=String(load);
+   node.kgSlider.value=String(load);
+   node.reps.value=String(reps);
+   node.repsSlider.value=String(reps);
+   showHint("固定当前 e1RM，拖动任一滑块反算另一项；只作为近力竭理论估算。");
+  }else setRepsFromKg();
+ }
+ node.info.addEventListener("click",()=>{
+  const open=node.config.hidden;
+  node.config.hidden=!open;
+  node.info.setAttribute("aria-expanded",String(open));
+  if(open)settings();
+ });
+ node.kg.addEventListener("input",()=>{editing=true;setRepsFromKg()});
+ node.kgSlider.addEventListener("input",()=>{node.kg.value=node.kgSlider.value;editing=true;setRepsFromKg()});
+ node.reps.addEventListener("input",()=>{editing=true;setKgFromReps()});
+ node.repsSlider.addEventListener("input",()=>{node.reps.value=node.repsSlider.value;editing=true;setKgFromReps()});
+ function saveConfig(reset){
+  if(!selected)return;
+  if(reset){delete saved[selected];}
+  else{
+   const c=num(node.coeff.value),gain=num(node.gain.value),offset=num(node.offset.value);
+   const assisted=isAssist(selected);
+   if(c===null||c<15||c>60||gain===null||gain<0.05||gain>5||
+     offset===null||offset<(assisted?0:-200)||offset>500){
+    showHint("校准范围：C 15–60；倍率 0.05–5；刻度/偏移按字段范围填写。",true);return;
+   }
+   saved[selected]={coeff:c,gain,offset};
+  }
+  try{localStorage.setItem(key,JSON.stringify(saved))}
+  catch(_){showHint("本地存储不可用，本次校准未持久保存。",true);return}
+  settings();editing=false;refresh(true);
+ }
+ $p("e1rmSaveCalibration").addEventListener("click",()=>saveConfig(false));
+ $p("e1rmResetCalibration").addEventListener("click",()=>saveConfig(true));
+ // Native saved defaults often assign .value without firing an input event.
+ for(const id of ["recordKg","recordReps","recordLoadBasis"]){
+  $p(id).addEventListener("input",()=>{editing=false;refresh(true)});
+  $p(id).addEventListener("change",()=>{editing=false;refresh(true)});
+ }
+ $p("recordExercise").addEventListener("change",()=>refresh(true));
+ window.BodyTraceE1rmPreview={refresh};
+ refresh(true);
+})();
+
 refreshExerciseRecommendation(true);renderStatus();renderHeat(true);renderDay();renderRawHistory();
+window.BodyTraceE1rmPreview?.refresh?.(true);
 refreshPageScrollShortcuts();
 if(window.BodyTraceNative)BodyTraceNative.ready();
 </script></body></html>
