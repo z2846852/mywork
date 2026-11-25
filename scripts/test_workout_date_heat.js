@@ -90,7 +90,7 @@ const cards=["row","assisted_pullup"].map(exerciseId=>({
  classList:{toggle(name,active){if(name==="selected-trend-exercise")this.selected=active;}}
 }));
 const list={querySelectorAll:()=>cards,append(){throw Error("Card must not be moved")}};
-const dateFields={trendStartDate:{value:""},trendEndDate:{value:""}};
+const trendDateFields={trendStartDate:{value:""},trendEndDate:{value:""}};
 const selectedKeys=[];
 const groups=[
  {key:"row|machine",id:"row",basis:"machine",points:[{date:"2026-11-24"}]},
@@ -100,7 +100,7 @@ const groups=[
 ];
 let linkageApi;
 const context={
- $:id=>id==="strengthList"?list:dateFields[id],
+ $:id=>id==="strengthList"?list:trendDateFields[id],
  state:{rows:[]},latestTrendWeight:()=>70,
  trendRange:()=>({from:"2026-11-01",end:"2026-11-25",valid:true}),
  trendData:()=>({series:groups}),

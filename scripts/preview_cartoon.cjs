@@ -73,9 +73,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   if(await page.locator("#analyticsExercise").count())throw Error("Trend dropdown still visible");
   const plots=await page.locator("#strengthList .feature-chart svg").count();
   if(plots!==4)throw Error("Expected every recorded exercise to have a chart: "+plots);
-  if(await page.locator("#strengthList").isVisible())
-   throw Error("Per-exercise detailed charts should be collapsed by default");
-  await page.locator("#strengthDetailExpander > summary").click();
+  if(!(await page.locator("#strengthList").isVisible()))
+   throw Error("All exercise trend charts should be expanded by default");
   // Mobile taps on graph dots must show saved kg/reps, not desktop hover alone.
   await page.evaluate(()=>{
    // Exercise charts are private module functions; refresh through the same
