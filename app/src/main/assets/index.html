@@ -341,8 +341,8 @@ body.overview-muscle-open{overflow:hidden}
      <input type="range" id="e1rmTrialKgSlider" min="0" max="500" step="0.5" aria-label="拖动理论器械重量">
     </label>
     <label>预计能做 · 次（不是组）
-     <input type="number" id="e1rmTrialReps" inputmode="decimal" min="0" max="15" step="0.1" aria-label="预计可做次数">
-     <input type="range" id="e1rmTrialRepsSlider" min="1" max="15" step="1" aria-label="拖动预计次数">
+     <input type="number" id="e1rmTrialReps" inputmode="decimal" min="0" max="200" step="0.1" aria-label="预计可做次数">
+     <input type="range" id="e1rmTrialRepsSlider" min="1" max="100" step="1" aria-label="拖动预计次数">
     </label>
    </div>
    <p class="e1rm-hint" id="e1rmHint" role="status">试算不会修改上方待保存的重量和次数。</p>
@@ -2495,17 +2495,17 @@ $("workoutEditDelete").onclick=()=>{
   const raw=current.e1rm/effort;
   const reps=current.cfg.coeff*(raw-1);
   if(!Number.isFinite(reps)){node.reps.value="";showHint("预测超出可计算范围。",true);return}
-  node.reps.value=String(round(bound(reps,0,15)));
+  node.reps.value=String(round(bound(reps,0,200)));
   node.repsSlider.value=String(bound(Math.round(reps),1,15));
   if(reps<1)showHint("当前重量高于理论可完成1次的重量（估计不足1次）；不是失败尝试的记录。",true);
-  else if(reps>15)showHint("预计超过15次，已截断显示；高次数区间不能可靠使用这个模型。",true);
+  else if(reps>15)showHint("数学外推约 "+format(reps)+" 次；超过15次误差可能很大，不能当作实际能力。",true);
   else showHint("预计约 "+format(reps)+" 次（假设接近力竭）。试算不会改动训练记录。");
  }
  function setKgFromReps(){
   if(!current)return;
   const reps=num(node.reps.value);
-  if(reps===null||reps<1||reps>15){
-   showHint("次数范围是 1–15 次；0次失败不能用于 e1RM 反推。",true);
+  if(reps===null||reps<1||reps>200){
+   showHint("可试算 1–200 次；超过15次仅数学外推，不能可靠预测。",true);
    return;
   }
   node.repsSlider.value=String(bound(Math.round(reps),1,15));
@@ -2517,7 +2517,8 @@ $("workoutEditDelete").onclick=()=>{
    return;
   }
   syncRange(node.kgSlider,node.kg,weight);
-  showHint("按约 "+format(reps)+" 次，理论标称重量 "+format(weight)+" kg。辅助机的重量越大，助力通常越大。");
+  showHint("按约 "+format(reps)+" 次，理论标称重量 "+format(weight)+" kg。"+
+   (reps>15?"超过15次只是数学外推，误差可能很大。":"试算不修改记录。"),reps>15);
  }
  function refresh(reset=true){
   const id=$p("recordExercise").value;
