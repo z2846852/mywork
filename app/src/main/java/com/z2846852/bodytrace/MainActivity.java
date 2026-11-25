@@ -1881,7 +1881,8 @@ public final class MainActivity extends Activity {
                         throw new IllegalArgumentException("目标重量或次数无效");
                     String origin=item.optString("origin","manual");
                     if(!("manual".equals(origin)||"generated".equals(origin)||
-                         "personal".equals(origin)||"device".equals(origin)))
+                         "personal".equals(origin)||"device".equals(origin)||
+                         "none".equals(origin)))
                         throw new IllegalArgumentException("目标来源无效");
                     JSONObject saved=new JSONObject();
                     if(kg>0)saved.put("kg",kg);

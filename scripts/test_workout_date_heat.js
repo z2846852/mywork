@@ -199,6 +199,7 @@ assert.ok(nativeSource.includes("@JavascriptInterface public String loadStrength
 assert.ok(nativeSource.includes("@JavascriptInterface public boolean saveStrengthGoals(String payload)"));
 assert.ok(nativeSource.includes('getSharedPreferences("bodytrace_strength_goals",MODE_PRIVATE)'));
 assert.ok(nativeSource.includes("@JavascriptInterface public void openStrengthGuide(String slug)"));
+assert.ok(nativeSource.includes('"none".equals(origin)'),"Empty-reference hide state must save");
 assert.ok(trends.includes('native.loadStrengthGoals()')&&trends.includes('native.saveStrengthGoals(json)'));
 assert.ok(!trends.includes("trendIndexGrowthFactors"));
 console.log("PASS workout dates, four-region heatmap, trend linkage, benchmark controls");

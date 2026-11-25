@@ -412,7 +412,7 @@ function strengthGoalEstimate(goal,basis,bodyWeight=null){
 function trendRelativeIndex(value,reference,assisted,exerciseId="",goalEstimate=null){
  // With a personal milestone, index 100 is its e1RM. Power > 1 compresses
  // the novice range without suppressing later small improvements.
- if(Number.isFinite(goalEstimate)&&goalEstimate>0&&!assisted)
+ if(Number.isFinite(goalEstimate)&&goalEstimate>0)
   return 100*Math.pow(Math.max(0,value)/goalEstimate,1.35);
  // Uncalibrated/assisted curves retain their own historical series.
  const denominator=Math.max(assisted?20:10,reference*.6);
@@ -1466,8 +1466,11 @@ function renderStrengthPlot(group,chart,range,disclaimer,region,benchmark){
   const note=document.createElement("span");note.className="strength-benchmark-progress";
   if(isAssist)note.textContent=delta>0?
    " · 还需减少辅助 "+round1(delta)+"kg":" · 已达到辅助量目标";
-  else note.textContent=delta>0?
-   " · 距目标 "+round1(delta)+"kg（估算1RM）":" · 已达到阶段目标";
+  else{
+   const percent=Math.round(strongest/referenceLine*100);
+   note.textContent=" · 达成 "+percent+"%"+
+    (delta>0?"（还差 "+round1(delta)+"kg）":"（阶段目标达成）");
+  }
   status.append(note);
  }
  // On each sync, show the newest SAVED set without requiring a dot tap.
