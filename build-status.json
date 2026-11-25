@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "status": "published",
+  "version": "v0.2.293",
+  "version_code": 293,
+  "run_number": 293,
+  "run_id": 45548611401,
+  "source_commit": "354d4184d8ab5ff1043a48f31656d5a4ba4db5d4",
+  "published_at": "2026-11-25T04:44:36Z",
+  "actions_url": "https://github.com/z2846852/mywork/actions/runs/45548611401",
+  "release_url": "https://github.com/z2846852/mywork/releases/tag/v0.2.293",
+  "apk_download_url": "https://github.com/z2846852/mywork/releases/download/v0.2.293/BodyTrace-release.apk"
+}
