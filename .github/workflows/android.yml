@@ -33,6 +33,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate WebView UI and Beijing date rollover
+        run: node scripts/test_ui.js
       - name: Build pinned offline American IPA and English-Chinese dictionary
         run: |
           set -euo pipefail

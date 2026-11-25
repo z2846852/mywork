@@ -64,7 +64,7 @@ const dateScope={
  renderHeat(){},renderDay(){},
  window:{BodyTraceRenderFeatures(){}}
 };
-vm.runInNewContext(dateLogic+"\\nrefreshToday();",dateScope);
+vm.runInNewContext(dateLogic+"\nrefreshToday();",dateScope);
 assert.equal(dateFields.recordDate.value,"2026-11-25");
 assert.equal(dateFields.bodyEntryDate.value,"2026-11-25");
 assert.equal(dateFields.foodDate.value,"2026-11-24",

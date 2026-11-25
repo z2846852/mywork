@@ -77,7 +77,7 @@ final class ViewProjector {
                     JSONObject src = training.optJSONObject(i);
                     if (src == null) continue;
                     String effectiveDate=src.optString("session_date",date);
-                    if(!effectiveDate.matches("\\\\d{4}-\\\\d{2}-\\\\d{2}"))
+                    if(!effectiveDate.matches("\\d{4}-\\d{2}-\\d{2}"))
                         effectiveDate=date;
                     JSONObject item = new JSONObject();
                     item.put("id", src.optString("id", ""));
