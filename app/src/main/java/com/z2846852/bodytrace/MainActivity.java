@@ -333,6 +333,26 @@ public final class MainActivity extends Activity {
         reply(result);
     }
 
+    private void openVerifiedApkInstaller(){
+        try{
+            if(!apkUpdates.hasPendingInstall())
+                throw new IllegalStateException("尚无已验证的更新 APK");
+            boolean requiresPermission=Build.VERSION.SDK_INT>=26&&
+                !getPackageManager().canRequestPackageInstalls();
+            if(requiresPermission){
+                awaitingApkInstallerPermission=true;
+                reply(message("apk_update").put("state","requires_permission")
+                    .put("message","需要允许本 APP 安装未知来源应用，授权后将继续打开系统安装确认。"));
+            }
+            apkUpdates.launchInstaller(MainActivity.this);
+        }catch(Exception e){
+            awaitingApkInstallerPermission=false;
+            try{reply(message("apk_update").put("state","error")
+                .put("message","打开系统安装器失败："+safeMessage(e)));}
+            catch(Exception ignored){}
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -1718,25 +1738,7 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void installPendingApk(){
             runOnUiThread(()->openVerifiedApkInstaller());
         }
-        private void openVerifiedApkInstaller(){
-            try{
-                if(!apkUpdates.hasPendingInstall())
-                    throw new IllegalStateException("尚无已验证的更新 APK");
-                boolean requiresPermission=Build.VERSION.SDK_INT>=26&&
-                    !getPackageManager().canRequestPackageInstalls();
-                if(requiresPermission){
-                    awaitingApkInstallerPermission=true;
-                    reply(message("apk_update").put("state","requires_permission")
-                        .put("message","需要允许本 APP 安装未知来源应用，授权后将继续打开系统安装确认。"));
-                }
-                apkUpdates.launchInstaller(MainActivity.this);
-            }catch(Exception e){
-                awaitingApkInstallerPermission=false;
-                try{reply(message("apk_update").put("state","error")
-                    .put("message","打开系统安装器失败："+safeMessage(e)));}
-                catch(Exception ignored){}
-            }
-        }
+
 
         @JavascriptInterface public void checkUiUpdates(){
             worker.execute(()->{

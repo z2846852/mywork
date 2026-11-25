@@ -126,7 +126,7 @@ final class ApkUpdateManager {
         return connection;
     }
 
-    private static byte[] readJson(String url,long limit)throws Exception {
+    private byte[] readJson(String url,long limit)throws Exception {
         HttpURLConnection conn=open(url);
         GitHubRequestStats.record(context,"更新索引",conn.getResponseCode());
         try(InputStream in=new BufferedInputStream(conn.getInputStream());
