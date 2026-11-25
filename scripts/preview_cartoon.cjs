@@ -462,7 +462,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const oneRepKg=Number(await page.locator("#e1rmTrialKg").inputValue());
   if(!(oneRepKg>27.5&&oneRepKg<100))
    throw Error("Predicting one rep should return heavier weight: "+oneRepKg);
-  await page.locator("#e1rmTrialRepsSlider").fill("20");
+  await page.locator("#e1rmTrialRepsSlider").evaluate(el=>{
+   el.value="20";
+   el.dispatchEvent(new Event("input",{bubbles:true}));
+  });
   const twentyRepKg=Number(await page.locator("#e1rmTrialKg").inputValue());
   if(!(twentyRepKg>0&&twentyRepKg<oneRepKg))
    throw Error("20-rep slider endpoint must map to lighter weight: "+twentyRepKg);
