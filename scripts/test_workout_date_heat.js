@@ -136,4 +136,15 @@ assert.ok(trends.includes("button.onclick=()=>entry.select(true);"));
 assert.ok(html.includes('class="trend-dashboard-header"'));
 assert.ok(!html.includes('id="trendFocusedDetail"'));
 assert.ok(css.includes(".strength-exercise-card.selected-trend-exercise"));
-console.log("PASS Beijing rollover, workout date edits, four-color quadrant and trend linkage");
+// Overview must render every action for a day, without truncation or a toggle.
+const renderDayStart=script.indexOf("function renderDay(){");
+const renderDayEnd=script.indexOf("function renderBody(){",renderDayStart);
+assert.ok(renderDayStart>=0&&renderDayEnd>renderDayStart);
+const dayRender=script.slice(renderDayStart,renderDayEnd);
+assert.ok(dayRender.includes("for(const [position,[ex,items]] of ordered.entries())"));
+assert.ok(!dayRender.includes("position>=2")&&!dayRender.includes("showAllDayActions"));
+assert.ok(!script.includes("overview-all-actions")&&!script.includes("persistAllDayActions"));
+assert.ok(script.includes('if(showWorkoutHistory&&recentDates.length)'),
+ "The separate historical-sets visibility preference must remain intact");
+assert.ok(html.includes('id="toggleHistory"'));
+console.log("PASS Beijing rollover, workout dates, quadrant, trends, always-visible actions");

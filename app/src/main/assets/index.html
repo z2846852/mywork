@@ -117,9 +117,6 @@ label{font-size:12px;color:#b5c7bd;display:block;margin-bottom:8px}.field{margin
 #page-home .exercise-history-set{border:1px solid #3f5c4e;cursor:pointer;font:inherit}
 #page-home .exercise-history-date-head{width:100%;border:0;background:transparent;
  color:inherit;padding:0;text-align:left;cursor:pointer}
-#page-home .overview-all-actions{margin-top:12px;width:100%;min-height:37px;
- border:1px solid #4b7566;background:#203d32;color:#bdedd4;border-radius:9px;
- font-size:12px;font-weight:700}
 #page-home .overview-jump-target{animation:overviewTargetPulse 1.5s ease-out}
 @keyframes overviewTargetPulse{0%{outline:2px solid var(--green);outline-offset:3px}100%{outline:2px solid transparent;outline-offset:3px}}
 .overview-muscle-overlay[hidden]{display:none!important}
@@ -181,7 +178,6 @@ body.overview-muscle-open{overflow:hidden}
 #page-home .set{min-width:unset;padding:7px 9px;border-radius:9px}
 #page-home .set b{font-size:12px;line-height:1.4}
 #page-home .set small{font-size:9px;line-height:1.4;margin-top:2px}
-#page-home .overview-all-actions{margin-top:7px;min-height:34px}
 #page-home .overview-exercise-thumb{display:flex;align-items:center;justify-content:center;
  flex-direction:column;flex-shrink:0;width:62px;min-width:62px;height:70px;
  padding:2px 4px;gap:2px;border-color:#4f786a;background:#20392f}
@@ -1573,13 +1569,6 @@ try{
  const fallback=localStorage.getItem("bodytrace.showWorkoutHistory");
  if(fallback==="false")applyWorkoutHistoryVisibility(false,false);
 }catch(_){}
-// Day summary is short by default; expanded/collapsed choice survives re-render
-// and page navigation. The original complete records stay in the DOM when shown.
-let showAllDayActions=false;
-try{showAllDayActions=localStorage.getItem("bodytrace.showAllDayActions")==="true";}catch(_){}
-function persistAllDayActions(){
- try{localStorage.setItem("bodytrace.showAllDayActions",String(showAllDayActions));}catch(_){}
-}
 let overviewIllustratedExerciseId="";
 function closeOverviewIllustration(){
  $("overviewMuscleOverlay").hidden=true;
@@ -1620,7 +1609,6 @@ function renderDay(){
  list.forEach((r,i)=>newestOrder.set(r.exercise_id||r.exercise,i));
  const ordered=[...byEx].sort((a,b)=>(newestOrder.get(b[0])||0)-(newestOrder.get(a[0])||0));
  for(const [position,[ex,items]] of ordered.entries()){
-  if(!showAllDayActions&&position>=2)continue;
   const section=document.createElement("section");section.className="exercise";section.dataset.exerciseId=ex;
   section.dataset.region=primaryRegionForRow(items[0]);
   const header=document.createElement("div");header.className="row";
@@ -1716,22 +1704,6 @@ function renderDay(){
    section.append(history);
   }
   view.append(section);
- }
- if(ordered.length>2){
-  const more=document.createElement("button");more.type="button";
-  more.className="overview-all-actions";
-  more.textContent=showAllDayActions?"收起其他动作 ↑":"展开全部 "+ordered.length+" 个动作 ↓";
-  more.setAttribute("aria-expanded",String(showAllDayActions));
-  more.onclick=()=>{
-   showAllDayActions=!showAllDayActions;persistAllDayActions();
-   const before=currentScrollTop();
-   renderDay();
-   if(!showAllDayActions){
-    window.scrollTo(0,Math.min(before,maximumScrollTop()));
-    rememberPageScroll("home");
-   }
-  };
-  view.append(more);
  }
 }
 function renderBody(){
