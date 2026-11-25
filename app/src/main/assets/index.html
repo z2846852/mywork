@@ -167,10 +167,11 @@ body.overview-muscle-open{overflow:hidden}
 #page-home .legend{justify-content:flex-start;margin-top:8px;gap:3px 7px}
 #page-home .legend .region-filter{min-height:26px;padding:2px 6px;font-size:11px}
 #page-home .overview-day-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-#page-home .overview-day-head h2{font-size:17px}
+#page-home .overview-day-head>div:first-child{min-width:0;flex:1 1 auto}
+#page-home .overview-day-head h2{font-size:clamp(14px,4vw,17px);white-space:nowrap}
 #page-home .overview-day-head .sub{font-size:11px;margin-top:3px}
 #page-home .overview-day-actions{display:flex;gap:5px;flex-shrink:0}
-#page-home .overview-day-actions button{padding:7px 9px;min-height:31px;font-size:11px}
+#page-home .overview-day-actions button{padding:7px 8px;min-height:31px;font-size:11px;white-space:nowrap}
 #page-home .exercise{padding-top:9px;margin-top:8px}
 #page-home .exercise-name-actions{flex-wrap:nowrap}
 #page-home .exercise-trend-link{font-size:13px;max-width:100%;line-height:1.35}
@@ -180,9 +181,6 @@ body.overview-muscle-open{overflow:hidden}
 #page-home .set{min-width:unset;padding:7px 9px;border-radius:9px}
 #page-home .set b{font-size:12px;line-height:1.4}
 #page-home .set small{font-size:9px;line-height:1.4;margin-top:2px}
-#page-home .history-global-controls{margin:9px 0 0;padding:6px 8px;gap:6px;min-height:35px}
-#page-home .history-global-controls .sub{font-size:10px;line-height:1.25}
-#page-home #toggleHistory{padding:6px 8px;min-height:28px;font-size:10px}
 #page-home .overview-all-actions{margin-top:7px;min-height:34px}
 #page-home .overview-exercise-thumb{display:flex;align-items:center;justify-content:center;
  flex-direction:column;flex-shrink:0;width:62px;min-width:62px;height:70px;
@@ -228,12 +226,8 @@ body.overview-muscle-open{overflow:hidden}
 <div class="panel" id="trainingDetailsPanel">
 <div class="overview-day-head"><div><h2 id="selectedDate">训练详情</h2>
 <p class="sub" id="selectedSummary">选中某天查看详细动作</p></div>
-<div class="overview-day-actions"><button type="button" id="homeTrendShortcut" class="mini secondary" aria-label="打开完整力量趋势">趋势 ↗</button><button id="goLatest" class="mini">最近一次</button></div></div>
-<div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div>
-<div class="row history-global-controls">
- <span class="sub" id="historyVisibilityStatus">历史训练</span>
- <button type="button" class="secondary mini" id="toggleHistory" aria-pressed="true">收起历史</button>
-</div></div>
+<div class="overview-day-actions"><button type="button" id="homeTrendShortcut" class="mini secondary" aria-label="打开完整力量趋势">趋势 ↗</button><button type="button" id="toggleHistory" class="mini secondary" aria-pressed="true" aria-label="收起每个动作的历史训练">收起历史 ↑</button></div></div>
+<div id="dayDetails" class="empty">连接 GitHub 后读取你的历史训练。</div></div>
 <div class="row wrap" style="margin-top:18px"><div><p class="sub" id="sourceLabel">本地记录 · 尚未同步</p><p class="sub" id="lastSyncHome">上次成功同步：读取中…</p></div><button id="syncHome" class="secondary" style="font-size:12px">⇅ 同步 GitHub</button></div>
 </section>
 
@@ -1561,8 +1555,8 @@ function applyWorkoutHistoryVisibility(shown,render=true){
  showWorkoutHistory=shown!==false;
  $("toggleHistory").textContent=showWorkoutHistory?"收起历史 ↑":"展开历史 ↓";
  $("toggleHistory").setAttribute("aria-pressed",String(showWorkoutHistory));
- $("historyVisibilityStatus").textContent=showWorkoutHistory?
-  "每个动作最近10个训练日":"历史记录已收起";
+ $("toggleHistory").setAttribute("aria-label",showWorkoutHistory?
+  "收起每个动作的历史训练":"展开每个动作的历史训练");
  if(render)renderDay();
 }
 $("toggleHistory").onclick=()=>{
@@ -1855,11 +1849,6 @@ $("saveRaw").onclick=()=>{
 $("filter").onchange=e=>{
  state.filter=e.target.value;state.regionFilter="";
  refreshRegionFilterButtons();renderHeat();renderDay();
-};
-$("goLatest").onclick=()=>{
- const ds=filtered().map(r=>r.session_date).sort();
- state.calendarBrowsing=false;state.selected=ds.at(-1)||today;
- renderHeat(true);renderDay();
 };
 $("recordExercise").onchange=()=>{recordExerciseTouched=true;clearTrainingEdits();refreshExerciseRecommendation(true);window.BodyTraceRestTimer?.render?.()};
 function openTrainingWheel(elementId, title, min, max, step, unit){
