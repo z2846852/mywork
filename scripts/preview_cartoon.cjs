@@ -201,10 +201,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    throw Error("Legacy four-panel bars must not remain");
   const curves=await page.locator("#regionTrendGrid polyline").count();
   if(curves!==4)throw Error("Demo should create four color-family curves: "+curves);
-  const legendPanel=page.locator("#regionTrendGrid .trend-legend-expander");
+  const legendPanel=page.locator("#trendLegendArea .trend-legend-expander");
   if(!(await legendPanel.count()))throw Error("Dashboard lost collapsible line legend");
   await legendPanel.locator("> summary").click();
-  const names=await page.locator("#regionTrendGrid .combined-trend-legend-heading").allTextContents();
+  const names=await page.locator("#trendLegendArea .combined-trend-legend-heading").allTextContents();
   if(JSON.stringify(names)!==JSON.stringify(["胸","肩","背","腿"]))
    throw Error("All four muscle families should appear automatically: "+names);
   const lineColors=await page.locator("#regionTrendGrid polyline").evaluateAll(
@@ -236,25 +236,48 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
      unified.series.some(s=>s.some(y=>!Number.isFinite(y))))
    throw Error("All action series must use a single shared full-height y-axis");
   // Legend selection is a focus action, not a hide toggle.
-  await page.locator("#regionTrendGrid .combined-trend-legend-item").first().click();
+  await page.locator("#trendLegendArea .combined-trend-legend-item").first().click();
   const focusedDomain=await page.locator("#regionTrendGrid .combined-trend-scroll > svg")
    .evaluate(svg=>({
     axis:svg.getAttribute("data-axis-mode"),
-    span:Number(svg.getAttribute("data-ymax"))-Number(svg.getAttribute("data-ymin"))
+    low:Number(svg.getAttribute("data-ymin")),
+    high:Number(svg.getAttribute("data-ymax"))
    }));
-  if(focusedDomain.axis!=="focused"||!(focusedDomain.span<unified.high-unified.low))
-   throw Error("Focusing a curve must zoom the SAME chart's shared y-axis");
+  if(focusedDomain.axis!=="all"||focusedDomain.low!==unified.low||
+     focusedDomain.high!==unified.high)
+   throw Error("Selecting a curve must not zoom or change the shared y-axis");
   if(await page.locator("#regionTrendGrid .combined-trend-line.selected").count()!==1||
      await page.locator("#regionTrendGrid .combined-trend-line.muted").count()!==3)
    throw Error("Click legend should focus one line, dim three others, and hide none");
   if(await page.locator("#regionTrendGrid polyline").count()!==4)
    throw Error("Focusing must not remove any chart series");
-  await page.locator("#regionTrendGrid .combined-trend-legend-item.selected").click();
+  await page.locator("#trendLegendArea .combined-trend-legend-item.selected").click();
   if(await page.locator("#regionTrendGrid .combined-trend-line.muted").count())
    throw Error("Click selected legend again should restore all lines");
   const restoredMode=await page.locator("#regionTrendGrid .combined-trend-scroll > svg")
    .getAttribute("data-axis-mode");
-  if(restoredMode!=="all")throw Error("Restoring all lines must restore the common y-axis");
+  if(restoredMode!=="all")throw Error("Restoring all lines must preserve the common y-axis");
+  // Reverse-link check: lower card highlights matching upper curve without moving.
+  const beforeOrder=await page.locator("#strengthList .strength-exercise-card")
+   .evaluateAll(cards=>cards.map(card=>card.dataset.exerciseId));
+  const lowerRow=page.locator('#strengthList .strength-exercise-card[data-exercise-id="row"]');
+  await lowerRow.locator(".strength-exercise-heading").click();
+  if(await lowerRow.getAttribute("data-trend-selected")!=="true")
+   throw Error("Clicking a lower card must mark it selected");
+  const rowKeys=await page.locator("#regionTrendGrid .combined-trend-line.selected")
+   .evaluateAll(lines=>lines.map(node=>node.getAttribute("data-key")));
+  if(rowKeys.length!==1||!rowKeys[0].startsWith("row|"))
+   throw Error("Lower chart failed to highlight the matching upper series: "+rowKeys);
+  const afterOrder=await page.locator("#strengthList .strength-exercise-card")
+   .evaluateAll(cards=>cards.map(card=>card.dataset.exerciseId));
+  if(JSON.stringify(beforeOrder)!==JSON.stringify(afterOrder))
+   throw Error("Selecting an exercise must not move/reorder cards");
+  if(await page.locator("#trendFocusedDetail").count())
+   throw Error("Partial closeup container must no longer exist");
+  await page.locator("#regionTrendGrid .combined-trend-scroll > svg")
+   .click({position:{x:5,y:5}});
+  if(await page.locator("#regionTrendGrid .combined-trend-line.muted").count())
+   throw Error("Clicking blank plot space should restore all lines");
   // Add a second leg exercise in the visual fixture; line styles and markers
   // must still differ even if shades are difficult to distinguish.
   await page.evaluate(()=>{
@@ -267,7 +290,7 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
     dash:n.getAttribute("stroke-dasharray")||"",
     key:n.getAttribute("data-key")
    })));
-  const symbols=await page.locator("#regionTrendGrid .combined-trend-legend-item")
+  const symbols=await page.locator("#trendLegendArea .combined-trend-legend-item")
    .evaluateAll(nodes=>nodes.filter(n=>/髋内收|髋外展/.test(n.textContent))
     .map(n=>n.querySelector(".combined-trend-marker")?.getAttribute("data-marker"))
     .filter(Boolean));
