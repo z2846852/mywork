@@ -555,24 +555,17 @@ function renderRegionDashboard(){
    point,index:trendRelativeIndex(point.value,base,group.assisted)
   }))};
  });
- // On focus zoom into selected action's real variation. With no selection,
- // calculate one y domain for ALL actions, not one scale per muscle.
- const chosenValues=trendFocusKey?
-  curveValues.filter(v=>v.group.key===trendFocusKey):curveValues;
- const samples=chosenValues.flatMap(v=>v.points.map(p=>p.index));
- const rawMin=Math.min(...samples,100),rawMax=Math.max(...samples,100);
- // Do not force a 100 baseline into the focused domain: subtle gains need
- // most of the total plotting height, not another miniature subplot.
- const focusSamples=trendFocusKey?chosenValues.flatMap(v=>v.points.map(p=>p.index)):[];
- const minIndex=focusSamples.length?Math.min(...focusSamples):rawMin;
- const maxIndex=focusSamples.length?Math.max(...focusSamples):rawMax;
- const delta=Math.max(trendFocusKey?3:12,maxIndex-minIndex);
+ // The shared y axis is based on every curve, even when one is selected.
+ // Selection changes styling only; no jump, zoom, or partial closeup.
+ const samples=curveValues.flatMap(v=>v.points.map(p=>p.index));
+ const minIndex=Math.min(...samples,100),maxIndex=Math.max(...samples,100);
+ const delta=Math.max(12,maxIndex-minIndex);
  const midpoint=(maxIndex+minIndex)/2;
  const low=midpoint-delta*.64,high=midpoint+delta*.64;
  const y=value=>plotBottom-(value-low)/(high-low)*(plotBottom-plotTop);
  svg.setAttribute("data-ymin",low.toFixed(3));
  svg.setAttribute("data-ymax",high.toFixed(3));
- svg.setAttribute("data-axis-mode",trendFocusKey?"focused":"all");
+ svg.setAttribute("data-axis-mode","all");
  for(let i=0;i<=5;i++){
   const value=low+(high-low)*i/5,py=y(value);
   svg.append(el("line",{x1:70,y1:py,x2:788,y2:py,
@@ -708,6 +701,8 @@ function renderRegionDashboard(){
   }
   if(chosen&&best<35*35)
    setFocus(chosen.curve.group.key,chosen.pt.point);
+  else if(trendFocusKey)
+   setFocus(null,null); // Empty plot = show all curves again.
  });
  section.append(svg);
  root.append(section);
@@ -770,20 +765,14 @@ function renderRegionDashboard(){
  });
  root.append(details);
  legendHost.append(legendPanel);
- if(trendFocusKey){
-  const clear=document.createElement("button");clear.type="button";
-  clear.className="secondary mini combined-trend-clear";
-  clear.textContent="显示全部曲线";
-  clear.onclick=()=>setFocus(trendFocusKey,null);
-  root.append(clear);
- }
  const help=document.createElement("details");
  help.className="combined-trend-help";
  const heading=document.createElement("summary");
  heading.textContent="ⓘ 表现指数说明";
  const note=document.createElement("p");
  note.textContent="全部动作共用一个纵轴，单动作首条有效记录对应指数100。"+
-  "点选动作后放大其波动，其他曲线淡化；这是相对变化，不能用于跨器械比较力量。"+
+  "点选动作仅高亮该曲线，其他曲线淡化，但纵轴不变；点击空白恢复全部。"+
+  "这是相对变化，不能用于跨器械比较力量。"+
   "未训练日不补点；辅助动作使用身体页最新体重作为统一换算基准"+
   (trendAssistBase===null?"（尚无体重，暂不绘制辅助动作）":"（"+round1(trendAssistBase)+" kg，非各训练日体重）")+"。";
  help.append(heading,note);legendHost.append(help);
@@ -1030,31 +1019,44 @@ function compactStrengthSet(row,exerciseId){
  return weight+" × "+rep+(isFailedAttempt(row)?"（0次失败）":"");
 }
 function syncFocusedStrengthCard(){
- const slot=$("trendFocusedDetail"),list=$("strengthList");
- if(!slot||!list)return;
- const previous=slot.querySelector(".strength-exercise-card");
- if(previous){
-  previous.classList.remove("selected-trend-exercise");
-  list.append(previous);
- }
- const order=new Map(orderedExerciseGroups(state.rows).map((group,index)=>[group.id,index]));
- const cards=[...list.querySelectorAll(".strength-exercise-card")];
- cards.sort((a,b)=>(order.get(a.dataset.exerciseId)??Infinity)-
-  (order.get(b.dataset.exerciseId)??Infinity));
- for(const card of cards)list.append(card);
+ const list=$("strengthList");
+ if(!list)return;
  const exerciseId=trendFocusKey?trendFocusKey.split("|")[0]:null;
- const selected=cards.find(card=>card.dataset.exerciseId===exerciseId);
- const summary=$("strengthDetailExpander").querySelector("summary");
- if(summary?.firstChild?.nodeType===3)
-  summary.firstChild.textContent=selected?"其余动作详情与编辑 ":"全部动作详情与编辑 ";
- slot.hidden=!selected;
- if(!selected){slot.replaceChildren();return;}
- selected.classList.add("selected-trend-exercise");
- slot.append(selected);
+ // Never move an exercise card: highlighting must not disturb the layout.
+ for(const card of list.querySelectorAll(".strength-exercise-card")){
+  const selected=!!exerciseId&&card.dataset.exerciseId===exerciseId;
+  card.classList.toggle("selected-trend-exercise",selected);
+  card.dataset.trendSelected=String(selected);
+ }
+}
+function focusTrendFromStrengthCard(exerciseId,loadBasis=null){
+ if(!exerciseId)return false;
+ const basis=exerciseId==="assisted_pullup"||exerciseId==="assisted_dip"?
+  "assisted":loadBasis==="per_side"?"per_side":
+  loadBasis==="bodyweight"?"bodyweight":"machine";
+ const findMatches=()=>{const {from,end,valid}=trendRange();
+  return valid?trendData(state.rows,from,end,latestTrendWeight()).series
+   .filter(group=>group.id===exerciseId):[];};
+ let matches=findMatches();
+ if(!matches.length){
+  // The lower card can have older data outside the default 30-day window.
+  trendSelectedPeriod="all";
+  ({from:trendStart,end:trendEnd}=trendInitialDates("all"));
+  $("trendStartDate").value=trendStart;
+  $("trendEndDate").value=trendEnd;
+  matches=findMatches();
+ }
+ if(!matches.length){
+  toast("该动作目前无法生成可比较的力量曲线，原始训练记录仍可编辑",true);
+  return false;
+ }
+ matches.sort((a,b)=>(b.points.at(-1)?.date||"").localeCompare(
+  a.points.at(-1)?.date||"")||b.points.length-a.points.length);
+ trendFocusKey=(matches.find(group=>group.basis===basis)||matches[0]).key;
+ renderRegionDashboard();
+ return true;
 }
 function renderStrength(){
- const slot=$("trendFocusedDetail");
- slot.replaceChildren();slot.hidden=true;
  const root=$("strengthList");root.replaceChildren();
  const groups=orderedExerciseGroups(state.rows);
  if(!groups.length){
@@ -1082,6 +1084,20 @@ function renderStrength(){
   const failed=group.records.length-finished;
   count.textContent=finished+"组"+(failed?" · "+failed+"次失败":"");
   heading.append(header,count);
+  heading.classList.add("strength-focus-shortcut");
+  heading.tabIndex=0;
+  heading.setAttribute("role","button");
+  heading.setAttribute("aria-label","在上方总图高亮 "+(exerciseLabels[group.id]||group.id));
+  const focusCard=()=>focusTrendFromStrengthCard(group.id,group.latestRow?.load_basis);
+  heading.addEventListener("keydown",event=>{
+   if(event.key==="Enter"||event.key===" "){
+    event.preventDefault();focusCard();
+   }
+  });
+  card.addEventListener("click",event=>{
+   if(event.target.closest("button,.strength-point-hit"))return;
+   focusCard();
+  });
   const range=document.createElement("div");range.className="strength-exercise-range";
   const chart=document.createElement("div");chart.className="feature-chart";
   const disclaimer=document.createElement("p");disclaimer.className="note strength-exercise-note";
@@ -1228,7 +1244,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
     "aria-label":"查看 "+hint});
   hit.setAttribute("class","strength-point-hit");
   hit.style.cursor="pointer";
-  const selectPoint=()=>{
+  const selectPoint=(syncUpper=false)=>{
    for(const other of points){
     other.setAttribute("r",other.dataset.normalRadius);
     other.setAttribute("stroke",other.classList.contains("failed-point")?"#ffcbcb":"#0a2419");
@@ -1242,11 +1258,12 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
    editAction.disabled=!v.id;
    editAction.onclick=()=>window.BodyTraceWorkoutEditor?.open(v);
    for(const entry of recentButtons)entry.button.classList.toggle("active",entry.value===v);
+   if(syncUpper)focusTrendFromStrengthCard(ex,v.load_basis);
   };
-  hit.addEventListener("click",selectPoint);
+  hit.addEventListener("click",()=>selectPoint(true));
   hit.addEventListener("keydown",event=>{
    if(event.key==="Enter"||event.key===" "){
-    event.preventDefault();selectPoint();
+    event.preventDefault();selectPoint(true);
    }
   });
   svg.append(point,hit);
@@ -1262,7 +1279,7 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
    compactStrengthSet(entry.value,ex);
   button.setAttribute("aria-label","查看 "+entry.value.session_date+" "+
    compactStrengthSet(entry.value,ex));
-  button.onclick=entry.select;
+  button.onclick=()=>entry.select(true);
   recentButtons.push({button,value:entry.value});
   recent.append(button);
  }
@@ -1472,31 +1489,13 @@ window.BodyTraceRenderFeatures=renderAllFeatures;
 // never silently focus a different exercise.
 window.BodyTraceFocusExerciseTrend=function(exerciseId){
  if(!exerciseId)return;
- let {from,end,valid}=trendRange();
- let matches=valid?trendData(state.rows,from,end,trendAssistBase).series
-  .filter(group=>group.id===exerciseId):[];
- if(!matches.length){
-  trendSelectedPeriod="all";
-  ({from:trendStart,end:trendEnd}=trendInitialDates("all"));
-  $("trendStartDate").value=trendStart;
-  $("trendEndDate").value=trendEnd;
-  matches=trendData(state.rows,trendStart,trendEnd,trendAssistBase).series
-   .filter(group=>group.id===exerciseId);
- }
- if(matches.length){
-  matches.sort((a,b)=>(b.points.at(-1)?.date||"").localeCompare(
-   a.points.at(-1)?.date||"")||b.points.length-a.points.length);
-  trendFocusKey=matches[0].key;
-  renderRegionDashboard();
+ if(focusTrendFromStrengthCard(exerciseId)){
   window.BodyTraceJumpTo?.("analytics",()=> $("regionTrendGrid"));
  }else{
-  trendFocusKey=null;
-  renderRegionDashboard();
   $("strengthDetailExpander").open=true;
   window.BodyTraceJumpTo?.("analytics",()=>
-   [...document.querySelectorAll("#strengthList .strength-exercise-card, #trendFocusedDetail .strength-exercise-card")]
+   [...document.querySelectorAll("#strengthList .strength-exercise-card")]
     .find(card=>card.dataset.exerciseId===exerciseId)||$("strengthDetailExpander"));
-  toast("该动作暂无可用的估算力量曲线，已定位原始记录",true);
  }
 };
 // Build an honest, offline target-muscle diagram from the SAME anatomical
@@ -1584,7 +1583,7 @@ window.bodyTraceReceive=function(evt){
       // After a new workout is saved, open this exercise's own historical
       // chart rather than returning to Overview or the combined trend plot.
       const exerciseId=evt.event.exercise_id;
-      const findCard=()=>[...document.querySelectorAll("#strengthList .strength-exercise-card, #trendFocusedDetail .strength-exercise-card")]
+      const findCard=()=>[...document.querySelectorAll("#strengthList .strength-exercise-card")]
         .find(card=>card.dataset.exerciseId===exerciseId);
       if(findCard()){
         $("strengthDetailExpander").open=true;

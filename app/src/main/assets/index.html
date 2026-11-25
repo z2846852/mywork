@@ -239,12 +239,13 @@ body.overview-muscle-open{overflow:hidden}
 
 <section class="page" id="page-analytics">
 <div class="panel overview-panel">
- <div class="trend-dashboard-title">
-  <h2>力量趋势</h2>
-  <span id="trendPeriodCaption" class="trend-dashboard-caption" hidden>最近30天 · 全部动作</span>
-  <button type="button" id="trendLegendShortcut" class="trend-dashboard-legend-shortcut" aria-label="查看曲线名称和线型">ⓘ</button>
- </div>
- <div class="trend-dashboard-tools">
+ <div class="trend-dashboard-header">
+  <div class="trend-dashboard-title">
+   <h2>力量趋势</h2>
+   <span id="trendPeriodCaption" class="trend-dashboard-caption" hidden>最近30天 · 全部动作</span>
+   <button type="button" id="trendLegendShortcut" class="trend-dashboard-legend-shortcut" aria-label="查看曲线名称和线型">ⓘ</button>
+  </div>
+  <div class="trend-dashboard-tools">
   <div class="trend-period-toolbar" role="group" aria-label="力量趋势时间范围" id="trendPeriodToolbar">
    <button type="button" class="trend-period active" data-period="30">30天</button>
    <button type="button" class="trend-period" data-period="90">90天</button>
@@ -261,10 +262,10 @@ body.overview-muscle-open{overflow:hidden}
     </div>
    </div>
   </details>
+  </div>
  </div>
  <div id="trainingOverview" class="training-overview" aria-label="近28天训练概况"></div>
- <div id="regionTrendGrid" class="combined-trend" aria-label="胸肩背腿所有动作同一纵轴、同一完整图，点击动作后纵轴放大并查看详情"></div>
- <div id="trendFocusedDetail" class="trend-focused-detail" hidden aria-live="polite"></div>
+ <div id="regionTrendGrid" class="combined-trend" aria-label="胸肩背腿全部动作共享固定纵轴；点击曲线高亮，点击空白恢复全部"></div>
 </div>
 <div class="panel trend-support-panel"><details id="strengthDetailExpander" class="strength-detail-expander" open>
  <summary>全部动作趋势与编辑</summary>

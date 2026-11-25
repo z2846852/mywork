@@ -1595,8 +1595,6 @@ body.workout-edit-open{overflow:hidden}
  width:100%;max-width:100%;box-sizing:border-box}
 #page-analytics .combined-trend-scroll svg{display:block;width:100%!important;
  max-width:100%;min-width:0!important;height:auto;overflow:visible}
-#page-analytics .combined-trend-clear{margin:2px 0 6px;
- min-height:33px;padding:4px 10px;font-size:11px}
 #page-analytics .combined-trend-selection{min-height:30px;line-height:1.45}
 #page-analytics .combined-trend-marker{pointer-events:none}
 #page-analytics .combined-trend-line.muted{opacity:.16}
@@ -1696,21 +1694,12 @@ body.workout-edit-open{overflow:hidden}
 #page-voice .voice-reference-example button{margin:0;padding:5px 8px;
  min-height:29px;font-size:10px}
 
-/* Focused line and action history share one compact chart-to-detail flow. */
-#page-analytics .trend-focused-detail[hidden]{display:none!important}
-#page-analytics .trend-focused-detail{
- margin:7px 0 0;padding:5px;border:1px solid #527f68;border-radius:11px;
- background:linear-gradient(165deg,#16392d,#152c28);
-}
-#page-analytics .trend-focused-detail .strength-exercise-card{
- margin:0;padding:8px;border:0;border-top:3px solid var(--region-accent,#85c9a4);
- border-radius:7px;background:transparent;
-}
-#page-analytics .trend-focused-detail .feature-chart{margin-top:3px;min-height:0}
-#page-analytics .trend-focused-detail .feature-chart svg{max-height:165px}
-#page-analytics .trend-focused-detail .strength-exercise-range{margin-top:5px}
-#page-analytics .trend-focused-detail .strength-point-detail{padding:6px 8px;margin-bottom:5px;min-height:0}
-#page-analytics .trend-focused-detail .strength-exercise-note{margin-top:4px}
+/* Selection is only a border on the original card; no separate closeup. */
+#page-analytics .strength-exercise-card.selected-trend-exercise{
+ border-color:#8cdbb9;box-shadow:inset 0 0 0 1px #8cdbb955}
+#page-analytics .strength-focus-shortcut{cursor:pointer}
+#page-analytics .strength-focus-shortcut:focus-visible{
+ outline:2px solid #8cdbb9;outline-offset:3px;border-radius:6px}
 #page-analytics .trend-legend-area{margin-top:4px}
 #page-analytics .trend-weight-jump{font:inherit;font-size:9px;color:#7ce8b0;
  padding:0 2px;line-height:1.5;border:0;background:transparent;cursor:pointer;
@@ -1992,8 +1981,24 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 #page-analytics .trend-dashboard-title{align-items:center}
 #page-analytics .trend-dashboard-legend-shortcut{margin-left:auto;font-size:15px;
  width:28px;height:27px;border:1px solid #467667;border-radius:50%;padding:0}
-#page-analytics .trend-dashboard-tools{margin-top:5px}
-#page-analytics .trend-period-toolbar button{min-height:29px;padding:3px}
+/* Heading and date range fit the same compact row. */
+#page-analytics .trend-dashboard-header{display:flex;align-items:center;gap:5px;min-width:0}
+#page-analytics .trend-dashboard-title{flex:0 0 auto;gap:3px;min-width:0}
+#page-analytics .trend-dashboard-title h2{font-size:16px}
+#page-analytics .trend-dashboard-legend-shortcut{margin-left:0;width:22px;height:23px;
+ border:0;font-size:12px}
+#page-analytics .trend-dashboard-tools{flex:1 1 auto;min-width:0;gap:3px;margin-top:0}
+#page-analytics .trend-period-toolbar{gap:3px}
+#page-analytics .trend-period-toolbar button{min-height:29px;padding:3px 1px;
+ font-size:10px;white-space:nowrap}
+#page-analytics .trend-advanced-settings>summary{width:29px;height:29px;font-size:16px}
+@media(max-width:365px){
+ #page-analytics .trend-dashboard-title h2{font-size:14px}
+ #page-analytics .trend-dashboard-header{gap:3px}
+ #page-analytics .trend-period-toolbar{gap:2px}
+ #page-analytics .trend-period-toolbar button{font-size:9px}
+ #page-analytics .trend-advanced-settings>summary{width:27px}
+}
 #page-analytics .training-overview{margin-top:5px;min-height:0;padding:6px 8px;gap:7px}
 #page-analytics .training-overview-main strong{font-size:22px}
 #page-analytics .training-overview-stat{line-height:1.2}
