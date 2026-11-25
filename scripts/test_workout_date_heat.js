@@ -147,4 +147,23 @@ assert.ok(!script.includes("overview-all-actions")&&!script.includes("persistAll
 assert.ok(script.includes('if(showWorkoutHistory&&recentDates.length)'),
  "The separate historical-sets visibility preference must remain intact");
 assert.ok(html.includes('id="toggleHistory"'));
-console.log("PASS Beijing rollover, workout dates, quadrant, trends, always-visible actions");
+// Hip thrust: visual index growth is damped, NOT the recorded e1RM or loads.
+const relativeStart=trends.indexOf("const trendIndexGrowthFactors=");
+const relativeEnd=trends.indexOf("function trendRecordedRange(",relativeStart);
+assert.ok(relativeStart>=0&&relativeEnd>relativeStart);
+const hipIndex=vm.runInNewContext(trends.slice(relativeStart,relativeEnd)+
+ "\ntrendRelativeIndex", {Math,Object});
+const base=15,latest=65*(1+8/30);
+const unadjusted=hipIndex(latest,base,false,"chest_press");
+const adjusted=hipIndex(latest,base,false,"hip_thrust");
+assert.equal(hipIndex(base,base,false,"hip_thrust"),100);
+assert.ok(unadjusted>770&&unadjusted<775);
+assert.ok(adjusted>234&&adjusted<236);
+assert.ok(Math.abs(adjusted-100-(unadjusted-100)*.2)<1e-9);
+assert.ok(hipIndex(10,base,false,"hip_thrust")<100,
+ "A decline must still be visible after dampening");
+assert.equal(hipIndex(50,40,false,"chest_press"),
+ hipIndex(50,40,false),"Other movements must be unchanged");
+assert.ok(trends.includes("group.assisted,group.id)"));
+assert.ok(trends.includes("真实重量和估算力量不变"));
+console.log("PASS workout dates, four-region heatmap, trend linkage, hip thrust calibration");

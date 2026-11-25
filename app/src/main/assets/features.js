@@ -335,12 +335,16 @@ try{trendLegendExpanded=localStorage.getItem("bodytrace.trendLegendExpanded")===
 // All exercises use the SAME y-axis in the SAME plot, without per-region lanes.
 const trendDashStyles=["","10 6","3 6","15 5 3 5","2 3","11 4 2 4"];
 const trendMarkerStyles=["circle","square","diamond","triangle","cross","hexagon"];
-function trendRelativeIndex(value,reference,assisted){
- // 100 marks this exercise's own first effective record. For an assisted
- // exercise with 0 kg estimated load, the fixed floor avoids division by zero.
- // Do not squash small changes with tanh or flatten real declines.
+// The very first hip-thrust workout was a light learning/warm-up session.
+// Its 15 kg estimated benchmark artificially inflated later percentage growth.
+// This is a DISPLAY-only slope (not a correction to saved kg or e1RM).
+const trendIndexGrowthFactors=Object.freeze({hip_thrust:0.2});
+function trendRelativeIndex(value,reference,assisted,exerciseId=""){
+ // 100 marks this exercise's first effective record. Other movements keep
+ // their existing formula; only hip-thrust INDEX DELTA is downweighted.
  const denominator=Math.max(assisted?20:10,reference*.6);
- return 100+100*(value-reference)/denominator;
+ const factor=trendIndexGrowthFactors[exerciseId]??1;
+ return 100+factor*100*(value-reference)/denominator;
 }
 function trendRecordedRange(series){
  const dates=series.flatMap(s=>s.points.map(p=>p.date)).sort();
@@ -552,7 +556,7 @@ function renderRegionDashboard(){
  const curveValues=all.map(group=>{
   const base=reference.get(group.key)??group.points[0].value;
   return {group,base,points:group.points.map(point=>({
-   point,index:trendRelativeIndex(point.value,base,group.assisted)
+   point,index:trendRelativeIndex(point.value,base,group.assisted,group.id)
   }))};
  });
  // The shared y axis is based on every curve, even when one is selected.
@@ -772,6 +776,7 @@ function renderRegionDashboard(){
  const note=document.createElement("p");
  note.textContent="全部动作共用一个纵轴，单动作首条有效记录对应指数100。"+
   "点选动作仅高亮该曲线，其他曲线淡化，但纵轴不变；点击空白恢复全部。"+
+  "臀推因首次记录仅为轻重量，单独把指数的增减幅度乘以0.2，真实重量和估算力量不变。"+
   "这是相对变化，不能用于跨器械比较力量。"+
   "未训练日不补点；辅助动作使用身体页最新体重作为统一换算基准"+
   (trendAssistBase===null?"（尚无体重，暂不绘制辅助动作）":"（"+round1(trendAssistBase)+" kg，非各训练日体重）")+"。";
