@@ -147,23 +147,51 @@ assert.ok(!script.includes("overview-all-actions")&&!script.includes("persistAll
 assert.ok(script.includes('if(showWorkoutHistory&&recentDates.length)'),
  "The separate historical-sets visibility preference must remain intact");
 assert.ok(html.includes('id="toggleHistory"'));
-// Hip thrust: visual index growth is damped, NOT the recorded e1RM or loads.
-const relativeStart=trends.indexOf("const trendIndexGrowthFactors=");
-const relativeEnd=trends.indexOf("function trendRecordedRange(",relativeStart);
-assert.ok(relativeStart>=0&&relativeEnd>relativeStart);
-const hipIndex=vm.runInNewContext(trends.slice(relativeStart,relativeEnd)+
- "\ntrendRelativeIndex", {Math,Object});
-const base=15,latest=65*(1+8/30);
-const unadjusted=hipIndex(latest,base,false,"chest_press");
-const adjusted=hipIndex(latest,base,false,"hip_thrust");
-assert.equal(hipIndex(base,base,false,"hip_thrust"),100);
-assert.ok(unadjusted>770&&unadjusted<775);
-assert.ok(adjusted>234&&adjusted<236);
-assert.ok(Math.abs(adjusted-100-(unadjusted-100)*.2)<1e-9);
-assert.ok(hipIndex(10,base,false,"hip_thrust")<100,
- "A decline must still be visible after dampening");
-assert.equal(hipIndex(50,40,false,"chest_press"),
- hipIndex(50,40,false),"Other movements must be unchanged");
-assert.ok(trends.includes("group.assisted,group.id)"));
-assert.ok(trends.includes("真实重量和估算力量不变"));
-console.log("PASS workout dates, four-region heatmap, trend linkage, hip thrust calibration");
+// Personal milestones are exercise-specific; none claims to be an adult norm.
+const goalsStart=trends.indexOf("const strengthGoalStorageKey=");
+const goalsEnd=trends.indexOf("function trendRecordedRange(",goalsStart);
+assert.ok(goalsStart>=0&&goalsEnd>goalsStart);
+const stored={};
+const goalCtx={
+ localStorage:{
+  getItem:key=>stored[key]||null,
+  setItem:(key,value)=>{stored[key]=value;}
+ },
+ state:{rows:[
+  {exercise_id:"chest_press",load_kg:30,reps:10},
+  {exercise_id:"chest_press",load_kg:40,reps:8},
+  {exercise_id:"assisted_pullup",assistance_kg:65,reps:10}
+ ]},
+ isFailedAttempt:r=>Number(r.reps)===0,
+ validNum:x=>x!==null&&x!==undefined&&x!==""&&Number.isFinite(Number(x)),
+ Math,Object,JSON,Number
+};
+const goalApi=vm.runInNewContext(trends.slice(goalsStart,goalsEnd)+
+ "\n({strengthGoalFor,strengthGoalEstimate,trendRelativeIndex,strengthGoalStore,strengthGoalStorageKey})",goalCtx);
+const hip=goalApi.strengthGoalFor("hip_thrust","machine");
+assert.equal(hip.kg,60);
+assert.equal(hip.reps,8);
+assert.equal(hip.hidden,false);
+const hipTarget=goalApi.strengthGoalEstimate(hip,"machine");
+assert.ok(Math.abs(hipTarget-76)<1e-9);
+const startIndex=goalApi.trendRelativeIndex(15,15,false,"hip_thrust",hipTarget);
+const nowIndex=goalApi.trendRelativeIndex(65*(1+8/30),15,false,"hip_thrust",hipTarget);
+const nextIndex=goalApi.trendRelativeIndex(70*(1+8/30),15,false,"hip_thrust",hipTarget);
+assert.ok(startIndex>10&&startIndex<13);
+assert.ok(nowIndex>110&&nowIndex<113);
+assert.ok(nextIndex>122&&nextIndex<125);
+assert.ok(nextIndex-nowIndex>nowIndex-100,
+ "Near-goal progress must remain perceptible; no 0.2 global dampening");
+const chest=goalApi.strengthGoalFor("chest_press","machine");
+assert.ok(chest.kg>40&&chest.origin==="generated");
+const assistedGoal=goalApi.strengthGoalFor("assisted_pullup","assisted");
+assert.equal(assistedGoal.hidden,true);
+assert.equal(assistedGoal.kg,null);
+assert.ok(stored["bodytrace.strengthGoals.v1"]);
+assert.equal(goalApi.strengthGoalFor("chest_press","machine").kg,chest.kg,
+ "Generated stage target must not drift as training increases");
+assert.ok(trends.includes('class:"strength-reference-line"'));
+assert.ok(trends.includes('toggle.textContent=goal.hidden?"显示参考":"隐藏参考"'));
+assert.ok(trends.includes('origin:"manual"')&&trends.includes('strengthGoalStore[goalKey]'));
+assert.ok(!trends.includes("trendIndexGrowthFactors"));
+console.log("PASS workout dates, four-region heatmap, trend linkage, benchmark controls");

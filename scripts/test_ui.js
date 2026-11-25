@@ -1299,7 +1299,7 @@ assert.ok(features.includes('Math.max(0,bodyWeight-load)'));
 assert.ok(features.includes('estimate=effective*(1+reps/30)'));
 assert.ok(features.includes('group.days.set(day'));
 assert.ok(features.includes('const x=day=>span===0?775:73+'));
-assert.ok(features.includes('function trendRelativeIndex(value,reference,assisted,exerciseId="")'));
+assert.ok(features.includes('function trendRelativeIndex(value,reference,assisted,exerciseId="",goalEstimate=null)'));
 assert.ok(!features.includes('const trendDisplayRegions='));
 assert.ok(!features.includes('const trendRegionLanes='));
 assert.ok(features.includes('const curveValues=all.map(group=>'));

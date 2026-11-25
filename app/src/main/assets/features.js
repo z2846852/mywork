@@ -335,16 +335,79 @@ try{trendLegendExpanded=localStorage.getItem("bodytrace.trendLegendExpanded")===
 // All exercises use the SAME y-axis in the SAME plot, without per-region lanes.
 const trendDashStyles=["","10 6","3 6","15 5 3 5","2 3","11 4 2 4"];
 const trendMarkerStyles=["circle","square","diamond","triangle","cross","hexagon"];
-// The very first hip-thrust workout was a light learning/warm-up session.
-// Its 15 kg estimated benchmark artificially inflated later percentage growth.
-// This is a DISPLAY-only slope (not a correction to saved kg or e1RM).
-const trendIndexGrowthFactors=Object.freeze({hip_thrust:0.2});
-function trendRelativeIndex(value,reference,assisted,exerciseId=""){
- // 100 marks this exercise's first effective record. Other movements keep
- // their existing formula; only hip-thrust INDEX DELTA is downweighted.
+// Editable per-exercise training milestones, stored on this device.
+// They are NOT normative adult percentiles. No third-party strength-standard
+// tables or unlicensed proprietary benchmarks are embedded in the APK.
+const strengthGoalStorageKey="bodytrace.strengthGoals.v1";
+const strengthGoalStore=(()=>{
+ try{
+  const saved=JSON.parse(localStorage.getItem(strengthGoalStorageKey)||"{}");
+  return saved&&typeof saved==="object"&&!Array.isArray(saved)?saved:{};
+ }catch(_){return {};}
+})();
+function strengthGoalBasis(row){
+ if(row.exercise_id==="assisted_pullup"||row.exercise_id==="assisted_dip")return "assisted";
+ if(row.load_basis==="per_side")return "per_side";
+ if(row.load_basis==="bodyweight")return "bodyweight";
+ return "machine";
+}
+const strengthGoalKey=(id,basis)=>id+"|"+basis;
+function saveStrengthGoals(){
+ try{localStorage.setItem(strengthGoalStorageKey,JSON.stringify(strengthGoalStore));}
+ catch(_){/* Still editable offline for this WebView session. */}
+}
+function strengthGoalFor(exerciseId,basis="machine"){
+ const key=strengthGoalKey(exerciseId,basis);
+ const existing=strengthGoalStore[key];
+ if(existing){
+  const kg=Number(existing.kg),reps=Number(existing.reps);
+  return {kg:Number.isFinite(kg)&&kg>0&&kg<=1000?kg:null,
+   reps:Number.isInteger(reps)&&reps>=1&&reps<=15?reps:8,
+   hidden:existing.hidden===true,origin:existing.origin||"manual"};
+ }
+ // A deliberate personal milestone from the user's hip-thrust discussion:
+ // 60 kg x 8 is an editable *working-set* target, NOT a normal-adult statistic.
+ if(exerciseId==="hip_thrust"){
+  const goal={kg:60,reps:8,hidden:false,origin:"personal"};
+  strengthGoalStore[key]=goal;saveStrengthGoals();return goal;
+ }
+ // Pulley assistance is not comparable between machine models.
+ if(basis==="assisted"||basis==="bodyweight"){
+  const goal={kg:null,reps:8,hidden:true,origin:"device"};
+  strengthGoalStore[key]=goal;saveStrengthGoals();return goal;
+ }
+ // Seed each other exercise with a personal NEXT-stage target, 10% beyond
+ // its own best valid 1-15-rep e1RM. Freeze the seed on the device; it will
+ // not drift upward as new workouts arrive, and users can always edit it.
+ const candidates=state.rows.filter(row=>(row.exercise_id||row.exercise)===exerciseId&&
+  strengthGoalBasis(row)===basis&&!isFailedAttempt(row)&&
+  validNum(row.reps)&&Number(row.reps)>=1&&Number(row.reps)<=15&&
+  validNum(row.load_kg)&&Number(row.load_kg)>0).map(row=>
+   Number(row.load_kg)*(1+Number(row.reps)/30));
+ if(!candidates.length)return {kg:null,reps:8,hidden:true,origin:"none"};
+ const best=Math.max(...candidates);
+ const kg=Math.ceil(best*1.1/(1+8/30)/2.5)*2.5;
+ const goal={kg:Math.max(2.5,kg),reps:8,hidden:false,origin:"generated"};
+ strengthGoalStore[key]=goal;saveStrengthGoals();return goal;
+}
+function strengthGoalEstimate(goal,basis,bodyWeight=null){
+ if(!goal||!Number.isFinite(goal.kg)||goal.kg<=0)return null;
+ if(basis==="assisted"){
+  if(!Number.isFinite(bodyWeight)||bodyWeight<=0)return null;
+  const resistance=Math.max(0,bodyWeight-goal.kg);
+  return resistance>0?resistance*(1+goal.reps/30):null;
+ }
+ if(basis==="bodyweight")return null;
+ return goal.kg*(1+goal.reps/30);
+}
+function trendRelativeIndex(value,reference,assisted,exerciseId="",goalEstimate=null){
+ // With a personal milestone, index 100 is its e1RM. Power > 1 compresses
+ // the novice range without suppressing later small improvements.
+ if(Number.isFinite(goalEstimate)&&goalEstimate>0&&!assisted)
+  return 100*Math.pow(Math.max(0,value)/goalEstimate,1.35);
+ // Uncalibrated/assisted curves retain their own historical series.
  const denominator=Math.max(assisted?20:10,reference*.6);
- const factor=trendIndexGrowthFactors[exerciseId]??1;
- return 100+factor*100*(value-reference)/denominator;
+ return 100+100*(value-reference)/denominator;
 }
 function trendRecordedRange(series){
  const dates=series.flatMap(s=>s.points.map(p=>p.date)).sort();
@@ -555,8 +618,10 @@ function renderRegionDashboard(){
   (trendMillis(day)-trendMillis(recorded.first))/span*702;
  const curveValues=all.map(group=>{
   const base=reference.get(group.key)??group.points[0].value;
+  const goal=strengthGoalFor(group.id,group.basis);
+  const milestone=strengthGoalEstimate(goal,group.basis,trendAssistBase);
   return {group,base,points:group.points.map(point=>({
-   point,index:trendRelativeIndex(point.value,base,group.assisted,group.id)
+   point,index:trendRelativeIndex(point.value,base,group.assisted,group.id,milestone)
   }))};
  });
  // The shared y axis is based on every curve, even when one is selected.
@@ -774,10 +839,12 @@ function renderRegionDashboard(){
  const heading=document.createElement("summary");
  heading.textContent="ⓘ 表现指数说明";
  const note=document.createElement("p");
- note.textContent="全部动作共用一个纵轴，单动作首条有效记录对应指数100。"+
-  "点选动作仅高亮该曲线，其他曲线淡化，但纵轴不变；点击空白恢复全部。"+
-  "臀推因首次记录仅为轻重量，单独把指数的增减幅度乘以0.2，真实重量和估算力量不变。"+
-  "这是相对变化，不能用于跨器械比较力量。"+
+ note.textContent="全部动作共用一个纵轴：已设个人目标的动作以目标为指数100，"+
+  "使用非线性映射，让低重量起步阶段不过度放大，接近目标时仍能看见小幅进步。"+
+  "没设目标的动作继续以首条有效记录为100。"+
+  "点选动作仅高亮，点击空白恢复全部，纵轴不变。"+
+  "这些是自定训练目标，不是普通成年人的平均力量或人口百分位；"+
+  "器械刻度受滑轮倍率和不同型号影响，不适宜跨机器比较。"+
   "未训练日不补点；辅助动作使用身体页最新体重作为统一换算基准"+
   (trendAssistBase===null?"（尚无体重，暂不绘制辅助动作）":"（"+round1(trendAssistBase)+" kg，非各训练日体重）")+"。";
  help.append(heading,note);legendHost.append(help);
@@ -1101,15 +1168,17 @@ function renderStrength(){
    }
   });
   card.addEventListener("click",event=>{
-   if(event.target.closest("button,.strength-point-hit"))return;
+   if(event.target.closest("button,.strength-point-hit,.strength-benchmark"))return;
    focusCard();
   });
   const range=document.createElement("div");range.className="strength-exercise-range";
   const chart=document.createElement("div");chart.className="feature-chart";
   const disclaimer=document.createElement("p");disclaimer.className="note strength-exercise-note";
-  card.append(heading,range,chart,disclaimer);
+  const benchmark=document.createElement("div");
+  benchmark.className="strength-benchmark";
+  card.append(heading,range,benchmark,chart,disclaimer);
   root.append(card);
-  renderStrengthPlot(group,chart,range,disclaimer,region);
+  renderStrengthPlot(group,chart,range,disclaimer,region,benchmark);
  }
  syncFocusedStrengthCard();
 }
@@ -1127,9 +1196,85 @@ function findFailureMilestone(values,attempt){
   (Date.parse(next.session_date+"T12:00:00Z")-
    Date.parse(attempt.session_date+"T12:00:00Z"))/86400000)};
 }
-function renderStrengthPlot(group,chart,range,disclaimer,region){
+function renderStrengthPlot(group,chart,range,disclaimer,region,benchmark){
  const plotColor=regionThemeColors[region]||"#8bb6ad";
  const ex=group.id, isAssist=ex==="assisted_pullup"||ex==="assisted_dip";
+ const basis=strengthGoalBasis(group.latestRow||group.records.at(-1).row);
+ const goalKey=strengthGoalKey(ex,basis);
+ let goal=strengthGoalFor(ex,basis);
+ const goalEstimate=strengthGoalEstimate(goal,basis,latestTrendWeight());
+ // Update all charts without jumping the scrolled action card.
+ const refreshGoalView=()=>{
+  const previous=chart.closest(".strength-exercise-card");
+  const top=previous?.getBoundingClientRect().top??0;
+  renderRegionDashboard();
+  renderStrength();
+  const replacement=[...$("strengthList").querySelectorAll(".strength-exercise-card")]
+   .find(card=>card.dataset.exerciseId===ex);
+  if(replacement&&previous)window.scrollBy(0,replacement.getBoundingClientRect().top-top);
+ };
+ benchmark.replaceChildren();
+ const status=document.createElement("span");status.className="strength-benchmark-status";
+ const edit=document.createElement("button");edit.type="button";
+ edit.className="mini secondary";edit.textContent=goal.kg?"修改目标":"设定目标";
+ const toggle=document.createElement("button");toggle.type="button";
+ toggle.className="mini secondary";toggle.textContent=goal.hidden?"显示参考":"隐藏参考";
+ toggle.setAttribute("aria-label",(goal.hidden?"显示":"隐藏")+" "+(exerciseLabels[ex]||ex)+" 参考虚线");
+ const editor=document.createElement("div");editor.className="strength-benchmark-editor";
+ editor.hidden=true;
+ const target=document.createElement("input");target.type="number";target.min="0.5";
+ target.max="1000";target.step="0.5";target.inputMode="decimal";
+ target.value=goal.kg??"";target.placeholder="目标kg";
+ target.setAttribute("aria-label",isAssist?"目标辅助量（kg）":"目标工作重量（kg）");
+ const reps=document.createElement("input");reps.type="number";reps.min="1";
+ reps.max="15";reps.step="1";reps.value=String(goal.reps||8);
+ reps.setAttribute("aria-label","目标次数");
+ if(isAssist)reps.hidden=true;
+ const save=document.createElement("button");save.type="button";
+ save.className="mini";save.textContent="保存目标";
+ const cancel=document.createElement("button");cancel.type="button";
+ cancel.className="mini secondary";cancel.textContent="取消";
+ const explanation=document.createElement("small");
+ explanation.textContent="个人目标，不是成年人平均值。器械请仅与同一机器比较；目标会保存在本机。";
+ editor.append(target,reps,save,cancel,explanation);
+ const label=isAssist?"辅助量":basis==="per_side"?"每侧":"负重";
+ if(goal.hidden){
+  status.textContent=isAssist?"辅助器械参考已隐藏":"参考虚线已隐藏";
+  edit.hidden=true;
+ }else if(goal.kg){
+  status.textContent=(goal.origin==="generated"?"个人阶段目标":"自设目标")+
+   " "+label+" "+goal.kg+"kg"+(isAssist?"":" × "+goal.reps+"次");
+ }else status.textContent="此动作暂无可靠的成年群体标准 · 可自设目标";
+ edit.onclick=()=>{editor.hidden=false;target.focus();};
+ cancel.onclick=()=>{editor.hidden=true;};
+ toggle.onclick=()=>{
+  strengthGoalStore[goalKey]={...goal,hidden:!goal.hidden};
+  saveStrengthGoals();refreshGoalView();
+ };
+ save.onclick=()=>{
+  const kg=Number(target.value),count=isAssist?8:Number(reps.value);
+  if(!target.value.trim()||!Number.isFinite(kg)||kg<.5||kg>1000||
+     !Number.isInteger(count)||count<1||count>15){
+   toast("请填写有效目标：0.5～1000kg，1～15次",true);return;
+  }
+  strengthGoalStore[goalKey]={kg,reps:count,hidden:false,origin:"manual"};
+  saveStrengthGoals();refreshGoalView();
+ };
+ const matchSlugs={hip_thrust:"hip-thrust",chest_press:"chest-press",
+  smith_bench:"smith-machine-bench-press",barbell_bench:"bench-press",
+  overhead_press:"shoulder-press",leg_extension:"leg-extension",
+  leg_press:"horizontal-leg-press",adductor:"hip-adduction",
+  abductor:"hip-abduction",seated_leg_curl:"seated-leg-curl",
+  prone_leg_curl:"lying-leg-curl",vertical_traction:"lat-pulldown"};
+ if(matchSlugs[ex]){
+  const link=document.createElement("a");
+  link.href="https://strengthlevel.com/strength-standards/"+matchSlugs[ex]+"/kg";
+  link.target="_blank";link.rel="noopener noreferrer";
+  link.textContent="查看外部训练者标准（网页）";
+  link.title="仅链接查询；该站数据不在本 App 内重用，器械型号和人群可能不同";
+  editor.append(link);
+ }
+ benchmark.append(status,edit,toggle,editor);
  const list=group.records.map(({row,index})=>({...row,sequence:index}))
    .filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.session_date||"")&&
      validNum(r.reps)&&safeNum(r.reps)>=0&&
@@ -1155,7 +1300,10 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
  // coordinates, NOT at zero kg and NOT treated as a measured e1RM.
  const tracked=completed.map(v=>isAssist?v.load:(v.estimated??v.load));
  const attempts=failures.map(v=>v.load);
+ const referenceLine=goal.hidden||!goal.kg?null:
+  isAssist?goal.kg:goalEstimate;
  const domain=tracked.concat(attempts);
+ if(referenceLine!==null&&Number.isFinite(referenceLine))domain.push(referenceLine);
  const maximum=Math.max(...domain),minimum=Math.min(...domain);
  const spread=Math.max(1,maximum-minimum,maximum*.05);
  const lo=Math.max(0,minimum-spread*.25),hi=maximum+spread*.25;
@@ -1187,6 +1335,13 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
   return xVal(v.session_date)+(index-(sameDay.length-1)/2)*step;
  };
  const yVal=num=>199-(num-lo)/(hi-lo)*160;
+ if(referenceLine!==null&&Number.isFinite(referenceLine)){
+  const rule=el("line",{x1:31,y1:yVal(referenceLine),x2:378,y2:yVal(referenceLine),
+   stroke:"#e3ded0","stroke-width":1.7,"stroke-dasharray":"7 6",
+   opacity:".8",class:"strength-reference-line",
+   "aria-label":"个人参考目标 "+round1(referenceLine)+" kg"});
+  svg.append(rule);
+ }
  for(let i=0;i<5;i++){
   const y=28+i*42;
   svg.append(el("line",{x1:31,y1:y,x2:378,y2:y,stroke:"#365249","stroke-width":.8}));
@@ -1291,6 +1446,16 @@ function renderStrengthPlot(group,chart,range,disclaimer,region){
  }
  chart.append(svg,detail,recent);
  chart.append(editAction);
+ if(!goal.hidden&&referenceLine!==null&&Number.isFinite(referenceLine)&&completed.length){
+  const strongest=isAssist?Math.min(...tracked):Math.max(...tracked);
+  const delta=isAssist?strongest-referenceLine:referenceLine-strongest;
+  const note=document.createElement("span");note.className="strength-benchmark-progress";
+  if(isAssist)note.textContent=delta>0?
+   " · 还需减少辅助 "+round1(delta)+"kg":" · 已达到辅助量目标";
+  else note.textContent=delta>0?
+   " · 距目标 "+round1(delta)+"kg（估算1RM）":" · 已达到阶段目标";
+  status.append(note);
+ }
  // On each sync, show the newest SAVED set without requiring a dot tap.
  if(pointSelectors.length)pointSelectors[pointSelectors.length-1].select();
  disclaimer.textContent=isAssist?

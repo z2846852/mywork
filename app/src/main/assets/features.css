@@ -397,6 +397,22 @@
 .strength-exercise-range{font-size:11px;color:#a9ddc1;margin-top:9px}
 .strength-exercise-card .feature-chart{margin-top:2px;min-height:140px}
 .strength-exercise-card .feature-chart svg{max-height:245px}
+.strength-benchmark{display:flex;align-items:center;flex-wrap:wrap;gap:5px;
+ margin:6px 0 2px;font-size:10px;color:#c8dacb}
+.strength-benchmark-status{flex:1 1 145px;min-width:0}
+.strength-benchmark .mini{font-size:10px;min-height:27px;padding:4px 6px}
+.strength-benchmark-progress{color:#b8d9c5}
+.strength-benchmark-editor[hidden]{display:none!important}
+.strength-benchmark-editor{display:flex;flex-wrap:wrap;gap:5px;align-items:center;
+ flex:1 0 100%;padding:7px;background:#20312d;border:1px solid #415d4f;
+ border-radius:8px}
+.strength-benchmark-editor input{width:80px;min-width:0;min-height:32px;
+ padding:5px 7px;background:#142922;border:1px solid #517262;
+ color:#e0f5e8;border-radius:6px;font-size:12px}
+.strength-benchmark-editor input[hidden]{display:none!important}
+.strength-benchmark-editor small{flex:1 0 100%;font-size:9px;color:#a4bfb0}
+.strength-benchmark-editor a{font-size:10px;color:#8abfff}
+.strength-reference-line{pointer-events:none}
 .strength-exercise-note{font-size:10px;line-height:1.65;margin-top:2px}
 .body-schematic-panel{
  margin:16px 0 10px;padding:12px 10px 10px;border-radius:15px;
