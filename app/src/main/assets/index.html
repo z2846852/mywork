@@ -210,6 +210,8 @@ body.overview-muscle-open{overflow:hidden}
 .e1rm-fields input[type=number]{font-size:15px;font-weight:700;padding:7px 9px;margin-top:4px;height:36px}
 .e1rm-fields input[type=range]{margin-top:7px;padding:0;height:24px;border:0;accent-color:var(--green);background:transparent}
 .e1rm-fields input:disabled{opacity:.4}
+.e1rm-range-guide{display:flex;justify-content:space-between;gap:6px;
+ font-size:9px;color:#8fae9d;line-height:1.25;font-variant-numeric:tabular-nums}
 .e1rm-hint{margin:5px 0 0;color:#96b8a8;font-size:10px;line-height:1.45}
 .e1rm-hint.warn{color:#edb98c}
 .e1rm-config{margin-top:9px;padding:10px;border-radius:10px;border:1px solid #476052;background:#192e29}
@@ -338,11 +340,13 @@ body.overview-muscle-open{overflow:hidden}
    <div class="e1rm-fields">
     <label>理论器械重量 · kg
      <input type="number" id="e1rmTrialKg" inputmode="decimal" min="0" max="500" step="0.1" aria-label="理论器械重量（千克）">
-     <input type="range" id="e1rmTrialKgSlider" min="0" max="500" step="0.5" aria-label="拖动理论器械重量">
+     <input type="range" id="e1rmTrialKgSlider" min="0" max="1" step="0.1" aria-label="在当前1至20次理论重量区间内拖动">
+     <span class="e1rm-range-guide" id="e1rmKgRange">按当前 e1RM 自动计算 1–20RM 范围</span>
     </label>
     <label>预计能做 · 次（不是组）
      <input type="number" id="e1rmTrialReps" inputmode="decimal" min="0" max="200" step="0.1" aria-label="预计可做次数">
-     <input type="range" id="e1rmTrialRepsSlider" min="1" max="100" step="1" aria-label="拖动预计次数">
+     <input type="range" id="e1rmTrialRepsSlider" min="1" max="20" step="1" aria-label="拖动预计次数，1至20次">
+     <span class="e1rm-range-guide"><span>1 次</span><span>20 次</span></span>
     </label>
    </div>
    <p class="e1rm-hint" id="e1rmHint" role="status">试算不会修改上方待保存的重量和次数。</p>
@@ -2397,6 +2401,25 @@ $("workoutEditDelete").onclick=()=>{
  $("workoutEditFeedback").textContent="正在本地保存删除事件…";
 };
 
+// e1RM slider limits are calculated from 1RM and 20RM. These are just the
+// convenient slider bounds; manual inputs may explore outside that range.
+function e1rmTrialLoad(e1rm,reps,cfg,assisted){
+ if(!Number.isFinite(e1rm)||e1rm<=0||!Number.isFinite(reps)||reps<1||
+    !cfg||!Number.isFinite(cfg.coeff)||cfg.coeff<=0||
+    !Number.isFinite(cfg.gain)||cfg.gain<=0||!Number.isFinite(cfg.offset))
+  return null;
+ const effective=e1rm/(1+reps/cfg.coeff);
+ return assisted?cfg.offset-effective/cfg.gain:(effective-cfg.offset)/cfg.gain;
+}
+function e1rmTrialRange(e1rm,cfg,assisted){
+ const at1=e1rmTrialLoad(e1rm,1,cfg,assisted);
+ const at20=e1rmTrialLoad(e1rm,20,cfg,assisted);
+ if(!Number.isFinite(at1)||!Number.isFinite(at20))return null;
+ const min=Math.max(0,Math.min(at1,at20));
+ const max=Math.min(500,Math.max(at1,at20));
+ if(max<=min)return null;
+ return {min:Math.floor(min*10)/10,max:Math.ceil(max*10)/10,at1,at20};
+}
 // Local-only per-exercise calibrated Epley projection. The two trial fields
 // are sandbox inputs: they cannot alter the saved workout form on drag.
 (function initialiseRecordE1rm(){
@@ -2419,6 +2442,7 @@ $("workoutEditDelete").onclick=()=>{
  const node={
   output:$p("e1rmValue"),formula:$p("e1rmFormula"),hint:$p("e1rmHint"),
   kg:$p("e1rmTrialKg"),kgSlider:$p("e1rmTrialKgSlider"),
+  kgRange:$p("e1rmKgRange"),
   reps:$p("e1rmTrialReps"),repsSlider:$p("e1rmTrialRepsSlider"),
   info:$p("e1rmInfo"),config:$p("e1rmConfig"),
   coeff:$p("e1rmCoeff"),gain:$p("e1rmGain"),offset:$p("e1rmOffset"),
@@ -2445,9 +2469,6 @@ $("workoutEditDelete").onclick=()=>{
   if(!Number.isFinite(load)||load<0||!config||!Number.isFinite(config.offset))return null;
   return assisted?(config.offset-load)*config.gain:load*config.gain+config.offset;
  }
- function fromEffective(e,config,assisted){
-  return assisted?config.offset-e/config.gain:(e-config.offset)/config.gain;
- }
  function showHint(message,warning=false){
   node.hint.textContent=message;
   node.hint.classList.toggle("warn",warning);
@@ -2467,6 +2488,8 @@ $("workoutEditDelete").onclick=()=>{
  function clear(reason){
   current=null;node.output.textContent="—";
   node.formula.textContent=reason;
+  node.kgRange.textContent="填写有效记录后计算 1–20RM 范围";
+  node.kgSlider.min="0";node.kgSlider.max="1";node.repsSlider.max="20";
   for(const item of [node.kg,node.kgSlider,node.reps,node.repsSlider]){
    item.disabled=true;
    if(item===node.kg||item===node.reps)item.value="";
@@ -2481,13 +2504,33 @@ $("workoutEditDelete").onclick=()=>{
  function syncRange(slider,input,value){
   const lo=Number(slider.min),hi=Number(slider.max);
   slider.value=String(bound(value,lo,hi));
+  // Never overwrite manual values outside the slider's everyday range.
   input.value=String(round(value));
+ }
+ function updateKgSliderRange(){
+  if(!current)return;
+  const limits=e1rmTrialRange(current.e1rm,current.cfg,current.assisted);
+  if(!limits){
+   node.kgSlider.min="0";node.kgSlider.max="1";
+   node.kgSlider.disabled=true;
+   node.kgRange.textContent="当前校准参数无法得到可用的1–20RM重量区间";
+   return;
+  }
+  node.kgSlider.min=String(limits.min);
+  node.kgSlider.max=String(limits.max);
+  node.kgSlider.step="0.1";
+  node.kgSlider.disabled=false;
+  // Assistance has the reverse relationship: heavier effort = less assistance.
+  const left=current.assisted?"1RM":"20RM";
+  const right=current.assisted?"20RM":"1RM";
+  node.kgRange.textContent=left+" "+format(limits.min)+" kg · "+
+   right+" "+format(limits.max)+" kg";
  }
  function setRepsFromKg(){
   if(!current)return;
   const m=num(node.kg.value);
   if(m===null||m<0||m>500){showHint("重量应在 0–500 kg 之间。",true);return}
-  node.kgSlider.value=String(bound(m,0,500));
+  node.kgSlider.value=String(bound(m,Number(node.kgSlider.min),Number(node.kgSlider.max)));
   const effort=effective(m,current.cfg,current.assisted);
   if(effort===null||effort<=0){
    node.reps.value="";node.repsSlider.value="15";
@@ -2499,9 +2542,10 @@ $("workoutEditDelete").onclick=()=>{
   const reps=current.cfg.coeff*(raw-1);
   if(!Number.isFinite(reps)){node.reps.value="";showHint("预测超出可计算范围。",true);return}
   node.reps.value=String(round(bound(reps,0,200)));
-  node.repsSlider.value=String(bound(Math.round(reps),1,100));
+  node.repsSlider.value=String(bound(Math.round(reps),1,20));
   if(reps<1)showHint("当前重量高于理论可完成1次的重量（估计不足1次）；不是失败尝试的记录。",true);
-  else if(reps>15)showHint("数学外推约 "+format(reps)+" 次；超过15次误差可能很大，不能当作实际能力。",true);
+  else if(reps>20)showHint("理论约 "+format(reps)+" 次；已超出滑块1–20次，数字框可以继续试算，但不建议当作实际能力。",true);
+  else if(reps>15)showHint("数学外推约 "+format(reps)+" 次；16–20次误差可能较大。",true);
   else showHint("预计约 "+format(reps)+" 次（假设接近力竭）。试算不会改动训练记录。");
  }
  function setKgFromReps(){
@@ -2511,9 +2555,8 @@ $("workoutEditDelete").onclick=()=>{
    showHint("可试算 1–200 次；超过15次仅数学外推，不能可靠预测。",true);
    return;
   }
-  node.repsSlider.value=String(bound(Math.round(reps),1,100));
-  const force=current.e1rm/(1+reps/current.cfg.coeff);
-  const weight=fromEffective(force,current.cfg,current.assisted);
+  node.repsSlider.value=String(bound(Math.round(reps),1,20));
+  const weight=e1rmTrialLoad(current.e1rm,reps,current.cfg,current.assisted);
   if(!Number.isFinite(weight)||weight<0||weight>500){
    node.kg.value="";
    showHint("推算标称重量超出 0–500 kg，请检查本动作校准参数。",true);
@@ -2521,7 +2564,8 @@ $("workoutEditDelete").onclick=()=>{
   }
   syncRange(node.kgSlider,node.kg,weight);
   showHint("按约 "+format(reps)+" 次，理论标称重量 "+format(weight)+" kg。"+
-   (reps>15?"超过15次只是数学外推，误差可能很大。":"试算不修改记录。"),reps>15);
+   (reps>20?"已超出滑块范围，仅数字框显示。":
+    reps>15?"16–20次仅数学外推，误差可能较大。":"试算不修改记录。"),reps>15);
  }
  function refresh(reset=true){
   const id=$p("recordExercise").value;
@@ -2549,11 +2593,13 @@ $("workoutEditDelete").onclick=()=>{
   node.output.textContent=format(e1rm)+" kg";
   node.formula.textContent=formulaText(load,reps,cfg,assisted);
   for(const item of [node.kg,node.kgSlider,node.reps,node.repsSlider])item.disabled=false;
+  updateKgSliderRange();
+  node.repsSlider.max="20";
   if(reset||!editing){
    node.kg.value=String(load);
-   node.kgSlider.value=String(load);
+   node.kgSlider.value=String(bound(load,Number(node.kgSlider.min),Number(node.kgSlider.max)));
    node.reps.value=String(reps);
-   node.repsSlider.value=String(reps);
+   node.repsSlider.value=String(bound(reps,1,20));
    showHint("固定当前 e1RM，拖动任一滑块反算另一项；只作为近力竭理论估算。");
   }else setRepsFromKg();
  }

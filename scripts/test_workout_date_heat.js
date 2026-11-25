@@ -207,4 +207,30 @@ assert.ok(html.includes('native.saveE1rmCalibration(json)'));
 assert.ok(nativeSource.includes('"none".equals(origin)'),"Empty-reference hide state must save");
 assert.ok(trends.includes('native.loadStrengthGoals()')&&trends.includes('native.saveStrengthGoals(json)'));
 assert.ok(!trends.includes("trendIndexGrowthFactors"));
-console.log("PASS workout dates, four-region heatmap, trend linkage, benchmark controls");
+// e1RM slider interaction is deliberately limited to 1–20 repetitions.
+const sliderStart=script.indexOf("function e1rmTrialLoad(");
+const sliderEnd=script.indexOf("(function initialiseRecordE1rm(){",sliderStart);
+assert.ok(sliderStart>0&&sliderEnd>sliderStart);
+const sliderFunctions=vm.runInNewContext(script.slice(sliderStart,sliderEnd)+
+ "\n({e1rmTrialLoad,e1rmTrialRange})", {Math,Number});
+const cfg={coeff:30,gain:1,offset:0};
+const estimate=40*(1+10/30);
+const range=sliderFunctions.e1rmTrialRange(estimate,cfg,false);
+assert.ok(range.min>30&&range.max<55,"Dynamic weight slider should not reach 500kg");
+assert.ok(Math.abs(sliderFunctions.e1rmTrialLoad(estimate,10,cfg,false)-40)<1e-9);
+assert.ok(Math.abs(sliderFunctions.e1rmTrialLoad(estimate,1,cfg,false)-range.max)<.11);
+assert.ok(Math.abs(sliderFunctions.e1rmTrialLoad(estimate,20,cfg,false)-range.min)<.11);
+const assisted={coeff:30,gain:1,offset:100};
+const assistedE1rm=(100-65)*(1+10/30);
+const assistedRange=sliderFunctions.e1rmTrialRange(assistedE1rm,assisted,true);
+assert.ok(assistedRange.at1<assistedRange.at20,
+ "Assisted exercises should use the reverse scale (less assistance for 1RM)");
+assert.ok(Math.abs(sliderFunctions.e1rmTrialLoad(assistedE1rm,10,assisted,true)-65)<1e-9);
+assert.ok(assistedRange.min>0&&assistedRange.max<100);
+assert.ok(html.includes('id="e1rmTrialRepsSlider" min="1" max="20"'));
+assert.ok(!html.includes('id="e1rmTrialKgSlider" min="0" max="500"'));
+assert.ok(script.includes('node.kgSlider.min=String(limits.min)'));
+assert.ok(script.includes('node.kgSlider.max=String(limits.max)'));
+assert.ok(script.includes('node.repsSlider.value=String(bound(Math.round(reps),1,20))'));
+assert.ok(script.includes("input.value=String(round(value));"));
+console.log("PASS workout dates, quadrant, trends, dynamic 1–20RM trial sliders");

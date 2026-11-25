@@ -446,6 +446,12 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const e1rmInitial=await page.locator("#e1rmValue").innerText();
   if(!e1rmInitial.includes("kg")||Number.parseFloat(e1rmInitial)<=27.5)
    throw Error("Valid 27.5kg x12 should produce a positive e1RM: "+e1rmInitial);
+  const limits=await page.locator("#e1rmTrialKgSlider").evaluate(el=>({
+   min:Number(el.min),max:Number(el.max)}));
+  if(!(limits.min>0&&limits.max<100&&limits.max>limits.min))
+   throw Error("Weight slider must span only computed 1–20RM loads: "+JSON.stringify(limits));
+  if(await page.locator("#e1rmTrialRepsSlider").getAttribute("max")!=="20")
+   throw Error("Rep slider should end at 20 repetitions");
   await page.locator("#e1rmTrialKg").fill("30");
   await page.locator("#e1rmTrialKg").dispatchEvent("input");
   const inverseReps=Number(await page.locator("#e1rmTrialReps").inputValue());
@@ -456,6 +462,15 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const oneRepKg=Number(await page.locator("#e1rmTrialKg").inputValue());
   if(!(oneRepKg>27.5&&oneRepKg<100))
    throw Error("Predicting one rep should return heavier weight: "+oneRepKg);
+  await page.locator("#e1rmTrialRepsSlider").fill("20");
+  const twentyRepKg=Number(await page.locator("#e1rmTrialKg").inputValue());
+  if(!(twentyRepKg>0&&twentyRepKg<oneRepKg))
+   throw Error("20-rep slider endpoint must map to lighter weight: "+twentyRepKg);
+  await page.locator("#e1rmTrialReps").fill("25");
+  const manualBeyondSlider=Number(await page.locator("#e1rmTrialReps").inputValue());
+  if(manualBeyondSlider!==25||
+     Number(await page.locator("#e1rmTrialRepsSlider").inputValue())!==20)
+   throw Error("Manual reps above 20 must not be clamped by the slider");
   const untouched=await page.evaluate(()=>({
    kg:document.getElementById("recordKg").value,
    reps:document.getElementById("recordReps").value
