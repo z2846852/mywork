@@ -485,7 +485,8 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
    state.selected="2026-04-15";state.calendarBrowsing=true;indexData();
   });
   const historic=await page.$eval("#selectedDate",e=>e.textContent);
-  if(!historic.startsWith("2026-04-15"))
+  // The overview intentionally uses the compact MM/DD date label.
+  if(!historic.startsWith("04/15"))
    throw Error("Sync jump changed historical date: "+historic);
   await page.evaluate(()=>navigate("body"));
   await page.locator("#bodyEntryGrid .body-entry-metric").first().click();
