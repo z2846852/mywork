@@ -1038,21 +1038,22 @@ function focusTrendFromStrengthCard(exerciseId,loadBasis=null){
   return valid?trendData(state.rows,from,end,latestTrendWeight()).series
    .filter(group=>group.id===exerciseId):[];};
  let matches=findMatches();
- if(!matches.length){
-  // The lower card can have older data outside the default 30-day window.
+ if(!matches.some(group=>group.basis===basis)){
+  // Prefer the SAME movement and load basis, including older observations.
   trendSelectedPeriod="all";
   ({from:trendStart,end:trendEnd}=trendInitialDates("all"));
   $("trendStartDate").value=trendStart;
   $("trendEndDate").value=trendEnd;
   matches=findMatches();
  }
- if(!matches.length){
-  toast("该动作目前无法生成可比较的力量曲线，原始训练记录仍可编辑",true);
+ const matching=matches.filter(group=>group.basis===basis);
+ if(!matching.length){
+  toast("该动作或记录方式暂无可比较曲线，原始训练记录仍可编辑",true);
   return false;
  }
- matches.sort((a,b)=>(b.points.at(-1)?.date||"").localeCompare(
+ matching.sort((a,b)=>(b.points.at(-1)?.date||"").localeCompare(
   a.points.at(-1)?.date||"")||b.points.length-a.points.length);
- trendFocusKey=(matches.find(group=>group.basis===basis)||matches[0]).key;
+ trendFocusKey=matching[0].key;
  renderRegionDashboard();
  return true;
 }

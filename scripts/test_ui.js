@@ -1303,14 +1303,15 @@ assert.ok(features.includes('function trendRelativeIndex(value,reference,assiste
 assert.ok(!features.includes('const trendDisplayRegions='));
 assert.ok(!features.includes('const trendRegionLanes='));
 assert.ok(features.includes('const curveValues=all.map(group=>'));
-assert.ok(features.includes('svg.setAttribute("data-axis-mode",trendFocusKey?"focused":"all")'));
-assert.ok(features.includes('const chosenValues=trendFocusKey?'));
+assert.ok(features.includes('svg.setAttribute("data-axis-mode","all")'));
+assert.ok(features.includes('const samples=curveValues.flatMap('));
 assert.ok(features.includes('const trendMarkerStyles='));
 assert.ok(features.includes('const trendDashStyles='));
 assert.ok(features.includes('trendFocusKey=trendFocusKey===key&&!pt?null:key'));
-assert.ok(features.includes('clear.textContent="显示全部曲线"'));
+assert.ok(!features.includes('clear.textContent="显示全部曲线"'));
+assert.ok(features.includes('setFocus(null,null); // Empty plot = show all curves again.'));
 assert.ok(featureStyles.includes('min-width:0!important;height:auto'));
-assert.ok(html.includes('aria-label="胸肩背腿所有动作同一纵轴、同一完整图，点击动作后纵轴放大"'));
+assert.ok(html.includes('点击曲线高亮，点击空白恢复全部'));
 assert.ok(features.includes('const trendColorShades='));
 assert.ok(featureStyles.includes('.combined-trend-legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))'));
 assert.ok(featureStyles.includes('text-overflow:ellipsis;text-align:center'));
@@ -1323,7 +1324,7 @@ assert.ok(features.includes('key.append(sample,svgMarker(group.marker,36,8,group
 assert.ok(features.includes('button.onclick=()=>setFocus(group.key,null);'));
 assert.ok(features.includes('root.append(legend,details);'));
 assert.ok(features.includes('help.className="combined-trend-help"'));
-assert.ok(html.includes('点击曲线或下方动作查看趋势；再次点击恢复全图。'));
+assert.ok(features.includes('if(syncUpper)focusTrendFromStrengthCard(ex,v.load_basis);'));
 assert.ok(!html.includes('aria-label="胸肩背腿四个训练趋势图"'));
 assert.ok(html.includes('id="muscleLegend"'));
 const chartStart=features.indexOf("const dashboardRegions=");

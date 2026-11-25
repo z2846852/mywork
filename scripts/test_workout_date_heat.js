@@ -78,4 +78,62 @@ const chestVsLeg=heat.summarizeHeatDays([
 assert.equal(heat.regionIntensityLevel(chestVsLeg.regions["胸"]),3);
 assert.equal(heat.regionIntensityLevel(chestVsLeg.regions["腿"]),1);
 assert.equal(heat.regionIntensityLevel(chestVsLeg.regions["肩"]),0);
-console.log("PASS Beijing rollover, workout date edits and four-color quadrant shading");
+// Upper-lower linkage: verify selection state and layout remain stable.
+const trends=read("app/src/main/assets/features.js");
+const css=read("app/src/main/assets/features.css");
+const begin=trends.indexOf("function syncFocusedStrengthCard(){");
+const end=trends.indexOf("function renderStrength(){",begin);
+assert.ok(begin>0&&end>begin);
+const linkage=trends.slice(begin,end);
+const cards=["row","assisted_pullup"].map(exerciseId=>({
+ dataset:{exerciseId},selected:false,
+ classList:{toggle(name,active){if(name==="selected-trend-exercise")this.selected=active;}}
+}));
+const list={querySelectorAll:()=>cards,append(){throw Error("Card must not be moved")}};
+const dateFields={trendStartDate:{value:""},trendEndDate:{value:""}};
+const selectedKeys=[];
+const groups=[
+ {key:"row|machine",id:"row",basis:"machine",points:[{date:"2026-11-24"}]},
+ {key:"row|per_side",id:"row",basis:"per_side",points:[{date:"2026-11-23"}]},
+ {key:"assisted_pullup|assisted",id:"assisted_pullup",basis:"assisted",
+  points:[{date:"2026-11-25"}]}
+];
+let linkageApi;
+const context={
+ $:id=>id==="strengthList"?list:dateFields[id],
+ state:{rows:[]},latestTrendWeight:()=>70,
+ trendRange:()=>({from:"2026-11-01",end:"2026-11-25",valid:true}),
+ trendData:()=>({series:groups}),
+ trendInitialDates:()=>({from:"2025-01-01",end:"2026-11-25"}),
+ renderRegionDashboard:()=>selectedKeys.push(linkageApi.selected()),
+ toast:message=>{throw Error("Unexpected toast: "+message)}
+};
+linkageApi=vm.runInNewContext(
+ "let trendFocusKey=null,trendSelectedPeriod='30',trendStart='',trendEnd='';\n"+
+ linkage+"\n({syncFocusedStrengthCard,focusTrendFromStrengthCard,selected:()=>trendFocusKey})",
+ context);
+assert.equal(linkageApi.focusTrendFromStrengthCard("row","per_side"),true);
+assert.equal(linkageApi.selected(),"row|per_side");
+linkageApi.syncFocusedStrengthCard();
+assert.equal(cards[0].classList.selected,true);
+assert.equal(cards[1].classList.selected,false);
+assert.equal(linkageApi.focusTrendFromStrengthCard("assisted_pullup"),true);
+linkageApi.syncFocusedStrengthCard();
+assert.equal(cards[0].classList.selected,false);
+assert.equal(cards[1].classList.selected,true);
+assert.equal(cards[0].dataset.trendSelected,"false");
+assert.equal(cards[1].dataset.trendSelected,"true");
+assert.deepEqual(selectedKeys,["row|per_side","assisted_pullup|assisted"]);
+assert.ok(!linkage.includes("slot.append")&&!linkage.includes("list.append"));
+assert.ok(trends.includes('svg.setAttribute("data-axis-mode","all")'));
+assert.ok(trends.includes('const samples=curveValues.flatMap('));
+assert.ok(!trends.includes("const chosenValues=trendFocusKey?"));
+assert.ok(trends.includes("setFocus(null,null); // Empty plot = show all curves again."));
+assert.ok(!trends.includes('clear.textContent="显示全部曲线"'));
+assert.ok(trends.includes("if(syncUpper)focusTrendFromStrengthCard(ex,v.load_basis);"));
+assert.ok(trends.includes("heading.addEventListener(\"keydown\""));
+assert.ok(trends.includes("button.onclick=()=>entry.select(true);"));
+assert.ok(html.includes('class="trend-dashboard-header"'));
+assert.ok(!html.includes('id="trendFocusedDetail"'));
+assert.ok(css.includes(".strength-exercise-card.selected-trend-exercise"));
+console.log("PASS Beijing rollover, workout date edits, four-color quadrant and trend linkage");
