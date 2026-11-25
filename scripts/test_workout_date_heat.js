@@ -20,18 +20,12 @@ const heatCtx = {
     ({chest_press:"胸",lateral_raise:"肩",row:"背",leg_extension:"腿"})[row.exercise_id] || "其他"
 };
 const heat = vm.runInNewContext(heatPart +
-  "\n({summarizeHeatDays,heatIntensityThresholds,heatIntensityLevel})",heatCtx);
-const inputs = [1,8,10,10,10,11,13,13,19,24,24];
-const history = new Map(inputs.map((n,i) => [i, {total:n}]));
-const tiers = heat.heatIntensityThresholds(history);
-assert.equal(tiers.normal,15);
-assert.equal(tiers.peak,30);
-assert.equal(heat.heatIntensityLevel(0,tiers),0);
-assert.equal(heat.heatIntensityLevel(10,tiers),2);
-assert.equal(heat.heatIntensityLevel(13,tiers),2);
-assert.equal(heat.heatIntensityLevel(19,tiers),3);
-assert.equal(heat.heatIntensityLevel(24,tiers),3);
-assert.equal(heat.heatIntensityLevel(30,tiers),4);
+  "\n({summarizeHeatDays,regionIntensityLevel})",heatCtx);
+for(const [sets,expected] of [
+ [0,0],[1,1],[2,2],[3,2],[4,3],[5,3],[6,4],[24,4]
+])assert.equal(heat.regionIntensityLevel(sets),expected,
+ "Separate quadrant depth should reflect that region's completed set count");
+assert.ok(script.includes('quadrant.dataset.intensity=String(regionIntensityLevel(sets))'));
 const actual = heat.summarizeHeatDays([
  {session_date:"2026-11-25",exercise_id:"chest_press",reps:"12"},
  {session_date:"2026-11-25",exercise_id:"row",reps:"0"},
@@ -73,6 +67,15 @@ assert.ok(projection.includes('item.put("source_date",date)'));
 assert.ok(projection.includes('item.put("session_date", effectiveDate)'));
 assert.ok(projection.includes('counts.put(effectiveDate,'));
 assert.ok(github.includes('"action", "session_date", "load_key"'));
-assert.ok(html.includes('--region-mix:48%') && html.includes('--region-mix:65%'));
-assert.ok(html.includes('--heat-bg:#355b44'));
-console.log("PASS Beijing rollover, workout date edits and softened heatmap");
+assert.ok(html.includes('--quadrant-strength:30%') &&
+ html.includes('--quadrant-strength:100%'));
+assert.ok(!html.includes('#page-home #heat .cell[data-level'),
+ "Daily total must no longer color the entire cell green");
+const chestVsLeg=heat.summarizeHeatDays([
+ ...Array.from({length:5},()=>({session_date:"2026-11-25",exercise_id:"chest_press",reps:"10"})),
+ {session_date:"2026-11-25",exercise_id:"leg_extension",reps:"10"}
+]).get("2026-11-25");
+assert.equal(heat.regionIntensityLevel(chestVsLeg.regions["胸"]),3);
+assert.equal(heat.regionIntensityLevel(chestVsLeg.regions["腿"]),1);
+assert.equal(heat.regionIntensityLevel(chestVsLeg.regions["肩"]),0);
+console.log("PASS Beijing rollover, workout date edits and four-color quadrant shading");

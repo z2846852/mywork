@@ -29,10 +29,10 @@ h2{margin:0;font-size:17px}h3{margin:0 0 12px;font-size:15px}
 #heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,18px);grid-auto-columns:18px;gap:5px;width:max-content}
 .cell{position:relative;display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:1px;width:18px;height:18px;border:1px solid #354342;background:#253034;padding:1px;border-radius:3px}
 .cell-quadrant{min-width:0;min-height:0;background:#253034;border-radius:1px}
-.cell-quadrant.active[data-region="胸"]{background:var(--region-chest)}
-.cell-quadrant.active[data-region="肩"]{background:var(--region-shoulder)}
-.cell-quadrant.active[data-region="背"]{background:var(--region-back)}
-.cell-quadrant.active[data-region="腿"]{background:var(--region-leg)}
+.cell-quadrant.active[data-region="胸"]{--region-color:var(--region-chest)}
+.cell-quadrant.active[data-region="肩"]{--region-color:var(--region-shoulder)}
+.cell-quadrant.active[data-region="背"]{--region-color:var(--region-back)}
+.cell-quadrant.active[data-region="腿"]{--region-color:var(--region-leg)}
 .cell[data-other="true"]::after{content:"";position:absolute;right:-2px;bottom:-2px;width:3px;height:3px;border-radius:50%;background:#bac6ca}
 .cell.active{outline:2px solid #fff;outline-offset:2px}.cell.dim{opacity:.35}
 .legend{display:flex;align-items:center;justify-content:end;flex-wrap:wrap;gap:9px;margin-top:13px;font-size:10px;color:var(--muted)}
@@ -154,20 +154,15 @@ body.overview-muscle-open{overflow:hidden}
 #page-home #heat{grid-template-rows:repeat(7,17px);grid-auto-columns:17px;gap:3px}
 #page-home #heat .cell{width:17px;height:17px;border-radius:3px}
 #page-home #heat .cell-quadrant{border-radius:1px}
-#page-home #heat .cell{--heat-bg:#253034;--heat-border:#354342;--region-mix:0%;
- background:var(--heat-bg);border-color:var(--heat-border)}
-#page-home #heat .cell[data-level="1"]{--heat-bg:#1c302a;--heat-border:#304a3d;--region-mix:35%}
-#page-home #heat .cell[data-level="2"]{--heat-bg:#263e35;--heat-border:#3b5c47;--region-mix:48%}
-#page-home #heat .cell[data-level="3"]{--heat-bg:#355b44;--heat-border:#4b7554;--region-mix:65%}
-#page-home #heat .cell[data-level="4"]{--heat-bg:#4e9265;--heat-border:#75bb84;--region-mix:85%}
-#page-home #heat .cell-quadrant.active[data-region="胸"]{--region-color:var(--region-chest)}
-#page-home #heat .cell-quadrant.active[data-region="肩"]{--region-color:var(--region-shoulder)}
-#page-home #heat .cell-quadrant.active[data-region="背"]{--region-color:var(--region-back)}
-#page-home #heat .cell-quadrant.active[data-region="腿"]{--region-color:var(--region-leg)}
-#page-home #heat .cell .cell-quadrant.active{
- background:color-mix(in srgb,var(--region-color) var(--region-mix),var(--heat-bg))}
-#page-home #heat .cell[data-level]:not([data-level="0"]) .cell-quadrant:not(.active){
- background:color-mix(in srgb,var(--heat-bg) 68%,#172d29)}
+/* Each day is four independent region-volume pixels: no total-volume green. */
+#page-home #heat .cell{background:#1c282c;border-color:#344149}
+#page-home #heat .cell-quadrant{background:#283338}
+#page-home #heat .cell-quadrant.active{
+ background:color-mix(in srgb,var(--region-color) var(--quadrant-strength),#394449)}
+#page-home #heat .cell-quadrant[data-intensity="1"]{--quadrant-strength:30%}
+#page-home #heat .cell-quadrant[data-intensity="2"]{--quadrant-strength:51%}
+#page-home #heat .cell-quadrant[data-intensity="3"]{--quadrant-strength:76%}
+#page-home #heat .cell-quadrant[data-intensity="4"]{--quadrant-strength:100%}
 
 #page-home .legend{justify-content:flex-start;margin-top:8px;gap:3px 7px}
 #page-home .legend .region-filter{min-height:26px;padding:2px 6px;font-size:11px}
@@ -219,7 +214,7 @@ body.overview-muscle-open{overflow:hidden}
 <div class="panel" id="heatPanel">
 <div class="overview-calendar-top">
  <div class="overview-calendar-title"><h2>训练日历</h2><span class="overview-calendar-range">近52周</span>
- <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四分格分别表示胸、肩、背、腿；亮起表示当天有训练。绿色底色按当前筛选下的历史每日完成组数相对分级：常规训练日保持暗绿，只有明显超出日常、至少30组才会最亮。它只是组数，不是实际用力程度、肌肉疲劳或重量负荷。横向滑动回顾全年，点击日期只刷新下方详情，不会自动跳走；下方颜色可筛选部位。</p></details></div>
+ <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四宫格按左上胸（珊瑚红）、右上肩（金黄）、左下背（蓝）、右下腿（紫）分别着色。每格仅按该部位当天完成组数加深：1 组浅、2–3 组中浅、4–5 组较深、6 组及以上最深；没练显示灰色。失败尝试不计入组数，其他肌群以角标提示。这不代表肌肉疲劳或真实训练负荷。点击日期仅刷新下方详情，不自动跳走；下方颜色可筛选部位。</p></details></div>
  <select class="select" id="filter" aria-label="筛选日历动作"><option value="">全部训练</option></select>
 </div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
@@ -1501,30 +1496,17 @@ function summarizeHeatDays(rows){
  }
  return byDay;
 }
-// Completed sets are a volume proxy; they cannot establish true exertion.
-// Compare with the user's own days under the active exercise/region filter.
-function heatIntensityThresholds(byDay){
- const totals=[...byDay.values()].map(x=>x.total).filter(n=>n>0).sort((a,b)=>a-b);
- if(!totals.length)return {quiet:1,normal:2,peak:16};
- const median=totals[Math.floor((totals.length-1)/2)];
- const p90=totals[Math.ceil(totals.length*0.9)-1];
- return {
-  quiet:Math.max(1,Math.floor(median/2)),
-  normal:Math.max(12,Math.ceil(median*1.35)),
-  // Ordinary gym sessions should remain mid-level even with 12–15 sets.
-  // Green is based only on completed-set volume, not physiological workload.
-  peak:Math.max(30,Math.ceil(median*2.5),p90+2)
- };
-}
-function heatIntensityLevel(total,thresholds){
- if(total<=0)return 0;
- if(total<=thresholds.quiet)return 1;
- if(total<=thresholds.normal)return 2;
- return total<thresholds.peak?3:4;
+// Independent per-region saturation; the maximum is not based on total sets.
+// A single leg set must remain pale even on a high-volume chest day.
+function regionIntensityLevel(sets){
+ if(sets<=0)return 0;
+ if(sets===1)return 1;
+ if(sets<=3)return 2;
+ if(sets<=5)return 3;
+ return 4;
 }
 function renderHeat(focusLatest=false){
  const byDay=summarizeHeatDays(filtered());
- const intensity=heatIntensityThresholds(byDay);
  const monthTrack=$("months");
  monthTrack.style.width=(52*20)+"px";
  const dateEnd=today>state.selected?today:state.selected;
@@ -1542,19 +1524,19 @@ function renderHeat(focusLatest=false){
    const day=plus(first,d),counts=byDay.get(day)||{total:0,other:0,regions:{胸:0,肩:0,背:0,腿:0}};
    const cell=document.createElement("button");
    cell.type="button";cell.className="cell"+(state.selected===day?" active":"")+(day>today?" dim":"");
-   cell.dataset.level=String(heatIntensityLevel(counts.total,intensity));
    if(counts.other)cell.dataset.other="true";
    if(counts.failures)cell.dataset.failed="true";
    const detail=majorRegions.map(region=>region+counts.regions[region]+"组").join(" / ")+
     (counts.other?" / 其他"+counts.other+"组":"")+
     (counts.failures?" / 失败尝试"+counts.failures+"次":"");
-   const intensityLabel=["无训练","少量组数","常规组数","较多组数","异常高组数"][Number(cell.dataset.level)];
-   cell.title=day+" · "+counts.total+"组 · "+intensityLabel+"（"+detail+"）";
+   cell.title=day+" · "+counts.total+"组（"+detail+"）；四格颜色越深，所对应部位当天组数越多";
    cell.setAttribute("aria-label",cell.title);
    for(const region of majorRegions){
     const quadrant=document.createElement("span");
-    quadrant.className="cell-quadrant"+(counts.regions[region]?" active":"");
+    const sets=counts.regions[region];
+    quadrant.className="cell-quadrant"+(sets?" active":"");
     quadrant.dataset.region=region;
+    quadrant.dataset.intensity=String(regionIntensityLevel(sets));
     quadrant.setAttribute("aria-hidden","true");
     cell.append(quadrant);
    }
