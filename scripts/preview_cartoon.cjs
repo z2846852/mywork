@@ -385,6 +385,12 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   const first=await page.locator("#recordExercise option").first().evaluate(e=>({id:e.value,label:e.textContent}));
   if(first.id!=="adductor"||!first.label.startsWith("【腿】"))
    throw Error("Recent-first labeled dropdown failed: "+JSON.stringify(first));
+  // Sorting and exercise management live inside the collapsed "更多设置".
+  const advanced=page.locator("#recordAdvancedTools");
+  if(!(await advanced.evaluate(el=>el.open)))
+   await advanced.locator("> summary").click();
+  if(!(await page.locator("#recordSortMode").isVisible()))
+   throw Error("Expanded advanced settings should expose the exercise sorting control");
   await page.selectOption("#recordSortMode","region");
   const regionFirst=await page.$eval("#recordExercise",x=>x.options[0]?.value);
   if(regionFirst!=="chest_press")throw Error("Region ordering should start from chest: "+regionFirst);
@@ -435,6 +441,27 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   await page.click("#recordReps");
   await page.fill("#wheelValue","12");
   await page.click("#wheelDone");
+  // Newly added e1RM calculator: valid input, independent trial sliders and
+  // inverse calculation must not change the workout that is about to be saved.
+  const e1rmInitial=await page.locator("#e1rmValue").innerText();
+  if(!e1rmInitial.includes("kg")||Number.parseFloat(e1rmInitial)<=27.5)
+   throw Error("Valid 27.5kg x12 should produce a positive e1RM: "+e1rmInitial);
+  await page.locator("#e1rmTrialKg").fill("30");
+  await page.locator("#e1rmTrialKg").dispatchEvent("input");
+  const inverseReps=Number(await page.locator("#e1rmTrialReps").inputValue());
+  if(!(inverseReps>0&&inverseReps<12))
+   throw Error("Increasing trial kg should reduce predicted reps: "+inverseReps);
+  await page.locator("#e1rmTrialReps").fill("1");
+  await page.locator("#e1rmTrialReps").dispatchEvent("input");
+  const oneRepKg=Number(await page.locator("#e1rmTrialKg").inputValue());
+  if(!(oneRepKg>27.5&&oneRepKg<100))
+   throw Error("Predicting one rep should return heavier weight: "+oneRepKg);
+  const untouched=await page.evaluate(()=>({
+   kg:document.getElementById("recordKg").value,
+   reps:document.getElementById("recordReps").value
+  }));
+  if(untouched.kg!=="27.5"||untouched.reps!=="12")
+   throw Error("e1RM trial fields unexpectedly modified the workout draft: "+JSON.stringify(untouched));
   await page.evaluate(()=>{
    window.BodyTraceExerciseCatalog.refresh(state.rows);
    window.bodyTraceReceive({type:"exercise_catalog",

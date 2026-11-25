@@ -1852,6 +1852,45 @@ public final class MainActivity extends Activity {
             if(!written)error("页面偏好保存失败");
         }
 
+        /** The record-page e1RM predictor calibrates each exercise independently.
+         * DOM Storage is disabled, so persist to native SharedPreferences. */
+        @JavascriptInterface public String loadE1rmCalibration(){
+            return getSharedPreferences("bodytrace_e1rm_calibration",MODE_PRIVATE)
+                .getString("v1","{}");
+        }
+
+        @JavascriptInterface public boolean saveE1rmCalibration(String raw){
+            try{
+                if(raw==null||raw.length()>64000)
+                    throw new IllegalArgumentException("e1RM 校准内容过大");
+                JSONObject source=new JSONObject(raw);
+                if(source.length()>250)
+                    throw new IllegalArgumentException("校准动作数量超限");
+                JSONObject clean=new JSONObject();
+                java.util.Iterator<String> keys=source.keys();
+                while(keys.hasNext()){
+                    String id=keys.next();
+                    if(!id.matches("[a-z][a-z0-9_]{1,63}"))
+                        throw new IllegalArgumentException("无效的校准动作编号");
+                    JSONObject item=source.optJSONObject(id);
+                    if(item==null)throw new IllegalArgumentException("校准参数格式错误");
+                    double coeff=item.optDouble("coeff",Double.NaN);
+                    double gain=item.optDouble("gain",Double.NaN);
+                    double offset=item.optDouble("offset",Double.NaN);
+                    if(!Double.isFinite(coeff)||coeff<15||coeff>60||
+                       !Double.isFinite(gain)||gain<0.05||gain>5||
+                       !Double.isFinite(offset)||offset< -200||offset>500)
+                        throw new IllegalArgumentException("校准参数超出有效范围");
+                    clean.put(id,new JSONObject()
+                        .put("coeff",coeff).put("gain",gain).put("offset",offset));
+                }
+                return getSharedPreferences("bodytrace_e1rm_calibration",MODE_PRIVATE)
+                    .edit().putString("v1",clean.toString()).commit();
+            }catch(Exception e){
+                error("保存 e1RM 校准失败："+safeMessage(e));return false;
+            }
+        }
+
         /** Reference goals are local training preferences, not uploaded workout
          * entries. DOM storage is deliberately disabled in this WebView. */
         @JavascriptInterface public String loadStrengthGoals(){
