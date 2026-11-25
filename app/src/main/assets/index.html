@@ -154,14 +154,20 @@ body.overview-muscle-open{overflow:hidden}
 #page-home #heat{grid-template-rows:repeat(7,17px);grid-auto-columns:17px;gap:3px}
 #page-home #heat .cell{width:17px;height:17px;border-radius:3px}
 #page-home #heat .cell-quadrant{border-radius:1px}
-#page-home #heat .cell{--heat-bg:#253034;--heat-border:#354342;
+#page-home #heat .cell{--heat-bg:#253034;--heat-border:#354342;--region-mix:0%;
  background:var(--heat-bg);border-color:var(--heat-border)}
-#page-home #heat .cell[data-level="1"]{--heat-bg:#203a33;--heat-border:#355448}
-#page-home #heat .cell[data-level="2"]{--heat-bg:#28573e;--heat-border:#467152}
-#page-home #heat .cell[data-level="3"]{--heat-bg:#3f8455;--heat-border:#5c9c69}
-#page-home #heat .cell[data-level="4"]{--heat-bg:#7bd18a;--heat-border:#a0e5aa}
+#page-home #heat .cell[data-level="1"]{--heat-bg:#1c302a;--heat-border:#304a3d;--region-mix:35%}
+#page-home #heat .cell[data-level="2"]{--heat-bg:#263e35;--heat-border:#3b5c47;--region-mix:48%}
+#page-home #heat .cell[data-level="3"]{--heat-bg:#355b44;--heat-border:#4b7554;--region-mix:65%}
+#page-home #heat .cell[data-level="4"]{--heat-bg:#4e9265;--heat-border:#75bb84;--region-mix:85%}
+#page-home #heat .cell-quadrant.active[data-region="胸"]{--region-color:var(--region-chest)}
+#page-home #heat .cell-quadrant.active[data-region="肩"]{--region-color:var(--region-shoulder)}
+#page-home #heat .cell-quadrant.active[data-region="背"]{--region-color:var(--region-back)}
+#page-home #heat .cell-quadrant.active[data-region="腿"]{--region-color:var(--region-leg)}
+#page-home #heat .cell .cell-quadrant.active{
+ background:color-mix(in srgb,var(--region-color) var(--region-mix),var(--heat-bg))}
 #page-home #heat .cell[data-level]:not([data-level="0"]) .cell-quadrant:not(.active){
- background:color-mix(in srgb,var(--heat-bg) 72%,#172d29)}
+ background:color-mix(in srgb,var(--heat-bg) 68%,#172d29)}
 
 #page-home .legend{justify-content:flex-start;margin-top:8px;gap:3px 7px}
 #page-home .legend .region-filter{min-height:26px;padding:2px 6px;font-size:11px}
@@ -213,7 +219,7 @@ body.overview-muscle-open{overflow:hidden}
 <div class="panel" id="heatPanel">
 <div class="overview-calendar-top">
  <div class="overview-calendar-title"><h2>训练日历</h2><span class="overview-calendar-range">近52周</span>
- <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四分格分别表示胸、肩、背、腿；亮起表示当天有训练。绿色底色按当前筛选下的历史每日完成组数相对分级，只有明显超出个人日常水平且至少16组的日期才可能达到最亮；它不是实际用力程度、肌肉疲劳或重量负荷。横向滑动回顾全年，点击日期只刷新下方详情，不会自动跳走；下方颜色可筛选部位。</p></details></div>
+ <details class="overview-calendar-help"><summary aria-label="查看日历说明">ⓘ</summary><p>每天四分格分别表示胸、肩、背、腿；亮起表示当天有训练。绿色底色按当前筛选下的历史每日完成组数相对分级：常规训练日保持暗绿，只有明显超出日常、至少30组才会最亮。它只是组数，不是实际用力程度、肌肉疲劳或重量负荷。横向滑动回顾全年，点击日期只刷新下方详情，不会自动跳走；下方颜色可筛选部位。</p></details></div>
  <select class="select" id="filter" aria-label="筛选日历动作"><option value="">全部训练</option></select>
 </div>
 <div class="scroll" id="heatScroll"><div id="months" class="months"></div><div id="heat" aria-label="训练日期热力图"></div></div>
@@ -1504,9 +1510,10 @@ function heatIntensityThresholds(byDay){
  const p90=totals[Math.ceil(totals.length*0.9)-1];
  return {
   quiet:Math.max(1,Math.floor(median/2)),
-  normal:median,
-  // Bright green is exceptional, not the default for an ordinary workout.
-  peak:Math.max(16,Math.ceil(median*1.5),p90+1)
+  normal:Math.max(12,Math.ceil(median*1.35)),
+  // Ordinary gym sessions should remain mid-level even with 12–15 sets.
+  // Green is based only on completed-set volume, not physiological workload.
+  peak:Math.max(30,Math.ceil(median*2.5),p90+2)
  };
 }
 function heatIntensityLevel(total,thresholds){
@@ -1541,7 +1548,7 @@ function renderHeat(focusLatest=false){
    const detail=majorRegions.map(region=>region+counts.regions[region]+"组").join(" / ")+
     (counts.other?" / 其他"+counts.other+"组":"")+
     (counts.failures?" / 失败尝试"+counts.failures+"次":"");
-   const intensityLabel=["无训练","少量","日常范围","较多","明显高于日常"][Number(cell.dataset.level)];
+   const intensityLabel=["无训练","少量组数","常规组数","较多组数","异常高组数"][Number(cell.dataset.level)];
    cell.title=day+" · "+counts.total+"组 · "+intensityLabel+"（"+detail+"）";
    cell.setAttribute("aria-label",cell.title);
    for(const region of majorRegions){

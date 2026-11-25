@@ -72,7 +72,7 @@ assert.equal(dateFields.foodDate.value,"2026-11-24",
 assert.equal(dateScope.state.selected,"2026-11-25");
 assert.ok(html.includes('id="bodyWeightUnit"'));
 assert.ok(html.includes('id="heatScroll"'));
-assert.ok(html.includes('state.selected=ds.at(-1)||today;renderHeat(true)'));
+assert.match(script,/state\.selected=ds\.at\(-1\)\|\|today;\s*renderHeat\(true\)/);
 const scrollHelper = script.slice(script.indexOf("function focusCalendarLatest()"),
   script.indexOf("function weight(r)"));
 const scroll={scrollWidth:1200,clientWidth:300,scrollLeft:0};
@@ -86,14 +86,14 @@ const native=fs.readFileSync(path.join(root,
   "app/src/main/java/com/z2846852/bodytrace/MainActivity.java"),"utf8");
 const workoutEdits=fs.readFileSync(path.join(root,
   "app/src/main/java/com/z2846852/bodytrace/WorkoutEdits.java"),"utf8");
-const projector=fs.readFileSync(path.join(root,
+const dateProjector=fs.readFileSync(path.join(root,
   "app/src/main/java/com/z2846852/bodytrace/ViewProjector.java"),"utf8");
 const githubApi=fs.readFileSync(path.join(root,
   "app/src/main/java/com/z2846852/bodytrace/GitHubApi.java"),"utf8");
 assert.ok(native.includes('event.put("session_date",sessionDate)')&&
   workoutEdits.includes('revised.put("session_date",sessionDate)')&&
-  projector.includes('item.put("session_date", effectiveDate)')&&
-  projector.includes('counts.put(effectiveDate,')&&
+  dateProjector.includes('item.put("session_date", effectiveDate)')&&
+  dateProjector.includes('counts.put(effectiveDate,')&&
   githubApi.includes('"action", "session_date", "load_key"'),
   "Workout date corrections must survive offline projection and GitHub upload");
 const bodyCss=fs.readFileSync(path.join(root,"app/src/main/assets/features.css"),"utf8");
@@ -693,6 +693,22 @@ assert.equal(quad.get("2026-11-20").other,1);
 assert.equal(quad.get("2026-11-18").regions["背"],1,
  "Explicit per-record region metadata must be preserved");
 assert.ok(!quad.has("bad-date"));
+const heatThresholds=vm.runInNewContext(script.slice(heatStart,heatEnd)+
+ "\nheatIntensityThresholds", {});
+const heatLevel=vm.runInNewContext(script.slice(heatStart,heatEnd)+
+ "\nheatIntensityLevel", {});
+const recentDays=[1,8,10,10,10,11,13,13,19,24,24];
+const completedDays=new Map(recentDays.map((sets,index)=>[index,{total:sets}]));
+const thresholds=heatThresholds(completedDays);
+assert.equal(thresholds.normal,15,
+ "13 sets should be routine on the current workout history");
+assert.equal(thresholds.peak,30,
+ "24 sets should not qualify as exceptional training volume");
+assert.equal(heatLevel(13,thresholds),2);
+assert.equal(heatLevel(24,thresholds),3);
+assert.equal(heatLevel(30,thresholds),4);
+assert.ok(html.includes('--region-mix:48%')&&html.includes('--region-mix:65%'),
+ "Routine-volume heat squares must render substantially darker than maximum");
 const regionStart=script.indexOf("function primaryRegionForRow(");
 const regionEnd=script.indexOf("const exerciseLabels=",regionStart);
 const primaryRegion=vm.runInNewContext(
