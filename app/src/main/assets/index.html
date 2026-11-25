@@ -2496,7 +2496,7 @@ $("workoutEditDelete").onclick=()=>{
   const reps=current.cfg.coeff*(raw-1);
   if(!Number.isFinite(reps)){node.reps.value="";showHint("预测超出可计算范围。",true);return}
   node.reps.value=String(round(bound(reps,0,200)));
-  node.repsSlider.value=String(bound(Math.round(reps),1,15));
+  node.repsSlider.value=String(bound(Math.round(reps),1,100));
   if(reps<1)showHint("当前重量高于理论可完成1次的重量（估计不足1次）；不是失败尝试的记录。",true);
   else if(reps>15)showHint("数学外推约 "+format(reps)+" 次；超过15次误差可能很大，不能当作实际能力。",true);
   else showHint("预计约 "+format(reps)+" 次（假设接近力竭）。试算不会改动训练记录。");
@@ -2508,7 +2508,7 @@ $("workoutEditDelete").onclick=()=>{
    showHint("可试算 1–200 次；超过15次仅数学外推，不能可靠预测。",true);
    return;
   }
-  node.repsSlider.value=String(bound(Math.round(reps),1,15));
+  node.repsSlider.value=String(bound(Math.round(reps),1,100));
   const force=current.e1rm/(1+reps/current.cfg.coeff);
   const weight=fromEffective(force,current.cfg,current.assisted);
   if(!Number.isFinite(weight)||weight<0||weight>500){
