@@ -537,10 +537,10 @@ html=html.replace("</body>","<script>"+read("wheel.js")+"\n"+read("features.js")
   });
   if((await page.evaluate(()=>window.__apkVersionChecks))!==0)
    throw Error("Settings must not automatically query GitHub version metadata");
-  if(await page.locator("#apkUpdatePanel .apk-update-actions button").count()!==2)
-   throw Error("Settings needs separate small Check and Update buttons");
-  if(!(await page.locator("#checkApkUpdate").isDisabled()))
-   throw Error("Update must be disabled until explicit Check succeeds");
+  if(await page.locator("#apkUpdatePanel .apk-update-actions button").count()!==3)
+   throw Error("Settings must show Check, Update and Import patch buttons");
+  if(await page.locator("#checkApkUpdate").isDisabled())
+   throw Error("Check-and-update must stay available without a prior version check");
   await page.locator("#checkApkVersion").click();
   if((await page.evaluate(()=>window.__apkVersionChecks))!==1)
    throw Error("Explicit Check must request version metadata once");
