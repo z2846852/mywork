@@ -198,6 +198,7 @@ body.overview-muscle-open{overflow:hidden}
 /* Independent e1RM projection; never writes training inputs without an explicit action. */
 .e1rm-tool{margin:10px 0 4px;padding:10px 11px;border:1px solid #34584e;
  background:#132724;border-radius:12px}
+.e1rm-tool[hidden]{display:none!important}
 .e1rm-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .e1rm-head strong{font-size:13px;color:#c8ffe1}
 .e1rm-head output{font-size:17px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums}
@@ -302,7 +303,14 @@ body.overview-muscle-open{overflow:hidden}
 <section class="page" id="page-record">
  <div class="panel record-panel">
   <div class="record-top-heading">
-   <div><h2>训练记录</h2><p class="sub">一组一记 · 离线保存</p></div>
+   <div class="record-title-block">
+    <div class="record-title-date">
+     <h2>训练记录</h2>
+     <input id="recordDate" type="date" aria-label="训练日期（北京时间）" title="训练日期 · 北京时间，可点击修改">
+     <span id="recordDateStatus" class="record-date-status" hidden>非今天</span>
+    </div>
+    <p class="sub">一组一记 · 离线保存</p>
+   </div>
    <span id="recordRegionBadge" class="record-region-badge">全部动作</span>
   </div>
   <div class="formgrid exercise-top-row record-exercise-pick">
@@ -328,10 +336,14 @@ body.overview-muscle-open{overflow:hidden}
   <div class="formgrid record-number-row">
    <div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label>
     <div class="wheel-entry"><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="点此用滚轮选择" readonly aria-label="选择器械重量"><button type="button" id="wheelKgOpen" class="wheel-open" aria-label="打开重量滚轮">▥</button></div></div>
-   <div class="field"><label for="recordReps">每组次数（0 = 未完成）</label>
+   <div class="field">
+    <div class="record-reps-heading">
+     <label for="recordReps">每组次数（0 = 未完成）</label>
+     <button type="button" id="e1rmToolToggle" class="e1rm-help record-e1rm-toggle" aria-label="展开 e1RM 预测与校准" aria-controls="e1rmTool" aria-expanded="false" title="e1RM 预测与校准">!</button>
+    </div>
     <div class="wheel-entry"><input id="recordReps" type="number" min="0" max="200" step="1" inputmode="numeric" value="10" readonly aria-label="选择次数"><button type="button" id="wheelRepsOpen" class="wheel-open" aria-label="打开次数滚轮">▥</button></div></div>
   </div>
-  <section class="e1rm-tool" id="e1rmTool" aria-label="估算最大力量与重量次数试算">
+  <section class="e1rm-tool" id="e1rmTool" aria-label="估算最大力量与重量次数试算" hidden>
    <div class="e1rm-head">
     <strong>当前 e1RM</strong><output id="e1rmValue">—</output>
     <button type="button" class="e1rm-help" id="e1rmInfo" title="校准当前动作公式" aria-label="查看公式并校准当前动作" aria-expanded="false">!</button>
@@ -395,8 +407,7 @@ body.overview-muscle-open{overflow:hidden}
    <button class="secondary" id="saveRecordOnly">只保存</button>
   </div>
   <details class="record-advanced-tools" id="recordAdvancedTools">
-   <summary>更多设置 <small>日期 · 批量组数 · 动作管理 · 备注</small></summary>
-   <div class="field"><label for="recordDate">训练日期（北京时间）</label><input id="recordDate" type="date"></div>
+   <summary>更多设置 <small>批量组数 · 动作管理 · 备注</small></summary>
    <div class="row wrap exercise-actions-row" aria-label="动作列表增删操作">
     <button type="button" class="secondary mini exercise-quick-add" id="quickAddExercise">＋ 新增动作</button>
     <button type="button" class="secondary mini exercise-quick-remove" id="manageExercises">－ 删除 / 恢复动作</button>
@@ -1252,12 +1263,28 @@ function parse(s){return new Date(s+"T12:00:00Z")}
 function plus(s,n){let d=parse(s);d.setUTCDate(d.getUTCDate()+n);return iso(d)}
 function todayShanghai(){return new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit",timeZone:"Asia/Shanghai"}).format(new Date())}
 let today=todayShanghai();$("recordDate").value=today;state.selected=today;
-// Date inputs default to the current Beijing day, but explicit historical
-// selections are never rewritten when the calendar day rolls over.
+// The always-visible record date signals historical entry.
+function updateRecordDateFlag(){
+ const field=$("recordDate");
+ if(!field)return;
+ const historical=!!field.value&&field.value!==today;
+ $("recordDateStatus").hidden=!historical;
+ field.classList.toggle("record-date-historical",historical);
+ field.title=historical?"非今天：正在记录 "+field.value+"（北京时间）":
+  "今天 "+today+"（北京时间）；点击修改训练日期";
+}
+updateRecordDateFlag();
+// Manual historical dates survive midnight; returning to today reenables
+// automatic Beijing-date rollover on the next day.
 const dateInputsAutoReset=["recordDate","intakeDate","foodDate","bodyEntryDate"];
 const dateManuallyChosen=new Set();
-for(const id of dateInputsAutoReset)
- $(id)?.addEventListener("input",()=>dateManuallyChosen.add(id));
+for(const id of dateInputsAutoReset){
+ $(id)?.addEventListener("input",()=>{
+  if(id==="recordDate"&&$(id).value===today)dateManuallyChosen.delete(id);
+  else dateManuallyChosen.add(id);
+  if(id==="recordDate")updateRecordDateFlag();
+ });
+}
 function refreshToday(){
  const current=todayShanghai();
  if(current===today)return false;
@@ -1268,6 +1295,7 @@ function refreshToday(){
   if(field&&!dateManuallyChosen.has(id)&&field.value===previous)
    field.value=current;
  }
+ updateRecordDateFlag();
  if(!state.calendarBrowsing&&state.selected===previous)state.selected=current;
  renderHeat();renderDay();
  window.BodyTraceRenderFeatures?.();
@@ -2423,6 +2451,16 @@ function e1rmTrialRange(e1rm,cfg,assisted){
 // Local-only per-exercise calibrated Epley projection. The two trial fields
 // are sandbox inputs: they cannot alter the saved workout form on drag.
 (function initialiseRecordE1rm(){
+ const tool=document.getElementById("e1rmTool");
+ const toggle=document.getElementById("e1rmToolToggle");
+ const setToolOpen=open=>{
+  tool.hidden=!open;
+  toggle.setAttribute("aria-expanded",String(open));
+  toggle.setAttribute("aria-label",(open?"收起":"展开")+" e1RM 预测与校准");
+  toggle.classList.toggle("active",open);
+ };
+ setToolOpen(false);
+ toggle.addEventListener("click",()=>setToolOpen(tool.hidden));
  const key="bodytrace.e1rmCalibration.v1";
  const $p=id=>document.getElementById(id);
  const isAssist=id=>id==="assisted_pullup"||id==="assisted_dip";

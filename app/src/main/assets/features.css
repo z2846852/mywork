@@ -1921,10 +1921,24 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 /* Training-first record workbench: one viewport for set tracking and rest. */
 #page-record{padding-bottom:148px}
 #page-record .record-panel{padding:13px 12px 24px}
-#page-record .record-top-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}
-#page-record .record-top-heading h2{font-size:18px;line-height:1.25;margin:0}
+#page-record .record-top-heading{display:flex;justify-content:space-between;align-items:center;gap:5px}
+#page-record .record-title-block{min-width:0;flex:1 1 auto}
+#page-record .record-title-date{display:flex;align-items:center;gap:5px;min-width:0}
+#page-record .record-top-heading h2{font-size:18px;line-height:1.25;margin:0;white-space:nowrap}
+#page-record .record-title-date #recordDate{width:132px;max-width:100%;min-width:0;
+ flex:0 1 132px;padding:4px 5px;min-height:29px;border:1px solid #3d6754;
+ border-radius:7px;font-size:11px;font-variant-numeric:tabular-nums;color:#d3f7de;
+ background:#203b31;color-scheme:dark;cursor:pointer}
+#page-record .record-title-date #recordDate.record-date-historical{
+ border-color:#dda362;background:#483725;color:#ffd7a8}
+#page-record .record-date-status[hidden]{display:none!important}
+#page-record .record-date-status{flex:0 0 auto;font-size:9px;color:#ffd096}
 #page-record .record-top-heading p{font-size:10px;margin:4px 0 0}
 #page-record .record-region-badge{margin:0;flex-shrink:0}
+#page-record .record-reps-heading{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:21px}
+#page-record .record-reps-heading label{min-width:0;font-size:11px;white-space:nowrap}
+#page-record .record-e1rm-toggle{flex:0 0 23px;width:23px;height:23px;margin:0;font-size:13px}
+#page-record .record-e1rm-toggle.active{color:#142a20;background:#79d3a3;border-color:#79d3a3}
 #page-record .record-exercise-pick{margin-top:8px;gap:8px}
 #page-record .record-exercise-pick .field{margin-top:0}
 #page-record .record-exercise-pick select{min-height:43px;padding:9px 7px}
@@ -1984,7 +1998,9 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 #page-record .record-save-dock #saveRecordOnly{width:82px;flex:0 0 82px;
  font-size:12px;min-height:45px;padding:7px 5px}
 @media(max-width:380px){
- #page-record .record-top-heading h2{font-size:17px}
+ #page-record .record-top-heading h2{font-size:16px}
+ #page-record .record-title-date #recordDate{width:119px;flex-basis:119px;font-size:10px}
+ #page-record .record-date-status{font-size:8px}
  #page-record .record-rest-clock{font-size:35px}
  #page-record .record-rest-top small{max-width:110px}
  #page-record .record-number-row .field label{font-size:10px}
