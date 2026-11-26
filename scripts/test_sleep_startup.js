@@ -43,4 +43,26 @@ assert.ok(manifest.includes('android:launchMode="singleTask"'),
  "Launcher and package installer should not fork multiple tasks");
 assert.ok(html.includes('id="startupDiagnostic"')&&
  html.includes('case "startup_diagnostic"'),"Crash details should be locally viewable");
+const recorder=read("app/src/main/java/com/z2846852/bodytrace/SleepRecorderService.java");
+const tones=read("app/src/main/java/com/z2846852/bodytrace/SnoreFeedbackController.java");
+assert.ok(html.includes('id="sleepMicCanvas"')&&html.includes('id="sleepSpeakerCanvas"'),
+ "Feedback UI must have independent input and output waveforms");
+assert.ok(html.includes('id="sleepMicStart"')&&html.includes('id="sleepFeedbackEnabled"'),
+ "Mic testing and automatic output feedback need independent controls");
+assert.ok(sleep.includes('sleep_feedback_mic')&&sleep.includes('sleep_feedback_output'),
+ "Live input and output streams must be separately handled");
+assert.ok(recorder.includes('ACTION_MONITOR_ON')&&recorder.includes('ACTION_MONITOR_OFF'),
+ "Mic-only test lifecycle must exist");
+assert.ok(recorder.includes('if(writer==null&&recordRequested)writer=beginRecording()'),
+ "Mic-only capture must be upgradable to M4A without a second mic");
+assert.ok(recorder.includes('if(writer!=null)writer.write(pcm,count)'),
+ "Mic-only mode must not create encoded audio");
+assert.ok(recorder.includes('sendMicrophoneWave(pcm,count)'),
+ "Mic waveform must come from actual PCM audio");
+assert.ok(tones.includes('interface CueListener')&&
+ main.includes('SleepRecorderService.speakerWave('),
+ "Speaker waveform must come from synthesized cue samples in native code");
+assert.ok(main.includes('sleepMicMonitorStart')&&main.includes('sleepMicMonitorStop'),
+ "WebView needs native mic-only controls");
+console.log("SleepFeedbackTest passed: decoupled mic/recording and input/output graph contracts");
 console.log("SleepStartupTest passed: old records, no popup, local crash diagnostics");
