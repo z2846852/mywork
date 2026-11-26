@@ -2132,3 +2132,21 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
  .sleep-io-readouts{font-size:9px}
  .sleep-feedback-toggle{padding:10px 9px}
 }
+
+/* One-tap historical repeatable maximum; preserve the compact two-column editor. */
+#page-record .record-weight-heading{display:flex;align-items:center;
+ justify-content:space-between;gap:5px;min-height:21px}
+#page-record .record-weight-heading label{flex:1;min-width:0;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#page-record .record-max-button{flex:0 0 25px;display:grid;place-items:center;
+ width:25px;height:23px;min-height:23px;margin:0;padding:0;
+ border:1px solid #70cda1;border-radius:7px;
+ background:#284a39;color:#b6ffd1;font-size:12px;font-weight:900;
+ font-variant-numeric:tabular-nums;line-height:1;cursor:pointer}
+#page-record .record-max-button:active:not(:disabled){background:#4a9667;
+ color:#0f2019;transform:translateY(1px)}
+#page-record .record-max-button:disabled{opacity:.35;cursor:default}
+/* e1RM is intentionally always present directly above More Settings. */
+#page-record .e1rm-tool{margin-top:12px;margin-bottom:3px}
+#page-record .e1rm-tool>.e1rm-head{gap:8px}
+#page-record .record-advanced-tools{margin-top:9px}
