@@ -254,4 +254,46 @@ assert.ok(script.includes('node.kgSlider.min=String(limits.min)'));
 assert.ok(script.includes('node.kgSlider.max=String(limits.max)'));
 assert.ok(script.includes('node.repsSlider.value=String(bound(Math.round(reps),1,20))'));
 assert.ok(script.includes("input.value=String(round(value));"));
+assert.ok(script.includes('node.kgSlider.addEventListener("input"')&&
+ script.includes('node.repsSlider.addEventListener("input"')&&
+ script.includes("setRepsFromKg();applyTrialToRecord();")&&
+ script.includes("setKgFromReps();applyTrialToRecord();"),
+ "Both e1RM sliders and direct inputs must write into the record draft");
+const handoffStart=script.indexOf("function applyTrialToRecord(){");
+const handoffEnd=script.indexOf("function refresh(reset=true){",handoffStart);
+assert.ok(handoffStart>0&&handoffEnd>handoffStart);
+const formFields={
+ recordKg:{value:"30"},recordReps:{value:"15"},suggestedLoad:{textContent:""}
+};
+let notice="";
+const handoffContext={
+ current:{e1rm:60},
+ node:{kg:{value:"45.26"},reps:{value:"8.4"}},
+ num:value=>value!==""&&value!=null&&Number.isFinite(Number(value))?Number(value):null,
+ round:value=>Number(value.toFixed(1)),
+ $p:id=>formFields[id],$:id=>formFields[id],
+ showHint:message=>{notice=message;},
+ weightEditedByUser:false,repsEditedByUser:false,trainingFormDirty:false
+};
+const handoff=vm.runInNewContext(script.slice(handoffStart,handoffEnd)+
+ "\n({applyTrialToRecord,flags:()=>({weightEditedByUser,repsEditedByUser,trainingFormDirty})})",
+ handoffContext);
+assert.equal(handoff.applyTrialToRecord(),true);
+assert.equal(formFields.recordKg.value,"45.3");
+assert.equal(formFields.recordReps.value,"8");
+assert.ok(notice.includes("上方"));
+assert.deepEqual(JSON.parse(JSON.stringify(handoff.flags())),{
+ weightEditedByUser:true,repsEditedByUser:true,trainingFormDirty:true
+});
+handoffContext.node.kg.value="31.2";handoffContext.node.reps.value="17.7";
+assert.equal(handoff.applyTrialToRecord(),true);
+assert.equal(formFields.recordKg.value,"31.2");
+assert.equal(formFields.recordReps.value,"18");
+handoffContext.node.kg.value="500.2";
+assert.equal(handoff.applyTrialToRecord(),false);
+assert.equal(formFields.recordKg.value,"31.2",
+ "Invalid estimates must not overwrite the last valid record draft");
+assert.ok(!script.slice(handoffStart,handoffEnd).includes("dispatchEvent"),
+ "Live-updated record fields must not re-anchor the slider during drag");
+
 console.log("PASS workout dates, quadrant, trends, dynamic 1–20RM trial sliders");
