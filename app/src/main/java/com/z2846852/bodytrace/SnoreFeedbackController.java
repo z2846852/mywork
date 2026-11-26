@@ -70,9 +70,16 @@ final class SnoreFeedbackController {
 
 
 
+    interface CueListener {
+        void onStart(short[] samples,int sampleRate,int durationMs,boolean vibrate);
+    }
     static boolean playCue(Context context,Settings s) {
+        return playCue(context,s,null);
+    }
+    static boolean playCue(Context context,Settings s,CueListener listener) {
         if(!SOUND_PLAYING.compareAndSet(false,true))return false;
         AudioTrack track=null;
+        short[] samples=new short[0];
         try{
             int rate=22050;
             int duration="double".equals(s.sound)?470:
@@ -80,7 +87,7 @@ final class SnoreFeedbackController {
                 "low".equals(s.sound)?330:270;
             if(!s.vibrate) {
                 int length=duration*rate/1000;
-                short[] samples=new short[length];
+                samples=new short[length];
                 double gain=0.24*s.volume/100.0;
                 for(int i=0;i<length;i++){
                     double ms=i*1000.0/rate;
@@ -117,6 +124,7 @@ final class SnoreFeedbackController {
                 if(written!=samples.length)
                     throw new IllegalStateException("声音缓冲区写入失败");
             }
+            if(listener!=null)listener.onStart(samples,rate,duration,s.vibrate);
             if(track!=null)track.play();
             if(s.vibrate){
                 Vibrator vibrator=(Vibrator)context.getSystemService(Context.VIBRATOR_SERVICE);
