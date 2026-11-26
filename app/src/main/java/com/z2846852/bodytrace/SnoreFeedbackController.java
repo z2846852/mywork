@@ -124,14 +124,15 @@ final class SnoreFeedbackController {
                 if(written!=samples.length)
                     throw new IllegalStateException("声音缓冲区写入失败");
             }
-            if(listener!=null)listener.onStart(samples,rate,duration,s.vibrate);
             if(track!=null)track.play();
             if(s.vibrate){
                 Vibrator vibrator=(Vibrator)context.getSystemService(Context.VIBRATOR_SERVICE);
-                if(vibrator!=null&&vibrator.hasVibrator())
-                    vibrator.vibrate(VibrationEffect.createOneShot(100,
-                        VibrationEffect.DEFAULT_AMPLITUDE));
+                if(vibrator==null||!vibrator.hasVibrator())
+                    throw new IllegalStateException("设备没有可用震动马达");
+                vibrator.vibrate(VibrationEffect.createOneShot(100,
+                    VibrationEffect.DEFAULT_AMPLITUDE));
             }
+            if(listener!=null)listener.onStart(samples,rate,duration,s.vibrate);
             if(track!=null)Thread.sleep(duration+60L);
             else Thread.sleep(170L);
             return true;
