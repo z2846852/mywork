@@ -909,10 +909,14 @@
  updateThreshold();
  render();
 
- // Separate controls; one microphone recording stream is shared by AAC and live YAMNet.
+ // The input and output graphs are independent: PCM monitoring works without cues,
+ // and synthesized cue previews work without microphone permission.
  (function initSnoreFeedback(){
   const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold",
    "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate"];
+  let micActive=false,recordActive=false,feedbackActive=false;
+  const micHistory=Array(240).fill(0);
+  let outputWave=[],outputStarted=0,outputDuration=300,animation=0;
   const cfg=()=>({
    sound:$("sleepFeedbackSound").value,
    volume:Number($("sleepFeedbackVolume").value),
@@ -921,103 +925,185 @@
    repeat:Number($("sleepFeedbackRepeat").value),
    vibrate:$("sleepFeedbackVibrate").checked
   });
-  function values(){
+  function labels(){
    $("sleepFeedbackVolumeText").textContent=cfg().volume+"%";
    $("sleepFeedbackThresholdText").textContent=cfg().threshold.toFixed(2);
    $("sleepFeedbackMinimumText").textContent=cfg().minimum+" 秒";
    $("sleepFeedbackRepeatText").textContent=cfg().repeat+" 秒";
   }
-  function switchPage(which){
-   const live=which==="feedback";
+  function save(){
+   if(!bridge()?.sleepFeedbackSave){
+    $("sleepFeedbackInfo").textContent="需完整安装支持实时声音控制台的新版 APK";
+    return false;
+   }
+   if(bridge().sleepFeedbackSave(JSON.stringify(cfg()))!==true){
+    $("sleepFeedbackInfo").textContent="保存设置失败";return false;
+   }
+   return true;
+  }
+  function graph(id,values,color,progress=1,autoScale=false){
+   if($("sleepFeedbackPanel").hidden)return;
+   const canvas=$(id);
+   if(!canvas||typeof canvas.getContext!=="function")return;
+   const ctx=canvas.getContext("2d");if(!ctx)return;
+   const w=canvas.width,h=canvas.height,mid=h/2;
+   ctx.fillStyle="#0b171b";ctx.fillRect(0,0,w,h);
+   ctx.strokeStyle="#264147";ctx.lineWidth=1;
+   for(const y of [h*.2,mid,h*.8]){
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+   }
+   for(let x=w/8;x<w;x+=w/8){
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+   }
+   const gain=autoScale?Math.max(.005,...values):1;
+   const dx=w/Math.max(1,values.length);
+   ctx.lineWidth=Math.max(1.4,Math.min(3,dx*.68));
+   for(let i=0;i<values.length;i++){
+    const v=Math.max(0,Math.min(1,(Number(values[i])||0)/gain));
+    const amp=Math.max(.6,v*(mid-13));
+    const x=(i+.5)*dx;
+    ctx.strokeStyle=color;
+    ctx.globalAlpha=(i/values.length<=progress)?(.38+v*.55):.12;
+    ctx.beginPath();ctx.moveTo(x,mid-amp);ctx.lineTo(x,mid+amp);ctx.stroke();
+   }
+   ctx.globalAlpha=1;
+   if(progress>0&&progress<1){
+    ctx.strokeStyle="#ffffff";ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(w*progress,4);ctx.lineTo(w*progress,h-4);ctx.stroke();
+   }
+  }
+  function micGraph(){graph("sleepMicCanvas",micHistory,"#71dfb0");}
+  function speakerGraph(progress=1){
+   graph("sleepSpeakerCanvas",outputWave,"#f2c27e",progress,true);
+  }
+  function animateOutput(){
+   cancelAnimationFrame(animation);
+   function frame(){
+    const p=Math.min(1,(performance.now()-outputStarted)/outputDuration);
+    speakerGraph(p);
+    if(p<1)animation=requestAnimationFrame(frame);
+   }
+   animation=requestAnimationFrame(frame);
+  }
+  function switchPage(page){
+   const live=page==="feedback";
    $("sleepBrowserPanel").hidden=live;
    $("sleepFeedbackPanel").hidden=!live;
    for(const [id,pressed] of [["sleepFeedbackTab",live],["sleepBrowserTab",!live]]){
     $(id).classList.toggle("active",pressed);
     $(id).setAttribute("aria-pressed",String(pressed));
    }
-   if(live)bridge()?.sleepFeedbackStatus?.();
+   if(live){micGraph();speakerGraph();bridge()?.sleepFeedbackStatus?.();}
   }
-  function save(){
-   if(!bridge()?.sleepFeedbackSave)return false;
-   const ok=bridge().sleepFeedbackSave(JSON.stringify(cfg()))===true;
-   if(!ok)$("sleepFeedbackInfo").textContent="保存失败，请查看应用错误提示";
-   return ok;
+  function status(evt){
+   const oldMic=micActive;
+   micActive=!!evt.microphone_active;
+   recordActive=!!evt.recording;
+   feedbackActive=!!evt.active;
+   $("sleepMicBadge").textContent=recordActive?"● 录音共享中":
+    micActive?"● 监听测试中":"未连接";
+   $("sleepMicBadge").classList.toggle("active",micActive);
+   $("sleepMicStart").disabled=micActive;
+   $("sleepMicStop").disabled=!micActive||recordActive;
+   $("sleepMicMode").textContent=recordActive?
+    "正在共享整晚录音的麦克风，无需重复开启。停止录音请返回录音分析页。":
+    micActive?"仅监听测试：未保存音频，可以单独开关反馈。":
+    "可单独开启测试监听；若已在录音，麦克风将自动显示波形。";
+   $("sleepSpeakerBadge").textContent=feedbackActive?"● 自动反馈中":"自动反馈关闭";
+   $("sleepSpeakerBadge").classList.toggle("active",feedbackActive);
+   $("sleepFeedbackEnabled").checked=feedbackActive;
+   $("sleepFeedbackCount").textContent=String(evt.cues||0);
+   $("sleepFeedbackScore").textContent=micActive?
+    Number(evt.last_score||0).toFixed(2):"—";
+   if(!micActive&&oldMic){
+    micHistory.fill(0);$("sleepMicDbfs").textContent="—";micGraph();
+   }
+   if(evt.settings&&typeof evt.settings==="object"&&
+       !ids.includes(document.activeElement?.id)){
+    for(const k of ["sound","volume","threshold","minimum","repeat"]){
+     const id="sleepFeedback"+k[0].toUpperCase()+k.slice(1);
+     if(evt.settings[k]!==undefined)$(id).value=String(evt.settings[k]);
+    }
+    $("sleepFeedbackVibrate").checked=!!evt.settings.vibrate;
+    labels();
+   }
+   if(recordActive!==recording)bridge()?.sleepStatus?.();
   }
-  for(const id of ids){
-   $(id).addEventListener("input",values);
+  ids.forEach(id=>{
+   $(id).addEventListener("input",labels);
    $(id).addEventListener("change",save);
-  }
+  });
   $("sleepBrowserTab").onclick=()=>switchPage("browser");
   $("sleepFeedbackTab").onclick=()=>switchPage("feedback");
+  $("sleepMicStart").onclick=()=>{
+   if(!bridge()?.sleepMicMonitorStart){
+    $("sleepMicMode").textContent="请安装含实时麦克风监测的新版 APK";return;
+   }
+   $("sleepMicMode").textContent="正在开启测试监听…";
+   bridge().sleepMicMonitorStart();
+  };
+  $("sleepMicStop").onclick=()=>{
+   $("sleepMicMode").textContent="正在停止测试监听…";
+   bridge()?.sleepMicMonitorStop?.();
+  };
+  $("sleepFeedbackEnabled").onchange=()=>{
+   if(!save()){
+    $("sleepFeedbackEnabled").checked=feedbackActive;return;
+   }
+   if($("sleepFeedbackEnabled").checked){
+    $("sleepFeedbackInfo").textContent="正在开启鼾声反馈…";
+    bridge()?.sleepFeedbackStart?.(JSON.stringify(cfg()));
+   }else{
+    $("sleepFeedbackInfo").textContent="反馈关闭；录音和麦克风将继续。";
+    bridge()?.sleepFeedbackStop?.();
+   }
+  };
   $("sleepFeedbackPreview").onclick=()=>{
    if(!bridge()?.sleepFeedbackPreview){
-    $("sleepFeedbackInfo").textContent="需要完整安装支持实时反馈的新版 APK";return;
+    $("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;
    }
-   $("sleepFeedbackInfo").textContent="正在试听，声音使用手机媒体音量…";
-   bridge().sleepFeedbackPreview(JSON.stringify(cfg()));
+   $("sleepFeedbackInfo").textContent="正在测试提示音，下面的波形会同步变化…";
+   bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),vibrate:false}));
   };
   $("sleepFeedbackVibratePreview").onclick=()=>{
    if(!bridge()?.sleepFeedbackPreview){
-    $("sleepFeedbackInfo").textContent="需要新版 APK 才能测试震动";return;
+    $("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;
    }
-   $("sleepFeedbackInfo").textContent="正在测试一次短震动…";
+   $("sleepFeedbackInfo").textContent="正在测试震动（喇叭保持静音）…";
    bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),vibrate:true}));
   };
-  $("sleepFeedbackStart").onclick=()=>{
-   if(!bridge()?.sleepFeedbackStart){
-    $("sleepFeedbackInfo").textContent="需要完整安装新版 APK";return;
-   }
-   if(!save())return;
-   $("sleepFeedbackInfo").textContent="正在开启实时监听…";
-   bridge().sleepFeedbackStart(JSON.stringify(cfg()));
-  };
-  $("sleepFeedbackStop").onclick=()=>{
-   $("sleepFeedbackInfo").textContent="正在关闭反馈（录音会继续）…";
-   bridge()?.sleepFeedbackStop?.();
-  };
-  $("sleepFeedbackStopRecording").onclick=()=>{
-   $("sleepFeedbackInfo").textContent="正在结束整晚录音并保存 M4A…";
-   bridge()?.sleepStop?.();
-  };
-  const old=window.bodyTraceReceive;
+  const previous=window.bodyTraceReceive;
   window.bodyTraceReceive=function(evt){
-   if(typeof old==="function")old(evt);
-   if(!evt||!evt.type)return;
+   if(typeof previous==="function")previous(evt);
+   if(!evt?.type)return;
    if(evt.type==="sleep_feedback_status"){
-    const active=!!evt.active;
-    $("sleepFeedbackBadge").textContent=active?"● 监听中":"未启动";
-    $("sleepFeedbackBadge").classList.toggle("active",active);
-    $("sleepFeedbackStart").disabled=active;
-    $("sleepFeedbackStop").disabled=!active;
-    $("sleepFeedbackStopRecording").disabled=!evt.recording;
-    // The feedback entry can start recording itself; refresh the existing
-    // recorder buttons/session list only when recording state really changes.
-    if(!!evt.recording!==recording)bridge()?.sleepStatus?.();
-    $("sleepFeedbackScore").textContent=active?
-     Number(evt.last_score||0).toFixed(2):"—";
-    $("sleepFeedbackCount").textContent=String(evt.cues||0);
-    $("sleepFeedbackLast").textContent=evt.last_cue_ms?
-     new Date(evt.last_cue_ms).toLocaleTimeString("zh-CN",{hour12:false}):"—";
-    if(evt.settings&&typeof evt.settings==="object"&&
-       !ids.includes(document.activeElement?.id)){
-     for(const key of ["sound","volume","threshold","minimum","repeat"]){
-      const id="sleepFeedback"+key[0].toUpperCase()+key.slice(1);
-      if($(id)&&evt.settings[key]!==undefined)$(id).value=String(evt.settings[key]);
-     }
-     $("sleepFeedbackVibrate").checked=!!evt.settings.vibrate;
-     values();
+    status(evt);
+   }else if(evt.type==="sleep_feedback_mic"){
+    if(!micActive){micActive=true;bridge()?.sleepFeedbackStatus?.();}
+    if(Array.isArray(evt.wave)){
+     const values=evt.wave.map(Number).filter(Number.isFinite);
+     micHistory.push(...values);
+     if(micHistory.length>240)micHistory.splice(0,micHistory.length-240);
+     micGraph();
     }
-    $("sleepFeedbackInfo").textContent=active?
-     "本机实时检测中 · 锁屏继续 · 可随时调整提示音":
-     "未运行。可先试听，调整声音后开启实时反馈。";
+    const d=Number(evt.rms_dbfs);
+    $("sleepMicDbfs").textContent=Number.isFinite(d)?d.toFixed(1)+" dBFS":"—";
+   }else if(evt.type==="sleep_feedback_output"){
+    outputWave=Array.isArray(evt.wave)?evt.wave.map(Number):[];
+    outputDuration=Math.max(120,Number(evt.duration_ms)||300);
+    outputStarted=performance.now();
+    $("sleepSpeakerNow").textContent=(evt.reason||"提示音")+
+     (evt.vibration?" · 已触发震动":" · 正在播放");
+    animateOutput();
    }else if(evt.type==="sleep_feedback_preview"){
     $("sleepFeedbackInfo").textContent=evt.message||
-     (evt.ok?"试听完成":"试听失败");
-   }else if(evt.type==="sleep_feedback_error"){
-    $("sleepFeedbackInfo").textContent=evt.message||"实时反馈异常";
+     (evt.ok?"试听完成":"提示音播放失败");
+   }else if(evt.type==="sleep_feedback_error"||
+      (evt.type==="error"&&/麦克风|鼾声|反馈/.test(evt.message||""))){
+    $("sleepFeedbackInfo").textContent=evt.message||"反馈操作失败";
     bridge()?.sleepFeedbackStatus?.();
    }
   };
-  values();
+  labels();
  })();
 })();
