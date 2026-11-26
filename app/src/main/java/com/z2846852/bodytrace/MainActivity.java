@@ -2405,6 +2405,25 @@ public final class MainActivity extends Activity {
                 catch(Exception e){error("无法读取实时反馈状态："+safeMessage(e));}
             });
         }
+        @JavascriptInterface public void sleepFeedbackMark(){
+            try{
+                if(!SleepRecorderService.markSnore()){
+                    reply(message("sleep_feedback_error").put("message","请先开启麦克风采集"));return;
+                }
+                reply(SleepRecorderService.feedbackStatus(MainActivity.this));
+            }catch(Exception e){error("鼾声标记失败："+safeMessage(e));}
+        }
+        @JavascriptInterface public void sleepFeedbackExportLog(){
+            runOnUiThread(()->{
+                try{
+                    String raw=SleepRecorderService.liveLogExport().toString(2);
+                    Intent share=new Intent(Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(Intent.EXTRA_SUBJECT,"MyWork 实时鼾声实验记录")
+                        .putExtra(Intent.EXTRA_TEXT,raw);
+                    startActivity(Intent.createChooser(share,"分享或保存实验日志"));
+                }catch(Exception e){error("鼾声反馈日志导出失败："+safeMessage(e));}
+            });
+        }
         @JavascriptInterface public void sleepFeedbackPreview(String raw){
             try{
                 SnoreFeedbackController.Settings settings=SnoreFeedbackController.Settings.parse(raw);

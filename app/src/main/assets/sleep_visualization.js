@@ -138,7 +138,7 @@
    // AI scores are available in the selection readout; no bottom score bars.
   }
  }
- window.BodyTraceLiveEnvelope=function(canvas,rows,threshold){
+ window.BodyTraceLiveEnvelope=function(canvas,rows,threshold,seconds=60){
   const ctx=canvas.getContext("2d");if(!ctx)return;
   const w=canvas.width,h=canvas.height,left=46,bottom=h-18,top=8,plotWidth=w-left-8;
   const levels=rows.map(r=>r.rms_dbfs),pks=rows.map(r=>r.peak_dbfs),shortLevels=rows.map(r=>r.short_rms_dbfs);
@@ -147,7 +147,7 @@
   ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,w,h);
   ctx.font="16px system-ui";ctx.textBaseline="middle";ctx.textAlign="left";ctx.fillStyle=COLORS.text;
   for(let d=0;d<=high;d+=5){const y=yAt(bg+d);ctx.strokeStyle=COLORS.grid;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-8,y);ctx.stroke();ctx.fillStyle=COLORS.text;ctx.fillText("+"+d,3,y);}
-  const span=60,offset=span-rows.length;
+  const span=Math.max(1,seconds),offset=Math.max(0,span-rows.length);
   const empty=Array(offset).fill(-96);
   drawEnvelope(ctx,{left,bottom,plotWidth,yAt,start:0,span,levels:empty.concat(levels),pks:empty.concat(pks),shortLevels:empty.concat(shortLevels),threshold,ai:true});
   for(let i=0;i<rows.length;i++){
@@ -155,7 +155,7 @@
    const x=left+(offset+i)/span*plotWidth,y=yAt(rows[i].short_rms_dbfs);
    ctx.fillStyle="#ff6e81";ctx.fillRect(x,y,Math.max(2,plotWidth/span),3);
   }
-  ctx.fillStyle=COLORS.text;ctx.textBaseline="bottom";ctx.fillText("-60s",left,h);ctx.textAlign="right";ctx.fillText("现在",w-8,h);ctx.textAlign="left";
+  ctx.fillStyle=COLORS.text;ctx.textBaseline="bottom";ctx.fillText("-"+span+"s",left,h);ctx.textAlign="right";ctx.fillText("现在",w-8,h);ctx.textAlign="left";
  };
  function draw(){
   if(!result||!total())return;

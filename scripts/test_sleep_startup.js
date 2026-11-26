@@ -75,5 +75,10 @@ const dreamIds=[...html.matchAll(/<option value="(dream_[a-z]+)">/g)].map(m=>m[1
 assert.equal(dreamIds.length,8,"Eight distinct original dream motifs");
 for(const id of dreamIds)assert.ok(dreams.includes('case "'+id+'"'),"Native synth supports "+id);
 assert.ok(tones.includes("DreamCueSynth.synthesize")&&recorder.includes("sleep-auto-cue")&&recorder.includes("SnoreFeedbackController.suppressMicrophone()"),"Long cues use native synth and do not block inference");
+for(const id of ["sleepLiveSpan","sleepLiveMark","sleepLiveExport","sleepLiveSensitivity","sleepLivePresets","sleepLiveDim","sleepLiveAnalyzed","sleepLiveEvents"]){
+ assert.ok(html.includes('id="'+id+'"')&&sleep.includes('$("'+id+'")'),"Live console control wired: "+id);
+}
+assert.ok(main.includes("SleepRecorderService.markSnore()")&&main.includes("SleepRecorderService.liveLogExport()")&&recorder.includes('addLiveLog("cue",score'),"Marks/export/automatic feedback log are native");
+assert.ok(visual.includes("seconds=60")&&sleep.includes("micHistory.slice(-liveSpan)"),"Selectable live chart spans share renderer");
 console.log("SleepFeedbackTest passed: decoupled mic/recording and input/output graph contracts");
 console.log("SleepStartupTest passed: old records, no popup, local crash diagnostics");

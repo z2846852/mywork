@@ -916,7 +916,8 @@
    "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate"];
   let micActive=false,recordActive=false,feedbackActive=false;
   const micHistory=[];
-  let latestSecond=-1;
+  let latestSecond=-1,liveSpan=60,captureStart=0;
+  const sensitivity={high:{threshold:.05,minimum:1},normal:{threshold:.15,minimum:2},low:{threshold:.30,minimum:3}};
   let outputWave=[],outputStarted=0,outputDuration=300,animation=0;
   const cfg=()=>({
    sound:$("sleepFeedbackSound").value,
@@ -932,6 +933,8 @@
    $("sleepFeedbackThresholdText").textContent=cfg().threshold.toFixed(2);
    $("sleepFeedbackMinimumText").textContent=cfg().minimum+" 秒";
    $("sleepFeedbackRepeatText").textContent=cfg().repeat+" 秒";
+   $("sleepLiveSensitivity").value=Object.keys(sensitivity).find(k=>Math.abs(sensitivity[k].threshold-cfg().threshold)<.0001&&sensitivity[k].minimum===cfg().minimum)||"custom";
+   $("sleepLivePresets").querySelectorAll("[data-sound]").forEach(b=>{const active=b.dataset.sound===cfg().sound;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));});
   }
   function save(){
    if(!bridge()?.sleepFeedbackSave){
@@ -975,7 +978,7 @@
    }
   }
   function micGraph(){
-   if(!$("sleepFeedbackPanel").hidden)window.BodyTraceLiveEnvelope?.($("sleepMicCanvas"),micHistory,cfg().threshold);
+   if(!$("sleepFeedbackPanel").hidden)window.BodyTraceLiveEnvelope?.($("sleepMicCanvas"),micHistory.slice(-liveSpan),cfg().threshold,liveSpan);
   }
   function micSecond(evt){
    const sec=Number(evt.second);if(!Number.isFinite(sec))return;
@@ -989,6 +992,8 @@
    }
    const db=Number(evt.rms_dbfs);
    $("sleepMicDbfs").textContent=Number.isFinite(db)?db.toFixed(1)+" dBFS":"—";
+   const peak=Number(evt.peak_dbfs);$("sleepLivePeak").textContent=Number.isFinite(peak)?"峰值 "+peak.toFixed(1):"峰值 —";
+   $("sleepLiveMark").disabled=!micActive||!bridge()?.sleepFeedbackMark;
    micGraph();
   }
   function speakerGraph(progress=1){
@@ -1016,6 +1021,8 @@
   }
   function status(evt){
    const oldMic=micActive;
+   const session=Number(evt.capture_started_ms)||0;
+   if(session&&session!==captureStart){captureStart=session;micHistory.length=0;latestSecond=-1;}
    micActive=!!evt.microphone_active;
    recordActive=!!evt.recording;
    feedbackActive=!!evt.active;
@@ -1024,22 +1031,23 @@
    $("sleepMicBadge").classList.toggle("active",micActive);
    $("sleepMicStart").disabled=micActive;
    $("sleepMicStop").disabled=!micActive||recordActive;
-   $("sleepMicMode").textContent=recordActive?
-    "正在共享整晚录音的麦克风，无需重复开启。停止录音请返回录音分析页。":
-    micActive?"仅监听测试：未保存音频，可以单独开关反馈。":
-    "可单独开启测试监听；若已在录音，麦克风将自动显示波形。";
+   $("sleepMicMode").textContent=recordActive?"共享录音 · 回录音页停止":micActive?"独立监听 · 不保存音频":"独立监听不保存音频";
+   $("sleepLiveMark").disabled=!micActive||!bridge()?.sleepFeedbackMark;
+   $("sleepLiveExport").disabled=!bridge()?.sleepFeedbackExportLog;
+   renderEvents(evt.recent_events);
    $("sleepSpeakerBadge").textContent=feedbackActive?"● 自动反馈中":"自动反馈关闭";
    $("sleepSpeakerBadge").classList.toggle("active",feedbackActive);
    $("sleepFeedbackEnabled").checked=feedbackActive;
    $("sleepFeedbackCount").textContent=String(evt.cues||0);
    const count=Number(evt.inferred_windows)||0;
    $("sleepFeedbackScore").textContent=micActive&&count>0?Number(evt.last_score||0).toFixed(3):"—";
+   $("sleepLiveAnalyzed").textContent=micActive?count+"s":"—";
    $("sleepInferenceStatus").textContent=evt.inference_state==="error"?"AI 错误："+evt.inference_error:
     evt.inference_state==="loading"?"AI 加载中":
-    evt.inference_state==="running"?"AI 已分析 "+count+" 秒 · 丢弃 "+(evt.dropped_windows||0)+" 窗":"AI 未运行";
+    evt.inference_state==="running"?"AI 正常 · 丢弃 "+(evt.dropped_windows||0)+" 窗":"AI 未运行";
    if(evt.latest_mic&&micActive)micSecond(evt.latest_mic);
    if(!micActive&&oldMic){
-    micHistory.length=0;latestSecond=-1;$("sleepMicDbfs").textContent="—";micGraph();
+    micHistory.length=0;latestSecond=-1;$("sleepMicDbfs").textContent="—";$("sleepLivePeak").textContent="峰值 —";micGraph();
    }
    if(evt.settings&&typeof evt.settings==="object"&&
        !ids.includes(document.activeElement?.id)){
@@ -1052,6 +1060,23 @@
    }
    if(recordActive!==recording)bridge()?.sleepStatus?.();
   }
+  function renderEvents(events){
+   if(!Array.isArray(events))return;
+   const root=$("sleepLiveEvents");root.replaceChildren();
+   if(!events.length){root.textContent="暂无自动反馈或手动标记";return;}
+   events.slice(-3).reverse().forEach(e=>{
+    const row=document.createElement("div");row.className="sleep-live-event";
+    const time=document.createElement("span");time.textContent=new Date(Number(e.time_ms)).toLocaleTimeString("zh-CN",{hour12:false});
+    const label=document.createElement("span");label.textContent=e.kind==="manual"?"手动标记":e.vibration?"自动震动":("自动反馈 · "+([...$("sleepFeedbackSound").options].find(o=>o.value===e.sound)?.textContent.split(" · ")[0]||e.sound));
+    const score=document.createElement("span");score.textContent=Number(e.score).toFixed(3);row.append(time,label,score);root.append(row);
+   });
+  }
+  $("sleepLiveSpan").onchange=()=>{liveSpan=Number($("sleepLiveSpan").value)||60;micGraph();};
+  $("sleepLiveSensitivity").onchange=()=>{const p=sensitivity[$("sleepLiveSensitivity").value];if(!p)return;$("sleepFeedbackThreshold").value=p.threshold;$("sleepFeedbackMinimum").value=p.minimum;labels();micGraph();save();};
+  $("sleepLivePresets").querySelectorAll("[data-sound]").forEach(b=>b.onclick=()=>{$("sleepFeedbackSound").value=b.dataset.sound;labels();save();});
+  $("sleepLiveMark").onclick=()=>{bridge()?.sleepFeedbackMark?.();};
+  $("sleepLiveExport").onclick=()=>{bridge()?.sleepFeedbackExportLog?.();};
+  $("sleepLiveDim").onclick=()=>{const dim=$("sleepFeedbackPanel").classList.toggle("sleep-live-dim");$("sleepLiveDim").setAttribute("aria-pressed",String(dim));$("sleepLiveDim").textContent=dim?"☀ 恢复":"☾ 夜间";};
   ids.forEach(id=>{
    $(id).addEventListener("input",()=>{labels();micGraph();});
    $(id).addEventListener("change",save);
@@ -1106,7 +1131,8 @@
     const row=micHistory.find(r=>Number(r.second)===Number(evt.second));
     if(row){row.score=Number(evt.score);row.muted=!!evt.muted;}
     $("sleepFeedbackScore").textContent=Number(evt.score).toFixed(3);
-    $("sleepInferenceStatus").textContent="AI 已分析 "+evt.inferred_windows+" 秒 · 丢弃 "+evt.dropped_windows+" 窗"+(evt.muted?" · 提示音抑制":"");
+    $("sleepLiveAnalyzed").textContent=evt.inferred_windows+"s";
+    $("sleepInferenceStatus").textContent="AI 正常 · 丢弃 "+evt.dropped_windows+" 窗"+(evt.muted?" · 抑制":"");
     micGraph();
    }else if(evt.type==="sleep_feedback_output"){
     outputWave=Array.isArray(evt.wave)?evt.wave.map(Number):[];

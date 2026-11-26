@@ -58,6 +58,42 @@ public final class SleepRecorderService extends Service {
     private static volatile String inferenceState="idle",inferenceError="";
     private static volatile long inferredWindows,droppedWindows;
     private static volatile JSONObject latestMic;
+    // Bounded in-process log survives WebView recreation and screen-off capture.
+    private static final java.util.ArrayDeque<JSONObject> liveLog=new java.util.ArrayDeque<>();
+    private static volatile long captureStartedMs;
+    private static synchronized void clearLiveLog(){
+        liveLog.clear();captureStartedMs=System.currentTimeMillis();
+    }
+    private static synchronized void addLiveLog(String kind,double score,String sound,
+            int volume,boolean vibration,long second){
+        try{
+            JSONObject item=new JSONObject().put("kind",kind).put("time_ms",System.currentTimeMillis())
+                .put("score",score).put("sound",sound).put("volume",volume)
+                .put("vibration",vibration).put("second",second);
+            if(liveLog.size()>=1000)liveLog.removeFirst();
+            liveLog.addLast(item);
+        }catch(Exception e){android.util.Log.w("SleepFeedback","live log",e);}
+    }
+    private static synchronized JSONArray recentLiveLog(){
+        JSONArray items=new JSONArray();int skip=Math.max(0,liveLog.size()-3);
+        for(JSONObject item:liveLog){if(skip>0)skip--;else items.put(item);}
+        return items;
+    }
+    static synchronized JSONArray liveLogSnapshot(){
+        JSONArray items=new JSONArray();
+        for(JSONObject item:liveLog)items.put(item);
+        return items;
+    }
+    static synchronized boolean markSnore(){
+        if(!microphoneActive||latestMic==null)return false;
+        addLiveLog("manual",lastFeedbackScore,"",0,false,latestMic.optLong("second",-1));
+        return true;
+    }
+    static synchronized JSONObject liveLogExport() throws Exception {
+        return new JSONObject().put("capture_started_ms",captureStartedMs)
+            .put("scope","current_or_last_capture_in_process")
+            .put("max_events",1000).put("events",liveLogSnapshot());
+    }
     private static final class LiveWindow {
         final long second; final short[] pcm; final boolean muted;
         LiveWindow(long second,short[] pcm,boolean muted){
@@ -95,7 +131,8 @@ public final class SleepRecorderService extends Service {
             .put("latest_mic",latestMic)
             .put("last_score",lastFeedbackScore)
             .put("cues",feedbackCount).put("last_cue_ms",lastFeedbackMs)
-            .put("started_ms",feedbackStartedMs);
+            .put("started_ms",feedbackStartedMs).put("capture_started_ms",captureStartedMs)
+            .put("recent_events",recentLiveLog());
     }
 
     @Override public IBinder onBind(Intent intent) { return null; }
@@ -161,7 +198,7 @@ public final class SleepRecorderService extends Service {
             wakeLock.acquire(MAX_DURATION_MS);
             running=true;
             microphoneActive=true;
-            feedbackCount=0;lastFeedbackMs=0;lastFeedbackScore=0;
+            feedbackCount=0;lastFeedbackMs=0;lastFeedbackScore=0;clearLiveLog();
             inferredWindows=0;droppedWindows=0;latestMic=null;
             inferenceState="loading";inferenceError="";
             if(feedbackEnabled)feedbackStartedMs=System.currentTimeMillis();
@@ -323,7 +360,10 @@ public final class SleepRecorderService extends Service {
                         try{
                             if(SnoreFeedbackController.playCue(this,settings,(samples,rate,duration,vibration)->
                                     sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发"))){
-                                if(running){feedbackCount++;lastFeedbackMs=System.currentTimeMillis();}
+                                if(running){
+                                    feedbackCount++;lastFeedbackMs=System.currentTimeMillis();
+                                    addLiveLog("cue",score,settings.sound,settings.volume,settings.vibrate,block.second);
+                                }
                             }
                         }catch(Exception e){if(running)sendError("自动提示音失败："+e.getMessage());}
                         if(running)sendFeedbackStatus();

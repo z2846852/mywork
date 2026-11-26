@@ -463,54 +463,26 @@ body.overview-muscle-open{overflow:hidden}
   <button type="button" id="sleepFeedbackTab" aria-pressed="false">实时鼾声反馈</button>
  </div>
  <section class="sleep-feedback-panel" id="sleepFeedbackPanel" hidden aria-label="实时鼾声反馈">
-  <div class="sleep-feedback-intro">
-   <h2>实时声音控制台</h2>
-   <p class="sub">麦克风和提示音独立控制 · 录音时自动共享输入</p>
+  <div class="sleep-feedback-intro"><h2>实时声音控制台</h2><button type="button" class="secondary" id="sleepLiveDim" aria-pressed="false">☾ 夜间</button></div>
+  <div class="sleep-live-metrics">
+   <div><small>当前电平</small><strong id="sleepMicDbfs">—</strong></div>
+   <div><small>鼾声得分</small><strong id="sleepFeedbackScore">—</strong></div>
+   <div><small>AI 已分析</small><strong id="sleepLiveAnalyzed">—</strong></div>
+   <div><small>自动反馈</small><strong id="sleepFeedbackCount">0</strong></div>
   </div>
   <div class="sleep-io-card mic" aria-label="麦克风实时输入">
-   <div class="sleep-io-heading">
-    <div class="sleep-io-title"><span class="sleep-io-icon">🎙</span>
-     <div><strong>麦克风 · 输入</strong><small>最近60秒 · 与录音分析同口径</small></div>
-    </div>
-    <span class="sleep-io-state" id="sleepMicBadge">未连接</span>
-   </div>
-   <div class="sleep-oscilloscope">
-    <canvas id="sleepMicCanvas" width="660" height="140" aria-label="实时麦克风声音波形"></canvas>
-    <span class="sleep-osc-label">RMS / PEAK / 200ms RMS</span>
-   </div>
-   <div class="sleep-io-readouts">
-    <span>当前电平 <strong id="sleepMicDbfs">—</strong></span>
-    <span>鼾声得分 <strong id="sleepFeedbackScore">—</strong></span>
-   </div>
-   <p class="sub" id="sleepInferenceStatus" role="status">AI 未运行</p>
-   <div class="sleep-io-actions">
-    <button type="button" class="primary" id="sleepMicStart">开启麦克风测试</button>
-    <button type="button" class="secondary" id="sleepMicStop" disabled>关闭测试</button>
-   </div>
-   <p class="sub" id="sleepMicMode">未录音时可直接打开监听，不保存音频；若已录音会自动接入。</p>
+   <div class="sleep-io-heading"><div class="sleep-io-title"><span class="sleep-io-icon">🎙</span><strong>麦克风 · 输入</strong></div><span class="sleep-io-state" id="sleepMicBadge">未连接</span></div>
+   <div class="sleep-live-chart-head"><span>RMS / PEAK / 200ms RMS</span><select id="sleepLiveSpan" aria-label="波形时间范围"><option value="15">15秒</option><option value="30">30秒</option><option value="60" selected>60秒</option></select></div>
+   <div class="sleep-oscilloscope"><canvas id="sleepMicCanvas" width="660" height="180" aria-label="实时麦克风声音波形"></canvas></div>
+   <div class="sleep-live-diagnostics"><span id="sleepInferenceStatus" role="status">AI 未运行</span><span id="sleepLivePeak">峰值 —</span></div>
+   <div class="sleep-io-actions"><button type="button" class="primary" id="sleepMicStart">▶ 开启测试</button><button type="button" class="secondary" id="sleepMicStop" disabled>■ 关闭</button><button type="button" class="secondary sleep-mark-button" id="sleepLiveMark" disabled>⚑ 标记鼾声</button></div>
+   <p class="sub" id="sleepMicMode">独立监听不保存录音</p>
   </div>
   <div class="sleep-io-card speaker" aria-label="提示音实时输出">
-   <div class="sleep-io-heading">
-    <div class="sleep-io-title"><span class="sleep-io-icon">🔊</span>
-     <div><strong>喇叭 · 反馈输出</strong><small>提示音合成波形</small></div>
-    </div>
-    <span class="sleep-io-state" id="sleepSpeakerBadge">反馈关闭</span>
-   </div>
-   <div class="sleep-oscilloscope speaker-wave">
-    <canvas id="sleepSpeakerCanvas" width="660" height="140" aria-label="当前提示音合成波形"></canvas>
-    <span class="sleep-osc-label">OUTPUT · SYNTH</span>
-   </div>
-   <div class="sleep-io-readouts">
-    <span id="sleepSpeakerNow">等待试听或鼾声触发</span>
-    <span>本次触发 <strong id="sleepFeedbackCount">0</strong> 次</span>
-   </div>
-   <label class="sleep-feedback-toggle" for="sleepFeedbackEnabled">
-    <span><strong>检测到鼾声时反馈</strong><small>可在录音期间随时打开或关闭</small></span>
-    <input type="checkbox" id="sleepFeedbackEnabled" aria-label="启用自动鼾声提示">
-   </label>
-   <div class="sleep-feedback-row">
-    <label for="sleepFeedbackSound">提示音</label>
-    <select id="sleepFeedbackSound">
+   <div class="sleep-io-heading"><div class="sleep-io-title"><span class="sleep-io-icon">🔊</span><strong>喇叭 · 反馈输出</strong></div><span class="sleep-io-state" id="sleepSpeakerBadge">反馈关闭</span></div>
+   <div class="sleep-oscilloscope speaker-wave"><canvas id="sleepSpeakerCanvas" width="660" height="140" aria-label="当前提示音合成波形"></canvas><span class="sleep-osc-label">OUTPUT · SYNTH</span></div>
+   <div class="sleep-live-output-row"><span id="sleepSpeakerNow">等待试听或鼾声触发</span><label class="sleep-feedback-toggle" for="sleepFeedbackEnabled"><strong>自动反馈</strong><input type="checkbox" id="sleepFeedbackEnabled" aria-label="启用自动鼾声提示"></label></div>
+   <div class="sleep-feedback-row"><label for="sleepFeedbackSound">音型</label><select id="sleepFeedbackSound">
       <optgroup label="原有鼾声提示音">
      <option value="soft">轻柔短音 · 480 Hz</option>
      <option value="low">低沉短音 · 320 Hz</option>
@@ -527,32 +499,19 @@ body.overview-muscle-open{overflow:hidden}
        <option value="dream_chord">浮岛 · 柔和叠加和弦</option>
        <option value="dream_odd">异域五拍 · 2+3</option>
       </optgroup>
-    </select>
+    </select><button type="button" class="primary" id="sleepFeedbackPreview">▶ 试听</button></div>
+   <div class="sleep-live-presets" id="sleepLivePresets" aria-label="快捷音型"><button type="button" data-sound="dream_triplet">三连</button><button type="button" data-sound="dream_echo">回声</button><button type="button" data-sound="dream_wave">潮汐</button><button type="button" data-sound="dream_orbit">星轨</button><button type="button" data-sound="soft">短音</button></div>
+   <div class="sleep-live-control-grid">
+    <div><div class="sleep-feedback-label"><label for="sleepFeedbackVolume">提示幅度</label><strong id="sleepFeedbackVolumeText">20%</strong></div><input id="sleepFeedbackVolume" type="range" min="1" max="100" step="1" value="20"></div>
+    <div><div class="sleep-feedback-label"><label for="sleepFeedbackRepeat">重复间隔</label><strong id="sleepFeedbackRepeatText">5 秒</strong></div><input id="sleepFeedbackRepeat" type="range" min="1" max="60" step="1" value="5"></div>
+    <div><div class="sleep-feedback-label"><label for="sleepFeedbackThreshold">AI 得分阈值</label><strong id="sleepFeedbackThresholdText">0.15</strong></div><input id="sleepFeedbackThreshold" type="range" min="0.01" max="0.80" step="0.01" value="0.15"></div>
+    <div><div class="sleep-feedback-label"><label for="sleepFeedbackMinimum">连续命中</label><strong id="sleepFeedbackMinimumText">2 秒</strong></div><input id="sleepFeedbackMinimum" type="range" min="1" max="5" step="1" value="2"></div>
    </div>
-   <p class="sub" id="sleepDreamHint" hidden>清醒梦实验：先在清醒时试听同一音型并联想「我是否在做梦？」；从低幅度开始。鼾声不代表 REM，不能保证入梦或不醒。</p>
-    <div class="sleep-feedback-label"><label for="sleepFeedbackVolume">提示幅度</label>
-    <strong id="sleepFeedbackVolumeText">20%</strong></div>
-   <input id="sleepFeedbackVolume" type="range" min="1" max="100" step="1" value="20">
-   <div class="sleep-feedback-preview">
-    <button type="button" class="primary" id="sleepFeedbackPreview">▶ 测试提示音</button>
-    <button type="button" class="secondary" id="sleepFeedbackVibratePreview">测试震动</button>
-   </div>
-   <label class="sleep-feedback-checkbox"><input id="sleepFeedbackVibrate" type="checkbox">自动反馈时用震动代替声音</label>
-   <details class="sleep-feedback-options">
-    <summary>识别与触发参数</summary>
-    <div class="sleep-feedback-label"><label for="sleepFeedbackThreshold">鼾声得分阈值</label>
-     <strong id="sleepFeedbackThresholdText">0.15</strong></div>
-    <input id="sleepFeedbackThreshold" type="range" min="0.05" max="0.50" step="0.01" value="0.15">
-    <div class="sleep-feedback-label"><label for="sleepFeedbackMinimum">连续命中</label>
-     <strong id="sleepFeedbackMinimumText">2 秒</strong></div>
-    <input id="sleepFeedbackMinimum" type="range" min="1" max="5" step="1" value="2">
-    <div class="sleep-feedback-label"><label for="sleepFeedbackRepeat">最短再次提示间隔</label>
-     <strong id="sleepFeedbackRepeatText">5 秒</strong></div>
-    <input id="sleepFeedbackRepeat" type="range" min="1" max="30" step="1" value="5">
-   </details>
-   <p class="sub" id="sleepFeedbackInfo" role="status">可直接试听，不依赖麦克风；实际响度还受系统媒体音量影响。</p>
-   <p class="sub">喇叭图显示生成的音频信号，不是扬声器的实测声压；波形会自动放大以便观察。</p>
+   <div class="sleep-live-options-row"><label for="sleepLiveSensitivity">灵敏度</label><select id="sleepLiveSensitivity" aria-label="灵敏度预设"><option value="high">高</option><option value="normal" selected>标准</option><option value="low">低</option><option value="custom">自定义</option></select><label class="sleep-feedback-checkbox"><input id="sleepFeedbackVibrate" type="checkbox">仅震动</label><button type="button" class="secondary" id="sleepFeedbackVibratePreview">测试震动</button></div>
+   <p class="sub sleep-live-message" id="sleepFeedbackInfo" role="status">试听独立于麦克风；响度受媒体音量影响。</p>
+   <details class="sleep-live-help"><summary>实验说明</summary><p class="sub" id="sleepDreamHint" hidden>清醒时熟悉固定音型；从低幅度开始。鼾声不代表 REM，不能保证清醒梦。</p><p class="sub">输出图为合成信号，不是实测声压。鼾声得分为 AI 分类结果。</p></details>
   </div>
+  <div class="sleep-io-card sleep-live-log"><div class="sleep-io-heading"><strong>本次实验记录</strong><button type="button" class="secondary" id="sleepLiveExport">导出日志</button></div><div id="sleepLiveEvents" class="sleep-live-events">暂无自动反馈或手动标记</div><p class="sub">最近3条 · 最多导出1000条 · 进程内保存</p></div>
  </section>
  <div id="sleepBrowserPanel">
  <div class="panel sleep-workbench">
