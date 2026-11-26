@@ -343,11 +343,34 @@ body.overview-muscle-open{overflow:hidden}
    <div class="field">
     <div class="record-reps-heading">
      <label for="recordReps">每组次数（0 = 未完成）</label>
-     <button type="button" id="e1rmToolToggle" class="e1rm-help record-e1rm-toggle" aria-label="展开 e1RM 预测与校准" aria-controls="e1rmTool" aria-expanded="false" title="e1RM 预测与校准">!</button>
     </div>
     <div class="wheel-entry"><input id="recordReps" type="number" min="0" max="200" step="1" inputmode="numeric" value="10" readonly aria-label="选择次数"><button type="button" id="wheelRepsOpen" class="wheel-open" aria-label="打开次数滚轮">▥</button></div></div>
   </div>
-  <section class="e1rm-tool" id="e1rmTool" aria-label="估算最大力量与重量次数试算" hidden>
+  <section class="record-rest-card" id="recordRestCard" aria-label="组间休息计时器">
+   <div class="record-rest-top">
+    <span>组间休息 <small id="recordRestExercise">默认动作</small></span>
+    <div class="record-rest-config" aria-label="调整此动作的默认组间休息">
+     <button type="button" id="recordRestShorter" class="secondary mini" aria-label="该动作休息时间减少15秒">−15</button>
+     <strong id="recordRestPreset">02:00</strong>
+     <button type="button" id="recordRestLonger" class="secondary mini" aria-label="该动作休息时间增加15秒">+15</button>
+    </div>
+   </div>
+   <div class="record-rest-time-row">
+    <strong id="recordRestClock" class="record-rest-clock" aria-live="off">02:00</strong>
+    <div class="record-rest-description"><b id="recordRestState">尚未开始</b>
+     <span id="recordRestHint">保存一组后自动计时，也可直接开始</span>
+    </div>
+   </div>
+   <div class="record-rest-actions">
+    <button type="button" id="recordRestStart" class="secondary">▶ 开始休息</button>
+    <button type="button" id="recordRestStop" class="secondary" disabled>结束计时</button>
+   </div>
+  </section>
+  <div class="record-save-dock">
+   <button class="primary" id="saveRecord">✓ 保存本组并休息</button>
+   <button class="secondary" id="saveRecordOnly">只保存</button>
+  </div>
+  <section class="e1rm-tool" id="e1rmTool" aria-label="估算最大力量与重量次数试算">
    <div class="e1rm-head">
     <strong>当前 e1RM</strong><output id="e1rmValue">—</output>
     <button type="button" class="e1rm-help" id="e1rmInfo" title="校准当前动作公式" aria-label="查看公式并校准当前动作" aria-expanded="false">!</button>
@@ -386,30 +409,6 @@ body.overview-muscle-open{overflow:hidden}
     <p class="e1rm-hint">校准参数仅保存在本机，按动作独立记忆；不会修改训练记录，也不会自动更改历史趋势。</p>
    </div>
   </section>
-  <section class="record-rest-card" id="recordRestCard" aria-label="组间休息计时器">
-   <div class="record-rest-top">
-    <span>组间休息 <small id="recordRestExercise">默认动作</small></span>
-    <div class="record-rest-config" aria-label="调整此动作的默认组间休息">
-     <button type="button" id="recordRestShorter" class="secondary mini" aria-label="该动作休息时间减少15秒">−15</button>
-     <strong id="recordRestPreset">02:00</strong>
-     <button type="button" id="recordRestLonger" class="secondary mini" aria-label="该动作休息时间增加15秒">+15</button>
-    </div>
-   </div>
-   <div class="record-rest-time-row">
-    <strong id="recordRestClock" class="record-rest-clock" aria-live="off">02:00</strong>
-    <div class="record-rest-description"><b id="recordRestState">尚未开始</b>
-     <span id="recordRestHint">保存一组后自动计时，也可直接开始</span>
-    </div>
-   </div>
-   <div class="record-rest-actions">
-    <button type="button" id="recordRestStart" class="secondary">▶ 开始休息</button>
-    <button type="button" id="recordRestStop" class="secondary" disabled>结束计时</button>
-   </div>
-  </section>
-  <div class="record-save-dock">
-   <button class="primary" id="saveRecord">✓ 保存本组并休息</button>
-   <button class="secondary" id="saveRecordOnly">只保存</button>
-  </div>
   <details class="record-advanced-tools" id="recordAdvancedTools">
    <summary>更多设置 <small>批量组数 · 动作管理 · 备注</small></summary>
    <div class="row wrap exercise-actions-row" aria-label="动作列表增删操作">
@@ -2591,16 +2590,7 @@ function e1rmTrialRange(e1rm,cfg,assisted){
 // Local-only per-exercise calibrated Epley projection. The two trial fields
 // are sandbox inputs: they cannot alter the saved workout form on drag.
 (function initialiseRecordE1rm(){
- const tool=document.getElementById("e1rmTool");
- const toggle=document.getElementById("e1rmToolToggle");
- const setToolOpen=open=>{
-  tool.hidden=!open;
-  toggle.setAttribute("aria-expanded",String(open));
-  toggle.setAttribute("aria-label",(open?"收起":"展开")+" e1RM 预测与校准");
-  toggle.classList.toggle("active",open);
- };
- setToolOpen(false);
- toggle.addEventListener("click",()=>setToolOpen(tool.hidden));
+ // Keep the e1RM panel visible; only its calibration details are collapsible.
  const key="bodytrace.e1rmCalibration.v1";
  const $p=id=>document.getElementById(id);
  const isAssist=id=>id==="assisted_pullup"||id==="assisted_dip";
