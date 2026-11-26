@@ -334,7 +334,11 @@ body.overview-muscle-open{overflow:hidden}
    </label>
   </div>
   <div class="formgrid record-number-row">
-   <div class="field"><label id="weightLabel" for="recordKg">器械标称重量 (kg)</label>
+   <div class="field">
+    <div class="record-weight-heading">
+     <label id="weightLabel" for="recordKg">器械标称重量 (kg)</label>
+     <button type="button" id="recordRestoreMax" class="record-max-button" title="恢复历史最大重量（该组至少完成6次）" aria-label="恢复当前动作历史最大重量及对应次数，排除5次及以下的组" disabled>R</button>
+    </div>
     <div class="wheel-entry"><input id="recordKg" type="number" min="0" max="500" step="0.1" inputmode="decimal" placeholder="点此用滚轮选择" readonly aria-label="选择器械重量"><button type="button" id="wheelKgOpen" class="wheel-open" aria-label="打开重量滚轮">▥</button></div></div>
    <div class="field">
     <div class="record-reps-heading">
@@ -1607,8 +1611,59 @@ function historicalRecommendation(rows,id){
  const weights=items.map(x=>Number(x.row[key])).sort((a,b)=>a-b);
  return {amount:weights[Math.floor((weights.length-1)/2)],count:weights.length,isAssist:assist};
 }
+// Select the highest historical load among *completed* sets of at least six reps.
+// A 70×1 personal record must never replace an earlier 45×8.
+function maximumRepeatableLoad(rows,id){
+ if(!id)return null;
+ const assist=id==="assisted_pullup"||id==="assisted_dip";
+ const key=assist?"assistance_kg":"load_kg";
+ const eligible=rows.map((row,index)=>({row,index})).filter(({row})=>{
+  if(row.exercise_id!==id||!/^\d{4}-\d{2}-\d{2}$/.test(row.session_date||"")||
+     isFailedAttempt(row))return false;
+  if(row[key]===undefined||row[key]===null||row[key]==="")return false;
+  const load=Number(row[key]),reps=Number(row.reps);
+  return Number.isFinite(load)&&load>=0&&load<=500&&
+   Math.abs(Math.round(load*10)-load*10)<0.00001&&
+   Number.isInteger(reps)&&reps>5&&reps<=200;
+ }).sort((a,b)=>{
+  const weightDelta=Number(b.row[key])-Number(a.row[key]);
+  if(weightDelta!==0)return weightDelta;
+  const dateDelta=b.row.session_date.localeCompare(a.row.session_date);
+  if(dateDelta!==0)return dateDelta;
+  const timestampDelta=String(b.row.created_at||"").localeCompare(String(a.row.created_at||""));
+  return timestampDelta||b.index-a.index;
+ });
+ if(!eligible.length)return null;
+ const best=eligible[0].row;
+ return {amount:Number(best[key]),reps:Number(best.reps),isAssist:assist,
+  date:best.session_date};
+}
+function updateMaximumRepeatableButton(){
+ const best=maximumRepeatableLoad(state.rows,$("recordExercise").value);
+ const button=$("recordRestoreMax");
+ button.disabled=!best;
+ button.title=best?
+  "恢复历史最大"+(best.isAssist?"辅助量":"重量")+"："+best.amount+
+   "kg × "+best.reps+"次（至少6次，"+best.date+"）":
+  "当前动作暂无完成至少6次的历史重量";
+}
+$("recordRestoreMax").onclick=()=>{
+ const best=maximumRepeatableLoad(state.rows,$("recordExercise").value);
+ if(!best){
+  toast("当前动作没有完成至少6次的历史重量",true);return;
+ }
+ $("recordKg").value=String(best.amount);
+ $("recordReps").value=String(best.reps);
+ weightEditedByUser=true;
+ repsEditedByUser=true;
+ trainingFormDirty=true;
+ $("suggestedLoad").textContent="R：历史最大"+(best.isAssist?"辅助量":"重量")+
+  " "+best.amount+"kg × "+best.reps+"次（"+best.date+"，只回填本次输入）。";
+ window.BodyTraceE1rmPreview?.refresh?.(true);
+};
 function refreshExerciseRecommendation(force=false){
  updateRecordRegionTheme();
+ updateMaximumRepeatableButton();
  if(trainingFormDirty&&!force)return;
  const id=$("recordExercise").value;
  $("weightLabel").textContent=id==="assisted_pullup"||id==="assisted_dip"?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
