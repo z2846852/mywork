@@ -1646,6 +1646,18 @@ function updateMaximumRepeatableButton(){
    "kg × "+best.reps+"次（至少6次，"+best.date+"）":
   "当前动作暂无完成至少6次的历史重量";
 }
+function refreshExerciseRecommendation(force=false){
+ updateRecordRegionTheme();
+ updateMaximumRepeatableButton();
+ if(trainingFormDirty&&!force)return;
+ const id=$("recordExercise").value;
+ $("weightLabel").textContent=id==="assisted_pullup"||id==="assisted_dip"?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
+ const last=loadRecommendation(state.rows,id);
+ if(force||!weightEditedByUser)$("recordKg").value=last?String(last.amount):"";
+ if(force||!repsEditedByUser)$("recordReps").value=last?String(last.reps):"12";
+ $("suggestedLoad").textContent=last?"沿用上次 "+last.amount+"kg × "+last.reps+"次（非训练建议）；Reset 使用旧版10组规则。":"无历史重量，请手动填写；次数默认12次。";
+ window.BodyTraceE1rmPreview?.refresh?.(true);
+}
 $("recordRestoreMax").onclick=()=>{
  const best=maximumRepeatableLoad(state.rows,$("recordExercise").value);
  if(!best){
@@ -1660,18 +1672,6 @@ $("recordRestoreMax").onclick=()=>{
   " "+best.amount+"kg × "+best.reps+"次（"+best.date+"，只回填本次输入）。";
  window.BodyTraceE1rmPreview?.refresh?.(true);
 };
-function refreshExerciseRecommendation(force=false){
- updateRecordRegionTheme();
- updateMaximumRepeatableButton();
- if(trainingFormDirty&&!force)return;
- const id=$("recordExercise").value;
- $("weightLabel").textContent=id==="assisted_pullup"||id==="assisted_dip"?"器械标称辅助量 (kg)":"器械标称重量 (kg)";
- const last=loadRecommendation(state.rows,id);
- if(force||!weightEditedByUser)$("recordKg").value=last?String(last.amount):"";
- if(force||!repsEditedByUser)$("recordReps").value=last?String(last.reps):"12";
- $("suggestedLoad").textContent=last?"沿用上次 "+last.amount+"kg × "+last.reps+"次（非训练建议）；Reset 使用旧版10组规则。":"无历史重量，请手动填写；次数默认12次。";
- window.BodyTraceE1rmPreview?.refresh?.(true);
-}
 $("recordKg").addEventListener("input",()=>{weightEditedByUser=true;trainingFormDirty=true;});
 $("recordReps").addEventListener("input",()=>{repsEditedByUser=true;trainingFormDirty=true;});
 $("recordSets").addEventListener("input",()=>{trainingFormDirty=true;});
