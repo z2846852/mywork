@@ -57,12 +57,18 @@ assert.ok(recorder.includes('if(writer==null&&recordRequested)writer=beginRecord
  "Mic-only capture must be upgradable to M4A without a second mic");
 assert.ok(recorder.includes('if(writer!=null)writer.write(pcm,count)'),
  "Mic-only mode must not create encoded audio");
-assert.ok(recorder.includes('sendMicrophoneWave(pcm,count)'),
+assert.ok(recorder.includes('envelope.add(pcm[i])')&&recorder.includes('SleepAudioAnalyzer.EnvelopeAccumulator'),
  "Mic waveform must come from actual PCM audio");
 assert.ok(tones.includes('interface CueListener')&&
  main.includes('SleepRecorderService.speakerWave('),
  "Speaker waveform must come from synthesized cue samples in native code");
 assert.ok(main.includes('sleepMicMonitorStart')&&main.includes('sleepMicMonitorStop'),
  "WebView needs native mic-only controls");
+assert.ok(tones.indexOf('track.write(samples,0,samples.length)')<tones.indexOf('track.getState()!=AudioTrack.STATE_INITIALIZED'),"Static track becomes initialized only after writing");
+assert.ok(sleep.includes('sleep_feedback_score')&&sleep.includes('BodyTraceLiveEnvelope'),"Live model score and shared envelope renderer must be wired");
+assert.ok(main.includes('window.bodyTraceReceiveFeedback'),"Native live events have dedicated dispatch");
+const visual=read("app/src/main/assets/sleep_visualization.js");
+new vm.Script(visual,{filename:"sleep_visualization.js"});
+assert.ok(visual.includes('window.BodyTraceLiveEnvelope')&&visual.includes('drawEnvelope(ctx,{left,bottom,plotWidth,yAt,start:windowStart'),"Offline and live must share rendering");
 console.log("SleepFeedbackTest passed: decoupled mic/recording and input/output graph contracts");
 console.log("SleepStartupTest passed: old records, no popup, local crash diagnostics");

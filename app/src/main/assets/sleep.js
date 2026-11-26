@@ -915,7 +915,8 @@
   const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold",
    "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate"];
   let micActive=false,recordActive=false,feedbackActive=false;
-  const micHistory=Array(240).fill(0);
+  const micHistory=[];
+  let latestSecond=-1;
   let outputWave=[],outputStarted=0,outputDuration=300,animation=0;
   const cfg=()=>({
    sound:$("sleepFeedbackSound").value,
@@ -972,7 +973,23 @@
     ctx.beginPath();ctx.moveTo(w*progress,4);ctx.lineTo(w*progress,h-4);ctx.stroke();
    }
   }
-  function micGraph(){graph("sleepMicCanvas",micHistory,"#71dfb0");}
+  function micGraph(){
+   if(!$("sleepFeedbackPanel").hidden)window.BodyTraceLiveEnvelope?.($("sleepMicCanvas"),micHistory,cfg().threshold);
+  }
+  function micSecond(evt){
+   const sec=Number(evt.second);if(!Number.isFinite(sec))return;
+   if(sec<latestSecond)return;
+   if(sec>latestSecond){
+    if(latestSecond>=0){
+     const gap=Math.min(59,sec-latestSecond-1);
+     for(let i=gap;i>0;i--)micHistory.push({second:sec-i,rms_dbfs:-96,peak_dbfs:-96,short_rms_dbfs:-96});
+    }
+    micHistory.push({...evt});if(micHistory.length>60)micHistory.splice(0,micHistory.length-60);latestSecond=sec;
+   }
+   const db=Number(evt.rms_dbfs);
+   $("sleepMicDbfs").textContent=Number.isFinite(db)?db.toFixed(1)+" dBFS":"—";
+   micGraph();
+  }
   function speakerGraph(progress=1){
    graph("sleepSpeakerCanvas",outputWave,"#f2c27e",progress,true);
   }
@@ -1013,10 +1030,14 @@
    $("sleepSpeakerBadge").classList.toggle("active",feedbackActive);
    $("sleepFeedbackEnabled").checked=feedbackActive;
    $("sleepFeedbackCount").textContent=String(evt.cues||0);
-   $("sleepFeedbackScore").textContent=micActive?
-    Number(evt.last_score||0).toFixed(2):"—";
+   const count=Number(evt.inferred_windows)||0;
+   $("sleepFeedbackScore").textContent=micActive&&count>0?Number(evt.last_score||0).toFixed(3):"—";
+   $("sleepInferenceStatus").textContent=evt.inference_state==="error"?"AI 错误："+evt.inference_error:
+    evt.inference_state==="loading"?"AI 加载中":
+    evt.inference_state==="running"?"AI 已分析 "+count+" 秒 · 丢弃 "+(evt.dropped_windows||0)+" 窗":"AI 未运行";
+   if(evt.latest_mic&&micActive)micSecond(evt.latest_mic);
    if(!micActive&&oldMic){
-    micHistory.fill(0);$("sleepMicDbfs").textContent="—";micGraph();
+    micHistory.length=0;latestSecond=-1;$("sleepMicDbfs").textContent="—";micGraph();
    }
    if(evt.settings&&typeof evt.settings==="object"&&
        !ids.includes(document.activeElement?.id)){
@@ -1030,7 +1051,7 @@
    if(recordActive!==recording)bridge()?.sleepStatus?.();
   }
   ids.forEach(id=>{
-   $(id).addEventListener("input",labels);
+   $(id).addEventListener("input",()=>{labels();micGraph();});
    $(id).addEventListener("change",save);
   });
   $("sleepBrowserTab").onclick=()=>switchPage("browser");
@@ -1072,22 +1093,19 @@
    $("sleepFeedbackInfo").textContent="正在测试震动（喇叭保持静音）…";
    bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),vibrate:true}));
   };
-  const previous=window.bodyTraceReceive;
-  window.bodyTraceReceive=function(evt){
-   if(typeof previous==="function")previous(evt);
+  window.bodyTraceReceiveFeedback=function(evt){
    if(!evt?.type)return;
    if(evt.type==="sleep_feedback_status"){
     status(evt);
    }else if(evt.type==="sleep_feedback_mic"){
     if(!micActive){micActive=true;bridge()?.sleepFeedbackStatus?.();}
-    if(Array.isArray(evt.wave)){
-     const values=evt.wave.map(Number).filter(Number.isFinite);
-     micHistory.push(...values);
-     if(micHistory.length>240)micHistory.splice(0,micHistory.length-240);
-     micGraph();
-    }
-    const d=Number(evt.rms_dbfs);
-    $("sleepMicDbfs").textContent=Number.isFinite(d)?d.toFixed(1)+" dBFS":"—";
+    micSecond(evt);
+   }else if(evt.type==="sleep_feedback_score"){
+    const row=micHistory.find(r=>Number(r.second)===Number(evt.second));
+    if(row){row.score=Number(evt.score);row.muted=!!evt.muted;}
+    $("sleepFeedbackScore").textContent=Number(evt.score).toFixed(3);
+    $("sleepInferenceStatus").textContent="AI 已分析 "+evt.inferred_windows+" 秒 · 丢弃 "+evt.dropped_windows+" 窗"+(evt.muted?" · 提示音抑制":"");
+    micGraph();
    }else if(evt.type==="sleep_feedback_output"){
     outputWave=Array.isArray(evt.wave)?evt.wave.map(Number):[];
     outputDuration=Math.max(120,Number(evt.duration_ms)||300);
@@ -1103,6 +1121,11 @@
     $("sleepFeedbackInfo").textContent=evt.message||"反馈操作失败";
     bridge()?.sleepFeedbackStatus?.();
    }
+  };
+  const prior=window.bodyTraceReceive;
+  window.bodyTraceReceive=function(evt){
+   if(evt?.type?.startsWith("sleep_feedback_"))window.bodyTraceReceiveFeedback(evt);
+   else if(typeof prior==="function")prior(evt);
   };
   labels();
  })();

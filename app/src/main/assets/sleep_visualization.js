@@ -111,6 +111,52 @@
   paintPending=true;
   requestAnimationFrame(()=>{paintPending=false;draw();});
  }
+ // Same envelope renderer for offline exploration and the rolling live view.
+ function drawEnvelope(ctx,{left,bottom,plotWidth,yAt,start,span,levels,pks,shortLevels,threshold,ai}){
+  for(let px=0;px<plotWidth;px++){
+   const a=Math.max(0,Math.floor(start+px/plotWidth*span));
+   const b=Math.min(levels.length,Math.max(a+1,
+    Math.ceil(start+(px+1)/plotWidth*span)));
+   let maxRms=-96,maxPeak=-96,maxShort=-96;
+   for(let i=a;i<b;i++){
+    const v=Number(levels[i]),pk=Number(pks[i]),sv=Number(shortLevels[i]);
+    if(Number.isFinite(v))maxRms=Math.max(maxRms,v);
+    if(Number.isFinite(pk))maxPeak=Math.max(maxPeak,pk);
+    if(Number.isFinite(sv))maxShort=Math.max(maxShort,sv);
+   }
+   const x=left+px,ry=yAt(maxRms),py=yAt(maxPeak),sy=yAt(maxShort);
+   ctx.fillStyle=COLORS.rms;ctx.globalAlpha=.22;
+   ctx.fillRect(x,ry,1,bottom-ry);
+   ctx.globalAlpha=.35;
+   ctx.fillStyle=COLORS.peak;
+   ctx.fillRect(x,py,1,Math.max(1,ry-py));
+   ctx.globalAlpha=1;
+   // Short RMS is the detector; peak is a faint diagnostic channel.
+   ctx.fillStyle=ai?"#e8b66f":
+    maxShort>=threshold?COLORS.threshold:"#e8b66f";
+   ctx.fillRect(x,sy,1,Math.max(2,ry-sy));
+   // AI scores are available in the selection readout; no bottom score bars.
+  }
+ }
+ window.BodyTraceLiveEnvelope=function(canvas,rows,threshold){
+  const ctx=canvas.getContext("2d");if(!ctx)return;
+  const w=canvas.width,h=canvas.height,left=46,bottom=h-18,top=8,plotWidth=w-left-8;
+  const levels=rows.map(r=>r.rms_dbfs),pks=rows.map(r=>r.peak_dbfs),shortLevels=rows.map(r=>r.short_rms_dbfs);
+  const bg=quantile(levels,.20)??-40,low=-5,high=Math.max(10,Math.ceil((Math.max(8,(quantile(shortLevels,.995)??bg+12)-bg)+2)/5)*5);
+  const yAt=db=>clamp(top+(high-(db-bg))/(high-low)*(bottom-top),top,bottom);
+  ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,w,h);
+  ctx.font="16px system-ui";ctx.textBaseline="middle";ctx.textAlign="left";ctx.fillStyle=COLORS.text;
+  for(let d=0;d<=high;d+=5){const y=yAt(bg+d);ctx.strokeStyle=COLORS.grid;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-8,y);ctx.stroke();ctx.fillStyle=COLORS.text;ctx.fillText("+"+d,3,y);}
+  const span=60,offset=span-rows.length;
+  const empty=Array(offset).fill(-96);
+  drawEnvelope(ctx,{left,bottom,plotWidth,yAt,start:0,span,levels:empty.concat(levels),pks:empty.concat(pks),shortLevels:empty.concat(shortLevels),threshold,ai:true});
+  for(let i=0;i<rows.length;i++){
+   if(rows[i].muted||!Number.isFinite(rows[i].score)||rows[i].score<threshold)continue;
+   const x=left+(offset+i)/span*plotWidth,y=yAt(rows[i].short_rms_dbfs);
+   ctx.fillStyle="#ff6e81";ctx.fillRect(x,y,Math.max(2,plotWidth/span),3);
+  }
+  ctx.fillStyle=COLORS.text;ctx.textBaseline="bottom";ctx.fillText("-60s",left,h);ctx.textAlign="right";ctx.fillText("现在",w-8,h);ctx.textAlign="left";
+ };
  function draw(){
   if(!result||!total())return;
   const bounds=canvas.getBoundingClientRect();
@@ -138,33 +184,8 @@
    ctx.fillStyle=COLORS.text;
    ctx.fillText((delta>0?"+":"")+delta,4,y);
   }
-  // Render the audio envelope first. Event highlights will be overlaid
-  // ON THE SHORT-RMS CURVE instead of spanning the whole graph height.
   const threshold=Number(result.threshold_dbfs);
-  for(let px=0;px<plotWidth;px++){
-   const a=Math.max(0,Math.floor(windowStart+px/plotWidth*windowSpan));
-   const b=Math.min(total(),Math.max(a+1,
-    Math.ceil(windowStart+(px+1)/plotWidth*windowSpan)));
-   let maxRms=-96,maxPeak=-96,maxShort=-96;
-   for(let i=a;i<b;i++){
-    const v=Number(levels[i]),pk=Number(pks[i]),sv=Number(shortLevels[i]);
-    if(Number.isFinite(v))maxRms=Math.max(maxRms,v);
-    if(Number.isFinite(pk))maxPeak=Math.max(maxPeak,pk);
-    if(Number.isFinite(sv))maxShort=Math.max(maxShort,sv);
-   }
-   const x=left+px,ry=yAt(maxRms),py=yAt(maxPeak),sy=yAt(maxShort);
-   ctx.fillStyle=COLORS.rms;ctx.globalAlpha=.22;
-   ctx.fillRect(x,ry,1,bottom-ry);
-   ctx.globalAlpha=.35;
-   ctx.fillStyle=COLORS.peak;
-   ctx.fillRect(x,py,1,Math.max(1,ry-py));
-   ctx.globalAlpha=1;
-   // Short RMS is the detector; peak is a faint diagnostic channel.
-   ctx.fillStyle=aiMode()?"#e8b66f":
-    maxShort>=threshold?COLORS.threshold:"#e8b66f";
-   ctx.fillRect(x,sy,1,Math.max(2,ry-sy));
-   // AI scores are available in the selection readout; no bottom score bars.
-  }
+  drawEnvelope(ctx,{left,bottom,plotWidth,yAt,start:windowStart,span:windowSpan,levels,pks,shortLevels,threshold,ai:aiMode()});
   // Candidate ribbons follow the same short-RMS height used for the yellow
   // waveform. Leave the grey peak envelope and chart grid unobscured.
   // Expand subpixel events to 4 px visually only (not in stored time ranges).

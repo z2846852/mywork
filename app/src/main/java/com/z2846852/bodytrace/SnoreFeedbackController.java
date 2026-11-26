@@ -88,7 +88,7 @@ final class SnoreFeedbackController {
             if(!s.vibrate) {
                 int length=duration*rate/1000;
                 samples=new short[length];
-                double gain=0.24*s.volume/100.0;
+                double gain=0.50*s.volume/100.0;
                 for(int i=0;i<length;i++){
                     double ms=i*1000.0/rate;
                     double freq= "low".equals(s.sound)?320:
@@ -118,13 +118,20 @@ final class SnoreFeedbackController {
                         .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
                     .setTransferMode(AudioTrack.MODE_STATIC)
                     .setBufferSizeInBytes(samples.length*2).build();
-                if(track.getState()!=AudioTrack.STATE_INITIALIZED)
+                if(track.getState()==AudioTrack.STATE_UNINITIALIZED)
                     throw new IllegalStateException("声音播放设备不可用");
                 int written=track.write(samples,0,samples.length);
-                if(written!=samples.length)
-                    throw new IllegalStateException("声音缓冲区写入失败");
+                if(written!=samples.length||track.getState()!=AudioTrack.STATE_INITIALIZED)
+                    throw new IllegalStateException("声音缓冲区写入失败："+written);
             }
-            if(track!=null)track.play();
+            if(track!=null){
+                android.media.AudioManager audio=(android.media.AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
+                if(audio!=null&&audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)==0)
+                    throw new IllegalStateException("系统媒体音量为0，请调高媒体音量");
+                track.play();
+                if(track.getPlayState()!=AudioTrack.PLAYSTATE_PLAYING)
+                    throw new IllegalStateException("系统未进入播放状态");
+            }
             if(s.vibrate){
                 Vibrator vibrator=(Vibrator)context.getSystemService(Context.VIBRATOR_SERVICE);
                 if(vibrator==null||!vibrator.hasVibrator())
@@ -136,10 +143,11 @@ final class SnoreFeedbackController {
             if(track!=null)Thread.sleep(duration+60L);
             else Thread.sleep(170L);
             return true;
-        }catch(Exception ignored){
-            return false;
+        }catch(Exception failure){
+            android.util.Log.e("SleepFeedback","Cue playback failed",failure);
+            throw new IllegalStateException("提示音/震动失败："+failure.getClass().getSimpleName()+" "+failure.getMessage(),failure);
         }finally{
-            if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}
+            if(track!=null){try{track.stop();}catch(Exception ignored){}try{track.release();}catch(Exception ignored){}}
             SOUND_PLAYING.set(false);
         }
     }

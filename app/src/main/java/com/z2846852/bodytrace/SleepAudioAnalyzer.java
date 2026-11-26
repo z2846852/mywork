@@ -69,11 +69,12 @@ final class SleepAudioAnalyzer {
             int channels=format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
             if(context!=null)classifier=new SleepYamnetClassifier(context,sampleRate,channels);
             int encoding=AudioFormat.ENCODING_PCM_16BIT;
-            long windowSamples=Math.max(1L,(long)sampleRate*channels);
-            long shortWindowSamples=Math.max(1L,windowSamples/5L);
-            long count=0,squares=0,shortSquares=0;
-            int peak=0,shortCount=0;
-            double maxShort=-96;
+            EnvelopeAccumulator envelopeAccumulator=new EnvelopeAccumulator(sampleRate,channels,
+                (rms,peak,shortRms)->{
+                    levels.add(rms);peaks.add(peak);shortLevels.add(shortRms);
+                    if(levels.size()>86400)
+                        throw new IllegalArgumentException("超过24小时录音分析限制");
+                });
             short[] pcmBlock=new short[8192];
             float[] floatBlock=new float[4096];
             boolean inputEnd=false,outputEnd=false;
@@ -125,8 +126,7 @@ final class SleepAudioAnalyzer {
                     if(encoding!=AudioFormat.ENCODING_PCM_16BIT &&
                             encoding!=AudioFormat.ENCODING_PCM_FLOAT)
                         throw new IllegalStateException("设备解码器不支持的PCM采样格式");
-                    windowSamples=Math.max(1L,(long)sampleRate*channels);
-                    shortWindowSamples=Math.max(1L,windowSamples/5L);
+                    envelopeAccumulator.setFormat(sampleRate,channels);
                     if(classifier!=null)classifier.setFormat(sampleRate,channels);
                     lastProgress=SystemClock.elapsedRealtime();
                 }else if(out>=0){
@@ -151,25 +151,7 @@ final class SleepAudioAnalyzer {
                                     int value=Float.isFinite(sample)?(int)Math.round(
                                         Math.min(1.0,Math.max(-1.0,sample))*32767):0;
                                     if(classifier!=null)classifier.addSample(value);
-                                    long power=(long)value*value;
-                                    squares+=power;
-                                    shortSquares+=power;
-                                    if(++shortCount>=shortWindowSamples){
-                                        maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
-                                        shortSquares=0;shortCount=0;
-                                    }
-                                    int abs=Math.abs(value);
-                                    if(abs>peak)peak=abs;
-                                    if(++count>=windowSamples){
-                                        if(shortCount>0)
-                                            maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
-                                        levels.add(dbfs(squares,count));
-                                        peaks.add(peakDbfs(peak));
-                                        shortLevels.add(maxShort);
-                                        if(levels.size()>86400)
-                                            throw new IllegalArgumentException("超过24小时录音分析限制");
-                                        count=0;squares=0;peak=0;shortSquares=0;shortCount=0;maxShort=-96;
-                                    }
+                                    envelopeAccumulator.add(value);
                                 }
                             }
                         }else{
@@ -181,25 +163,7 @@ final class SleepAudioAnalyzer {
                                 for(int k=0;k<n;k++){
                                     int value=pcmBlock[k];
                                     if(classifier!=null)classifier.addSample(value);
-                                    long power=(long)value*value;
-                                    squares+=power;
-                                    shortSquares+=power;
-                                    if(++shortCount>=shortWindowSamples){
-                                        maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
-                                        shortSquares=0;shortCount=0;
-                                    }
-                                    int abs=Math.abs(value);
-                                    if(abs>peak)peak=abs;
-                                    if(++count>=windowSamples){
-                                        if(shortCount>0)
-                                            maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
-                                        levels.add(dbfs(squares,count));
-                                        peaks.add(peakDbfs(peak));
-                                        shortLevels.add(maxShort);
-                                        if(levels.size()>86400)
-                                            throw new IllegalArgumentException("超过24小时录音分析限制");
-                                        count=0;squares=0;peak=0;shortSquares=0;shortCount=0;maxShort=-96;
-                                    }
+                                    envelopeAccumulator.add(value);
                                 }
                             }
                         }
@@ -211,11 +175,7 @@ final class SleepAudioAnalyzer {
                 if(SystemClock.elapsedRealtime()-lastProgress>30000)
                     throw new IllegalStateException("音频解码超过30秒无进展");
             }
-            if(count>0){
-                if(shortCount>0)maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
-                levels.add(dbfs(squares,count));peaks.add(peakDbfs(peak));
-                shortLevels.add(maxShort);
-            }
+            envelopeAccumulator.finish();
             if(levels.isEmpty())throw new IllegalStateException("音频解码结果为空");
             JSONArray rms=new JSONArray(),pk=new JSONArray(),shortRms=new JSONArray();
             for(int i=0;i<levels.size();i++){
@@ -235,6 +195,40 @@ final class SleepAudioAnalyzer {
             if(classifier!=null)classifier.close();
             if(decoder!=null){try{decoder.stop();}catch(Exception ignored){}decoder.release();}
             extractor.release();
+        }
+    }
+
+    /** Shared live/decoded PCM statistics: one second RMS, peak, max 200 ms RMS. */
+    interface EnvelopeListener { void onSecond(double rms,double peak,double shortRms); }
+    static final class EnvelopeAccumulator {
+        private final EnvelopeListener listener;
+        private long windowSamples,shortWindowSamples,count,squares,shortSquares;
+        private int peak,shortCount;
+        private double maxShort=-96;
+        EnvelopeAccumulator(int rate,int channels,EnvelopeListener listener){
+            this.listener=listener;setFormat(rate,channels);
+        }
+        void setFormat(int rate,int channels){
+            if(rate<=0||channels<=0)throw new IllegalArgumentException("无效PCM格式");
+            long size=(long)rate*channels;
+            if(count!=0&&size!=windowSamples)throw new IllegalStateException("PCM格式中途变化");
+            windowSamples=size;shortWindowSamples=Math.max(1L,size/5L);
+        }
+        void add(int value){
+            long power=(long)value*value;
+            squares+=power;shortSquares+=power;
+            if(++shortCount>=shortWindowSamples){
+                maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
+                shortSquares=0;shortCount=0;
+            }
+            peak=Math.max(peak,Math.abs(value));
+            if(++count>=windowSamples)finish();
+        }
+        void finish(){
+            if(count==0)return;
+            if(shortCount>0)maxShort=Math.max(maxShort,dbfs(shortSquares,shortCount));
+            listener.onSecond(dbfs(squares,count),peakDbfs(peak),maxShort);
+            count=0;squares=0;peak=0;shortSquares=0;shortCount=0;maxShort=-96;
         }
     }
 

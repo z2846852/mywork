@@ -630,7 +630,9 @@ public final class MainActivity extends Activity {
     private void reply(JSONObject object) {
         runOnUiThread(() -> {
             if (web != null) web.evaluateJavascript(
-                    "window.bodyTraceReceive && window.bodyTraceReceive(" + object.toString() + ")", null);
+                    object.optString("type").startsWith("sleep_feedback_")?
+                        "window.bodyTraceReceiveFeedback && window.bodyTraceReceiveFeedback("+object.toString()+")":
+                        "window.bodyTraceReceive && window.bodyTraceReceive(" + object.toString() + ")", null);
         });
     }
 
@@ -2407,14 +2409,16 @@ public final class MainActivity extends Activity {
             try{
                 SnoreFeedbackController.Settings settings=SnoreFeedbackController.Settings.parse(raw);
                 new Thread(()->{
-                    boolean played=SnoreFeedbackController.playCue(getApplicationContext(),settings,
+                    boolean played=false;
+                    String failure="";
+                    try{played=SnoreFeedbackController.playCue(getApplicationContext(),settings,
                         (samples,rate,duration,vibrate)->{
                             try{reply(SleepRecorderService.speakerWave(samples,rate,
                                 duration,vibrate,"手动试听"));}
                             catch(Exception ignored){}
-                        });
+                        });}catch(Exception e){failure=safeMessage(e);}
                     try{reply(message("sleep_feedback_preview").put("ok",played)
-                        .put("message",played?"试听完成":"提示音播放失败或仍在播放上一个提示")); }
+                        .put("message",played?"试听完成":failure.isEmpty()?"仍在播放上一个提示":failure)); }
                     catch(Exception ignored){}
                 },"snore-feedback-preview").start();
             }catch(Exception e){error("试听配置无效："+safeMessage(e));}

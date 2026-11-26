@@ -54,7 +54,16 @@ public final class SleepRecorderService extends Service {
     private static volatile long lastFeedbackMs;
     private static volatile long feedbackStartedMs;
     private static volatile long cueMutedUntilElapsed;
-    private final ArrayBlockingQueue<short[]> inferenceQueue = new ArrayBlockingQueue<>(24);
+    private static volatile String inferenceState="idle",inferenceError="";
+    private static volatile long inferredWindows,droppedWindows;
+    private static volatile JSONObject latestMic;
+    private static final class LiveWindow {
+        final long second; final short[] pcm; final boolean muted;
+        LiveWindow(long second,short[] pcm,boolean muted){
+            this.second=second;this.pcm=pcm;this.muted=muted;
+        }
+    }
+    private final ArrayBlockingQueue<LiveWindow> inferenceQueue = new ArrayBlockingQueue<>(4);
     private volatile AudioRecord microphone;
     private volatile boolean running;
     private volatile boolean recordRequested;
@@ -80,6 +89,9 @@ public final class SleepRecorderService extends Service {
             .put("monitor_only",microphoneActive&&!isRecording())
             .put("recording",isRecording())
             .put("settings",SnoreFeedbackController.Settings.load(c).json())
+            .put("inference_state",inferenceState).put("inference_error",inferenceError)
+            .put("inferred_windows",inferredWindows).put("dropped_windows",droppedWindows)
+            .put("latest_mic",latestMic)
             .put("last_score",lastFeedbackScore)
             .put("cues",feedbackCount).put("last_cue_ms",lastFeedbackMs)
             .put("started_ms",feedbackStartedMs);
@@ -102,7 +114,7 @@ public final class SleepRecorderService extends Service {
         }
         if(ACTION_FEEDBACK_OFF.equals(action)){
             feedbackEnabled=false;
-            inferenceQueue.clear();sendFeedbackStatus();
+            sendFeedbackStatus();
             return START_NOT_STICKY;
         }
         if(ACTION_START.equals(action)){
@@ -149,6 +161,8 @@ public final class SleepRecorderService extends Service {
             running=true;
             microphoneActive=true;
             feedbackCount=0;lastFeedbackMs=0;lastFeedbackScore=0;
+            inferredWindows=0;droppedWindows=0;latestMic=null;
+            inferenceState="loading";inferenceError="";
             if(feedbackEnabled)feedbackStartedMs=System.currentTimeMillis();
             inferenceQueue.clear();
             captureThread=new Thread(this::capture,"sleep-pcm-shared");
@@ -201,7 +215,13 @@ public final class SleepRecorderService extends Service {
             inferenceThread=new Thread(this::inferLoop,"sleep-yamnet-live");
             inferenceThread.start();
             short[] pcm=new short[1600];
-            long lastWaveAt=0;
+            final long[] second={0};
+            SleepAudioAnalyzer.EnvelopeAccumulator envelope=new SleepAudioAnalyzer.EnvelopeAccumulator(
+                SAMPLE_RATE,1,(rms,peak,shortRms)->sendMicrophoneSecond(second[0]++,rms,peak,shortRms));
+            short[] window=new short[SAMPLE_RATE];
+            int windowPos=0;
+            long windowSecond=0;
+            boolean windowMuted=false;
             while(running&&SystemClock.elapsedRealtime()-startElapsed<MAX_DURATION_MS){
                 int count=record.read(pcm,0,pcm.length,AudioRecord.READ_BLOCKING);
                 if(count<0){
@@ -211,17 +231,19 @@ public final class SleepRecorderService extends Service {
                 if(count==0)continue;
                 if(writer==null&&recordRequested)writer=beginRecording();
                 if(writer!=null)writer.write(pcm,count);
-                long now=SystemClock.elapsedRealtime();
-                if(now-lastWaveAt>=140){
-                    lastWaveAt=now;
-                    sendMicrophoneWave(pcm,count);
-                }
-                short[] copy=new short[count];
-                boolean muted=now<cueMutedUntilElapsed;
-                if(!muted)System.arraycopy(pcm,0,copy,0,count);
-                // Classify independently of output being enabled; never block M4A.
-                if(!inferenceQueue.offer(copy)){
-                    inferenceQueue.poll();inferenceQueue.offer(copy);
+                // Same statistics as offline analysis, with indexed whole-second model windows.
+                boolean muted=SystemClock.elapsedRealtime()<cueMutedUntilElapsed;
+                for(int i=0;i<count;i++){
+                    envelope.add(pcm[i]);
+                    window[windowPos++]=pcm[i];
+                    windowMuted|=muted;
+                    if(windowPos==SAMPLE_RATE){
+                        LiveWindow block=new LiveWindow(windowSecond++,window,windowMuted);
+                        if(!inferenceQueue.offer(block)){
+                            inferenceQueue.poll();droppedWindows++;inferenceQueue.offer(block);
+                        }
+                        window=new short[SAMPLE_RATE];windowPos=0;windowMuted=false;
+                    }
                 }
             }
             if(writer!=null){
@@ -232,6 +254,7 @@ public final class SleepRecorderService extends Service {
             sendError(problem);
         }finally{
             running=false;microphoneActive=false;feedbackEnabled=false;
+            inferenceState="idle";
             recordRequested=false;
             inferenceQueue.clear();
             if(record!=null){
@@ -254,69 +277,58 @@ public final class SleepRecorderService extends Service {
         }
     }
 
-    private void sendMicrophoneWave(short[] pcm,int count) {
+    private void sendMicrophoneSecond(long second,double rms,double peak,double shortRms) {
         try {
-            // Telemetry is a 16-bin amplitude envelope, not raw audio.
-            final int bins=16;
-            int[] peaks=new int[bins];
-            long square=0;
-            for(int i=0;i<count;i++){
-                int v=pcm[i];
-                square+=(long)v*v;
-                int bin=Math.min(bins-1,(int)((long)i*bins/count));
-                peaks[bin]=Math.max(peaks[bin],Math.abs(v));
-            }
-            double rms=Math.sqrt(square/(double)Math.max(1,count))/32768.0;
-            double dbfs=rms<=0?-96:Math.max(-96,20*Math.log10(rms));
-            JSONArray envelope=new JSONArray();
-            for(int peak:peaks){
-                double db=peak<=0?-96:20*Math.log10(peak/32768.0);
-                envelope.put(Math.max(0,Math.min(1,(db+72)/66)));
-            }
-            broadcast(new JSONObject().put("type","sleep_feedback_mic")
+            JSONObject event=new JSONObject().put("type","sleep_feedback_mic")
                 .put("active",true).put("recording",isRecording())
-                .put("rms_dbfs",Math.round(dbfs*10)/10.0)
-                .put("wave",envelope));
-        }catch(Exception ignored){}
+                .put("second",second).put("rms_dbfs",rms)
+                .put("peak_dbfs",peak).put("short_rms_dbfs",shortRms);
+            latestMic=event;broadcast(event);
+        }catch(Exception e){android.util.Log.w("SleepFeedback","mic telemetry",e);}
     }
 
     private void inferLoop() {
-        int lastWindow=0,consecutive=0;
-        long previousCue=0,lastReport=0;
+        int consecutive=0;
+        long previousCue=0,lastSecond=-2;
         try(SleepYamnetClassifier classifier=new SleepYamnetClassifier(this,SAMPLE_RATE,1)){
-            while(running||!inferenceQueue.isEmpty()){
-                short[] block=inferenceQueue.poll(300,TimeUnit.MILLISECONDS);
+            inferenceState="running";sendFeedbackStatus();
+            while(running){
+                LiveWindow block=inferenceQueue.poll(300,TimeUnit.MILLISECONDS);
                 if(block==null)continue;
-                for(short sample:block)classifier.addSample(sample);
-                int count=classifier.scoreCount();
-                if(count==lastWindow)continue;
-                lastWindow=count;
+                if(block.second!=lastSecond+1)consecutive=0;
+                lastSecond=block.second;
+                int before=classifier.scoreCount();
+                for(short sample:block.pcm)classifier.addSample(block.muted?0:sample);
+                if(classifier.scoreCount()==before)continue;
+                if(!running)break;
                 double score=classifier.lastSnoreScore();
-                lastFeedbackScore=score;
-                SnoreFeedbackController.Settings settings=
-                    SnoreFeedbackController.Settings.load(this);
-                consecutive=feedbackEnabled&&score>=settings.threshold?
+                lastFeedbackScore=score;inferredWindows++;
+                SnoreFeedbackController.Settings settings=SnoreFeedbackController.Settings.load(this);
+                consecutive=feedbackEnabled&&!block.muted&&score>=settings.threshold?
                     Math.min(consecutive+1,5):0;
+                broadcast(new JSONObject().put("type","sleep_feedback_score")
+                    .put("second",block.second).put("score",score)
+                    .put("muted",block.muted).put("inferred_windows",inferredWindows)
+                    .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
                 if(consecutive>=settings.minimum &&
                         (previousCue==0||now-previousCue>=settings.repeat*1000L)){
                     previousCue=now;consecutive=0;
                     cueMutedUntilElapsed=now+1500L;
-                    // Avoid delayed mic samples from classifying the speaker's own tone.
-                    inferenceQueue.clear();
-                    if(SnoreFeedbackController.playCue(this,settings,(samples,rate,duration,vibration)->
-                            sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发"))){
-                        feedbackCount++;
-                        lastFeedbackMs=System.currentTimeMillis();
-                    }
+                    try{
+                        if(SnoreFeedbackController.playCue(this,settings,(samples,rate,duration,vibration)->
+                                sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发"))){
+                            feedbackCount++;lastFeedbackMs=System.currentTimeMillis();
+                        }
+                    }catch(Exception e){sendError("自动提示音失败："+e.getMessage());}
                     sendFeedbackStatus();
-                }else if(now-lastReport>=2000){
-                    lastReport=now;sendFeedbackStatus();
                 }
             }
         }catch(Exception e){
-            sendError("鼾声识别暂停（麦克风/录音继续）："+
-                e.getClass().getSimpleName());
+            if(!running)return;
+            inferenceError=e.getClass().getSimpleName()+" "+String.valueOf(e.getMessage());
+            inferenceState="error";
+            android.util.Log.e("SleepFeedback","Live inference failed",e);
             feedbackEnabled=false;sendFeedbackStatus();
         }
     }

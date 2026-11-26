@@ -470,18 +470,19 @@ body.overview-muscle-open{overflow:hidden}
   <div class="sleep-io-card mic" aria-label="麦克风实时输入">
    <div class="sleep-io-heading">
     <div class="sleep-io-title"><span class="sleep-io-icon">🎙</span>
-     <div><strong>麦克风 · 输入</strong><small>实时采集波形</small></div>
+     <div><strong>麦克风 · 输入</strong><small>最近60秒 · 与录音分析同口径</small></div>
     </div>
     <span class="sleep-io-state" id="sleepMicBadge">未连接</span>
    </div>
    <div class="sleep-oscilloscope">
     <canvas id="sleepMicCanvas" width="660" height="140" aria-label="实时麦克风声音波形"></canvas>
-    <span class="sleep-osc-label">INPUT · PCM 16kHz</span>
+    <span class="sleep-osc-label">RMS / PEAK / 200ms RMS</span>
    </div>
    <div class="sleep-io-readouts">
     <span>当前电平 <strong id="sleepMicDbfs">—</strong></span>
     <span>鼾声得分 <strong id="sleepFeedbackScore">—</strong></span>
    </div>
+   <p class="sub" id="sleepInferenceStatus" role="status">AI 未运行</p>
    <div class="sleep-io-actions">
     <button type="button" class="primary" id="sleepMicStart">开启麦克风测试</button>
     <button type="button" class="secondary" id="sleepMicStop" disabled>关闭测试</button>
