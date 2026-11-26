@@ -975,6 +975,10 @@
    $("sleepFeedbackInfo").textContent="正在关闭反馈（录音会继续）…";
    bridge()?.sleepFeedbackStop?.();
   };
+  $("sleepFeedbackStopRecording").onclick=()=>{
+   $("sleepFeedbackInfo").textContent="正在结束整晚录音并保存 M4A…";
+   bridge()?.sleepStop?.();
+  };
   const old=window.bodyTraceReceive;
   window.bodyTraceReceive=function(evt){
    if(typeof old==="function")old(evt);
@@ -985,6 +989,10 @@
     $("sleepFeedbackBadge").classList.toggle("active",active);
     $("sleepFeedbackStart").disabled=active;
     $("sleepFeedbackStop").disabled=!active;
+    $("sleepFeedbackStopRecording").disabled=!evt.recording;
+    // The feedback entry can start recording itself; refresh the existing
+    // recorder buttons/session list only when recording state really changes.
+    if(!!evt.recording!==recording)bridge()?.sleepStatus?.();
     $("sleepFeedbackScore").textContent=active?
      Number(evt.last_score||0).toFixed(2):"—";
     $("sleepFeedbackCount").textContent=String(evt.cues||0);
