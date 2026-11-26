@@ -20,6 +20,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -29,14 +30,16 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A single 16 kHz PCM microphone stream feeds two independent consumers:
- * AAC/M4A recording (lossless PCM handoff to MediaCodec) and optional YAMNet
- * inference. No second microphone session; toggling feedback never stops M4A.
- * User-initiated foreground service, not restarted at boot.
+ * One AudioRecord feeds: 1) optional M4A encoding, 2) optional YAMNet feedback,
+ * 3) always-on ephemeral microphone waveform telemetry.
+ * Mic-only testing creates no session/files, and can be upgraded to recording
+ * without releasing the microphone. No raw PCM is sent to the WebView.
  */
 public final class SleepRecorderService extends Service {
     static final String ACTION_START = "com.z2846852.bodytrace.SLEEP_START";
     static final String ACTION_STOP = "com.z2846852.bodytrace.SLEEP_STOP";
+    static final String ACTION_MONITOR_ON = "com.z2846852.bodytrace.SLEEP_MIC_MONITOR_ON";
+    static final String ACTION_MONITOR_OFF = "com.z2846852.bodytrace.SLEEP_MIC_MONITOR_OFF";
     static final String ACTION_FEEDBACK_ON = "com.z2846852.bodytrace.SLEEP_FEEDBACK_ON";
     static final String ACTION_FEEDBACK_OFF = "com.z2846852.bodytrace.SLEEP_FEEDBACK_OFF";
     private static final String CHANNEL = "bodytrace_sleep_mic";
@@ -44,6 +47,7 @@ public final class SleepRecorderService extends Service {
     private static final int SAMPLE_RATE = 16000;
     private static final long MAX_DURATION_MS = 12L*60*60*1000;
     private static volatile String currentId = "";
+    private static volatile boolean microphoneActive;
     private static volatile boolean feedbackEnabled;
     private static volatile double lastFeedbackScore;
     private static volatile int feedbackCount;
@@ -53,6 +57,7 @@ public final class SleepRecorderService extends Service {
     private final ArrayBlockingQueue<short[]> inferenceQueue = new ArrayBlockingQueue<>(24);
     private volatile AudioRecord microphone;
     private volatile boolean running;
+    private volatile boolean recordRequested;
     private volatile boolean started;
     private Thread captureThread;
     private Thread inferenceThread;
@@ -60,15 +65,19 @@ public final class SleepRecorderService extends Service {
     private String id;
     private long startMs;
     private long startElapsed;
+    private long recordedStartMs;
 
     static boolean isRecording() { return !currentId.isEmpty(); }
+    static boolean isMicrophoneActive() { return microphoneActive; }
     static boolean isCurrentSession(String session) { return currentId.equals(session); }
     static String currentSessionId() { return currentId; }
     static boolean isFeedbackEnabled() { return feedbackEnabled; }
 
     static JSONObject feedbackStatus(android.content.Context c) throws Exception {
         return new JSONObject().put("type","sleep_feedback_status")
-            .put("active",feedbackEnabled&&isRecording())
+            .put("active",feedbackEnabled&&microphoneActive)
+            .put("microphone_active",microphoneActive)
+            .put("monitor_only",microphoneActive&&!isRecording())
             .put("recording",isRecording())
             .put("settings",SnoreFeedbackController.Settings.load(c).json())
             .put("last_score",lastFeedbackScore)
@@ -84,28 +93,42 @@ public final class SleepRecorderService extends Service {
             requestStop();
             return START_NOT_STICKY;
         }
-        if(ACTION_FEEDBACK_OFF.equals(action)){
-            feedbackEnabled=false;
-            lastFeedbackScore=0;
-            inferenceQueue.clear();
+        if(ACTION_MONITOR_OFF.equals(action)){
+            // A recording owns the mic; never silently end the saved M4A here.
+            if(isRecording()||recordRequested)sendError("正在录音，麦克风不能单独关闭；可关闭鼾声反馈");
+            else requestStop();
             sendFeedbackStatus();
             return START_NOT_STICKY;
         }
-        if(ACTION_FEEDBACK_ON.equals(action)) {
-            feedbackEnabled=true;
-            if(!running&&!isRecording())startCapture();
-            sendFeedbackStatus();
+        if(ACTION_FEEDBACK_OFF.equals(action)){
+            feedbackEnabled=false;lastFeedbackScore=0;
+            inferenceQueue.clear();sendFeedbackStatus();
             return START_NOT_STICKY;
         }
         if(ACTION_START.equals(action)){
-            if(!running&&!isRecording())startCapture();
+            if(running){
+                if(!isRecording())recordRequested=true; // upgrade mic-only capture in place
+            }else startCapture(true);
+            sendFeedbackStatus();
+            return START_NOT_STICKY;
+        }
+        if(ACTION_MONITOR_ON.equals(action)){
+            if(!running)startCapture(false);
+            sendFeedbackStatus();
+            return START_NOT_STICKY;
+        }
+        if(ACTION_FEEDBACK_ON.equals(action)){
+            feedbackEnabled=true;
+            feedbackStartedMs=System.currentTimeMillis();
+            if(!running)startCapture(false);
+            sendFeedbackStatus();
             return START_NOT_STICKY;
         }
         return START_NOT_STICKY;
     }
 
-    private void startCapture() {
-        if(running||isRecording())return;
+    private void startCapture(boolean saveAudio) {
+        if(running||microphoneActive)return;
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
             feedbackEnabled=false;
             sendError("麦克风未授权");stopSelf();return;
@@ -116,35 +139,48 @@ public final class SleepRecorderService extends Service {
                 startForeground(NOTIFICATION_ID,notification(),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
             else startForeground(NOTIFICATION_ID,notification());
-            startMs=System.currentTimeMillis();
             startElapsed=SystemClock.elapsedRealtime();
-            id=startMs+"-"+UUID.randomUUID().toString().substring(0,8);
-            File file=SleepSessions.audio(this,id);
-            JSONObject session=new JSONObject()
-                .put("id",id).put("started_ms",startMs)
-                .put("status","recording").put("codec","AAC-LC")
-                .put("source","local-microphone");
-            SleepSessions.write(this,session);
+            recordRequested=saveAudio;
             PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
             wakeLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 "bodytrace:sleep-microphone");
             wakeLock.setReferenceCounted(false);
             wakeLock.acquire(MAX_DURATION_MS);
-            running=true;started=true;currentId=id;
+            running=true;
+            microphoneActive=true;
             feedbackCount=0;lastFeedbackMs=0;lastFeedbackScore=0;
-            feedbackStartedMs=feedbackEnabled?System.currentTimeMillis():0;
+            if(feedbackEnabled)feedbackStartedMs=System.currentTimeMillis();
             inferenceQueue.clear();
-            captureThread=new Thread(()->capture(file),"sleep-pcm-aac");
+            captureThread=new Thread(this::capture,"sleep-pcm-shared");
             captureThread.start();
+            sendFeedbackStatus();
         }catch(Exception e){
-            running=false;feedbackEnabled=false;
-            sendError("睡眠录音启动失败："+e.getClass().getSimpleName());
-            finalizeSession(false,"录音启动失败："+e.getClass().getSimpleName());
+            running=false;microphoneActive=false;feedbackEnabled=false;
+            sendError("麦克风启动失败："+e.getClass().getSimpleName());
+            releaseWakeLock();
             stopSelf();
         }
     }
 
-    private void capture(File file) {
+    private AacWriter beginRecording() throws Exception {
+        recordedStartMs=System.currentTimeMillis();
+        startMs=recordedStartMs;
+        id=startMs+"-"+UUID.randomUUID().toString().substring(0,8);
+        JSONObject session=new JSONObject()
+            .put("id",id).put("started_ms",startMs)
+            .put("status","recording").put("codec","AAC-LC")
+            .put("source","local-microphone");
+        SleepSessions.write(this,session);
+        started=true;currentId=id;
+        AacWriter writer=new AacWriter(SleepSessions.audio(this,id));
+        recordRequested=false;
+        ((NotificationManager)getSystemService(NOTIFICATION_SERVICE))
+            .notify(NOTIFICATION_ID,notification());
+        sendFeedbackStatus();
+        return writer;
+    }
+
+    private void capture() {
         AudioRecord record=null;
         AacWriter writer=null;
         boolean valid=false;
@@ -152,47 +188,53 @@ public final class SleepRecorderService extends Service {
         try {
             int minimum=AudioRecord.getMinBufferSize(SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);
-            if(minimum<=0)throw new IllegalStateException("设备不支持16kHz录音");
+            if(minimum<=0)throw new IllegalStateException("设备不支持16kHz麦克风");
             record=new AudioRecord(MediaRecorder.AudioSource.MIC,SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT,
                 Math.max(32768,minimum*2));
             if(record.getState()!=AudioRecord.STATE_INITIALIZED)
                 throw new IllegalStateException("麦克风初始化失败");
             microphone=record;
-            writer=new AacWriter(file);
             record.startRecording();
             if(record.getRecordingState()!=AudioRecord.RECORDSTATE_RECORDING)
-                throw new IllegalStateException("麦克风无法录制");
+                throw new IllegalStateException("麦克风无法开始录制");
             inferenceThread=new Thread(this::inferLoop,"sleep-yamnet-live");
             inferenceThread.start();
             short[] pcm=new short[1600];
+            long lastWaveAt=0;
             while(running&&SystemClock.elapsedRealtime()-startElapsed<MAX_DURATION_MS){
                 int count=record.read(pcm,0,pcm.length,AudioRecord.READ_BLOCKING);
                 if(count<0){
                     if(!running)break;
-                    throw new IllegalStateException("录音读取错误："+count);
+                    throw new IllegalStateException("麦克风读取错误："+count);
                 }
                 if(count==0)continue;
-                writer.write(pcm,count);
+                if(writer==null&&recordRequested)writer=beginRecording();
+                if(writer!=null)writer.write(pcm,count);
+                long now=SystemClock.elapsedRealtime();
+                if(now-lastWaveAt>=140){
+                    lastWaveAt=now;
+                    sendMicrophoneWave(pcm,count);
+                }
                 if(feedbackEnabled){
                     short[] copy=new short[count];
-                    System.arraycopy(pcm,0,copy,0,count);
-                    // Never sacrifice recording continuity to catch up on classification.
+                    boolean muted=now<cueMutedUntilElapsed;
+                    if(!muted)System.arraycopy(pcm,0,copy,0,count);
+                    // Drop classifier work if overloaded; never block M4A encoding.
                     if(!inferenceQueue.offer(copy)){
-                        inferenceQueue.poll();
-                        inferenceQueue.offer(copy);
+                        inferenceQueue.poll();inferenceQueue.offer(copy);
                     }
                 }
             }
-            writer.finish();
-            writer=null;
-            valid=true;
+            if(writer!=null){
+                writer.finish();writer=null;valid=true;
+            }
         }catch(Exception e){
-            problem="录音中断："+e.getClass().getSimpleName()+" "+e.getMessage();
+            problem="麦克风采集失败："+e.getClass().getSimpleName()+" "+e.getMessage();
             sendError(problem);
         }finally{
-            running=false;
-            feedbackEnabled=false;
+            running=false;microphoneActive=false;feedbackEnabled=false;
+            recordRequested=false;
             inferenceQueue.clear();
             if(record!=null){
                 try{record.stop();}catch(Exception ignored){}
@@ -207,9 +249,37 @@ public final class SleepRecorderService extends Service {
                 inferenceThread=null;
             }
             finalizeSession(valid,problem);
+            releaseWakeLock();
+            sendFeedbackStatus();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
         }
+    }
+
+    private void sendMicrophoneWave(short[] pcm,int count) {
+        try {
+            // Telemetry is a 16-bin amplitude envelope, not raw audio.
+            final int bins=16;
+            int[] peaks=new int[bins];
+            long square=0;
+            for(int i=0;i<count;i++){
+                int v=pcm[i];
+                square+=(long)v*v;
+                int bin=Math.min(bins-1,(int)((long)i*bins/count));
+                peaks[bin]=Math.max(peaks[bin],Math.abs(v));
+            }
+            double rms=Math.sqrt(square/(double)Math.max(1,count))/32768.0;
+            double dbfs=rms<=0?-96:Math.max(-96,20*Math.log10(rms));
+            JSONArray envelope=new JSONArray();
+            for(int peak:peaks){
+                double db=peak<=0?-96:20*Math.log10(peak/32768.0);
+                envelope.put(Math.max(0,Math.min(1,(db+72)/66)));
+            }
+            broadcast(new JSONObject().put("type","sleep_feedback_mic")
+                .put("active",true).put("recording",isRecording())
+                .put("rms_dbfs",Math.round(dbfs*10)/10.0)
+                .put("wave",envelope));
+        }catch(Exception ignored){}
     }
 
     private void inferLoop() {
@@ -219,12 +289,8 @@ public final class SleepRecorderService extends Service {
             while(running||!inferenceQueue.isEmpty()){
                 short[] block=inferenceQueue.poll(300,TimeUnit.MILLISECONDS);
                 if(block==null)continue;
-                if(!feedbackEnabled){
-                    consecutive=0;
-                    continue;
-                }
-                boolean muted=SystemClock.elapsedRealtime()<cueMutedUntilElapsed;
-                for(short sample:block)classifier.addSample(muted?0:sample);
+                if(!feedbackEnabled){consecutive=0;continue;}
+                for(short sample:block)classifier.addSample(sample);
                 int count=classifier.scoreCount();
                 if(count==lastWindow)continue;
                 lastWindow=count;
@@ -232,45 +298,71 @@ public final class SleepRecorderService extends Service {
                 lastFeedbackScore=score;
                 SnoreFeedbackController.Settings settings=
                     SnoreFeedbackController.Settings.load(this);
-                consecutive=!muted&&score>=settings.threshold?
-                    Math.min(consecutive+1,5):0;
+                consecutive=score>=settings.threshold?Math.min(consecutive+1,5):0;
                 long now=SystemClock.elapsedRealtime();
                 if(consecutive>=settings.minimum &&
-                        (previousCue==0 || now-previousCue>=settings.repeat*1000L)){
-                    previousCue=now;
-                    consecutive=0;
-                    cueMutedUntilElapsed=now+1250L;
-                    if(SnoreFeedbackController.playCue(this,settings)){
+                        (previousCue==0||now-previousCue>=settings.repeat*1000L)){
+                    previousCue=now;consecutive=0;
+                    cueMutedUntilElapsed=now+1500L;
+                    // Avoid delayed mic samples from classifying the speaker's own tone.
+                    inferenceQueue.clear();
+                    if(SnoreFeedbackController.playCue(this,settings,(samples,rate,duration,vibration)->
+                            sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发"))){
                         feedbackCount++;
                         lastFeedbackMs=System.currentTimeMillis();
                     }
                     sendFeedbackStatus();
-                }else if(now-lastReport>=2000L){
-                    lastReport=now;
-                    sendFeedbackStatus();
+                }else if(now-lastReport>=2000){
+                    lastReport=now;sendFeedbackStatus();
                 }
             }
         }catch(Exception e){
-            sendError("实时识别暂停，录音仍在继续："+e.getClass().getSimpleName());
-            feedbackEnabled=false;
+            sendError("鼾声识别暂停（麦克风/录音继续）："+
+                e.getClass().getSimpleName());
+            feedbackEnabled=false;sendFeedbackStatus();
         }
     }
 
-    private synchronized void requestStop() {
+    static JSONObject speakerWave(short[] samples,int rate,int duration,
+                                  boolean vibration,String reason) throws Exception {
+        JSONArray envelope=new JSONArray();
+        int bins=72;
+        for(int b=0;b<bins;b++){
+            int start=b*samples.length/bins;
+            int end=(b+1)*samples.length/bins;
+            int peak=0;
+            for(int i=start;i<end;i++)peak=Math.max(peak,Math.abs(samples[i]));
+            envelope.put(Math.round(peak*1000.0/32768.0)/1000.0);
+        }
+        return new JSONObject().put("type","sleep_feedback_output")
+            .put("wave",envelope).put("duration_ms",duration)
+            .put("vibration",vibration).put("reason",reason)
+            .put("sample_rate",rate);
+    }
+
+    private void sendSpeakerWave(short[] samples,int rate,int duration,boolean vibrate,
+                                 String reason){
+        try{broadcast(speakerWave(samples,rate,duration,vibrate,reason));}
+        catch(Exception ignored){}
+    }
+
+    private void requestStop() {
         running=false;
         AudioRecord record=microphone;
         if(record!=null)try{record.stop();}catch(Exception ignored){}
     }
 
-    private void finalizeSession(boolean valid,String problem){
-        if(!started)return;
-        started=false;
-        feedbackEnabled=false;
-        currentId="";
+    private void releaseWakeLock(){
         if(wakeLock!=null){
             try{if(wakeLock.isHeld())wakeLock.release();}catch(Exception ignored){}
             wakeLock=null;
         }
+    }
+
+    private void finalizeSession(boolean valid,String problem){
+        if(!started){currentId="";return;}
+        started=false;
+        currentId="";
         boolean saved=false;
         long bytes=0,elapsed=0;
         String failure=problem==null?"":problem;
@@ -295,12 +387,10 @@ public final class SleepRecorderService extends Service {
             failure="录音数据保存失败："+e.getClass().getSimpleName();
         }
         try{
-            JSONObject event=new JSONObject().put("type","sleep_recording_finished")
+            broadcast(new JSONObject().put("type","sleep_recording_finished")
                 .put("id",id).put("saved",saved)
-                .put("bytes",bytes).put("duration_ms",elapsed).put("message",failure);
-            broadcast(event);
+                .put("bytes",bytes).put("duration_ms",elapsed).put("message",failure));
         }catch(Exception ignored){}
-        sendFeedbackStatus();
     }
 
     private void broadcast(JSONObject event){
@@ -318,9 +408,9 @@ public final class SleepRecorderService extends Service {
 
     private void createChannel(){
         NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-        NotificationChannel channel=new NotificationChannel(CHANNEL,"睡眠录音和反馈",
-            NotificationManager.IMPORTANCE_LOW);
-        channel.setDescription("锁屏录音和实时鼾声提醒；可从通知停止");
+        NotificationChannel channel=new NotificationChannel(CHANNEL,
+            "睡眠录音和麦克风测试",NotificationManager.IMPORTANCE_LOW);
+        channel.setDescription("麦克风状态及可选鼾声提示，通知可停止");
         manager.createNotificationChannel(channel);
     }
 
@@ -334,11 +424,11 @@ public final class SleepRecorderService extends Service {
             new Intent(this,SleepRecorderService.class).setAction(ACTION_STOP),immutable);
         return new Notification.Builder(this,CHANNEL)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("BodyTrace · 睡眠声音录制中")
-            .setContentText("可同时使用实时鼾声反馈 · 点击停止")
+            .setContentTitle("BodyTrace · 麦克风活动中")
+            .setContentText("可录制、监听与鼾声提醒 · 点击停止")
             .setContentIntent(open).setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
-            .addAction(android.R.drawable.ic_media_pause,"停止录音",stop)
+            .addAction(android.R.drawable.ic_media_pause,"停止麦克风",stop)
             .build();
     }
 
