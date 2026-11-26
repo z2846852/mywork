@@ -908,4 +908,108 @@
  };
  updateThreshold();
  render();
+
+ // Separate controls; one microphone recording stream is shared by AAC and live YAMNet.
+ (function initSnoreFeedback(){
+  const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold",
+   "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate"];
+  const cfg=()=>({
+   sound:$("sleepFeedbackSound").value,
+   volume:Number($("sleepFeedbackVolume").value),
+   threshold:Number($("sleepFeedbackThreshold").value),
+   minimum:Number($("sleepFeedbackMinimum").value),
+   repeat:Number($("sleepFeedbackRepeat").value),
+   vibrate:$("sleepFeedbackVibrate").checked
+  });
+  function values(){
+   $("sleepFeedbackVolumeText").textContent=cfg().volume+"%";
+   $("sleepFeedbackThresholdText").textContent=cfg().threshold.toFixed(2);
+   $("sleepFeedbackMinimumText").textContent=cfg().minimum+" 秒";
+   $("sleepFeedbackRepeatText").textContent=cfg().repeat+" 秒";
+  }
+  function switchPage(which){
+   const live=which==="feedback";
+   $("sleepBrowserPanel").hidden=live;
+   $("sleepFeedbackPanel").hidden=!live;
+   for(const [id,pressed] of [["sleepFeedbackTab",live],["sleepBrowserTab",!live]]){
+    $(id).classList.toggle("active",pressed);
+    $(id).setAttribute("aria-pressed",String(pressed));
+   }
+   if(live)bridge()?.sleepFeedbackStatus?.();
+  }
+  function save(){
+   if(!bridge()?.sleepFeedbackSave)return false;
+   const ok=bridge().sleepFeedbackSave(JSON.stringify(cfg()))===true;
+   if(!ok)$("sleepFeedbackInfo").textContent="保存失败，请查看应用错误提示";
+   return ok;
+  }
+  for(const id of ids){
+   $(id).addEventListener("input",values);
+   $(id).addEventListener("change",save);
+  }
+  $("sleepBrowserTab").onclick=()=>switchPage("browser");
+  $("sleepFeedbackTab").onclick=()=>switchPage("feedback");
+  $("sleepFeedbackPreview").onclick=()=>{
+   if(!bridge()?.sleepFeedbackPreview){
+    $("sleepFeedbackInfo").textContent="需要完整安装支持实时反馈的新版 APK";return;
+   }
+   $("sleepFeedbackInfo").textContent="正在试听，声音使用手机媒体音量…";
+   bridge().sleepFeedbackPreview(JSON.stringify(cfg()));
+  };
+  $("sleepFeedbackVibratePreview").onclick=()=>{
+   if(!bridge()?.sleepFeedbackPreview){
+    $("sleepFeedbackInfo").textContent="需要新版 APK 才能测试震动";return;
+   }
+   $("sleepFeedbackInfo").textContent="正在测试一次短震动…";
+   bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),vibrate:true}));
+  };
+  $("sleepFeedbackStart").onclick=()=>{
+   if(!bridge()?.sleepFeedbackStart){
+    $("sleepFeedbackInfo").textContent="需要完整安装新版 APK";return;
+   }
+   if(!save())return;
+   $("sleepFeedbackInfo").textContent="正在开启实时监听…";
+   bridge().sleepFeedbackStart(JSON.stringify(cfg()));
+  };
+  $("sleepFeedbackStop").onclick=()=>{
+   $("sleepFeedbackInfo").textContent="正在关闭反馈（录音会继续）…";
+   bridge()?.sleepFeedbackStop?.();
+  };
+  const old=window.bodyTraceReceive;
+  window.bodyTraceReceive=function(evt){
+   if(typeof old==="function")old(evt);
+   if(!evt||!evt.type)return;
+   if(evt.type==="sleep_feedback_status"){
+    const active=!!evt.active;
+    $("sleepFeedbackBadge").textContent=active?"● 监听中":"未启动";
+    $("sleepFeedbackBadge").classList.toggle("active",active);
+    $("sleepFeedbackStart").disabled=active;
+    $("sleepFeedbackStop").disabled=!active;
+    $("sleepFeedbackScore").textContent=active?
+     Number(evt.last_score||0).toFixed(2):"—";
+    $("sleepFeedbackCount").textContent=String(evt.cues||0);
+    $("sleepFeedbackLast").textContent=evt.last_cue_ms?
+     new Date(evt.last_cue_ms).toLocaleTimeString("zh-CN",{hour12:false}):"—";
+    if(evt.settings&&typeof evt.settings==="object"&&
+       !document.activeElement?.id?.startsWith("sleepFeedback")){
+     for(const key of ["sound","volume","threshold","minimum","repeat"]){
+      const id="sleepFeedback"+key[0].toUpperCase()+key.slice(1);
+      if($(id)&&evt.settings[key]!==undefined)$(id).value=String(evt.settings[key]);
+     }
+     $("sleepFeedbackVibrate").checked=!!evt.settings.vibrate;
+     values();
+    }
+    $("sleepFeedbackInfo").textContent=active?
+     "本机实时检测中 · 锁屏继续 · 可随时调整提示音":
+     "未运行。可先试听，调整声音后开启实时反馈。";
+   }else if(evt.type==="sleep_feedback_preview"){
+    $("sleepFeedbackInfo").textContent=evt.message||
+     (evt.ok?"试听完成":"试听失败");
+   }else if(evt.type==="sleep_feedback_error"){
+    $("sleepFeedbackInfo").textContent=evt.message||"实时反馈异常";
+    bridge()?.sleepFeedbackStatus?.();
+   }
+  };
+  values();
+ })();
 })();
