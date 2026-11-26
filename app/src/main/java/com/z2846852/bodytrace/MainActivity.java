@@ -1692,7 +1692,8 @@ public final class MainActivity extends Activity {
                 }catch(Exception ignored){}
                 // Show the local installed version without fetching GitHub.
                 try{reply(message("apk_update").put("state","local_version")
-                    .put("installed_version",apkUpdates.currentVersion()));}
+                    .put("installed_version",apkUpdates.currentVersion())
+                    .put("previous_version",apkUpdates.previousVersion()));}
                 catch(Exception ignored){}
                 uiReady = true;
                 consumePendingSharedAvatar();

@@ -1117,7 +1117,8 @@ body.overview-muscle-open{overflow:hidden}
  </div>
  <div class="apk-version-row">
   <div class="apk-version-info">
-   <span>本机 <strong id="apkInstalledVersion">读取中…</strong></span>
+   <span>上次 <strong id="apkPreviousVersion">未记录</strong></span>
+   <span>本次 <strong id="apkInstalledVersion">读取中…</strong></span>
    <span>最新 <strong id="apkLatestVersion">未查询</strong></span>
   </div>
   <div class="apk-update-actions">
@@ -2275,7 +2276,9 @@ window.bodyTraceReceive=function(evt){
   receiveReleaseHistory(evt);break;
  case "apk_update":{
   // Check and local version results never start a download.
-  if(evt.installed_version!==undefined)
+  if(evt.previous_version!==undefined && $("apkPreviousVersion"))
+    $("apkPreviousVersion").textContent=evt.previous_version>0?"v0.2."+evt.previous_version:"未记录";
+   if(evt.installed_version!==undefined)
    $("apkInstalledVersion").textContent="v0.2."+evt.installed_version;
   if(evt.latest_version!==undefined)
    $("apkLatestVersion").textContent="v0.2."+evt.latest_version;

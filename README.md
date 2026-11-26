@@ -92,6 +92,7 @@ Android 应用私有 files/bodytrace/
 **正式发行路径：** 直接提交 `main` 中的应用、构建脚本或相关工作流文件 → [Android fast workflow](.github/workflows/android.yml) 编译固定签名 APK → 签名及 APK 资源检查 → [GitHub Release](https://github.com/z2846852/mywork/releases/latest) 发布成功 → **自动写回根目录 [`build-status.json`](build-status.json)**。
 
 - **版本号**使用 `0.2.<GitHub Actions run number>`；发布标签为 `v0.2.<run number>`。每次**成功发布 Release 之后**，Actions 使用当前令牌将 `build-status.json` 写入 `main`，记录 `status: published`、`version`、`version_code`、`run_number`、`run_id`、`source_commit`、`published_at`、`actions_url`、`release_url`、`apk_download_url`。发布失败或编译失败**不得**写入成功状态。
+- 更新页显示上一次实际运行的本机 APK 版本、本次安装版本和远端最新版本；版本历史仅保存在本机，首次未记录，不根据 GitHub 发布号猜测。未运行过的中间版本不记录。
 - 安装包 `BodyTrace-release.apk`；支持以已安装 APK 为基准的 `.btpatch` 差分升级，也可从更新页手动导入本地 `.btpatch` 离线还原并安装（首次使用须先安装含该入口的新版 APK）；校验还原后 APK 的 SHA256、包名、版本及证书。校验不满足时改用完整包或报告错误，绝不安装未验证文件。
 - 纯前端变化可使用 `BodyTrace-ui.zip` 小包；**仅当原生指纹兼容且每个文件哈希均通过**才允许覆盖 WebView 资源，否则回退 APK 内置 UI。新增 Java 桥接/原生权限/模型运行时需要完整 APK。
 - ZIPA 模型权重**不内置 APK**：在声音页按需一次下载缺失资源，三种模型可单独选择/删除，下载与安装检查 SHA256。内置英文 IPA/中文释义词典在打包时生成，缺失应修复 APK，不伪造结果。

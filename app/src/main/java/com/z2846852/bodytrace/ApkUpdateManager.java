@@ -54,6 +54,7 @@ final class ApkUpdateManager {
     ApkUpdateManager(Context context){
         this.context=context.getApplicationContext();
         this.dir=new File(context.getFilesDir(),"apk_updates");
+        try{previousVersion();}catch(Exception ignored){}
     }
 
     private JSONObject status(String state,String message) throws Exception {
@@ -68,6 +69,20 @@ final class ApkUpdateManager {
     long currentVersion() throws Exception {
         PackageInfo pkg=context.getPackageManager().getPackageInfo(context.getPackageName(),0);
         return Build.VERSION.SDK_INT>=28?pkg.getLongVersionCode():pkg.versionCode;
+    }
+
+    // Record actually observed installed versions, never downloaded targets.
+    synchronized long previousVersion() throws Exception {
+        long current=currentVersion();
+        android.content.SharedPreferences prefs=context.getSharedPreferences("apk_version_history",Context.MODE_PRIVATE);
+        long last=prefs.getLong("current",-1);
+        long previous=prefs.getLong("previous",-1);
+        if(last!=current){
+            previous=last;
+            if(!prefs.edit().putLong("current",current).putLong("previous",previous).commit())
+                throw new java.io.IOException("Unable to save APK version history");
+        }
+        return previous;
     }
 
     private static boolean validHash(String s){return s!=null&&s.matches("[0-9a-f]{64}");}
