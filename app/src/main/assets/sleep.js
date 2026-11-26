@@ -999,7 +999,7 @@
     $("sleepFeedbackLast").textContent=evt.last_cue_ms?
      new Date(evt.last_cue_ms).toLocaleTimeString("zh-CN",{hour12:false}):"—";
     if(evt.settings&&typeof evt.settings==="object"&&
-       !document.activeElement?.id?.startsWith("sleepFeedback")){
+       !ids.includes(document.activeElement?.id)){
      for(const key of ["sound","volume","threshold","minimum","repeat"]){
       const id="sleepFeedback"+key[0].toUpperCase()+key.slice(1);
       if($(id)&&evt.settings[key]!==undefined)$(id).value=String(evt.settings[key]);
