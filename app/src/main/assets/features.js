@@ -1103,12 +1103,25 @@ function syncFocusedStrengthCard(){
  const list=$("strengthList");
  if(!list)return;
  const exerciseId=trendFocusKey?trendFocusKey.split("|")[0]:null;
- // Never move an exercise card: highlighting must not disturb the layout.
- for(const card of list.querySelectorAll(".strength-exercise-card")){
+ const cards=[...list.querySelectorAll(".strength-exercise-card")];
+ for(const card of cards){
   const selected=!!exerciseId&&card.dataset.exerciseId===exerciseId;
   card.classList.toggle("selected-trend-exercise",selected);
   card.dataset.trendSelected=String(selected);
  }
+ // Put the chosen exercise in the first slot; the other cards retain their
+ // original most-recent-workout order. Clearing selection restores that order.
+ // Move existing DOM nodes, not regenerated charts: no navigation or scroll.
+ const ordered=cards.slice().sort((a,b)=>{
+  const aFocused=!!exerciseId&&a.dataset.exerciseId===exerciseId;
+  const bFocused=!!exerciseId&&b.dataset.exerciseId===exerciseId;
+  if(aFocused!==bFocused)return aFocused?-1:1;
+  return Number(a.dataset.recentRank)-Number(b.dataset.recentRank);
+ });
+ ordered.forEach((card,index)=>{
+  if(list.children[index]!==card)
+   list.insertBefore(card,list.children[index]||null);
+ });
 }
 function focusTrendFromStrengthCard(exerciseId,loadBasis=null){
  if(!exerciseId)return false;
@@ -1147,12 +1160,13 @@ function renderStrength(){
   empty.textContent="还没有训练动作。录入或同步 GitHub 后，这里自动显示全部动作的趋势。";
   root.append(empty);return;
  }
- for(const group of groups){
+ for(const [recentRank,group] of groups.entries()){
   const region=categoryForRow(group.records.at(-1).row)||"其他";
   const card=document.createElement("article");card.className="strength-exercise-card";
   card.dataset.region=region;
   card.style.setProperty("--region-accent",regionThemeColors[region]||"#8bb6ad");
   card.dataset.exerciseId=group.id;
+  card.dataset.recentRank=String(recentRank);
   const heading=document.createElement("div");heading.className="strength-exercise-heading";
   const header=document.createElement("div");header.className="strength-exercise-info";
   const title=document.createElement("h3");
