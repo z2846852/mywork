@@ -51,11 +51,6 @@
             android:foregroundServiceType="microphone"
             android:stopWithTask="false" />
         <service
-            android:name=".SnoreFeedbackService"
-            android:exported="false"
-            android:foregroundServiceType="microphone"
-            android:stopWithTask="false" />
-        <service
             android:name=".SleepAnalysisService"
             android:exported="false"
             android:foregroundServiceType="dataSync|mediaProcessing"
