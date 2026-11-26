@@ -195,7 +195,7 @@ body.overview-muscle-open{overflow:hidden}
  #page-home .overview-day-actions button{padding:6px}
 }
 
-/* Independent e1RM projection; never writes training inputs without an explicit action. */
+/* e1RM trial sliders write the unsaved workout draft, never history. */
 .e1rm-tool{margin:10px 0 4px;padding:10px 11px;border:1px solid #34584e;
  background:#132724;border-radius:12px}
 .e1rm-tool[hidden]{display:none!important}
@@ -388,7 +388,7 @@ body.overview-muscle-open{overflow:hidden}
      <span class="e1rm-range-guide"><span>1 次</span><span>20 次</span></span>
     </label>
    </div>
-   <p class="e1rm-hint" id="e1rmHint" role="status">试算不会修改上方待保存的重量和次数。</p>
+   <p class="e1rm-hint" id="e1rmHint" role="status">拖动滑块会同步上方重量和次数，仍需手动保存。</p>
    <div class="e1rm-config" id="e1rmConfig" hidden>
     <div class="e1rm-config-grid">
      <label>次数系数 C
@@ -2662,7 +2662,7 @@ function e1rmTrialRange(e1rm,cfg,assisted){
    item.disabled=true;
    if(item===node.kg||item===node.reps)item.value="";
   }
-  showHint("填写上方有效重量和 1–15 次后开始试算；试算值不会写入训练记录。",true);
+  showHint("先用有效重量和 1–15 次建立基准；滑动会回填待保存的重量和次数。",true);
  }
  function formulaText(load,reps,c,assisted){
   const l=format(load),a=format(c.gain),b=format(c.offset);
@@ -2714,7 +2714,7 @@ function e1rmTrialRange(e1rm,cfg,assisted){
   if(reps<1)showHint("当前重量高于理论可完成1次的重量（估计不足1次）；不是失败尝试的记录。",true);
   else if(reps>20)showHint("理论约 "+format(reps)+" 次；已超出滑块1–20次，数字框可以继续试算，但不建议当作实际能力。",true);
   else if(reps>15)showHint("数学外推约 "+format(reps)+" 次；16–20次误差可能较大。",true);
-  else showHint("预计约 "+format(reps)+" 次（假设接近力竭）。试算不会改动训练记录。");
+  else showHint("预计约 "+format(reps)+" 次（假设接近力竭）。");
  }
  function setKgFromReps(){
   if(!current)return;
@@ -2733,7 +2733,29 @@ function e1rmTrialRange(e1rm,cfg,assisted){
   syncRange(node.kgSlider,node.kg,weight);
   showHint("按约 "+format(reps)+" 次，理论标称重量 "+format(weight)+" kg。"+
    (reps>20?"已超出滑块范围，仅数字框显示。":
-    reps>15?"16–20次仅数学外推，误差可能较大。":"试算不修改记录。"),reps>15);
+    reps>15?"16–20次仅数学外推，误差可能较大。":"滑动会回填上方待保存的训练数据。"),reps>15);
+ }
+ // Keep the original e1RM reference fixed while sliding. Updating the
+ // two form fields directly (without firing input/change events) prevents
+ // re-anchoring on rounded repetitions and jumping slider values.
+ function applyTrialToRecord(){
+  if(!current)return false;
+  const rawKg=num(node.kg.value),rawReps=num(node.reps.value);
+  if(rawKg===null||rawKg<0||rawKg>500||
+     rawReps===null||rawReps<1||rawReps>200)return false;
+  const kg=round(rawKg),reps=Math.round(rawReps);
+  if(reps<1||reps>200)return false;
+  $p("recordKg").value=String(kg);
+  $p("recordReps").value=String(reps);
+  weightEditedByUser=true;
+  repsEditedByUser=true;
+  trainingFormDirty=true;
+  $("suggestedLoad").textContent="e1RM 已回填待保存："+kg+
+   "kg × "+reps+"次（仅修改表单，尚未保存）。";
+  showHint("已同步上方："+kg+"kg × "+reps+
+   "次；沿用本次 e1RM 基准，保存后才记入历史。"+
+   (rawReps>15?" 16次以上属于数学外推，误差较大。":""),rawReps>15);
+  return true;
  }
  function refresh(reset=true){
   const id=$p("recordExercise").value;
@@ -2768,7 +2790,7 @@ function e1rmTrialRange(e1rm,cfg,assisted){
    node.kgSlider.value=String(bound(load,Number(node.kgSlider.min),Number(node.kgSlider.max)));
    node.reps.value=String(reps);
    node.repsSlider.value=String(bound(reps,1,20));
-   showHint("固定当前 e1RM，拖动任一滑块反算另一项；只作为近力竭理论估算。");
+   showHint("固定本次 e1RM 基准；滑动会回填上方重量和次数，仍需手动保存。");
   }else setRepsFromKg();
  }
  node.info.addEventListener("click",()=>{
@@ -2777,10 +2799,20 @@ function e1rmTrialRange(e1rm,cfg,assisted){
   node.info.setAttribute("aria-expanded",String(open));
   if(open)settings();
  });
- node.kg.addEventListener("input",()=>{editing=true;setRepsFromKg()});
- node.kgSlider.addEventListener("input",()=>{node.kg.value=node.kgSlider.value;editing=true;setRepsFromKg()});
- node.reps.addEventListener("input",()=>{editing=true;setKgFromReps()});
- node.repsSlider.addEventListener("input",()=>{node.reps.value=node.repsSlider.value;editing=true;setKgFromReps()});
+ node.kg.addEventListener("input",()=>{
+  editing=true;setRepsFromKg();applyTrialToRecord();
+ });
+ node.kgSlider.addEventListener("input",()=>{
+  node.kg.value=node.kgSlider.value;editing=true;
+  setRepsFromKg();applyTrialToRecord();
+ });
+ node.reps.addEventListener("input",()=>{
+  editing=true;setKgFromReps();applyTrialToRecord();
+ });
+ node.repsSlider.addEventListener("input",()=>{
+  node.reps.value=node.repsSlider.value;editing=true;
+  setKgFromReps();applyTrialToRecord();
+ });
  function saveConfig(reset){
   if(!selected)return;
   if(reset){delete saved[selected];}
