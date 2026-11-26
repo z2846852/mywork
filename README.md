@@ -26,7 +26,7 @@
 | **趋势** | 标题和时间范围按钮同一行；顶部紧凑显示组数、训练天数、曲线数、体重及胸肩背腿统计；综合曲线选中后仅高亮、不改变统一纵轴，点击空白恢复全部；下方动作卡片和训练点可反向选中上方同动作同负重口径的曲线，卡片始终原地展示，不单独放大或重复；每动作可显示一条“个人阶段目标”虚线，可修改工作重量和次数、一键隐藏，设置通过 Android 原生 SharedPreferences 存在当前设备（不依赖 WebView localStorage，不上传 GitHub）；历史动作自动以自己的最佳有效记录再提高10%为阶段目标，臀推首次预置可修改的 60kg×8 次（不是成年平均），辅助器械默认隐藏；有目标的综合指数100对应目标1RM，幂次映射压低早期浮夸增长且保留中后期增益，原始记录不变；无法从不同器械/缺乏人口资料推断真实成人平均力量等级；保留历史编辑、图例和快捷跳转。**训练组数不等于肌肉增长，器械重量不可跨动作直接相加** |
 | **记录** | “训练记录”标题后始终显示可修改的北京时间训练日期，非今天会高亮“非今天”；不占额外一行，历史日期手动选择不被自动改写，选回今天则恢复跨日自动更新。肌群/动作选择、最近记录带入、滚轮输入、独立保存与批量录入、历史修改删除不变；e1RM 预测默认隐藏，点次数标题旁「!」才展开双向重量/次数滑块与经验系数校准，不影响原始记录；休息计时不变 |
 | **身体** | 体重及围度趋势、快捷录入、按日期查看测量、身体部位训练分布。身体示意为记录可视化，**不推断真实体型或肌肉变化** |
-| **睡眠** | 长时录音/导入、后台分析、波形与噪声阈值、疑似鼾声/语音片段筛选、时间线与回放；YAMNet 分类辅助，不是医学诊断 |
+| **睡眠** | 长时录音/导入、后台分析、波形与噪声阈值、疑似鼾声/语音片段筛选、时间线与回放；新增「实时鼾声反馈」子页：与录音共用麦克风 PCM，可选 4 种声音、试听、提示音量、可选震动及独立测试，反馈可在整晚录音期间随时开关；YAMNet 分类辅助，不是医学诊断 |
 | **声音** | 音高连续轨迹、五线谱参考、IPA 教学和易混音练习；按住说话分析 PCM 音频，实验性 ZIPA 神经音素识别与英汉词典反查 |
 | **饮食** | 每日饮食、热量和营养素记录及统计；数据以实际录入内容为准 |
 | **日志** | 最近 Git 提交、可获取的文件 diff、Raw 想法收件箱、GitHub 连接/同步、版本历史、更新和其他设置 |
@@ -46,6 +46,7 @@
 - **e1RM 记录页试算**：上方标称负重和重复次数是待保存原始记录；下面的理论重量/次数双向预测器**不会自动回写**训练表单。基准 e1RM 由当前动作标称量和 1–15 次近力竭记录得出，公式为 `e1RM = 有效负荷 × (1 + 次数/C)`，默认 `C=30`。其他重量的重复次数按逆公式试算，超过 15 次仅数学外推，不能视为可靠实际能力。点击公式旁 `!` 可为当前动作独立设置 `C`、器械负荷倍率 `a` 和普通动作偏移 `b`；辅助引体/双杠使用 `有效负荷 = (空载平衡刻度N - 标称辅助量) × a`，可将自己实测的空载点（如 100 kg）存为 `N`。未设定时仅暂以最近有效体重作为初始假设，**不是已校准器械数据**；没有体重且未校准时不估算。校准值保存在 Android 原生 SharedPreferences 的 `bodytrace_e1rm_calibration` 命名空间中，每个动作独立、更新应用后保留，**尚未通过 GitHub 同步或跨设备备份**。已有综合趋势和专属趋势仍沿用各自原始口径，不应认为新校准自动修改了历史趋势。普通自重动作仅外加重量、未确认负重口径、0 次失败、或超过 15 次的原始记录不生成 e1RM。
 - **趋势与入口联动**：优先让一屏展示高信息密度看板；可点击指标/曲线直达相关录入或详情，不重复显示无用信息。
 - **休息计时**：默认参考动作类型；计时超出预定休息时显示负数。用户可以手动调整、停止或重新开始。
+- **实时鼾声反馈**：睡眠页的「录音分析／实时鼾声反馈」切换仅切换 UI，后台录音保持不变。原始录音服务由一个 `AudioRecord` 持有唯一麦克风，PCM 同时交给 `MediaCodec` AAC-LC + `MediaMuxer` 保存原有 M4A，并在开启反馈后把小块 PCM 交给 YAMNet 实时分类。没有第二路麦克风；关闭反馈不停止录音。单独点击「开始实时反馈」也会启动同一个录音服务并保存录音，最终须使用录音停止按钮或通知栏停止。反馈默认 AI 得分 0.15、连续 2 秒、5 秒后才可再次提示；无整晚次数上限，所有参数可调。每一种提示音及震动均可点击预览（预览不需要麦克风）。音量滑块控制相对波形幅度，实际响度还受系统媒体音量及输出设备影响。原始录音依然留在本机，音频不上传，实时分数与提示计数当前仅作会话展示、不单独进入 GitHub 同步。该模式只供个人侧睡提醒实验，不可替代睡眠呼吸暂停诊断。
 - **睡眠推算**：Android 使用情况事件只能推测不使用手机的窗口；允许短暂亮屏的容忍逻辑，仍**不能证明已经入睡**。vivo 健康私有接口只是只读兼容性实验，不假定任意机型可用。
 - **声音分析**：IPA 来自声学模型的候选预测，不是“语音转文字再生成音标”；词典相似度、神经网络输出与真正发音准确率是三种不同概念，**不能混作口音评分**。
 
@@ -78,7 +79,7 @@ Android 应用私有 files/bodytrace/
 | 全局页面、样式、导航 | [index.html](app/src/main/assets/index.html)、[features.css](app/src/main/assets/features.css)、[features.js](app/src/main/assets/features.js) |
 | 训练动作、休息倒计时 | [exercise_catalog.js](app/src/main/assets/exercise_catalog.js)、[rest_timer.js](app/src/main/assets/rest_timer.js) |
 | 睡眠前端与波形交互 | [sleep.js](app/src/main/assets/sleep.js)、[sleep_visualization.js](app/src/main/assets/sleep_visualization.js) |
-| 睡眠录音、离线分析 | [SleepRecorderService](app/src/main/java/com/z2846852/bodytrace/SleepRecorderService.java)、[SleepAnalysisService](app/src/main/java/com/z2846852/bodytrace/SleepAnalysisService.java)、[SleepYamnetClassifier](app/src/main/java/com/z2846852/bodytrace/SleepYamnetClassifier.java) |
+| 睡眠录音、离线分析与实时反馈 | [SleepRecorderService](app/src/main/java/com/z2846852/bodytrace/SleepRecorderService.java)、[SnoreFeedbackController](app/src/main/java/com/z2846852/bodytrace/SnoreFeedbackController.java)、[SleepAnalysisService](app/src/main/java/com/z2846852/bodytrace/SleepAnalysisService.java)、[SleepYamnetClassifier](app/src/main/java/com/z2846852/bodytrace/SleepYamnetClassifier.java) |
 | 手机行为睡眠推算 / vivo 实验 | [PhoneSleepInference](app/src/main/java/com/z2846852/bodytrace/PhoneSleepInference.java)、[VivoSleepProbe](app/src/main/java/com/z2846852/bodytrace/VivoSleepProbe.java) |
 | 音高、音素、词典 | [voice_lab.js](app/src/main/assets/voice_lab.js)、[VoiceLabController](app/src/main/java/com/z2846852/bodytrace/VoiceLabController.java)、[PhonemeNeuralEngine](app/src/main/java/com/z2846852/bodytrace/PhonemeNeuralEngine.kt)、[PhoneticLexicon](app/src/main/java/com/z2846852/bodytrace/PhoneticLexicon.java) |
 | APK/差分/UI 小包更新 | [ApkUpdateManager](app/src/main/java/com/z2846852/bodytrace/ApkUpdateManager.java)、[ApkDeltaPatch](app/src/main/java/com/z2846852/bodytrace/ApkDeltaPatch.java)、[UiBundleManager](app/src/main/java/com/z2846852/bodytrace/UiBundleManager.java) |
