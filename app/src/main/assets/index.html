@@ -2708,7 +2708,11 @@ function e1rmTrialRange(e1rm,cfg,assisted){
   }
   const raw=current.e1rm/effort;
   const reps=current.cfg.coeff*(raw-1);
-  if(!Number.isFinite(reps)){node.reps.value="";showHint("预测超出可计算范围。",true);return}
+  if(!Number.isFinite(reps)||reps<1||reps>200){
+   node.reps.value="";
+   showHint("预计次数不在可用的 1–200 次范围，未回填训练表单。",true);
+   return;
+  }
   node.reps.value=String(round(bound(reps,0,200)));
   node.repsSlider.value=String(bound(Math.round(reps),1,20));
   if(reps<1)showHint("当前重量高于理论可完成1次的重量（估计不足1次）；不是失败尝试的记录。",true);
@@ -2768,8 +2772,8 @@ function e1rmTrialRange(e1rm,cfg,assisted){
   if($p("recordLoadBasis").value==="bodyweight"||$p("recordLoadBasis").value==="unspecified"){
    clear("仅外加体重或未确定负重口径时，不能安全反推 e1RM。");return;
   }
-  if(load===null||load<0||load>500||reps===null||reps<1||reps>15){
-   clear("e1RM 需当前动作有效重量与 1–15 次记录；0次和超过15次不估算。");
+  if(load===null||load<0||load>500||reps===null||reps<1||reps>20){
+   clear("e1RM 需当前动作有效重量与 1–20 次记录；16–20 次仅数学外推。");
    return;
   }
   const assisted=isAssist(id),cfg=calibration(id);
@@ -2790,7 +2794,8 @@ function e1rmTrialRange(e1rm,cfg,assisted){
    node.kgSlider.value=String(bound(load,Number(node.kgSlider.min),Number(node.kgSlider.max)));
    node.reps.value=String(reps);
    node.repsSlider.value=String(bound(reps,1,20));
-   showHint("固定本次 e1RM 基准；滑动会回填上方重量和次数，仍需手动保存。");
+   showHint("固定本次 e1RM 基准；滑动会回填上方重量和次数，仍需手动保存。"+
+    (reps>15?" 16–20 次仅数学外推，误差较大。":""),reps>15);
   }else setRepsFromKg();
  }
  node.info.addEventListener("click",()=>{
