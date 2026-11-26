@@ -14,6 +14,36 @@ const helpers = script.slice(script.indexOf("function loadRecommendation("),
 assert.ok(helpers.startsWith("function loadRecommendation"));
 const load = vm.runInNewContext(helpers + "\nloadRecommendation",{isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0"});
 const legacy = vm.runInNewContext(helpers + "\nhistoricalRecommendation",{isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0"});
+const repeatMax=vm.runInNewContext(helpers + "\nmaximumRepeatableLoad",{
+ isFailedAttempt:r=>r.attempt_status==="failed"||String(r.reps).trim()==="0"
+});
+const maxRows=[
+ {exercise_id:"row",session_date:"2026-11-20",load_kg:"45",reps:"8"},
+ {exercise_id:"row",session_date:"2026-11-23",load_kg:"30",reps:"15"},
+ {exercise_id:"row",session_date:"2026-11-24",load_kg:"70",reps:"1"},
+ {exercise_id:"row",session_date:"2026-11-25",load_kg:"65",reps:"5"},
+ {exercise_id:"row",session_date:"2026-11-25",load_kg:"90",reps:"7",attempt_status:"failed"},
+ {exercise_id:"adductor",session_date:"2026-11-25",load_kg:"80",reps:"10"}
+];
+assert.deepEqual(JSON.parse(JSON.stringify(repeatMax(maxRows,"row"))),{
+ amount:45,reps:8,isAssist:false,date:"2026-11-20"
+},"R must ignore a 70x1 single and all completed sets with 5 or fewer reps");
+maxRows.push({exercise_id:"row",session_date:"2026-11-26",load_kg:"45",reps:"9"});
+assert.equal(repeatMax(maxRows,"row").reps,9,"R should use the latest set if max weights tie");
+maxRows.push({exercise_id:"row",session_date:"2026-11-26",load_kg:"50",reps:"6"});
+assert.equal(repeatMax(maxRows,"row").amount,50,"Exactly six completed reps qualify");
+assert.equal(repeatMax(maxRows,"horizontal_bench"),null,
+ "R must not borrow history from another exercise");
+assert.equal(repeatMax([{exercise_id:"row",session_date:"2026-11-20",
+ load_kg:"70",reps:"1"}],"row"),null,"No eligible history disables R");
+assert.ok(html.includes('id="recordRestoreMax"')&&
+ html.indexOf('id="recordRestoreMax"')<html.indexOf('id="recordKg"'),
+ "R button must be compactly placed beside the weight label");
+assert.ok(html.includes('id="e1rmTool"')&&!html.includes('id="e1rmTool" aria-label="估算最大力量与重量次数试算" hidden')&&
+ html.indexOf('id="saveRecordOnly"')<html.indexOf('id="e1rmTool"')&&
+ html.indexOf('id="e1rmTool"')<html.indexOf('id="recordAdvancedTools"'),
+ "e1RM must be permanently visible above More Settings");
+
 const demo = JSON.parse(fs.readFileSync(path.join(root, "data/demo/2026-11-17.json"), "utf8"));
 const rows = demo.workouts.map(x => ({
   exercise_id: x.exercise_id,
