@@ -63,13 +63,17 @@ assert.ok(!advanced.includes('id="recordDate"'));
 assert.ok(header.includes('id="recordDateStatus"'));
 assert.ok(script.includes('if(id==="recordDate"&&$(id).value===today)dateManuallyChosen.delete(id)'));
 assert.ok(script.includes('updateRecordDateFlag();'));
-const predictor=html.slice(html.indexOf('class="record-reps-heading"'),
- html.indexOf('id="recordRestCard"'));
-assert.ok(predictor.includes('id="e1rmToolToggle"'));
-assert.ok(predictor.includes('id="e1rmTool"')&&predictor.includes("hidden>"));
-assert.ok(script.includes("setToolOpen(false)")&&
- script.includes('toggle.addEventListener("click",()=>setToolOpen(tool.hidden))'));
-assert.ok(html.includes('.e1rm-tool[hidden]{display:none!important}'));
+const predictor=html.slice(html.indexOf('id="saveRecordOnly"'),
+ html.indexOf('id="recordAdvancedTools"'));
+assert.ok(predictor.includes('id="e1rmTool"')&&!predictor.includes('id="e1rmTool" aria-label="估算最大力量与重量次数试算" hidden'),
+ "e1RM must be always visible directly before More Settings");
+assert.ok(!html.includes('id="e1rmToolToggle"')&&
+ script.includes('node.config.hidden=!open'),
+ "The old visibility toggle is gone, but per-exercise calibration stays collapsible");
+assert.ok(html.includes('id="recordRestoreMax"')&&
+ script.includes('function maximumRepeatableLoad(rows,id)')&&
+ script.includes('Number.isInteger(reps)&&reps>5'),
+ "R must restore actual maximum history with more than five completed reps");
 assert.ok(script.includes('session_date:correctedDate'));
 assert.ok(script.includes('activeWorkoutEdit.source_date||activeWorkoutEdit.session_date'));
 assert.ok(html.includes('id="workoutEditDate" type="date"'));
