@@ -53,6 +53,7 @@ public final class MainActivity extends Activity {
     private volatile boolean awaitingPhoneUsagePermission=false;
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int VOICE_LAB_MIC_PERMISSION_REQUEST=7206;
+    private static final int SLEEP_FEEDBACK_PERMISSION_REQUEST=7207;
     private VoiceLabController voiceLab;
     private IpaSamplePlayer ipaSamplePlayer;
     // Whole example words use Google audio with local cache and system TTS fallback.
@@ -760,9 +761,13 @@ public final class MainActivity extends Activity {
             result.put("last_analysis_id",last.getString("last_id",""));
             result.put("sessions",SleepSessions.list(this));
             reply(result);
+            reply(SnoreFeedbackService.status(this));
         }catch(Exception e){error("读取睡眠记录失败："+safeMessage(e));}
     }
     private void startSleepCapture() {
+        if(SnoreFeedbackService.isActive()){
+            error("请先停止实时鼾声反馈，再开始录音");return;
+        }
         if(SleepRecorderService.isRecording()){worker.execute(this::sendSleepStatus);return;}
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
             error("没有麦克风权限，无法开始睡眠录音");return;
@@ -772,6 +777,26 @@ public final class MainActivity extends Activity {
             startForegroundService(service);
             sleepHandler.postDelayed(()->worker.execute(this::sendSleepStatus),1300);
         }catch(Exception e){error("启动前台录音失败："+safeMessage(e));}
+    }
+    private void startSnoreFeedback() {
+        if(SleepRecorderService.isRecording()){
+            error("请先停止整晚录音，再开始实时反馈");return;
+        }
+        if(SnoreFeedbackService.isActive()){
+            worker.execute(()->{
+                try{reply(SnoreFeedbackService.status(this));}catch(Exception ignored){}
+            });return;
+        }
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            error("没有麦克风权限，无法启动实时反馈");return;
+        }
+        try{
+            startForegroundService(new Intent(this,SnoreFeedbackService.class)
+                .setAction(SnoreFeedbackService.ACTION_START));
+            sleepHandler.postDelayed(()->worker.execute(()->{
+                try{reply(SnoreFeedbackService.status(this));}catch(Exception ignored){}
+            }),1100);
+        }catch(Exception e){error("无法启动鼾声反馈："+safeMessage(e));}
     }
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grants){
         super.onRequestPermissionsResult(requestCode,permissions,grants);
@@ -790,6 +815,12 @@ public final class MainActivity extends Activity {
                 reply(message("voice_lab").put("state","error")
                     .put("message","麦克风权限被拒绝，实时声音实验未启动"));
             }catch(Exception ignored){}
+            return;
+        }
+        if(requestCode==SLEEP_FEEDBACK_PERMISSION_REQUEST){
+            if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)
+                startSnoreFeedback();
+            else error("麦克风权限被拒绝，实时反馈未启动");
             return;
         }
         if(requestCode!=SLEEP_AUDIO_PERMISSION_REQUEST)return;
@@ -2321,6 +2352,60 @@ public final class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public boolean sleepFeedbackSave(String raw) {
+            try {
+                SnoreFeedbackService.Settings.save(MainActivity.this,raw);
+                return true;
+            }catch(Exception e){error("反馈配置保存失败："+safeMessage(e));return false;}
+        }
+        @JavascriptInterface public void sleepFeedbackStatus(){
+            worker.execute(()->{
+                try{reply(SnoreFeedbackService.status(MainActivity.this));}
+                catch(Exception e){error("无法读取实时反馈状态："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void sleepFeedbackPreview(String raw){
+            try{
+                SnoreFeedbackService.Settings settings=SnoreFeedbackService.Settings.parse(raw);
+                new Thread(()->{
+                    boolean played=SnoreFeedbackService.playCue(getApplicationContext(),settings);
+                    try{reply(message("sleep_feedback_preview").put("ok",played)
+                        .put("message",played?"试听完成":"提示音播放失败或仍在播放上一个提示")); }
+                    catch(Exception ignored){}
+                },"snore-feedback-preview").start();
+            }catch(Exception e){error("试听配置无效："+safeMessage(e));}
+        }
+        @JavascriptInterface public void sleepFeedbackStart(String raw){
+            runOnUiThread(()->{
+                try{
+                    SnoreFeedbackService.Settings.save(MainActivity.this,raw);
+                    if(SleepRecorderService.isRecording())
+                        throw new IllegalStateException("请先停止整晚录音");
+                    if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=
+                            PackageManager.PERMISSION_GRANTED){
+                        if(Build.VERSION.SDK_INT>=33)
+                            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO,
+                                Manifest.permission.POST_NOTIFICATIONS},
+                                SLEEP_FEEDBACK_PERMISSION_REQUEST);
+                        else requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
+                            SLEEP_FEEDBACK_PERMISSION_REQUEST);
+                    }else startSnoreFeedback();
+                }catch(Exception e){error("实时反馈启动失败："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void sleepFeedbackStop(){
+            runOnUiThread(()->{
+                try{
+                    if(SnoreFeedbackService.isActive())
+                        startService(new Intent(MainActivity.this,SnoreFeedbackService.class)
+                            .setAction(SnoreFeedbackService.ACTION_STOP));
+                    sleepHandler.postDelayed(()->worker.execute(()->{
+                        try{reply(SnoreFeedbackService.status(MainActivity.this));}
+                        catch(Exception ignored){}
+                    }),500);
+                }catch(Exception e){error("无法停止反馈："+safeMessage(e));}
+            });
+        }
         @JavascriptInterface public void sleepStatus(){
             worker.execute(MainActivity.this::sendSleepStatus);
         }
