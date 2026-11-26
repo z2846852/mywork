@@ -106,11 +106,26 @@ const begin=trends.indexOf("function syncFocusedStrengthCard(){");
 const end=trends.indexOf("function renderStrength(){",begin);
 assert.ok(begin>0&&end>begin);
 const linkage=trends.slice(begin,end);
-const cards=["row","assisted_pullup"].map(exerciseId=>({
- dataset:{exerciseId},selected:false,
+const cards=["row","assisted_pullup","chest_press"].map((exerciseId,recentRank)=>({
+ dataset:{exerciseId,recentRank:String(recentRank),trendSelected:"false"},
+ selected:false,
  classList:{toggle(name,active){if(name==="selected-trend-exercise")this.selected=active;}}
 }));
-const list={querySelectorAll:()=>cards,append(){throw Error("Card must not be moved")}};
+let moves=0;
+const list={
+ children:cards.slice(),
+ querySelectorAll(){return this.children.slice();},
+ insertBefore(card,before){
+  const from=this.children.indexOf(card);
+  assert.ok(from>=0,"Reorder must reuse the original chart DOM node");
+  this.children.splice(from,1);
+  const at=before?this.children.indexOf(before):this.children.length;
+  assert.ok(at>=0);
+  this.children.splice(at,0,card);
+  moves++;
+ }
+};
+const chartOrder=()=>list.children.map(card=>card.dataset.exerciseId);
 const trendDateFields={trendStartDate:{value:""},trendEndDate:{value:""}};
 const selectedKeys=[];
 const groups=[
@@ -131,8 +146,10 @@ const context={
 };
 linkageApi=vm.runInNewContext(
  "let trendFocusKey=null,trendSelectedPeriod='30',trendStart='',trendEnd='';\n"+
- linkage+"\n({syncFocusedStrengthCard,focusTrendFromStrengthCard,selected:()=>trendFocusKey})",
+ linkage+"\n({syncFocusedStrengthCard,focusTrendFromStrengthCard,"+
+ "selected:()=>trendFocusKey,clear:()=>{trendFocusKey=null;syncFocusedStrengthCard();}})",
  context);
+assert.deepEqual(chartOrder(),["row","assisted_pullup","chest_press"]);
 assert.equal(linkageApi.focusTrendFromStrengthCard("row","per_side"),true);
 assert.equal(linkageApi.selected(),"row|per_side");
 linkageApi.syncFocusedStrengthCard();
@@ -144,8 +161,26 @@ assert.equal(cards[0].classList.selected,false);
 assert.equal(cards[1].classList.selected,true);
 assert.equal(cards[0].dataset.trendSelected,"false");
 assert.equal(cards[1].dataset.trendSelected,"true");
+assert.deepEqual(chartOrder(),["assisted_pullup","row","chest_press"],
+ "Selecting a curve must place that exercise's original chart first");
 assert.deepEqual(selectedKeys,["row|per_side","assisted_pullup|assisted"]);
-assert.ok(!linkage.includes("slot.append")&&!linkage.includes("list.append"));
+const beforeRepeat=moves;
+linkageApi.syncFocusedStrengthCard();
+assert.equal(moves,beforeRepeat,"Repeated selection must not keep moving charts");
+linkageApi.clear();
+assert.deepEqual(chartOrder(),["row","assisted_pullup","chest_press"],
+ "Clearing curve selection must restore the original most-recent order");
+assert.equal(cards[0].dataset.trendSelected,"false");
+assert.equal(cards[1].dataset.trendSelected,"false");
+linkageApi.focusTrendFromStrengthCard("row","per_side");
+linkageApi.syncFocusedStrengthCard();
+assert.deepEqual(chartOrder(),["row","assisted_pullup","chest_press"]);
+linkageApi.focusTrendFromStrengthCard("assisted_pullup");
+linkageApi.syncFocusedStrengthCard();
+assert.deepEqual(chartOrder(),["assisted_pullup","row","chest_press"],
+ "Re-selecting another curve should pin it first without re-rendering its chart");
+assert.ok(linkage.includes("list.insertBefore")&&!linkage.includes("replaceChildren("),
+ "Reordering should move existing nodes, never reconstruct the chart");
 assert.ok(trends.includes('svg.setAttribute("data-axis-mode","all")'));
 assert.ok(trends.includes('const samples=curveValues.flatMap('));
 assert.ok(!trends.includes("const chosenValues=trendFocusKey?"));
