@@ -101,7 +101,7 @@ public final class SleepRecorderService extends Service {
             return START_NOT_STICKY;
         }
         if(ACTION_FEEDBACK_OFF.equals(action)){
-            feedbackEnabled=false;lastFeedbackScore=0;
+            feedbackEnabled=false;
             inferenceQueue.clear();sendFeedbackStatus();
             return START_NOT_STICKY;
         }
@@ -216,14 +216,12 @@ public final class SleepRecorderService extends Service {
                     lastWaveAt=now;
                     sendMicrophoneWave(pcm,count);
                 }
-                if(feedbackEnabled){
-                    short[] copy=new short[count];
-                    boolean muted=now<cueMutedUntilElapsed;
-                    if(!muted)System.arraycopy(pcm,0,copy,0,count);
-                    // Drop classifier work if overloaded; never block M4A encoding.
-                    if(!inferenceQueue.offer(copy)){
-                        inferenceQueue.poll();inferenceQueue.offer(copy);
-                    }
+                short[] copy=new short[count];
+                boolean muted=now<cueMutedUntilElapsed;
+                if(!muted)System.arraycopy(pcm,0,copy,0,count);
+                // Classify independently of output being enabled; never block M4A.
+                if(!inferenceQueue.offer(copy)){
+                    inferenceQueue.poll();inferenceQueue.offer(copy);
                 }
             }
             if(writer!=null){
@@ -289,7 +287,6 @@ public final class SleepRecorderService extends Service {
             while(running||!inferenceQueue.isEmpty()){
                 short[] block=inferenceQueue.poll(300,TimeUnit.MILLISECONDS);
                 if(block==null)continue;
-                if(!feedbackEnabled){consecutive=0;continue;}
                 for(short sample:block)classifier.addSample(sample);
                 int count=classifier.scoreCount();
                 if(count==lastWindow)continue;
@@ -298,7 +295,8 @@ public final class SleepRecorderService extends Service {
                 lastFeedbackScore=score;
                 SnoreFeedbackController.Settings settings=
                     SnoreFeedbackController.Settings.load(this);
-                consecutive=score>=settings.threshold?Math.min(consecutive+1,5):0;
+                consecutive=feedbackEnabled&&score>=settings.threshold?
+                    Math.min(consecutive+1,5):0;
                 long now=SystemClock.elapsedRealtime();
                 if(consecutive>=settings.minimum &&
                         (previousCue==0||now-previousCue>=settings.repeat*1000L)){
