@@ -2043,3 +2043,40 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 #page-analytics .trend-legend-area{margin:6px 10px}
 #page-analytics .combined-trend-help{margin-top:2px}
 #page-analytics .trend-support-panel>details>.sub{display:none}
+
+/* Sleep feedback: compact, self-contained view; does not replace recording UI. */
+.sleep-mode-switch{display:flex;gap:6px;background:#122122;padding:4px;margin-top:12px;
+ border:1px solid #2c4944;border-radius:12px}
+.sleep-mode-switch button{flex:1;min-width:0;margin:0;min-height:36px;padding:7px 9px;
+ background:transparent;border:0;border-radius:9px;color:#b3c9c1;font-size:12px;font-weight:700}
+.sleep-mode-switch button.active{background:#315b4a;color:#e4fff1}
+#sleepFeedbackPanel[hidden],#sleepBrowserPanel[hidden]{display:none!important}
+.sleep-feedback-panel{padding:13px!important;border-color:#36624f!important}
+.sleep-feedback-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sleep-feedback-head h2{font-size:16px}
+#sleepFeedbackBadge{font-size:10px;white-space:nowrap;border:1px solid #475453;
+ padding:5px 8px;border-radius:999px;color:#b4c1c1}
+#sleepFeedbackBadge.active{border-color:#53c39a;color:#6df0ac;background:#123829}
+.sleep-feedback-row{display:flex;align-items:center;gap:10px;margin-top:16px}
+.sleep-feedback-row label{flex:0 0 65px;font-size:12px;color:#b1ccc0}
+.sleep-feedback-row select{flex:1;min-width:0;font-size:12px;padding:9px 10px}
+.sleep-feedback-label{display:flex;justify-content:space-between;align-items:center;gap:12px;
+ margin:14px 0 5px;font-size:12px}
+.sleep-feedback-label label{color:#b1ccc0}
+.sleep-feedback-label strong{color:#8de0b7;font-size:13px;font-variant-numeric:tabular-nums}
+.sleep-feedback-panel input[type=range]{width:100%;accent-color:#80dcac;margin:2px 0 1px;padding:0}
+.sleep-feedback-preview,.sleep-feedback-actions{display:flex;gap:7px;margin:13px 0}
+.sleep-feedback-preview button,.sleep-feedback-actions button{flex:1;min-width:0;margin:0;
+ padding:9px 7px;font-size:11px;min-height:39px}
+.sleep-feedback-checkbox{display:flex;align-items:center;gap:9px;font-size:12px;
+ margin-top:11px;color:#d1dfd8}
+.sleep-feedback-checkbox input{width:18px;height:18px;margin:0;accent-color:#6fe7a6}
+.sleep-feedback-options{border-top:1px solid #2a4441;margin-top:13px;padding-top:12px}
+.sleep-feedback-options summary{font-size:12px;font-weight:700;color:#a9d6c0;cursor:pointer}
+.sleep-feedback-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:7px;margin-top:15px}
+.sleep-feedback-stats div{background:#14292a;border:1px solid #294b47;
+ padding:10px 7px;border-radius:10px;min-width:0}
+.sleep-feedback-stats small{display:block;color:#a4bcb5;font-size:10px}
+.sleep-feedback-stats strong{display:block;margin-top:6px;font-size:15px;
+ color:#e5f8e9;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
