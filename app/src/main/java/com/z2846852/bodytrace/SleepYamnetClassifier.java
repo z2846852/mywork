@@ -134,6 +134,10 @@ final class SleepYamnetClassifier implements AutoCloseable {
         }
     }
 
+    /** Latest completed one-second window, for live microphone feedback. */
+    int scoreCount() { return scores.size(); }
+    double lastSnoreScore() { return scores.isEmpty()?0:scores.get(scores.size()-1); }
+
     JSONArray result(int seconds) throws org.json.JSONException {
         JSONArray result=new JSONArray();
         for(int i=0;i<seconds;i++)
