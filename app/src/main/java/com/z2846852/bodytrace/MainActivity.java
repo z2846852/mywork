@@ -54,6 +54,7 @@ public final class MainActivity extends Activity {
     private static final int SLEEP_AUDIO_PERMISSION_REQUEST=7203;
     private static final int VOICE_LAB_MIC_PERMISSION_REQUEST=7206;
     private static final int SLEEP_FEEDBACK_PERMISSION_REQUEST=7207;
+    private static final int SLEEP_MONITOR_PERMISSION_REQUEST=7208;
     private VoiceLabController voiceLab;
     private IpaSamplePlayer ipaSamplePlayer;
     // Whole example words use Google audio with local cache and system TTS fallback.
@@ -775,6 +776,19 @@ public final class MainActivity extends Activity {
             sleepHandler.postDelayed(()->worker.execute(this::sendSleepStatus),1300);
         }catch(Exception e){error("启动前台录音失败："+safeMessage(e));}
     }
+    private void startMicMonitor() {
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            error("麦克风权限未开启，不能监听");return;
+        }
+        try {
+            startForegroundService(new Intent(this,SleepRecorderService.class)
+                .setAction(SleepRecorderService.ACTION_MONITOR_ON));
+            sleepHandler.postDelayed(()->worker.execute(()->{
+                try{reply(SleepRecorderService.feedbackStatus(this));}
+                catch(Exception ignored){}
+            }),650);
+        }catch(Exception e){error("麦克风监听失败："+safeMessage(e));}
+    }
     private void startSnoreFeedback() {
         if(SleepRecorderService.isFeedbackEnabled()){
             worker.execute(()->{
@@ -809,6 +823,12 @@ public final class MainActivity extends Activity {
                 reply(message("voice_lab").put("state","error")
                     .put("message","麦克风权限被拒绝，实时声音实验未启动"));
             }catch(Exception ignored){}
+            return;
+        }
+        if(requestCode==SLEEP_MONITOR_PERMISSION_REQUEST){
+            if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)
+                startMicMonitor();
+            else error("麦克风权限未开启，监听未启动");
             return;
         }
         if(requestCode==SLEEP_FEEDBACK_PERMISSION_REQUEST){
@@ -2352,6 +2372,30 @@ public final class MainActivity extends Activity {
                 return true;
             }catch(Exception e){error("反馈配置保存失败："+safeMessage(e));return false;}
         }
+        @JavascriptInterface public void sleepMicMonitorStart(){
+            runOnUiThread(()->{
+                if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=
+                        PackageManager.PERMISSION_GRANTED){
+                    if(Build.VERSION.SDK_INT>=33)
+                        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO,
+                            Manifest.permission.POST_NOTIFICATIONS},
+                            SLEEP_MONITOR_PERMISSION_REQUEST);
+                    else requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},
+                        SLEEP_MONITOR_PERMISSION_REQUEST);
+                }else startMicMonitor();
+            });
+        }
+        @JavascriptInterface public void sleepMicMonitorStop(){
+            runOnUiThread(()->{
+                if(SleepRecorderService.isRecording()){
+                    error("正在录音，不能单独关闭麦克风；可以关闭反馈");
+                    return;
+                }
+                if(SleepRecorderService.isMicrophoneActive())
+                    startService(new Intent(MainActivity.this,SleepRecorderService.class)
+                        .setAction(SleepRecorderService.ACTION_MONITOR_OFF));
+            });
+        }
         @JavascriptInterface public void sleepFeedbackStatus(){
             worker.execute(()->{
                 try{reply(SleepRecorderService.feedbackStatus(MainActivity.this));}
@@ -2362,7 +2406,12 @@ public final class MainActivity extends Activity {
             try{
                 SnoreFeedbackController.Settings settings=SnoreFeedbackController.Settings.parse(raw);
                 new Thread(()->{
-                    boolean played=SnoreFeedbackController.playCue(getApplicationContext(),settings);
+                    boolean played=SnoreFeedbackController.playCue(getApplicationContext(),settings,
+                        (samples,rate,duration,vibrate)->{
+                            try{reply(SleepRecorderService.speakerWave(samples,rate,
+                                duration,vibrate,"手动试听"));}
+                            catch(Exception ignored){}
+                        });
                     try{reply(message("sleep_feedback_preview").put("ok",played)
                         .put("message",played?"试听完成":"提示音播放失败或仍在播放上一个提示")); }
                     catch(Exception ignored){}
