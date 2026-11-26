@@ -2207,3 +2207,22 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 #sleepFeedbackPanel.sleep-live-dim .sleep-oscilloscope{filter:brightness(.50)}
 #sleepFeedbackPanel.sleep-live-dim .sleep-io-card,#sleepFeedbackPanel.sleep-live-dim .sleep-live-metrics{filter:brightness(.75)}
 @media(max-width:340px){#sleepFeedbackPanel .sleep-live-metrics strong{font-size:10px}#sleepFeedbackPanel .sleep-oscilloscope{height:86px}#sleepFeedbackPanel .sleep-oscilloscope.speaker-wave{height:58px}}
+
+/* Persistent session feedback markers and compact history. */
+.sleep-recording-feedback{color:#ebc68e!important;margin:4px 0!important}
+.sleep-feedback-timeline-legend{display:flex;flex-wrap:wrap;gap:4px 9px;font-size:10px;color:#ff6e81;margin:4px 0}
+.sleep-feedback-timeline-legend[hidden],.sleep-recorded-feedback[hidden]{display:none!important}
+.sleep-feedback-timeline-legend .cue{color:#f9c768}.sleep-feedback-timeline-legend .vibrate{color:#c6a0ff}.sleep-feedback-timeline-legend .switch{color:#69e8d3}.sleep-feedback-timeline-legend .manual{color:#91b8ff}
+.sleep-recorded-feedback{margin:7px 0;padding:7px;border:1px solid #5a5140;border-radius:9px;background:#1c2929}
+.sleep-recorded-feedback-head,.sleep-recorded-feedback-controls{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.sleep-recorded-feedback-head strong{font-size:12px;color:#f4d6a1}
+.sleep-recorded-feedback-controls{margin:4px 0;font-size:10px}
+.sleep-recorded-feedback-controls label{display:flex;align-items:center;gap:4px}
+.sleep-recorded-feedback-controls input{width:15px;height:15px;margin:0}
+.sleep-recorded-feedback-controls select{min-width:0;padding:3px 6px;font-size:10px;min-height:28px}
+.sleep-recorded-feedback .sub{margin:4px 0;font-size:10px;line-height:1.4}
+.sleep-recorded-feedback-row{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:5px 0;border-top:1px solid #34433f;font-size:11px}
+.sleep-recorded-feedback-row>div:first-child{min-width:0;flex:1}.sleep-recorded-feedback-row strong,.sleep-recorded-feedback-row small{display:block;overflow-wrap:anywhere}
+.sleep-recorded-feedback-row small{font-size:10px;color:#afc4bd}
+.sleep-recorded-feedback-row button,.sleep-recorded-feedback-head button{font-size:10px;min-height:29px;padding:3px 7px;margin:0}
+.sleep-recorded-feedback-row .actions{display:flex;gap:3px;flex-shrink:0}

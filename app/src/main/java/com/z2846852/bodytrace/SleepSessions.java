@@ -41,6 +41,40 @@ final class SleepSessions {
         return new File(envelopeDir(context),id+".json");
     }
 
+    /** Session-scoped append journal: never overwritten by offline analysis/cache updates. */
+    static File feedbackFile(Context context,String id){
+        verifyId(id);
+        File dir=new File(context.getFilesDir(),"sleep_feedback");
+        if(!dir.exists()&&!dir.mkdirs()&&!dir.isDirectory())
+            throw new IllegalStateException("无法建立反馈日志目录");
+        return new File(dir,id+".jsonl");
+    }
+    static synchronized void appendFeedback(Context context,String id,JSONObject event) throws Exception {
+        File file=feedbackFile(context,id);
+        if(file.length()>24_000_000L)throw new IllegalStateException("反馈日志达到24MB上限");
+        // A newline before each record isolates a torn final line after process death.
+        try(FileOutputStream out=new FileOutputStream(file,true)){
+            out.write(("\n"+event.toString()+"\n").getBytes(StandardCharsets.UTF_8));
+            out.getFD().sync();
+        }
+    }
+    static synchronized JSONArray readFeedback(Context context,String id) throws Exception {
+        JSONArray events=new JSONArray();
+        File file=feedbackFile(context,id);
+        if(!file.isFile())return events;
+        if(file.length()>25_000_000L)throw new IllegalStateException("反馈日志超出安全大小限制");
+        try(java.io.BufferedReader in=new java.io.BufferedReader(new java.io.InputStreamReader(
+                new FileInputStream(file),StandardCharsets.UTF_8))){
+            String line;
+            while((line=in.readLine())!=null){
+                if(line.trim().isEmpty())continue;
+                try{JSONObject event=new JSONObject(line);if(event.has("offset_ms"))events.put(event);}
+                catch(org.json.JSONException ignored){/* preserve intact lines after interrupted write */}
+            }
+        }
+        return events;
+    }
+
     static File audioDir(Context context) {
         File dir = new File(context.getFilesDir(), "sleep_audio");
         if (!dir.exists() && !dir.mkdirs()) throw new IllegalStateException("无法建立录音目录");

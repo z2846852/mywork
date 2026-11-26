@@ -556,6 +556,7 @@ body.overview-muscle-open{overflow:hidden}
    </details>
   </div>
   <div id="sleepStatus" class="sleep-status sleep-top-status" role="status"></div>
+   <p class="sub sleep-recording-feedback" id="sleepRecordingFeedback" hidden></p>
   <p id="sleepRecordingResult" class="sub sleep-top-feedback" role="status"></p>
   <p id="sleepImportStatus" class="sub sleep-top-feedback" role="status"></p>
   <div id="sleepSelected" class="sleep-selected">请从下方选择一个已完成的录音</div>
@@ -638,6 +639,7 @@ body.overview-muscle-open{overflow:hidden}
     <canvas id="sleepWaveCanvas" height="208" role="img"
      aria-label="相对录音背景响度，纵轴以dB表示并保持固定；红线为阈值。双指水平缩放和上下双指移动纵轴"></canvas>
    </div>
+   <div class="sleep-feedback-timeline-legend" id="sleepFeedbackTimelineLegend" hidden><span>红色：AI 候选</span><span class="cue">◆ 声音提示</span><span class="vibrate">◆ 震动</span><span class="switch">│ 反馈开关</span><span class="manual">⚑ 手动标记</span></div>
    <p id="sleepWaveSelection" class="sub"></p>
    <div class="sleep-transport">
     <div class="sleep-playbar">
@@ -650,6 +652,13 @@ body.overview-muscle-open{overflow:hidden}
      <input type="checkbox" id="sleepSkipQuiet"><span>跳过安静段</span>
     </label>
     <p id="sleepPlaybackStatus" class="sub" role="status"></p>
+   </div>
+   <div id="sleepRecordedFeedback" class="sleep-recorded-feedback" hidden>
+    <div class="sleep-recorded-feedback-head"><strong>录音反馈记录</strong><button type="button" class="secondary mini" id="sleepFeedbackSessionExport">复制 JSON</button></div>
+    <p id="sleepRecordedFeedbackSummary" class="sub"></p>
+    <div class="sleep-recorded-feedback-controls"><label><input type="checkbox" id="sleepShowFeedbackMarkers" checked>时间轴标记</label><select id="sleepRecordedFeedbackFilter" aria-label="反馈记录类型"><option value="all">全部事件</option><option value="cue">自动提示</option><option value="sound">声音</option><option value="vibrate">震动</option><option value="switch">开关</option><option value="preview">试听</option><option value="manual">手动标记</option></select></div>
+    <div id="sleepRecordedFeedbackList"></div>
+    <p class="sub">提示事件以系统开始播放/震动为准，非实测声压；持续时间为计划长度。与音频时间轴可能有少量采集缓冲误差。</p>
    </div>
    <div class="sleep-threshold-workbench" id="sleepThresholdWorkbench">
     <div class="sleep-threshold-header">

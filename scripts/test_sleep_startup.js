@@ -78,7 +78,11 @@ assert.ok(tones.includes("DreamCueSynth.synthesize")&&recorder.includes("sleep-a
 for(const id of ["sleepLiveSpan","sleepLiveMark","sleepLiveExport","sleepLiveSensitivity","sleepLivePresets","sleepLiveDim","sleepLiveAnalyzed","sleepLiveEvents"]){
  assert.ok(html.includes('id="'+id+'"')&&sleep.includes('$("'+id+'")'),"Live console control wired: "+id);
 }
-assert.ok(main.includes("SleepRecorderService.markSnore()")&&main.includes("SleepRecorderService.liveLogExport()")&&recorder.includes('addLiveLog("cue",score'),"Marks/export/automatic feedback log are native");
+assert.ok(main.includes("SleepRecorderService.markSnore(MainActivity.this)")&&main.includes("SleepRecorderService.liveLogExport()")&&recorder.includes('addLiveLog("cue",score'),"Marks/export/automatic feedback log are native");
 assert.ok(visual.includes("seconds=60")&&sleep.includes("micHistory.slice(-liveSpan)"),"Selectable live chart spans share renderer");
+const sessions=read("app/src/main/java/com/z2846852/bodytrace/SleepSessions.java");
+assert.ok(sessions.includes("appendFeedback")&&sessions.includes("getFD().sync()")&&sessions.includes("readFeedback"),"Feedback persisted per session");
+assert.ok(recorder.includes('recordingEvent(this,"cue",score,settings,block.second,duration)')&&recorder.includes('recordingEvent(this,"feedback_on"'),"Actual output start and toggle events journaled");
+assert.ok(main.includes('answer.put("feedback_events"')&&visual.includes('result.feedback_events')&&sleep.includes('renderRecordedFeedback'),"Persistent feedback reaches analysis timeline and list");
 console.log("SleepFeedbackTest passed: decoupled mic/recording and input/output graph contracts");
 console.log("SleepStartupTest passed: old records, no popup, local crash diagnostics");

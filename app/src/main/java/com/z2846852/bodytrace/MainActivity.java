@@ -737,6 +737,9 @@ public final class MainActivity extends Activity {
             answer.put("minimum_seconds",minimum);
             answer.put("gap_seconds",gap);
             answer.put("events",events);
+            answer.put("feedback_journal_version",session.optInt("feedback_journal_version",0));
+            try{answer.put("feedback_events",SleepSessions.readFeedback(this,sessionId));}
+            catch(Exception failure){answer.put("feedback_journal_error",safeMessage(failure));}
             reply(answer);
             sendSleepStatus();
         }catch(Exception e){error("睡眠录音分析结果读取失败："+safeMessage(e));}
@@ -2407,11 +2410,27 @@ public final class MainActivity extends Activity {
         }
         @JavascriptInterface public void sleepFeedbackMark(){
             try{
-                if(!SleepRecorderService.markSnore()){
+                if(!SleepRecorderService.markSnore(MainActivity.this)){
                     reply(message("sleep_feedback_error").put("message","请先开启麦克风采集"));return;
                 }
                 reply(SleepRecorderService.feedbackStatus(MainActivity.this));
             }catch(Exception e){error("鼾声标记失败："+safeMessage(e));}
+        }
+        @JavascriptInterface public void sleepFeedbackExportSession(String sessionId){
+            worker.execute(()->{
+                try{
+                    JSONObject meta=SleepSessions.loadMetadata(MainActivity.this,sessionId);
+                    String raw=new JSONObject().put("session_id",sessionId).put("started_ms",meta.optLong("started_ms"))
+                        .put("feedback_journal_version",meta.optInt("feedback_journal_version",0))
+                        .put("events",SleepSessions.readFeedback(MainActivity.this,sessionId)).toString(2);
+                    runOnUiThread(()->{
+                        try{android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("MyWork 录音反馈日志",raw));
+                            reply(message("sleep_feedback_session_exported").put("message","反馈 JSON 已复制到剪贴板"));}
+                        catch(Exception e){error("反馈日志复制失败："+safeMessage(e));}
+                    });
+                }catch(Exception e){error("反馈日志读取失败："+safeMessage(e));}
+            });
         }
         @JavascriptInterface public void sleepFeedbackExportLog(){
             runOnUiThread(()->{
@@ -2432,6 +2451,7 @@ public final class MainActivity extends Activity {
                     String failure="";
                     try{played=SnoreFeedbackController.playCue(getApplicationContext(),settings,
                         (samples,rate,duration,vibrate)->{
+                            SleepRecorderService.recordPreview(MainActivity.this,settings,duration);
                             try{reply(SleepRecorderService.speakerWave(samples,rate,
                                 duration,vibrate,"手动试听"));}
                             catch(Exception ignored){}
@@ -2670,6 +2690,8 @@ public final class MainActivity extends Activity {
                     File cache=SleepSessions.envelopeFile(MainActivity.this,sessionId);
                     if(cache.exists()&&!cache.delete())
                         throw new IllegalStateException("无法删除 App 的图表缓存");
+                    File feedback=SleepSessions.feedbackFile(MainActivity.this,sessionId);
+                    if(feedback.exists()&&!feedback.delete())throw new IllegalStateException("无法删除反馈日志");
                     File metadata=SleepSessions.json(MainActivity.this,sessionId);
                     if(!metadata.delete())throw new IllegalStateException("无法移除睡眠记录");
                     if(SleepSessions.isExternal(session)){

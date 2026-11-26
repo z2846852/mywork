@@ -5,7 +5,7 @@
  const receiver=window.bodyTraceReceive;
  let recording=false,sessions=[],selectedId="",analysis=null,busy=false;
  let pendingDelete="";
- let eventLimit=80;
+ let eventLimit=80,feedbackEventLimit=40;
  let runningAnalysisId="";
  let analysisStarting=false;
  let loadingCachedId="";
@@ -237,7 +237,7 @@
   }
   if(selectedId!==id)analysis=null;
   selectedId=id;
-  eventLimit=80;
+  eventLimit=80;feedbackEventLimit=40;
   render();
   // First manual selection: analyze uncached audio exactly once.
   // Cached files load the saved model scores without decoding.
@@ -402,7 +402,37 @@
   }
   renderEvents();
  }
+ function renderRecordedFeedback(){
+  const panel=$("sleepRecordedFeedback"),root=$("sleepRecordedFeedbackList");
+  const valid=analysis?.id===selectedId;
+  panel.hidden=!valid;$("sleepFeedbackTimelineLegend").hidden=!valid||!analysis?.feedback_events?.length;
+  root.replaceChildren();if(!valid)return;
+  const items=Array.isArray(analysis.feedback_events)?analysis.feedback_events:[];
+  const cues=items.filter(e=>e.kind==="cue"),sounds=cues.filter(e=>!e.vibration),vibrations=cues.filter(e=>e.vibration);
+  const previews=items.filter(e=>e.kind==="preview").length,manual=items.filter(e=>e.kind==="manual").length;
+  $("sleepRecordedFeedbackSummary").textContent=analysis.feedback_journal_error?"日志读取失败："+analysis.feedback_journal_error:!analysis.feedback_journal_version?"旧录音或导入文件：未记录反馈事件，无法追溯是否播放。":`自动反馈 ${cues.length} 次 · 声音 ${sounds.length} · 震动 ${vibrations.length} · 试听 ${previews} · 标记 ${manual}`;
+  $("sleepFeedbackSessionExport").disabled=!analysis.feedback_journal_version||!bridge()?.sleepFeedbackExportSession;
+  const filter=$("sleepRecordedFeedbackFilter").value;
+  const filtered=items.filter(e=>filter==="all"||filter===e.kind||filter==="sound"&&e.kind==="cue"&&!e.vibration||filter==="vibrate"&&e.kind==="cue"&&e.vibration||filter==="switch"&&["feedback_on","feedback_off"].includes(e.kind)).sort((a,b)=>Number(a.offset_ms)-Number(b.offset_ms));
+  for(const e of filtered.slice(0,feedbackEventLimit)){
+   const sec=Math.max(0,Number(e.offset_ms)||0)/1000;
+   const label=window.BodyTraceSleepVisual?.formatTime?.(sec,analysis.id)||clock(analysis.started_ms+sec*1000);
+   const name=e.kind==="feedback_on"?"开启反馈":e.kind==="feedback_off"?"关闭反馈":e.kind==="manual"?"手动标记":e.kind==="preview"?"手动试听":"自动"+(e.vibration?"震动":"提示音");
+   const sound=[...$("sleepFeedbackSound").options].find(o=>o.value===e.sound)?.textContent.split(" · ")[0]||e.sound||"";
+   const meta=[];if(e.sound)meta.push((e.vibration?"震动":sound)+" · "+e.volume+"%");if(Number.isFinite(e.score))meta.push("AI "+e.score.toFixed(3));if(Number(e.planned_duration_ms)>0)meta.push((e.planned_duration_ms/1000).toFixed(2)+"s");
+   if(Number.isFinite(e.detector_offset_ms))meta.push("检测 "+(window.BodyTraceSleepVisual?.formatTime?.(e.detector_offset_ms/1000,analysis.id)||duration(e.detector_offset_ms/1000)));
+   const row=document.createElement("div");row.className="sleep-recorded-feedback-row";const info=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("small");title.textContent=label+" · "+name;detail.textContent=meta.join(" · ");info.append(title,detail);
+   const controls=document.createElement("div");controls.className="actions";const focus=document.createElement("button"),play=document.createElement("button");focus.type=play.type="button";focus.className=play.className="secondary mini";focus.textContent="定位";play.textContent="回听";const from=Math.max(0,Math.floor(sec)-3),end=Math.min(analysis.levels_dbfs.length,Math.ceil(sec+Math.max(3,(Number(e.planned_duration_ms)||0)/1000+3)));
+   focus.onclick=()=>window.BodyTraceSleepVisual?.focusFeedback?.(sec);play.onclick=()=>{window.BodyTraceSleepVisual?.focusFeedback?.(sec);bridge()?.sleepPlay?.(analysis.id,from,Math.max(1,end-from));};play.disabled=recording||end<=from;controls.append(focus,play);row.append(info,controls);root.append(row);
+  }
+  if(filtered.length>feedbackEventLimit){const more=document.createElement("button");more.type="button";more.className="secondary mini";more.textContent="更多 "+feedbackEventLimit+"/"+filtered.length;more.onclick=()=>{feedbackEventLimit+=40;renderRecordedFeedback();};root.append(more);}
+  if(!filtered.length&&analysis.feedback_journal_version&&!analysis.feedback_journal_error)root.textContent="当前筛选没有记录";
+ }
+ $("sleepRecordedFeedbackFilter").onchange=()=>{feedbackEventLimit=40;renderRecordedFeedback();};
+ $("sleepShowFeedbackMarkers").onchange=()=>window.BodyTraceSleepVisual?.refreshFilters?.();
+ $("sleepFeedbackSessionExport").onclick=()=>{if(analysis?.id===selectedId)bridge()?.sleepFeedbackExportSession?.(selectedId);};
  function renderEvents(){
+  renderRecordedFeedback();
   const root=$("sleepAnalysis");root.replaceChildren();
   if(!analysis||analysis.id!==selectedId){
    $("sleepQuickSummary").textContent="暂无候选片段";return;
@@ -1026,6 +1056,9 @@
    micActive=!!evt.microphone_active;
    recordActive=!!evt.recording;
    feedbackActive=!!evt.active;
+   const strip=$("sleepRecordingFeedback");strip.hidden=!recordActive;
+   strip.textContent=(feedbackActive?"● 自动反馈开启":"○ 自动反馈关闭")+" · 本段声音 "+(evt.recording_sound_cues||0)+" · 震动 "+(evt.recording_vibration_cues||0)+(evt.journal_error?" · "+evt.journal_error:"");
+   if(evt.journal_error)$("sleepFeedbackInfo").textContent=evt.journal_error;
    $("sleepMicBadge").textContent=recordActive?"● 录音共享中":
     micActive?"● 监听测试中":"未连接";
    $("sleepMicBadge").classList.toggle("active",micActive);
@@ -1141,6 +1174,8 @@
     $("sleepSpeakerNow").textContent=(evt.reason||"提示音")+
      (evt.vibration?" · 已触发震动":" · 正在播放");
     animateOutput();
+   }else if(evt.type==="sleep_feedback_session_exported"){
+    toast(evt.message||"反馈日志已复制");
    }else if(evt.type==="sleep_feedback_preview"){
     $("sleepFeedbackInfo").textContent=evt.message||
      (evt.ok?"试听完成":"提示音播放失败");

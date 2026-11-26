@@ -61,6 +61,43 @@ public final class SleepRecorderService extends Service {
     // Bounded in-process log survives WebView recreation and screen-off capture.
     private static final java.util.ArrayDeque<JSONObject> liveLog=new java.util.ArrayDeque<>();
     private static volatile long captureStartedMs;
+    private static long recordingOriginElapsed;
+    private static long recordingBaseSamples;
+    private static volatile long capturedSamples;
+    private static int recordingCueCount,recordingSoundCount,recordingVibrationCount;
+    private static volatile String journalError="";
+    /** Timestamp at actual action, not after playback. Separate from live monitor-only history. */
+    private static synchronized void recordingEvent(android.content.Context context,String kind,
+            double score,SnoreFeedbackController.Settings settings,long detectorSecond,int duration){
+        String session=currentId;
+        if(session.isEmpty())return;
+        long elapsed=SystemClock.elapsedRealtime();
+        try{
+            JSONObject event=new JSONObject().put("kind",kind)
+                .put("offset_ms",Math.max(0,elapsed-recordingOriginElapsed))
+                .put("time_ms",System.currentTimeMillis());
+            if(Double.isFinite(score))event.put("score",score);
+            if(settings!=null)event.put("sound",settings.sound).put("volume",settings.volume)
+                .put("vibration",settings.vibrate).put("threshold",settings.threshold)
+                .put("minimum",settings.minimum).put("repeat",settings.repeat);
+            if(duration>0)event.put("planned_duration_ms",duration);
+            if(detectorSecond>=0){
+                long offset=(detectorSecond*SAMPLE_RATE-recordingBaseSamples)*1000L/SAMPLE_RATE;
+                if(offset>=0)event.put("detector_offset_ms",offset);
+            }
+            SleepSessions.appendFeedback(context,session,event);
+            if("cue".equals(kind)){
+                recordingCueCount++;
+                if(settings!=null&&settings.vibrate)recordingVibrationCount++;else recordingSoundCount++;
+            }
+        }catch(Exception e){
+            journalError="反馈日志保存失败："+e.getMessage();
+            android.util.Log.e("SleepFeedback",journalError,e);
+        }
+    }
+    static void recordPreview(android.content.Context context,SnoreFeedbackController.Settings settings,int duration){
+        recordingEvent(context,"preview",Double.NaN,settings,-1,duration);
+    }
     private static synchronized void clearLiveLog(){
         liveLog.clear();captureStartedMs=System.currentTimeMillis();
     }
@@ -84,9 +121,10 @@ public final class SleepRecorderService extends Service {
         for(JSONObject item:liveLog)items.put(item);
         return items;
     }
-    static synchronized boolean markSnore(){
+    static synchronized boolean markSnore(android.content.Context context){
         if(!microphoneActive||latestMic==null)return false;
         addLiveLog("manual",lastFeedbackScore,"",0,false,latestMic.optLong("second",-1));
+        recordingEvent(context,"manual",inferredWindows>0?lastFeedbackScore:Double.NaN,null,-1,0);
         return true;
     }
     static synchronized JSONObject liveLogExport() throws Exception {
@@ -132,7 +170,9 @@ public final class SleepRecorderService extends Service {
             .put("last_score",lastFeedbackScore)
             .put("cues",feedbackCount).put("last_cue_ms",lastFeedbackMs)
             .put("started_ms",feedbackStartedMs).put("capture_started_ms",captureStartedMs)
-            .put("recent_events",recentLiveLog());
+            .put("recent_events",recentLiveLog()).put("recording_id",currentId)
+            .put("recording_cues",recordingCueCount).put("recording_sound_cues",recordingSoundCount)
+            .put("recording_vibration_cues",recordingVibrationCount).put("journal_error",journalError);
     }
 
     @Override public IBinder onBind(Intent intent) { return null; }
@@ -151,6 +191,7 @@ public final class SleepRecorderService extends Service {
             return START_NOT_STICKY;
         }
         if(ACTION_FEEDBACK_OFF.equals(action)){
+            if(feedbackEnabled)recordingEvent(this,"feedback_off",Double.NaN,null,-1,0);
             feedbackEnabled=false;stopAutoCue();
             sendFeedbackStatus();
             return START_NOT_STICKY;
@@ -168,8 +209,10 @@ public final class SleepRecorderService extends Service {
             return START_NOT_STICKY;
         }
         if(ACTION_FEEDBACK_ON.equals(action)){
+            boolean changed=!feedbackEnabled;
             feedbackEnabled=true;
             feedbackStartedMs=System.currentTimeMillis();
+            if(changed)recordingEvent(this,"feedback_on",Double.NaN,SnoreFeedbackController.Settings.load(this),-1,0);
             if(!running)startCapture(false);
             sendFeedbackStatus();
             return START_NOT_STICKY;
@@ -199,7 +242,7 @@ public final class SleepRecorderService extends Service {
             running=true;
             microphoneActive=true;
             feedbackCount=0;lastFeedbackMs=0;lastFeedbackScore=0;clearLiveLog();
-            inferredWindows=0;droppedWindows=0;latestMic=null;
+            inferredWindows=0;droppedWindows=0;latestMic=null;capturedSamples=0;
             inferenceState="loading";inferenceError="";
             if(feedbackEnabled)feedbackStartedMs=System.currentTimeMillis();
             inferenceQueue.clear();
@@ -221,10 +264,15 @@ public final class SleepRecorderService extends Service {
         JSONObject session=new JSONObject()
             .put("id",id).put("started_ms",startMs)
             .put("status","recording").put("codec","AAC-LC")
-            .put("source","local-microphone");
+            .put("source","local-microphone").put("feedback_journal_version",1);
         SleepSessions.write(this,session);
-        started=true;currentId=id;
         AacWriter writer=new AacWriter(SleepSessions.audio(this,id));
+        synchronized(SleepRecorderService.class){
+            recordingOriginElapsed=SystemClock.elapsedRealtime();recordingBaseSamples=capturedSamples;
+            recordingCueCount=0;recordingSoundCount=0;recordingVibrationCount=0;journalError="";
+            started=true;currentId=id;
+            if(feedbackEnabled)recordingEvent(this,"feedback_on",Double.NaN,SnoreFeedbackController.Settings.load(this),-1,0);
+        }
         recordRequested=false;
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE))
             .notify(NOTIFICATION_ID,notification());
@@ -269,6 +317,7 @@ public final class SleepRecorderService extends Service {
                 if(count==0)continue;
                 if(writer==null&&recordRequested)writer=beginRecording();
                 if(writer!=null)writer.write(pcm,count);
+                capturedSamples+=count;
                 // Same statistics as offline analysis, with indexed whole-second model windows.
                 boolean muted=SnoreFeedbackController.suppressMicrophone();
                 for(int i=0;i<count;i++){
@@ -291,6 +340,7 @@ public final class SleepRecorderService extends Service {
             problem="麦克风采集失败："+e.getClass().getSimpleName()+" "+e.getMessage();
             sendError(problem);
         }finally{
+            if(feedbackEnabled)recordingEvent(this,"feedback_off",Double.NaN,null,-1,0);
             running=false;microphoneActive=false;feedbackEnabled=false;
             inferenceState="idle";
             recordRequested=false;stopAutoCue();
@@ -359,7 +409,11 @@ public final class SleepRecorderService extends Service {
                         if(!running||!feedbackEnabled||Thread.currentThread().isInterrupted())return;
                         try{
                             if(SnoreFeedbackController.playCue(this,settings,(samples,rate,duration,vibration)->
-                                    sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发"))){
+                                    {
+                                        recordingEvent(this,"cue",score,settings,block.second,duration);
+                                        sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发");
+                                        sendFeedbackStatus();
+                                    })){
                                 if(running){
                                     feedbackCount++;lastFeedbackMs=System.currentTimeMillis();
                                     addLiveLog("cue",score,settings.sound,settings.volume,settings.vibrate,block.second);
@@ -376,6 +430,7 @@ public final class SleepRecorderService extends Service {
             inferenceError=e.getClass().getSimpleName()+" "+String.valueOf(e.getMessage());
             inferenceState="error";
             android.util.Log.e("SleepFeedback","Live inference failed",e);
+            if(feedbackEnabled)recordingEvent(this,"feedback_off",Double.NaN,null,-1,0);
             feedbackEnabled=false;sendFeedbackStatus();
         }
     }
@@ -419,7 +474,7 @@ public final class SleepRecorderService extends Service {
     private void finalizeSession(boolean valid,String problem){
         if(!started){currentId="";return;}
         started=false;
-        currentId="";
+        synchronized(SleepRecorderService.class){currentId="";}
         boolean saved=false;
         long bytes=0,elapsed=0;
         String failure=problem==null?"":problem;
