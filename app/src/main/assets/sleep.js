@@ -928,6 +928,7 @@
   });
   function labels(){
    $("sleepFeedbackVolumeText").textContent=cfg().volume+"%";
+   $("sleepDreamHint").hidden=!cfg().sound.startsWith("dream_");
    $("sleepFeedbackThresholdText").textContent=cfg().threshold.toFixed(2);
    $("sleepFeedbackMinimumText").textContent=cfg().minimum+" 秒";
    $("sleepFeedbackRepeatText").textContent=cfg().repeat+" 秒";
@@ -999,6 +1000,7 @@
     const p=Math.min(1,(performance.now()-outputStarted)/outputDuration);
     speakerGraph(p);
     if(p<1)animation=requestAnimationFrame(frame);
+    else $("sleepSpeakerNow").textContent="本次输出结束 · 保留波形";
    }
    animation=requestAnimationFrame(frame);
   }

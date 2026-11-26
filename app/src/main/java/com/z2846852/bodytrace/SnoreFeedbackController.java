@@ -13,6 +13,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class SnoreFeedbackController {
     private static final String PREF = "bodytrace_snore_feedback";
     private static final AtomicBoolean SOUND_PLAYING = new AtomicBoolean(false);
+    private static volatile long muteTailUntil;
+    static boolean isCuePlaying(){return SOUND_PLAYING.get();}
+    static boolean suppressMicrophone(){return isCuePlaying()||android.os.SystemClock.elapsedRealtime()<muteTailUntil;}
     private SnoreFeedbackController(){}
 
     static final class Settings {
@@ -30,7 +33,7 @@ final class SnoreFeedbackController {
             Settings s = new Settings();
             s.sound = json.optString("sound", "soft");
             if (!("soft".equals(s.sound) || "low".equals(s.sound) ||
-                    "double".equals(s.sound) || "bell".equals(s.sound)))
+                    "double".equals(s.sound) || "bell".equals(s.sound) || DreamCueSynth.supports(s.sound)))
                 throw new IllegalArgumentException("不支持的提示音");
             s.volume = json.optInt("volume", 20);
             s.threshold = json.optDouble("threshold", 0.15);
@@ -81,11 +84,14 @@ final class SnoreFeedbackController {
         AudioTrack track=null;
         short[] samples=new short[0];
         try{
-            int rate=22050;
-            int duration="double".equals(s.sound)?470:
+            int rate=DreamCueSynth.RATE;
+            boolean dream=DreamCueSynth.supports(s.sound);
+            int duration=s.vibrate?100:dream?DreamCueSynth.durationMs(s.sound):"double".equals(s.sound)?470:
                 "bell".equals(s.sound)?510:
                 "low".equals(s.sound)?330:270;
             if(!s.vibrate) {
+                if(dream){samples=DreamCueSynth.synthesize(s.sound,s.volume);}
+                else {
                 int length=duration*rate/1000;
                 samples=new short[length];
                 double gain=0.50*s.volume/100.0;
@@ -108,6 +114,7 @@ final class SnoreFeedbackController {
                         sample=0.75*sample+0.25*Math.sin(2*Math.PI*freq*2*i/rate);
                     samples[i]=(short)(sample*envelope*gain*32767);
                 }
+                }
                 track=new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -124,6 +131,7 @@ final class SnoreFeedbackController {
                 if(written!=samples.length||track.getState()!=AudioTrack.STATE_INITIALIZED)
                     throw new IllegalStateException("声音缓冲区写入失败："+written);
             }
+            if(Thread.currentThread().isInterrupted())return false;
             if(track!=null){
                 android.media.AudioManager audio=(android.media.AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
                 if(audio!=null&&audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)==0)
@@ -143,11 +151,14 @@ final class SnoreFeedbackController {
             if(track!=null)Thread.sleep(duration+60L);
             else Thread.sleep(170L);
             return true;
+        }catch(InterruptedException stopped){
+            Thread.currentThread().interrupt();return false;
         }catch(Exception failure){
             android.util.Log.e("SleepFeedback","Cue playback failed",failure);
             throw new IllegalStateException("提示音/震动失败："+failure.getClass().getSimpleName()+" "+failure.getMessage(),failure);
         }finally{
             if(track!=null){try{track.stop();}catch(Exception ignored){}try{track.release();}catch(Exception ignored){}}
+            muteTailUntil=android.os.SystemClock.elapsedRealtime()+500L;
             SOUND_PLAYING.set(false);
         }
     }

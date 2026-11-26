@@ -70,5 +70,10 @@ assert.ok(main.includes('window.bodyTraceReceiveFeedback'),"Native live events h
 const visual=read("app/src/main/assets/sleep_visualization.js");
 new vm.Script(visual,{filename:"sleep_visualization.js"});
 assert.ok(visual.includes('window.BodyTraceLiveEnvelope')&&visual.includes('drawEnvelope(ctx,{left,bottom,plotWidth,yAt,start:windowStart'),"Offline and live must share rendering");
+const dreams=read("app/src/main/java/com/z2846852/bodytrace/DreamCueSynth.java");
+const dreamIds=[...html.matchAll(/<option value="(dream_[a-z]+)">/g)].map(m=>m[1]);
+assert.equal(dreamIds.length,8,"Eight distinct original dream motifs");
+for(const id of dreamIds)assert.ok(dreams.includes('case "'+id+'"'),"Native synth supports "+id);
+assert.ok(tones.includes("DreamCueSynth.synthesize")&&recorder.includes("sleep-auto-cue")&&recorder.includes("SnoreFeedbackController.suppressMicrophone()"),"Long cues use native synth and do not block inference");
 console.log("SleepFeedbackTest passed: decoupled mic/recording and input/output graph contracts");
 console.log("SleepStartupTest passed: old records, no popup, local crash diagnostics");

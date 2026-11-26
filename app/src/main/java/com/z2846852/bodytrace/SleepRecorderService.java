@@ -53,7 +53,8 @@ public final class SleepRecorderService extends Service {
     private static volatile int feedbackCount;
     private static volatile long lastFeedbackMs;
     private static volatile long feedbackStartedMs;
-    private static volatile long cueMutedUntilElapsed;
+    private volatile Thread autoCueThread;
+    private void stopAutoCue(){Thread cue=autoCueThread;if(cue!=null)cue.interrupt();}
     private static volatile String inferenceState="idle",inferenceError="";
     private static volatile long inferredWindows,droppedWindows;
     private static volatile JSONObject latestMic;
@@ -113,7 +114,7 @@ public final class SleepRecorderService extends Service {
             return START_NOT_STICKY;
         }
         if(ACTION_FEEDBACK_OFF.equals(action)){
-            feedbackEnabled=false;
+            feedbackEnabled=false;stopAutoCue();
             sendFeedbackStatus();
             return START_NOT_STICKY;
         }
@@ -232,7 +233,7 @@ public final class SleepRecorderService extends Service {
                 if(writer==null&&recordRequested)writer=beginRecording();
                 if(writer!=null)writer.write(pcm,count);
                 // Same statistics as offline analysis, with indexed whole-second model windows.
-                boolean muted=SystemClock.elapsedRealtime()<cueMutedUntilElapsed;
+                boolean muted=SnoreFeedbackController.suppressMicrophone();
                 for(int i=0;i<count;i++){
                     envelope.add(pcm[i]);
                     window[windowPos++]=pcm[i];
@@ -255,7 +256,7 @@ public final class SleepRecorderService extends Service {
         }finally{
             running=false;microphoneActive=false;feedbackEnabled=false;
             inferenceState="idle";
-            recordRequested=false;
+            recordRequested=false;stopAutoCue();
             inferenceQueue.clear();
             if(record!=null){
                 try{record.stop();}catch(Exception ignored){}
@@ -312,16 +313,22 @@ public final class SleepRecorderService extends Service {
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
                 if(consecutive>=settings.minimum &&
-                        (previousCue==0||now-previousCue>=settings.repeat*1000L)){
+                        (previousCue==0||now-previousCue>=settings.repeat*1000L)&&
+                        !SnoreFeedbackController.isCuePlaying()&&
+                        (autoCueThread==null||!autoCueThread.isAlive())){
                     previousCue=now;consecutive=0;
-                    cueMutedUntilElapsed=now+1500L;
-                    try{
-                        if(SnoreFeedbackController.playCue(this,settings,(samples,rate,duration,vibration)->
-                                sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发"))){
-                            feedbackCount++;lastFeedbackMs=System.currentTimeMillis();
-                        }
-                    }catch(Exception e){sendError("自动提示音失败："+e.getMessage());}
-                    sendFeedbackStatus();
+                    // Longer dream motifs never block the YAMNet inference thread.
+                    Thread cue=new Thread(()->{
+                        if(!running||!feedbackEnabled||Thread.currentThread().isInterrupted())return;
+                        try{
+                            if(SnoreFeedbackController.playCue(this,settings,(samples,rate,duration,vibration)->
+                                    sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发"))){
+                                if(running){feedbackCount++;lastFeedbackMs=System.currentTimeMillis();}
+                            }
+                        }catch(Exception e){if(running)sendError("自动提示音失败："+e.getMessage());}
+                        if(running)sendFeedbackStatus();
+                    },"sleep-auto-cue");
+                    autoCueThread=cue;cue.start();
                 }
             }
         }catch(Exception e){
@@ -357,7 +364,7 @@ public final class SleepRecorderService extends Service {
     }
 
     private void requestStop() {
-        running=false;
+        running=false;stopAutoCue();
         AudioRecord record=microphone;
         if(record!=null)try{record.stop();}catch(Exception ignored){}
     }

@@ -511,13 +511,26 @@ body.overview-muscle-open{overflow:hidden}
    <div class="sleep-feedback-row">
     <label for="sleepFeedbackSound">提示音</label>
     <select id="sleepFeedbackSound">
+      <optgroup label="原有鼾声提示音">
      <option value="soft">轻柔短音 · 480 Hz</option>
      <option value="low">低沉短音 · 320 Hz</option>
      <option value="double">双短音 · 560 Hz</option>
      <option value="bell">清亮短音 · 780 Hz</option>
+      </optgroup>
+      <optgroup label="清醒梦实验 · 柔和原创音型">
+       <option value="dream_triplet">梦境三连 · 等距三音</option>
+       <option value="dream_echo">远方回声 · 三连渐弱</option>
+       <option value="dream_pentatonic">星光阶梯 · 三音上行</option>
+       <option value="dream_reverse">逆向暗号 · 短短长</option>
+       <option value="dream_orbit">星轨 · 三连加尾音</option>
+       <option value="dream_wave">潮汐 · 无敲击慢渐变</option>
+       <option value="dream_chord">浮岛 · 柔和叠加和弦</option>
+       <option value="dream_odd">异域五拍 · 2+3</option>
+      </optgroup>
     </select>
    </div>
-   <div class="sleep-feedback-label"><label for="sleepFeedbackVolume">提示幅度</label>
+   <p class="sub" id="sleepDreamHint" hidden>清醒梦实验：先在清醒时试听同一音型并联想「我是否在做梦？」；从低幅度开始。鼾声不代表 REM，不能保证入梦或不醒。</p>
+    <div class="sleep-feedback-label"><label for="sleepFeedbackVolume">提示幅度</label>
     <strong id="sleepFeedbackVolumeText">20%</strong></div>
    <input id="sleepFeedbackVolume" type="range" min="1" max="100" step="1" value="20">
    <div class="sleep-feedback-preview">
