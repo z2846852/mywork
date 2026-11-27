@@ -81,7 +81,7 @@ final class FeedbackPolicy {
     static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=3;}
     static boolean confirmSnore(double snore,double breathing,double other,double threshold){
         return Double.isFinite(snore)&&Double.isFinite(breathing)&&Double.isFinite(other)
-            &&snore>=threshold&&snore>=.8*breathing&&snore>other;
+            &&snore>=Math.max(.20,threshold)&&snore>=breathing*1.10&&snore>=other*1.10;
     }
     interface PulseClassifier { boolean confirm(short[] pcm,int length); }
     static final int SNORE_WINDOW_SECONDS=300;
@@ -92,17 +92,18 @@ final class FeedbackPolicy {
         private long last=Long.MIN_VALUE;
         private double floor=Double.NaN,peak=Double.NaN,onsetFloor=Double.NaN;
         private int rise,fall;
-        private boolean active,classified,needQuiet,pulseReviewed;
+        private boolean active,classified,needQuiet,pulseReviewed,pulseContext;
+        private long lastConfirmed=Long.MIN_VALUE;
         private final short[] pulse=new short[15600];
         private int pulseLength;
-        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=pulseReviewed=false;pulseLength=0;}
+        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=pulseReviewed=pulseContext=false;pulseLength=0;lastConfirmed=Long.MIN_VALUE;}
         private void expire(long tick){
             while(!peaks.isEmpty()&&tick-peaks.peekFirst()>=SNORE_WINDOW_SECONDS*20L)peaks.removeFirst();
             while(!snore.isEmpty()&&tick-snore.peekFirst()>=SNORE_WINDOW_SECONDS*20L)snore.removeFirst();
         }
         // A gap is not a quiet valley. Keep older verified counts, but require
         // a new real valley before counting any new rise.
-        void interrupt(long tick){last=tick;expire(tick);active=classified=false;needQuiet=true;rise=fall=0;pulseLength=0;pulseReviewed=false;}
+        void interrupt(long tick){last=tick;expire(tick);active=classified=false;needQuiet=true;rise=fall=0;pulseLength=0;pulseReviewed=pulseContext=false;}
         void sample(long tick,double db,boolean ai){
             if(last!=Long.MIN_VALUE&&tick!=last+1)interrupt(tick-1);
             if(!Double.isFinite(db)){interrupt(tick);return;}
@@ -148,7 +149,7 @@ final class FeedbackPolicy {
         }
         // Production: each envelope event gets its own PCM and classifier
         // decision. No inheritance of a positive one-second label.
-        void updatePcm(long second,boolean valid,short[] pcm,int rate,PulseClassifier verifier){
+        void updatePcm(long second,boolean valid,short[] pcm,int rate,boolean contextSnore,PulseClassifier verifier){
             if(!valid||rate!=16000||pcm.length!=rate){interrupt(second*20+19);return;}
             if(last!=Long.MIN_VALUE&&second*20!=last+1)interrupt(second*20-1);
             int n=rate/20;
@@ -160,14 +161,15 @@ final class FeedbackPolicy {
                 double db=10*Math.log10(Math.max(1e-10,sum/n));
                 boolean wasActive=active;
                 sample(tick,db,false);
-                if(!wasActive&&!active&&rise==0){pulseLength=0;pulseReviewed=false;continue;}
+                if(!wasActive&&!active&&rise==0){pulseLength=0;pulseReviewed=pulseContext=false;continue;}
                 if(wasActive&&!active){
-                    reviewPulse(tick,verifier);pulseLength=0;pulseReviewed=false;continue;
+                    reviewPulse(tick,verifier);pulseLength=0;pulseReviewed=pulseContext=false;continue;
                 }
                 if(!pulseReviewed&&(active?fall==0:rise>0)){
                     int count=Math.min(n,pulse.length-pulseLength);
                     System.arraycopy(pcm,start,pulse,pulseLength,count);
                     pulseLength+=count;
+                    pulseContext|=contextSnore;
                     if(active&&pulseLength==pulse.length)reviewPulse(tick,verifier);
                 }
             }
@@ -175,7 +177,12 @@ final class FeedbackPolicy {
         private void reviewPulse(long tick,PulseClassifier verifier){
             if(pulseReviewed)return;
             pulseReviewed=true;
-            if(pulseLength>=2400&&verifier.confirm(pulse,pulseLength))snore.addLast(tick);
+            // Independent PCM confirmation AND positive contextual evidence.
+            // Keep at least 1.2s between accepted events, including across consume().
+            if(pulseLength>=4800&&verifier.confirm(pulse,pulseLength)&&pulseContext&&
+                (lastConfirmed==Long.MIN_VALUE||tick-lastConfirmed>=24)){
+                snore.addLast(tick);lastConfirmed=tick;
+            }
         }
         int confirmedInSecond(long second){int n=0;for(long tick:snore)if(tick/20==second)n++;return n;}
         int peaks(){return peaks.size();}

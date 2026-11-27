@@ -127,18 +127,38 @@ public final class FeedbackPolicyTest {
         check(!FeedbackPolicy.confirmSnore(.03,.8,.01,.15),"ordinary breath rejected");
         check(!FeedbackPolicy.confirmSnore(.22,.8,.01,.15),"breathing-dominant ambiguous pulse rejected");
         check(!FeedbackPolicy.confirmSnore(.2,.1,.7,.15),"snort or speech dominant rejected");
-        check(FeedbackPolicy.confirmSnore(.65,.7,.1,.15),"snoring with parent breathing label accepted");
-        gate.reset();
-        short[] mixed=new short[16000];
-        for(int k=0;k<mixed.length;k++)if((k>=800&&k<4000)||(k>=7200&&k<10400)||(k>=12800&&k<15200))mixed[k]=(short)(Math.sin(k*.2)*12000);
+        check(!FeedbackPolicy.confirmSnore(.65,.7,.1,.15),"ambiguous breathing rejected");
+        check(FeedbackPolicy.confirmSnore(.8,.5,.1,.15),"snoring dominates breathing");
+        check(!FeedbackPolicy.confirmSnore(.19,.01,.01,.01),"conservative minimum");
+        // Two envelope peaks in one breath: only one may count even if AI
+        // mistakenly accepts both. Each 350ms event gets independent PCM.
+        short[] pair=new short[16000];
+        for(int k=0;k<pair.length;k++)if((k>=800&&k<6400)||(k>=9600&&k<15200))pair[k]=(short)(Math.sin(k*.2)*12000);
+        short[] silence=new short[16000];
         final int[] reviews={0};
-        gate.updatePcm(0,true,mixed,16000,(wave,len)->{reviews[0]++;return reviews[0]==2;});
-        gate.updatePcm(1,true,new short[16000],16000,(wave,len)->{reviews[0]++;return false;});
-        check(reviews[0]==3&&gate.peaks()==3&&gate.count()==1,"three separate pulses, only middle confirmed");
+        gate.reset();
+        gate.updatePcm(0,true,pair,16000,true,(wave,len)->{reviews[0]++;return true;});
+        gate.updatePcm(1,true,silence,16000,true,(wave,len)->{reviews[0]++;return true;});
+        check(reviews[0]==2&&gate.peaks()==2&&gate.count()==1,"paired peaks merged by refractory");
         gate.reset();reviews[0]=0;
-        gate.updatePcm(0,true,mixed,16000,(wave,len)->{reviews[0]++;return false;});
-        gate.updatePcm(1,true,new short[16000],16000,(wave,len)->{reviews[0]++;return false;});
-        check(gate.count()==0&&!gate.ready(4),"normal breathing never triggers if classifier rejects");
+        gate.updatePcm(0,true,pair,16000,false,(wave,len)->{reviews[0]++;return true;});
+        gate.updatePcm(1,true,silence,16000,false,(wave,len)->{reviews[0]++;return true;});
+        check(reviews[0]==2&&gate.count()==0,"context negative vetoes isolated false positives");
+        gate.reset();
+        for(int k=0;k<4;k++){
+            gate.updatePcm(k*2,true,pair,16000,true,(wave,len)->true);
+            gate.updatePcm(k*2+1,true,silence,16000,true,(wave,len)->true);
+            check(gate.count()==k+1,"one accepted event per pair");
+            check(gate.ready(4)==(k==3),"only fourth independent event triggers");
+        }
+        gate.consume();
+        gate.updatePcm(8,true,pair,16000,true,(wave,len)->true);
+        gate.updatePcm(9,true,silence,16000,true,(wave,len)->true);
+        check(gate.count()==1,"new group after consumption");
+        gate.reset();
+        gate.updatePcm(0,true,pair,16000,true,(wave,len)->false);
+        gate.updatePcm(1,true,silence,16000,true,(wave,len)->false);
+        check(gate.count()==0,"isolated negative vetoes positive context");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

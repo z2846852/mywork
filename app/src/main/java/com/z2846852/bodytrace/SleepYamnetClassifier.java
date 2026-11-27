@@ -29,7 +29,7 @@ final class SleepYamnetClassifier implements AutoCloseable {
     private static final int WINDOW=15600;
     private static final int STRIDE=16000;
     private static final int SPEECH=0, BREATHING=36, WHEEZE=37, SNORING=38, GASP=39, PANT=40, SNORT=41, COUGH=42, SNIFF=45, CLASSES=521;
-    private double pulseSnore,pulseBreathing,pulseOther;
+    private double pulseSnore,pulseBreathing,pulseOther,contextSnore,contextBreathing,contextOther;
 
     private final Interpreter interpreter;
     private final float[] ring=new float[WINDOW];
@@ -125,6 +125,7 @@ final class SleepYamnetClassifier implements AutoCloseable {
                 input.putFloat(ring[(writeHead+i)%WINDOW]);
             input.rewind();
             interpreter.run(input,output);
+            contextSnore=output[0][SNORING];contextBreathing=output[0][BREATHING];contextOther=otherScore();
             float snore=output[0][SNORING],snort=output[0][SNORT];
             float score=Math.max(Float.isFinite(snore)?snore:0,
                     Float.isFinite(snort)?snort:0);
@@ -144,10 +145,13 @@ final class SleepYamnetClassifier implements AutoCloseable {
         for(int i=0;i<WINDOW;i++)input.putFloat(i>=offset&&i<offset+length?pcm[i-offset]/32768f:0f);
         input.rewind();interpreter.run(input,output);
         pulseSnore=output[0][SNORING];pulseBreathing=output[0][BREATHING];
-        pulseOther=0;
-        for(int k:new int[]{SPEECH,WHEEZE,GASP,PANT,SNORT,COUGH,SNIFF})pulseOther=Math.max(pulseOther,output[0][k]);
+        pulseOther=otherScore();
         return FeedbackPolicy.confirmSnore(pulseSnore,pulseBreathing,pulseOther,threshold);
     }
+    private double otherScore(){double max=0;for(int k:new int[]{SPEECH,WHEEZE,GASP,PANT,SNORT,COUGH,SNIFF})max=Math.max(max,output[0][k]);return max;}
+    boolean contextConfirms(double threshold){return FeedbackPolicy.confirmSnore(contextSnore,contextBreathing,contextOther,threshold);}
+    double contextSnore(){return contextSnore;}
+    double contextBreathing(){return contextBreathing;}
     double pulseSnore(){return pulseSnore;}
     double pulseBreathing(){return pulseBreathing;}
     double pulseOther(){return pulseOther;}
