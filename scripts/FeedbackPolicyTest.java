@@ -164,6 +164,25 @@ public final class FeedbackPolicyTest {
         gate.updatePcm(0,true,pair,16000,true,(wave,len)->false);
         gate.updatePcm(1,true,silence,16000,true,(wave,len)->false);
         check(gate.count()==0,"isolated negative vetoes positive context");
+        check(FeedbackPolicy.strongContextSnore(.969,.969,.1,.15),"strong context tolerates parent breathing label");
+        check(!FeedbackPolicy.strongContextSnore(.60,.7,.05,.15),"moderate context cannot rescue");
+        check(!FeedbackPolicy.strongContextSnore(.9,.9,.85,.15),"competing sound blocks rescue");
+        gate.reset();
+        for(int k=0;k<4;k++){
+            gate.updatePcm(k*2,true,pair,16000,true,true,(wave,len)->false);
+            gate.updatePcm(k*2+1,true,silence,16000,false,false,(wave,len)->false);
+            check(gate.count()==k+1,"strong distant context rescues once per episode");
+            check(gate.ready(4)==(k==3),"four rescued events trigger once");
+        }
+        gate.reset();
+        for(int k=0;k<4;k++)gate.updatePcm(k,true,pair,16000,true,true,(wave,len)->false);
+        check(gate.count()==1,"continuous strong context cannot repeatedly rescue");
+        gate.reset();
+        gate.updatePcm(0,true,silence,16000,true,true,(wave,len)->false);
+        check(gate.count()==0,"strong context alone without pulse cannot count");
+        gate.reset();
+        gate.updatePcm(0,true,pair,16000,true,true,(wave,len)->true);
+        check(gate.count()==1,"normal confirmation consumes contextual rescue");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

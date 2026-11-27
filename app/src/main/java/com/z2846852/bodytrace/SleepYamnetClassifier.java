@@ -150,6 +150,7 @@ final class SleepYamnetClassifier implements AutoCloseable {
     }
     private double otherScore(){double max=0;for(int k:new int[]{SPEECH,WHEEZE,GASP,PANT,SNORT,COUGH,SNIFF})max=Math.max(max,output[0][k]);return max;}
     boolean contextConfirms(double threshold){return FeedbackPolicy.contextSnore(contextSnore,contextBreathing,contextOther,threshold);}
+    boolean strongContextConfirms(double threshold){return FeedbackPolicy.strongContextSnore(contextSnore,contextBreathing,contextOther,threshold);}
     double contextSnore(){return contextSnore;}
     double contextBreathing(){return contextBreathing;}
     double pulseSnore(){return pulseSnore;}

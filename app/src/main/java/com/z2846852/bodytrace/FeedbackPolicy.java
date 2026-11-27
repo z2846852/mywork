@@ -88,6 +88,12 @@ final class FeedbackPolicy {
         return Double.isFinite(snore)&&Double.isFinite(breathing)&&Double.isFinite(other)
             &&snore>=Math.max(.30,threshold)&&snore>=breathing*.55&&snore>=other;
     }
+    // A high-confidence full-context result can rescue a distant sound
+    // fragmented by the envelope detector, but never a low-confidence breath.
+    static boolean strongContextSnore(double snore,double breathing,double other,double threshold){
+        return contextSnore(snore,breathing,other,threshold)&&snore>=Math.max(.85,threshold)
+            &&snore>=.85*breathing&&snore-other>=.15;
+    }
     interface PulseClassifier { boolean confirm(short[] pcm,int length); }
     static final int SNORE_WINDOW_SECONDS=300;
     // Count rises of the 50ms RMS envelope, independently of classifier windows.
@@ -101,16 +107,17 @@ final class FeedbackPolicy {
         private long lastConfirmed=Long.MIN_VALUE;
         private final short[] pulse=new short[15600];
         private int pulseLength;
+        private boolean contextEpisodeCounted;
         private String reviewReason="waiting";
         String reviewReason(){return reviewReason;}
-        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=pulseReviewed=pulseContext=false;pulseLength=0;lastConfirmed=Long.MIN_VALUE;reviewReason="waiting";}
+        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=pulseReviewed=pulseContext=false;pulseLength=0;lastConfirmed=Long.MIN_VALUE;contextEpisodeCounted=false;reviewReason="waiting";}
         private void expire(long tick){
             while(!peaks.isEmpty()&&tick-peaks.peekFirst()>=SNORE_WINDOW_SECONDS*20L)peaks.removeFirst();
             while(!snore.isEmpty()&&tick-snore.peekFirst()>=SNORE_WINDOW_SECONDS*20L)snore.removeFirst();
         }
         // A gap is not a quiet valley. Keep older verified counts, but require
         // a new real valley before counting any new rise.
-        void interrupt(long tick){last=tick;expire(tick);active=classified=false;needQuiet=true;rise=fall=0;pulseLength=0;pulseReviewed=pulseContext=false;}
+        void interrupt(long tick){last=tick;expire(tick);active=classified=false;needQuiet=true;rise=fall=0;pulseLength=0;pulseReviewed=pulseContext=false;contextEpisodeCounted=false;}
         void sample(long tick,double db,boolean ai){
             if(last!=Long.MIN_VALUE&&tick!=last+1)interrupt(tick-1);
             if(!Double.isFinite(db)){interrupt(tick);return;}
@@ -157,8 +164,13 @@ final class FeedbackPolicy {
         // Production: each envelope event gets its own PCM and classifier
         // decision. No inheritance of a positive one-second label.
         void updatePcm(long second,boolean valid,short[] pcm,int rate,boolean contextSnore,PulseClassifier verifier){
+            updatePcm(second,valid,pcm,rate,contextSnore,false,verifier);
+        }
+        void updatePcm(long second,boolean valid,short[] pcm,int rate,boolean contextSnore,boolean strongContext,PulseClassifier verifier){
             if(!valid||rate!=16000||pcm.length!=rate){interrupt(second*20+19);return;}
             if(last!=Long.MIN_VALUE&&second*20!=last+1)interrupt(second*20-1);
+            if(!contextSnore)contextEpisodeCounted=false;
+            boolean overlap=active&&!pulseReviewed;
             int n=rate/20;
             for(int i=0;i<20;i++){
                 long tick=second*20+i;
@@ -169,6 +181,7 @@ final class FeedbackPolicy {
                 boolean wasActive=active;
                 sample(tick,db,false);
                 if(!wasActive&&!active&&rise==0){pulseLength=0;pulseReviewed=pulseContext=false;continue;}
+                if(active||wasActive)overlap=true;
                 if(wasActive&&!active){
                     reviewPulse(tick,verifier);pulseLength=0;pulseReviewed=pulseContext=false;continue;
                 }
@@ -179,6 +192,16 @@ final class FeedbackPolicy {
                     pulseContext|=contextSnore;
                     if(active&&pulseLength==pulse.length)reviewPulse(tick,verifier);
                 }
+            }
+            // Only one fallback per continuous contextual episode, and only
+            // with an actual overlapping envelope event. Do not count a
+            // later completion of the very same pulse again.
+            long tick=second*20+19;
+            if(strongContext&&overlap&&!contextEpisodeCounted&&
+                (lastConfirmed==Long.MIN_VALUE||tick-lastConfirmed>=24)){
+                snore.addLast(tick);lastConfirmed=tick;contextEpisodeCounted=true;
+                if(active||rise>0)pulseReviewed=true;
+                reviewReason="context_rescue";
             }
         }
         private void reviewPulse(long tick,PulseClassifier verifier){
@@ -191,7 +214,7 @@ final class FeedbackPolicy {
             if(!isolated){reviewReason="isolated";return;}
             if(!pulseContext){reviewReason="context";return;}
             if(lastConfirmed!=Long.MIN_VALUE&&tick-lastConfirmed<24){reviewReason="duplicate";return;}
-            snore.addLast(tick);lastConfirmed=tick;reviewReason="accepted";
+            snore.addLast(tick);lastConfirmed=tick;contextEpisodeCounted=true;reviewReason="accepted";
         }
         int confirmedInSecond(long second){int n=0;for(long tick:snore)if(tick/20==second)n++;return n;}
         int peaks(){return peaks.size();}

@@ -462,7 +462,7 @@ public final class SleepRecorderService extends Service {
                     snoreTrigger.reset();triggerArm=arm;previousArmed=armed;triggerThreshold=settings.threshold;triggerRequired=settings.minimum;
                 }
                 boolean triggerValid=!block.muted&&Double.isFinite(score)&&!SnoreFeedbackController.suppressMicrophone();
-                snoreTrigger.updatePcm(block.second,triggerValid,block.pcm,SAMPLE_RATE,classifier.contextConfirms(settings.threshold),(pulse,length)->classifier.confirmPulse(pulse,length,settings.threshold));
+                snoreTrigger.updatePcm(block.second,triggerValid,block.pcm,SAMPLE_RATE,classifier.contextConfirms(settings.threshold),classifier.strongContextConfirms(settings.threshold),(pulse,length)->classifier.confirmPulse(pulse,length,settings.threshold));
                 snoreTriggerCount=snoreTrigger.count();snoreEnvelopeCount=snoreTrigger.peaks();
 
                 if(!feedbackEnabled)triggerReason="自动反馈关闭";
