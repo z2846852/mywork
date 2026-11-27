@@ -40,6 +40,8 @@ final class FeedbackPolicy {
         int current=Math.max(0,Math.min(length-1,level));
         return "stopped".equals(outcome)?Math.max(0,current-1):"continued".equals(outcome)?Math.min(length-1,current+1):current;
     }
+    static int directGain(int completed,boolean sweep){return sweep?20*(1+Math.min(4,Math.max(0,completed))):100;}
+    static int scaleGain(int max,int gain){return Math.max(1,Math.min(100,Math.round(max*gain/100f)));}
     static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=3;}
     static final int SNORE_WINDOW_SECONDS=300;
     // Count rises of the 50ms RMS envelope, independently of classifier windows.

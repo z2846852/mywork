@@ -1017,7 +1017,7 @@
  // The input and output graphs are independent: PCM monitoring works without cues,
  // and synthesized cue previews work without microphone permission.
  (function initSnoreFeedback(){
-  const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold",
+  const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold","sleepFeedbackDirectGain",
    "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate","sleepFeedbackSoundEnabled","sleepFeedbackSoundPool","sleepFeedbackVibrationPool","sleepFeedbackVibrationCompatibility","sleepFeedbackSoundRhythm","sleepFeedbackSoundMs","sleepFeedbackSoundMax","sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationMax","sleepFeedbackMode","sleepFeedbackDelayMinutes","sleepFeedbackMaxCues","sleepFeedbackSoundMin","sleepFeedbackVibrationMin","sleepFeedbackSoundMsMax","sleepFeedbackVibrationMsMax","sleepFeedbackSoundRhythmPool","sleepFeedbackPauseOnScreen"];
   let micActive=false,recordActive=false,feedbackActive=false;
   let selfState={},selfPending=false,selfTimer=0;
@@ -1041,7 +1041,7 @@
   };
   $("sleepSelfRefresh").onclick=()=>bridge()?.sleepFeedbackStatus?.();
   let consoleTab="night",lastExperiment={},reportExpiryRequested="";
-  let soundMaterials=[],vibMaterials=[];
+  let soundMaterials=[],vibMaterials=[],nextDirectGain=20;
   const consoleTabs=[...$("sleepFeedbackPanel").querySelectorAll("[data-console]")];
   function setConsoleTab(tab){
    if(consoleTab==="materials"&&tab!=="materials")stopPad();
@@ -1055,7 +1055,7 @@
   $("sleepConsoleRefresh").onclick=()=>bridge()?.sleepFeedbackStatus?.();
   $("sleepConsoleRecord").onclick=()=>{if(recordActive){$("sleepFeedbackInfo").textContent="正在录音；如需结束请到录音页停止并保存。";switchPage("browser");}else if(bridge()?.sleepStart){$("sleepFeedbackInfo").textContent="正在启动录音…";bridge().sleepStart();}};
   $("sleepConsoleArm").onclick=()=>{
-   if(!recordActive&&!feedbackActive){$("sleepFeedbackInfo").textContent="请先开始录音，再开启反馈";return;}
+   if(!recordActive&&!feedbackActive&&cfg().mode!=="direct"){$("sleepFeedbackInfo").textContent="请先开始录音，再开启实验反馈";return;}
    $("sleepFeedbackEnabled").checked=!feedbackActive;$("sleepFeedbackEnabled").onchange();
   };
   const reportLabels={felt_vibration:"感到振动",heard_snoring:"听到鼾声",aware_snoring:"意识到打鼾",turned_side:"翻身",awake_unsure:"醒来原因未知"};
@@ -1075,11 +1075,23 @@
    }
   }
   function renderPlan(e=lastExperiment){
-   const c=cfg(),vt=e.vibration_threshold||{},mode=c.mode==="vibration_threshold";
+   const c=cfg(),vt=e.vibration_threshold||{},mode=c.mode==="vibration_threshold",direct=c.mode==="direct";
    $("sleepConsoleState").textContent=feedbackActive?"自动反馈已开启":recordActive?"录音中 · 反馈关闭":micActive?"检测测试中":"未开始实验";
    $("sleepConsoleRecord").textContent=recordActive?"录音中 · 管理录音":"开始录音";
    $("sleepConsoleArm").textContent=feedbackActive?"关闭反馈":"开启反馈";
-   $("sleepConsoleArm").disabled=!recordActive&&!feedbackActive;
+   $("sleepConsoleArm").disabled=false;
+   $("sleepDirectGainRow").hidden=!direct;$("sleepDirectMaterials").hidden=!direct;
+   $("sleepLadderLegend").textContent=direct?"只缩放整体强度；素材、节奏和录制时长不变。":"绿：低鼾声候选；橙：仍有鼾声；灰：待测。";
+   if(direct){
+    const sound=$("sleepFeedbackSound").selectedOptions[0]?.textContent||c.sound,vib=$("sleepFeedbackVibrationPattern").selectedOptions[0]?.textContent||c.vibrationPattern;
+    $("sleepConsoleConfig").textContent="每4声触发 · 无入睡等待 · 亮屏/锁屏均可 · 播放后重新累计";
+    $("sleepDirectMaterials").textContent="声音："+(c.soundEnabled?sound+"（上限 "+c.volume+"%）":"关闭")+"；振动："+(c.vibrate?vib+"（上限 "+c.vibrationAmplitude+"%）":"关闭");
+    const gain=c.directGain?(feedbackActive?nextDirectGain:20):100;
+    $("sleepConsoleNext").textContent="下一次 · "+(c.soundEnabled?"声音 "+Math.max(1,Math.round(c.volume*gain/100))+"% ":"")+(c.vibrate?"振动 "+Math.max(1,Math.round(c.vibrationAmplitude*gain/100))+"%":"")+(c.soundEnabled||c.vibrate?" · "+gain+"%档":"请启用反馈通道");
+    const root=$("sleepThresholdLadder");root.replaceChildren();
+    for(const n of c.directGain?[20,40,60,80,100]:[100]){const cell=document.createElement("div");cell.className="sleep-ladder-cell "+(n===gain?"next":n<gain?"passed":"untested");const title=document.createElement("strong");title.textContent=(n===gain?"▶ ":"")+n+"%";cell.append(title);root.append(cell);}
+    return;
+   }
    $("sleepConsoleConfig").textContent=(mode?"阈值搜索 · 纯振动":$("sleepFeedbackMode").selectedOptions[0]?.textContent||c.mode)+" · "+c.minimum+"声/5分钟 · "+Math.max(mode?30:0,c.delayMinutes)+"分钟保护 · 最多"+Math.min(mode?8:40,c.maxCues)+"次"+(mode?" · 冷却5分钟":"");
    const root=$("sleepThresholdLadder");root.replaceChildren();
    const liveLevels=mode&&Array.isArray(vt.levels)&&vt.levels.length?vt.levels:null;
@@ -1124,7 +1136,7 @@
    soundMax:Number($("sleepFeedbackSoundMax").value),vibrationMax:Number($("sleepFeedbackVibrationMax").value),
    vibrationCompatibility:$("sleepFeedbackVibrationCompatibility").checked,
    vibrationPattern:$("sleepFeedbackVibrationPattern").value,vibrationAmplitude:Number($("sleepFeedbackVibrationAmplitude").value),vibrationMs:Number($("sleepFeedbackVibrationMs").value),
-   mode:$("sleepFeedbackMode").value,delayMinutes:Number($("sleepFeedbackDelayMinutes").value),maxCues:Number($("sleepFeedbackMaxCues").value)
+   directGain:$("sleepFeedbackDirectGain").checked,mode:$("sleepFeedbackMode").value,delayMinutes:Number($("sleepFeedbackDelayMinutes").value),maxCues:Number($("sleepFeedbackMaxCues").value)
   });
   function labels(){
    renderPlan();
@@ -1228,6 +1240,8 @@
   }
   function paintTriggerCount(evt){
    if($("sleepFeedbackPanel").hidden)return;
+   if(evt.trigger_reason!==undefined)$("sleepTriggerReason").textContent=evt.trigger_reason;
+   if(evt.direct_next_gain!==undefined&&nextDirectGain!==Number(evt.direct_next_gain)){nextDirectGain=Number(evt.direct_next_gain);renderPlan();}
    const value="鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
    const node=$("sleepTriggerCount");
    if(node.textContent!==value){node.textContent=value;const root=$("sleepTriggerProgress"),need=Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4),count=Number(evt.trigger_count)||0;root.replaceChildren();for(let i=0;i<need;i++){const cell=document.createElement("i");cell.className=i<count?"hit":"";root.append(cell);}}
@@ -1307,6 +1321,7 @@
     $("sleepFeedbackVibrationCompatibility").checked=!!evt.settings.vibrationCompatibility;
     $("sleepFeedbackSoundEnabled").checked=evt.settings.soundEnabled!==false;
     $("sleepFeedbackPauseOnScreen").checked=evt.settings.pauseOnScreen!==false;
+    $("sleepFeedbackDirectGain").checked=evt.settings.directGain!==false;
     for(const k of ["SoundPool","VibrationPool","SoundRhythmPool"]){const key=k[0].toLowerCase()+k.slice(1), set=new Set(String(evt.settings[key]||(k==="SoundPool"?evt.settings.sound:"")).split(","));for(const o of $("sleepFeedback"+k).options)o.selected=!o.disabled&&set.has(o.value); }
     labels();renderVibrationPattern();
    }
@@ -1350,14 +1365,15 @@
    bridge()?.sleepMicMonitorStop?.();
   };
   $("sleepThresholdPreset").onclick=()=>{
-   if(feedbackActive){$("sleepFeedbackInfo").textContent="请先关闭自动反馈再切换实验模式";return;}
-   const values={sleepFeedbackMode:"vibration_threshold",sleepFeedbackVibrationPattern:"continuous",sleepFeedbackVibrationMin:40,sleepFeedbackVibrationMax:100,sleepFeedbackVibrationMsMax:1500,sleepFeedbackVibrationAmplitude:40,sleepFeedbackVibrationMs:500,sleepFeedbackDelayMinutes:30,sleepFeedbackMaxCues:8,sleepFeedbackRepeat:60,sleepFeedbackThreshold:.15,sleepFeedbackMinimum:4};
-   for(const [id,value] of Object.entries(values))$(id).value=String(value);
-   $("sleepFeedbackSoundEnabled").checked=false;$("sleepFeedbackVibrate").checked=true;$("sleepFeedbackPauseOnScreen").checked=true;
-   labels();renderVibrationPattern();
-   if(save()){$("sleepFeedbackInfo").textContent="今晚方案已保存 · 确认系统静音关闭后，开始录音、开启反馈";renderPlan();bridge()?.sleepFeedbackStatus?.();}
+   if(feedbackActive){$("sleepFeedbackInfo").textContent="请先关闭反馈再切换模式";return;}
+   $("sleepFeedbackMode").value="direct";$("sleepFeedbackMinimum").value="4";$("sleepFeedbackPauseOnScreen").checked=false;
+   labels();if(save()){$("sleepFeedbackInfo").textContent="直接反馈已配置 · 当前声音和振动保持不变";bridge()?.sleepFeedbackStatus?.();}
   };
   $("sleepFeedbackEnabled").onchange=()=>{
+   if($("sleepFeedbackEnabled").checked&&cfg().mode==="direct"){
+    $("sleepFeedbackMinimum").value="4";$("sleepFeedbackPauseOnScreen").checked=false;
+    if(!cfg().soundEnabled&&!cfg().vibrate){$("sleepFeedbackEnabled").checked=false;$("sleepFeedbackInfo").textContent="请先在素材库选择声音或振动";return;}
+   }
    if(!save()){
     $("sleepFeedbackEnabled").checked=feedbackActive;return;
    }
@@ -1426,6 +1442,7 @@
     main.value=c.id;
     if(isSound){$("sleepFeedbackSoundEnabled").checked=true;$("sleepFeedbackSoundRhythm").value="single";$("sleepFeedbackSoundMs").value="0";}
     else{$("sleepFeedbackVibrate").checked=true;$("sleepFeedbackVibrationAmplitude").value="100";$("sleepFeedbackVibrationMs").value=String(c.duration_ms);}
+    $("sleepFeedbackMode").value="direct";$("sleepFeedbackMinimum").value="4";$("sleepFeedbackPauseOnScreen").checked=false;
    }
    labels();renderVibrationPattern();
    if(save()){materialMessage(c.name+(action==="pool"?(option.selected?" · 已加入候选池":" · 已移出候选池"):" · 已设为反馈素材（不开启反馈）"));renderMaterials();}

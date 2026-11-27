@@ -55,6 +55,8 @@ public final class SleepRecorderService extends Service {
     private static volatile int feedbackCount;
     private static volatile long lastFeedbackMs;
     private static volatile long feedbackStartedMs;
+    private static volatile String triggerReason="自动反馈关闭";
+    private static volatile int directNextGain=20;
     private volatile Thread autoCueThread;
     private void stopAutoCue(){Thread cue=autoCueThread;if(cue!=null)cue.interrupt();}
     private static volatile String inferenceState="idle",inferenceError="";
@@ -205,7 +207,7 @@ public final class SleepRecorderService extends Service {
             .put("inferred_windows",inferredWindows).put("dropped_windows",droppedWindows)
             .put("latest_mic",latestMic)
             .put("last_score",lastFeedbackScore).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount)
-            .put("cues",feedbackCount).put("last_cue_ms",lastFeedbackMs)
+            .put("trigger_reason",feedbackEnabled?triggerReason:"自动反馈关闭").put("direct_next_gain",directNextGain).put("cues",feedbackCount).put("last_cue_ms",lastFeedbackMs)
             .put("started_ms",feedbackStartedMs).put("capture_started_ms",captureStartedMs)
             .put("recent_events",recentLiveLog()).put("recording_id",currentId)
             .put("recording_cues",recordingCueCount).put("recording_sound_cues",recordingSoundCount)
@@ -255,6 +257,7 @@ public final class SleepRecorderService extends Service {
             boolean changed=!feedbackEnabled;
             feedbackEnabled=true;
             feedbackStartedMs=System.currentTimeMillis();
+            triggerReason="等待新的4声鼾声";directNextGain=SnoreFeedbackController.Settings.load(this).directGain?20:100;
             if(changed)recordingEvent(this,"feedback_on",Double.NaN,SnoreFeedbackController.Settings.load(this),-1,0);
             if(!running)startCapture(false);
             sendFeedbackStatus();
@@ -423,7 +426,8 @@ public final class SleepRecorderService extends Service {
         FeedbackPolicy.SnoreTrigger snoreTrigger=new FeedbackPolicy.SnoreTrigger();
         long triggerArm=-1;
         double triggerThreshold=Double.NaN;
-        int triggerRequired=-1;
+        int triggerRequired=-1,directBase=0;
+        String triggerMode="";
         boolean previousArmed=false;
         long previousCue=0,lastSecond=-2;
         boolean previousMuted=true;
@@ -444,19 +448,29 @@ public final class SleepRecorderService extends Service {
                 lastFeedbackScore=score;inferredWindows++;
                 SnoreFeedbackController.Settings settings=SnoreFeedbackController.Settings.load(this);
                 PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
-                boolean screenPaused=settings.pauseOnScreen&&power!=null&&power.isInteractive();
+                boolean direct="direct".equals(settings.mode);
+                boolean screenPaused=!direct&&settings.pauseOnScreen&&power!=null&&power.isInteractive();
                 observeNight(this,block.second,score,uncertain,feedbackEnabled&&!screenPaused,settings);
                 long arm=feedbackStartedMs;
                 boolean armed=feedbackEnabled&&!screenPaused;
+                if(arm!=triggerArm||!settings.mode.equals(triggerMode)){directBase=feedbackCount;triggerMode=settings.mode;}
                 if(arm!=triggerArm||armed!=previousArmed||Double.compare(triggerThreshold,settings.threshold)!=0||triggerRequired!=settings.minimum){
                     snoreTrigger.reset();triggerArm=arm;previousArmed=armed;triggerThreshold=settings.threshold;triggerRequired=settings.minimum;
                 }
                 boolean triggerValid=!block.muted&&Double.isFinite(score)&&!SnoreFeedbackController.isCuePlaying();
                 snoreTrigger.updatePcm(block.second,triggerValid,block.pcm,SAMPLE_RATE,score>=settings.threshold);
                 snoreTriggerCount=snoreTrigger.count();snoreEnvelopeCount=snoreTrigger.peaks();
+                directNextGain=FeedbackPolicy.directGain(Math.max(0,feedbackCount-directBase),settings.directGain);
+                if(!feedbackEnabled)triggerReason="自动反馈关闭";
+                else if(!settings.soundEnabled&&!settings.vibrate)triggerReason="未启用声音或振动";
+                else if(screenPaused)triggerReason="亮屏暂停";
+                else if(!direct&&System.currentTimeMillis()-feedbackStartedMs<Math.max("vibration_threshold".equals(settings.mode)?30:0,settings.delayMinutes)*60000L)triggerReason="入睡保护中";
+                else if(!triggerValid||(autoCueThread!=null&&autoCueThread.isAlive()))triggerReason="反馈输出或防回录中";
+                else if(snoreTrigger.ready(settings.minimum))triggerReason="达到门槛，准备反馈";
+                else triggerReason="等待新鼾声 "+snoreTriggerCount+"/"+settings.minimum;
                 broadcast(new JSONObject().put("type","sleep_feedback_score")
                     .put("second",block.second).put("score",score)
-                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("inferred_windows",inferredWindows)
+                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("trigger_reason",triggerReason).put("direct_next_gain",directNextGain).put("inferred_windows",inferredWindows)
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
                 if(feedbackEnabled&&(!screenPaused||experiment.observingThreshold())){
@@ -466,11 +480,24 @@ public final class SleepRecorderService extends Service {
                 long revision=experiment.outcomeRevision();
                 if(revision!=publishedOutcome){publishedOutcome=revision;sendFeedbackStatus();}
                 if(armed&&triggerValid&&snoreTrigger.ready(settings.minimum) &&
-                        (previousCue==0||now-previousCue>=settings.repeat*1000L)&&
+                        (direct||previousCue==0||now-previousCue>=settings.repeat*1000L)&&
                         !SnoreFeedbackController.isCuePlaying()&&
                         (autoCueThread==null||!autoCueThread.isAlive())){
-                    SnoreFeedbackController.Settings selected=experiment.choose(settings,now,feedbackStartedMs);
-                    if(selected==null)continue;
+                    final SnoreFeedbackController.Settings selected;
+                    if(direct){
+                        if(!settings.soundEnabled&&!settings.vibrate)continue;
+                        // Observation is diagnostic only; a new qualifying event is never
+                        // delayed by the previous observation. Incomplete windows stay unknown.
+                        experiment.close();
+                        selected=SnoreFeedbackController.Settings.parse(settings.json().toString());
+                        selected.volume=FeedbackPolicy.scaleGain(settings.volume,directNextGain);
+                        selected.vibrationAmplitude=FeedbackPolicy.scaleGain(settings.vibrationAmplitude,directNextGain);
+                        if(CueLibrary.validId(selected.sound)){selected.soundRhythm="single";selected.soundMs=0;selected.soundMsMax=5000;}
+                        if(selected.vibrate&&VibrationLibrary.validId(selected.vibrationPattern))
+                            selected.vibrationMs=VibrationLibrary.load(this,selected.vibrationPattern).getInt("duration_ms");
+                    }else selected=experiment.choose(settings,now,feedbackStartedMs);
+                    if(selected==null){triggerReason="实验策略限制 · 未选出刺激";continue;}
+                    triggerReason="触发成功，正在输出";
                     previousCue=now;snoreTrigger.consume();snoreTriggerCount=0;snoreEnvelopeCount=0;
                     if(experiment.begin(selected,now,currentId)){recordingEvent(this,"control",score,selected,block.second,0);experiment.executed(true);sendFeedbackStatus();continue;}
                     // Longer dream motifs never block the YAMNet inference thread.
@@ -484,7 +511,7 @@ public final class SleepRecorderService extends Service {
                                         recordingEvent(this,"cue",score,selected,block.second,duration);
                                         sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发");
                                         sendFeedbackStatus();
-                                    })){
+                                    },direct&&power!=null&&power.isInteractive(),false)){
                                 success=true;
                                 if(running){
                                     feedbackCount++;lastFeedbackMs=System.currentTimeMillis();
@@ -493,7 +520,7 @@ public final class SleepRecorderService extends Service {
                             }
                         }catch(Exception e){if(running)sendError("自动提示音失败："+e.getMessage());}
                         finally{try{experiment.executed(success);}catch(Exception e){feedbackEnabled=false;sendError("实验日志失败："+e.getMessage());}}
-                        if(running)sendFeedbackStatus();
+                        if(running){triggerReason=success?"反馈已执行 · 等待下一组鼾声":"反馈未执行 · 检查系统设置";sendFeedbackStatus();}
                     },"sleep-auto-cue");
                     autoCueThread=cue;cue.start();
                 }

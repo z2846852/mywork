@@ -94,6 +94,8 @@ public final class FeedbackPolicyTest {
             for(int i=0;i<10;i++)gate.sample(tick++,-40,false);
         }
         check(gate.peaks()==4&&gate.count()==2&&!gate.ready(4),"AI and raw envelope stay distinct");
+        for(int i=0;i<8;i++)check(FeedbackPolicy.directGain(i,true)==20*(1+Math.min(i,4)),"direct gain ascending then hold");
+        check(FeedbackPolicy.directGain(0,false)==100&&FeedbackPolicy.scaleGain(80,20)==16&&FeedbackPolicy.scaleGain(100,100)==100,"direct gain relative to selected maximum");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

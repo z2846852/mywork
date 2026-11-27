@@ -466,22 +466,22 @@ body.overview-muscle-open{overflow:hidden}
  <section class="sleep-feedback-panel sleep-feedback-v2" id="sleepFeedbackPanel" hidden aria-label="实时鼾声反馈">
   <div class="sleep-feedback-intro"><h2>鼾声实验控制台</h2><button type="button" class="secondary" id="sleepLiveDim" aria-pressed="false">☾ 夜间</button></div>
   <div class="sleep-console-tabs" role="group" aria-label="反馈功能">
-   <button type="button" data-console="night" aria-pressed="true" class="active">今晚实验</button><button type="button" data-console="test" aria-pressed="false">检测与试听</button><button type="button" data-console="materials" aria-pressed="false">素材库</button><button type="button" data-console="settings" aria-pressed="false">高级设置</button>
+   <button type="button" data-console="night" aria-pressed="true" class="active">直接反馈</button><button type="button" data-console="test" aria-pressed="false">检测与试听</button><button type="button" data-console="materials" aria-pressed="false">素材库</button><button type="button" data-console="settings" aria-pressed="false">高级设置</button>
   </div>
   <div class="sleep-io-card sleep-console-head">
    <div class="sleep-io-heading"><strong id="sleepConsoleState">未开始实验</strong><label class="sleep-feedback-toggle" for="sleepFeedbackEnabled"><span id="sleepSpeakerBadge">反馈关闭</span><input type="checkbox" id="sleepFeedbackEnabled" aria-label="启用自动鼾声提示"></label></div>
    <div class="sleep-console-count"><strong id="sleepTriggerCount">鼾声 0/4 · 起伏 0</strong><small>5分钟累计 · AI＋声音包络</small></div>
    <div class="sleep-count-progress" id="sleepTriggerProgress" aria-hidden="true"></div>
-   <div class="sleep-console-next" id="sleepConsoleNext">等待配置 · 今晚预设</div>
+   <div class="sleep-console-next" id="sleepConsoleNext">等待开启反馈</div><p class="sub" id="sleepTriggerReason" role="status">自动反馈关闭</p>
    <p class="sub sleep-live-message" id="sleepFeedbackInfo" role="status">先配置、开始录音，再开启自动反馈。</p>
   </div>
   <div id="sleepConsoleNight">
    <div class="sleep-io-card sleep-console-plan">
-    <div class="sleep-io-heading"><strong>今晚阈值搜索</strong><button type="button" class="primary" id="sleepThresholdPreset">应用今晚方案</button></div>
+    <div class="sleep-io-heading"><strong>反馈方式</strong><button type="button" class="secondary mini" id="sleepThresholdPreset">使用直接反馈</button></div>
     <div class="sleep-console-quick"><button type="button" id="sleepConsoleRecord" class="secondary">开始录音</button><button type="button" id="sleepConsoleArm" class="primary" disabled>开启反馈</button></div>
-    <p id="sleepConsoleConfig" class="sub">纯振动 · 4声/5分钟 · 30分钟保护 · 最多8次</p>
+    <p id="sleepConsoleConfig" class="sub">每4声触发 · 保持素材不变</p><label class="sleep-feedback-checkbox" id="sleepDirectGainRow"><input id="sleepFeedbackDirectGain" type="checkbox" checked>强度从低到高（20→100%）</label><div id="sleepDirectMaterials" class="sub"></div>
     <div id="sleepThresholdLadder" class="sleep-threshold-ladder"></div>
-    <p class="sub">绿：观察到低鼾声候选；橙：仍有鼾声；灰：待测。箭头标记下一档。</p>
+    <p class="sub" id="sleepLadderLegend">只缩放强度，不改变素材节奏及原始时长。</p>
    </div>
  <section id="sleepSelfReport" class="sleep-self-report" aria-label="夜间主动确认">
   <div class="sleep-actuator-head"><strong>夜间自报</strong><button type="button" class="secondary mini" id="sleepSelfRefresh">↻</button></div>
@@ -596,7 +596,7 @@ body.overview-muscle-open{overflow:hidden}
   </div>
   <div id="sleepConsoleSettings" hidden>
    <div class="sleep-io-card"><div class="sleep-io-heading"><strong>实验模式与保护</strong></div>
-     <div class="sleep-live-control-grid"><label>模式 <select id="sleepFeedbackMode"><option value="fixed">固定</option><option value="limited">有限重试</option><option value="stairs">阶梯增强</option><option value="vibration_threshold">振动阈值搜索</option><option value="explore">自动探索</option><option value="adaptive">自适应</option><option value="control">对照</option></select></label>
+     <div class="sleep-live-control-grid"><label>模式 <select id="sleepFeedbackMode"><option value="direct" selected>直接反馈 · 每4声</option><option value="fixed">固定（保护限制）</option><option value="limited">有限重试</option><option value="stairs">阶梯增强</option><option value="vibration_threshold">振动阈值搜索</option><option value="explore">自动探索</option><option value="adaptive">自适应</option><option value="control">对照</option></select></label>
      <label>入睡保护(分钟) <input type="number" id="sleepFeedbackDelayMinutes" min="0" max="120" value="30"></label><label>每晚最大实验次数 <input type="number" id="sleepFeedbackMaxCues" min="1" max="40" value="12"></label></div>
      <label class="sleep-feedback-checkbox"><input id="sleepFeedbackPauseOnScreen" type="checkbox" checked>亮屏暂停自动刺激</label>
 

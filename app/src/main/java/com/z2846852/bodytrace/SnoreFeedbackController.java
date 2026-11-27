@@ -28,8 +28,8 @@ final class SnoreFeedbackController {
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
         int soundMax=40, vibrationMax=40, soundMin=5, vibrationMin=5, soundMsMax=5000, vibrationMsMax=1000, maxCues=12, delayMinutes=30;
         int actualSoundMs=0,actualVibrationMs=0;
-        boolean pauseOnScreen=true;
-        String vibrationPattern="triplet", mode="fixed", soundPool="", vibrationPool="continuous,triplet,rising,falling,shortlong";
+        boolean pauseOnScreen=true, directGain=true;
+        String vibrationPattern="triplet", mode="direct", soundPool="", vibrationPool="continuous,triplet,rising,falling,shortlong";
         String soundRhythm="single", soundRhythmPool="single,triplet,rising,falling,shortlong", trialId="";
 
         static Settings parse(String source) throws Exception {
@@ -62,7 +62,9 @@ final class SnoreFeedbackController {
             s.delayMinutes=clamp(json.optInt("delayMinutes",30),0,120);
             s.vibrationPattern=VibrationLibrary.validId(json.optString("vibrationPattern"))?json.optString("vibrationPattern"):choice(json.optString("vibrationPattern"),"triplet","continuous","triplet","rising","falling","shortlong");
             s.soundRhythm=choice(json.optString("soundRhythm"),"single","single","triplet","rising","falling","shortlong");
-            s.mode=choice(json.optString("mode"),"fixed","fixed","limited","stairs","explore","adaptive","control","vibration_threshold");
+            s.mode=json.has("directGain")?choice(json.optString("mode"),"direct","direct","fixed","limited","stairs","explore","adaptive","control","vibration_threshold"):"direct";
+            s.directGain=json.optBoolean("directGain",true);
+            if("direct".equals(s.mode)){s.minimum=4;s.pauseOnScreen=false;}
             s.soundRhythmPool=validateRhythms(json.optString("soundRhythmPool","single,triplet,rising,falling,shortlong"));
             s.soundPool=validatePool(json.optString("soundPool",""),true);
             s.vibrationPool=validatePool(json.optString("vibrationPool","continuous,triplet,rising,falling,shortlong"),false);
@@ -101,7 +103,7 @@ final class SnoreFeedbackController {
                 .put("trial_id",trialId).put("actualSoundMs",actualSoundMs).put("actualVibrationMs",actualVibrationMs)
                 .put("soundMin",soundMin).put("vibrationMin",vibrationMin).put("soundMsMax",soundMsMax).put("vibrationMsMax",vibrationMsMax).put("pauseOnScreen",pauseOnScreen).put("soundRhythmPool",soundRhythmPool)
                 .put("soundMax",soundMax).put("vibrationMax",vibrationMax).put("maxCues",maxCues)
-                .put("delayMinutes",delayMinutes).put("mode",mode).put("soundPool",soundPool).put("vibrationPool",vibrationPool);
+                .put("delayMinutes",delayMinutes).put("mode",mode).put("directGain",directGain).put("soundPool",soundPool).put("vibrationPool",vibrationPool);
         }
 
         static Settings load(Context c) {
