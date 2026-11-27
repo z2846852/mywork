@@ -41,6 +41,39 @@ final class FeedbackPolicy {
         return "stopped".equals(outcome)?Math.max(0,current-1):"continued".equals(outcome)?Math.min(length-1,current+1):current;
     }
     static int directGain(int completed,boolean sweep){return sweep?20*(1+Math.min(4,Math.max(0,completed))):100;}
+    // Explicit subjective feedback adjusts the actual played level, not the
+    // next scheduled level. No click does not prove absence of awareness.
+    static final class DirectGainState {
+        private long epoch=-1;
+        private boolean sweep,locked,rejected;
+        private int next=20,played,lower;
+        private String trial="";
+        private final java.util.TreeSet<Integer> levels=new java.util.TreeSet<>();
+        synchronized void ensure(long arm,boolean enabled){
+            if(epoch==arm&&sweep==enabled)return;
+            epoch=arm;sweep=enabled;locked=false;rejected=false;next=enabled?20:100;played=lower=0;trial="";levels.clear();
+        }
+        synchronized int next(){return next;}
+        synchronized boolean locked(){return locked;}
+        synchronized boolean matches(long arm,String id){return epoch==arm&&!trial.isEmpty()&&trial.equals(id);}
+        synchronized void started(long arm,String id,int gain){
+            if(epoch!=arm||id==null||id.isEmpty())return;
+            trial=id;played=Math.max(1,Math.min(100,gain));rejected=false;
+            Integer previous=levels.lower(played);lower=previous==null?0:previous;
+            levels.add(played);
+        }
+        synchronized void completed(long arm,String id,boolean ok){
+            if(!matches(arm,id)||!ok||locked||rejected)return;
+            next=sweep?Math.min(100,played+20):100;
+        }
+        synchronized int report(long arm,String id,boolean tooStrong){
+            if(!matches(arm,id))return -1;
+            if(tooStrong){
+                if(!rejected){next=Math.max(1,Math.min(played-1,(played+lower)/2));locked=true;rejected=true;}
+            }else if(!rejected){next=played;locked=true;}
+            return next;
+        }
+    }
     static int scaleGain(int max,int gain){return Math.max(1,Math.min(100,Math.round(max*gain/100f)));}
     static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=3;}
     static final int SNORE_WINDOW_SECONDS=300;

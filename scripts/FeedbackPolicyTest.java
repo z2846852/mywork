@@ -96,6 +96,25 @@ public final class FeedbackPolicyTest {
         check(gate.peaks()==4&&gate.count()==2&&!gate.ready(4),"AI and raw envelope stay distinct");
         for(int i=0;i<8;i++)check(FeedbackPolicy.directGain(i,true)==20*(1+Math.min(i,4)),"direct gain ascending then hold");
         check(FeedbackPolicy.directGain(0,false)==100&&FeedbackPolicy.scaleGain(80,20)==16&&FeedbackPolicy.scaleGain(100,100)==100,"direct gain relative to selected maximum");
+        FeedbackPolicy.DirectGainState gains=new FeedbackPolicy.DirectGainState();
+        gains.ensure(10,true);
+        check(gains.next()==20&&!gains.locked(),"initial gain");
+        gains.started(10,"a",20);gains.completed(10,"a",true);
+        gains.started(10,"b",40);gains.completed(10,"b",true);
+        gains.started(10,"c",60);gains.completed(10,"c",true);
+        check(gains.next()==80,"unrated steps progress");
+        check(gains.report(10,"c",true)==50&&gains.locked(),"60 too strong after 40: midpoint 50");
+        check(gains.report(10,"c",false)==50&&gains.report(10,"c",true)==50,"rejection wins and idempotent");
+        gains.started(10,"d",50);gains.completed(10,"d",true);
+        check(gains.next()==50&&gains.report(10,"d",true)==45,"repeated midpoint refinement");
+        check(gains.report(10,"c",false)==-1,"stale trial rejected");
+        gains.ensure(11,true);gains.started(11,"e",20);
+        check(gains.report(11,"e",false)==20,"hold while playback active");
+        gains.completed(11,"e",true);check(gains.next()==20,"completion cannot overwrite hold");
+        gains.ensure(12,true);gains.started(12,"f",20);
+        check(gains.report(12,"f",true)==10,"first step too strong");
+        gains.ensure(13,false);gains.started(13,"g",100);gains.completed(13,"g",true);
+        check(gains.report(13,"g",true)==50&&gains.locked(),"fixed gain may lower on explicit report");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

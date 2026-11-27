@@ -46,7 +46,7 @@ final class FeedbackExperiment {
             .put("time_ms",settings.optLong("started_ms",settings.optLong("time_ms"))).put("mode",settings.optString("mode"))
             .put("control",settings.optBoolean("control")).put("soundEnabled",settings.optBoolean("soundEnabled"))
             .put("vibrate",settings.optBoolean("vibrate")).put("sound",settings.optString("sound"))
-            .put("volume",settings.optInt("volume")).put("vibrationPattern",settings.optString("vibrationPattern"))
+            .put("volume",settings.optInt("volume")).put("direct_gain_percent",settings.optInt("direct_gain_percent")).put("vibrationPattern",settings.optString("vibrationPattern"))
             .put("vibrationAmplitude",settings.optInt("vibrationAmplitude")).put("vibrationMs",settings.optInt("vibrationMs"))
             .put("actualVibrationMs",settings.optInt("actualVibrationMs")).put("actualSoundMs",settings.optInt("actualSoundMs"))
             .put("level",settings.optInt("ladder_level",-1)+1).put("result",outcome)
@@ -84,17 +84,21 @@ final class FeedbackExperiment {
         SharedPreferences p=prefs(c);
         JSONObject last=new JSONObject(p.getString("last","{}"));
         String session=SleepRecorderService.currentSessionId();
-        boolean linked=FeedbackPolicy.reportLink(session,last.optString("session_id"),System.currentTimeMillis()-last.optLong("started_ms",last.optLong("time_ms",0)));
+        boolean adjustable="direct".equals(last.optString("mode"))&&session.equals(last.optString("session_id"))&&SleepRecorderService.isCurrentDirectTrial(last.optString("id"));
+        boolean linked=adjustable||FeedbackPolicy.reportLink(session,last.optString("session_id"),System.currentTimeMillis()-last.optLong("started_ms",last.optLong("time_ms",0)));
         String id=linked?last.optString("id"):"";
         JSONObject saved=new JSONObject(p.getString("self_report_latest","{}"));
         if(!session.equals(saved.optString("session_id"))||!id.equals(saved.optString("trial_id"))||(!linked&&System.currentTimeMillis()-saved.optLong("time_ms",0)>120000))saved=new JSONObject();
-        return new JSONObject().put("session_id",session).put("trial_id",id).put("cue",linked?last:new JSONObject()).put("checked",saved);
+        return new JSONObject().put("session_id",session).put("trial_id",id).put("cue",linked?last:new JSONObject()).put("checked",saved).put("gain_adjustable",adjustable);
     }
     static synchronized JSONObject selfReport(Context c,String kind,String expectedTrial)throws Exception{
-        if(!Arrays.asList("felt_vibration","heard_snoring","aware_snoring","turned_side","awake_unsure").contains(kind))throw new IllegalArgumentException("未知自报项目");
+        if(!Arrays.asList("felt_vibration","heard_snoring","aware_snoring","turned_side","awake_unsure","gain_hold","gain_too_strong").contains(kind))throw new IllegalArgumentException("未知自报项目");
         JSONObject state=reportStatus(c);
         String session=state.optString("session_id"),trial=state.optString("trial_id");
-        if(session.isEmpty())throw new IllegalStateException("请先开始睡眠录音");
+        boolean adjustable=state.optBoolean("gain_adjustable");
+        boolean gainAction=kind.equals("gain_hold")||kind.equals("gain_too_strong");
+        if(session.isEmpty()&&!adjustable)throw new IllegalStateException("请先开始录音或等待直接反馈");
+        if(gainAction&&!adjustable)throw new IllegalStateException("没有可调节的当前反馈，请刷新");
         if(!trial.equals(expectedTrial))throw new IllegalStateException("近期刺激已变化，请刷新后确认");
         JSONObject checked=state.optJSONObject("checked");
         if(checked==null)checked=new JSONObject();
@@ -103,7 +107,7 @@ final class FeedbackExperiment {
         JSONObject event=new JSONObject().put("kind","self_report").put("report",kind).put("session_id",session)
             .put("trial_id",trial).put("linked",!trial.isEmpty()).put("time_ms",now);
         if(!trial.isEmpty())event.put("cue",state.optJSONObject("cue"));
-        SleepRecorderService.recordSelfReport(c,event);
+        if(!session.isEmpty())SleepRecorderService.recordSelfReport(c,event);
         append(c,event);
         checked.put("session_id",session).put("trial_id",trial).put("time_ms",now).put(kind,true);
         SharedPreferences p=prefs(c);SharedPreferences.Editor edit=p.edit().putString("self_report_latest",checked.toString());
@@ -113,6 +117,9 @@ final class FeedbackExperiment {
             checks.put(kind,now);reports.put(trial,checks);edit.putString("dashboard_reports",reports.toString());
         }
         if(!edit.commit())throw new IOException("自报状态保存失败");
+        int next=-1;
+        if(adjustable&&!kind.equals("awake_unsure"))next=SleepRecorderService.reportDirectGain(trial,kind.equals("gain_too_strong"));
+        if(next>0){append(c,new JSONObject().put("kind","gain_adjustment").put("trial_id",trial).put("time_ms",now).put("reason",kind).put("next_gain",next));state.put("next_gain",next);}
         return state.put("checked",checked);
     }
     private static JSONObject channels(SharedPreferences p)throws Exception{

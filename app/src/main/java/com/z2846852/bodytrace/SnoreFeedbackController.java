@@ -27,7 +27,7 @@ final class SnoreFeedbackController {
         boolean vibrate = false, soundEnabled = true, vibrationCompatibility=false;
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
         int soundMax=40, vibrationMax=40, soundMin=5, vibrationMin=5, soundMsMax=5000, vibrationMsMax=1000, maxCues=12, delayMinutes=30;
-        int actualSoundMs=0,actualVibrationMs=0;
+        int actualSoundMs=0,actualVibrationMs=0,directGainPercent=0;
         boolean pauseOnScreen=true, directGain=true;
         String vibrationPattern="triplet", mode="direct", soundPool="", vibrationPool="continuous,triplet,rising,falling,shortlong";
         String soundRhythm="single", soundRhythmPool="single,triplet,rising,falling,shortlong", trialId="";
@@ -100,7 +100,7 @@ final class SnoreFeedbackController {
                 .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled).put("vibrationCompatibility",vibrationCompatibility)
                 .put("vibrationAmplitude",vibrationAmplitude).put("vibrationMs",vibrationMs)
                 .put("vibrationPattern",vibrationPattern).put("soundMs",soundMs).put("soundRhythm",soundRhythm)
-                .put("trial_id",trialId).put("actualSoundMs",actualSoundMs).put("actualVibrationMs",actualVibrationMs)
+                .put("trial_id",trialId).put("direct_gain_percent",directGainPercent).put("actualSoundMs",actualSoundMs).put("actualVibrationMs",actualVibrationMs)
                 .put("soundMin",soundMin).put("vibrationMin",vibrationMin).put("soundMsMax",soundMsMax).put("vibrationMsMax",vibrationMsMax).put("pauseOnScreen",pauseOnScreen).put("soundRhythmPool",soundRhythmPool)
                 .put("soundMax",soundMax).put("vibrationMax",vibrationMax).put("maxCues",maxCues)
                 .put("delayMinutes",delayMinutes).put("mode",mode).put("directGain",directGain).put("soundPool",soundPool).put("vibrationPool",vibrationPool);
