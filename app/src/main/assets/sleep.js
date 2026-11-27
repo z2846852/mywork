@@ -1041,12 +1041,15 @@
   };
   $("sleepSelfRefresh").onclick=()=>bridge()?.sleepFeedbackStatus?.();
   let consoleTab="night",lastExperiment={},reportExpiryRequested="";
+  let soundMaterials=[],vibMaterials=[];
   const consoleTabs=[...$("sleepFeedbackPanel").querySelectorAll("[data-console]")];
   function setConsoleTab(tab){
+   if(consoleTab==="materials"&&tab!=="materials")stopPad();
    consoleTab=tab;
    for(const b of consoleTabs){const active=b.dataset.console===tab;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));}
-   for(const [id,key] of [["sleepConsoleNight","night"],["sleepConsoleTest","test"],["sleepConsoleSettings","settings"]])$(id).hidden=tab!==key;
+   for(const [id,key] of [["sleepConsoleNight","night"],["sleepConsoleTest","test"],["sleepConsoleMaterials","materials"],["sleepConsoleSettings","settings"]])$(id).hidden=tab!==key;
    if(tab==="test")requestAnimationFrame(()=>{micGraph();speakerGraph();});
+   if(tab==="materials"){renderMaterials();bridge()?.sleepFeedbackStatus?.();}
   }
   consoleTabs.forEach(b=>b.onclick=()=>setConsoleTab(b.dataset.console));
   $("sleepConsoleRefresh").onclick=()=>bridge()?.sleepFeedbackStatus?.();
@@ -1207,6 +1210,7 @@
    animation=requestAnimationFrame(frame);
   }
   function switchPage(page){
+   if(page!=="feedback")stopPad();
    const live=page==="feedback",metrics=page==="metrics";
    sleepView=page;
    $("sleepBrowserPanel").hidden=live;
@@ -1264,9 +1268,14 @@
     micHistory.length=0;latestSecond=-1;$("sleepMicDbfs").textContent="—";$("sleepLivePeak").textContent="峰值 —";micGraph();
    }
    if(Array.isArray(evt.clips)){
+    soundMaterials=evt.clips;
     const main=$("sleepFeedbackSound");
     evt.clips.forEach(c=>{if(![...main.options].some(o=>o.value===c.id)){const o=document.createElement("option");o.value=c.id;o.textContent=c.name;main.append(o);}});
     const pool=$("sleepFeedbackSoundPool");[...main.options].forEach(o=>{if(![...pool.options].some(p=>p.value===o.value)){const n=o.cloneNode(true);n.selected=false;pool.append(n);}});
+   }
+   if(Array.isArray(evt.vibration_clips)){
+    vibMaterials=evt.vibration_clips;
+    for(const id of ["sleepFeedbackVibrationPattern","sleepFeedbackVibrationPool"]){const select=$(id);for(const c of vibMaterials){if(![...select.options].some(o=>o.value===c.id)){const o=document.createElement("option");o.value=c.id;o.textContent=c.name;select.append(o);}}}
    }
    if(evt.vibration_hardware){const v=evt.vibration_hardware;vibrationAvailable=!!v.available;vibrationAmplitudeControl=!!v.amplitude;$("sleepVibrationHardware").textContent=(v.model?v.model+" · ":"")+(!v.available?"未发现振动马达":v.amplitude?"支持振幅控制":"仅占空比")+(v.permission===false?" · VIBRATE 权限缺失":"")+(v.interruption_filter===2||v.interruption_filter===3||v.interruption_filter===4?" · 勿扰限制可能生效":"");if(!previewPending)previewBusy(false);}
    if(evt.experiment){lastExperiment=evt.experiment;renderTrialBoard(lastExperiment);const e=evt.experiment,l=e.last||{};const stats=e.channels||{};$("sleepExperimentChannels").textContent=[["纯声音","sound"],["纯震动","vib"],["混合","mix"]].map(([name,k])=>name+" "+(stats[k]?.stopped||0)+"/"+(stats[k]?.observed||0)).join(" · ");const restore=$("sleepExperimentRestoreKey");restore.replaceChildren();for(const key of [...(e.excluded||[]),...(e.soundLimit<100?["soundLimit"]:[]),...(e.vibrationLimit<100?["vibrationLimit"]:[]),...(e.soundDurationLimit<5000?["soundDurationLimit"]:[]),...(e.vibrationDurationLimit<2000?["vibrationDurationLimit"]:[])]){const o=document.createElement("option");o.value=key;o.textContent=key==="soundLimit"?"恢复声音上限":key==="vibrationLimit"?"恢复震动上限":key==="soundDurationLimit"?"恢复声音时长上限":key==="vibrationDurationLimit"?"恢复震动时长上限":key.replace("deny_sound_","声音：").replace("deny_vib_","震动：").replace("deny_pair_","搭配：").replace("deny_rhythm_","声音节奏：");restore.append(o);} $("sleepExperimentRestore").disabled=!restore.options.length;for(const o of $("sleepFeedbackSoundPool").options){o.disabled=(e.excluded||[]).includes("deny_sound_"+o.value);if(o.disabled)o.selected=false;}for(const o of $("sleepFeedbackVibrationPool").options){o.disabled=(e.excluded||[]).includes("deny_vib_"+o.value);if(o.disabled)o.selected=false;}
@@ -1302,6 +1311,7 @@
     labels();renderVibrationPattern();
    }
    renderPlan();
+   if(consoleTab==="materials")renderMaterials();
    if(recordActive!==recording)bridge()?.sleepStatus?.();
   }
   function renderEvents(events){
@@ -1367,11 +1377,11 @@
    }
    if(!value){clearTimeout(previewTimeout);previewTimeout=0;}
   }
-  function preview(mode){
+  function preview(mode,overrides={}){
    if(previewPending)return;
    if(!bridge()?.sleepFeedbackPreview){$("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;}
    if(mode!=="sound"&&vibrationAvailable===false){$("sleepFeedbackInfo").textContent="设备没有可用振动马达";return;}
-   const c=cfg(),v=mode!=="sound",a=mode==="sound"||mode==="mixed";
+   const c={...cfg(),...overrides},v=mode!=="sound",a=mode==="sound"||mode==="mixed";
    $("sleepFeedbackInfo").textContent=mode==="motor"?"正在测试系统默认振幅 800ms":mode==="night"?"正在测试夜间通知振动通道":mode==="sound"?"正在测试声音（无振动）":mode==="vibration"?"正在测试振动（无声音）":"正在测试声音＋振动";
    if(v)$("sleepVibrationNow").textContent=mode==="motor"?"系统默认强度 · 800ms":"请求 "+c.vibrationAmplitude+"% · "+c.vibrationMs+"ms";
    previewBusy(true);
@@ -1386,6 +1396,8 @@
   function renderVibrationPattern(){
    const root=$("sleepVibrationTrack");root.replaceChildren();
    const c=cfg(),continuous=c.vibrationPattern==="continuous",dutyMode=c.vibrationCompatibility||vibrationAmplitudeControl===false;
+   const custom=vibMaterials.find(v=>v.id===c.vibrationPattern);
+   if(custom&&Array.isArray(custom.samples)){for(const a of custom.samples){const seg=document.createElement("div"),pulse=document.createElement("i");seg.style.flex="1";pulse.style.width=(dutyMode?a*c.vibrationAmplitude/100:100)+"%";pulse.style.opacity=String(dutyMode?(a?1:0):a*c.vibrationAmplitude/10000);seg.append(pulse);root.append(seg);}root.title="自录请求曲线，非实测马达输出";return;}
    const n=continuous?1:3;
    for(let i=0;i<n;i++){
     const ratio=c.vibrationPattern==="rising"?(i+1)/3:c.vibrationPattern==="falling"?(3-i)/3:1;
@@ -1397,8 +1409,110 @@
    root.title="请求节奏示意，非实测振动";
   }
   for(const id of ["sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationCompatibility"])$(id).addEventListener("input",renderVibrationPattern);
-  $("sleepCueRecord").onclick=()=>bridge()?.sleepCueImport?.(true);
-  $("sleepCueImport").onclick=()=>bridge()?.sleepCueImport?.(false);
+  function materialMessage(msg){$("sleepMaterialSoundStatus").textContent=msg;}
+  function useMaterial(kind,c,action){
+   if(action==="preview"){
+    if(padActive||padArmed){materialMessage("请先结束振动录制");return;}
+    if(feedbackActive){materialMessage("请先关闭自动反馈再试听");return;}
+    preview(kind==="sound"?"sound":"vibration",kind==="sound"?{sound:c.id,soundRhythm:"single",soundMs:0}:{vibrationPattern:c.id,vibrationAmplitude:100,vibrationMs:c.duration_ms});
+    return;
+   }
+   if(feedbackActive){materialMessage("先关闭自动反馈，再修改素材");return;}
+   const isSound=kind==="sound",main=$(isSound?"sleepFeedbackSound":"sleepFeedbackVibrationPattern"),pool=$(isSound?"sleepFeedbackSoundPool":"sleepFeedbackVibrationPool");
+   const option=[...pool.options].find(o=>o.value===c.id);
+   if(!option||option.disabled){materialMessage("此素材已排除或尚未加载，请先刷新或恢复限制");return;}
+   if(action==="pool"){option.selected=!option.selected;}
+   else{
+    main.value=c.id;
+    if(isSound){$("sleepFeedbackSoundEnabled").checked=true;$("sleepFeedbackSoundRhythm").value="single";$("sleepFeedbackSoundMs").value="0";}
+    else{$("sleepFeedbackVibrate").checked=true;$("sleepFeedbackVibrationAmplitude").value="100";$("sleepFeedbackVibrationMs").value=String(c.duration_ms);}
+   }
+   labels();renderVibrationPattern();
+   if(save()){materialMessage(c.name+(action==="pool"?(option.selected?" · 已加入候选池":" · 已移出候选池"):" · 已设为反馈素材（不开启反馈）"));renderMaterials();}
+  }
+  function renderMaterials(){
+   for(const [kind,items,id] of [["sound",soundMaterials,"sleepMaterialSoundList"],["vibration",vibMaterials,"sleepMaterialVibList"]]){
+    const root=$(id);root.replaceChildren();
+    if(!items.length){root.textContent=kind==="sound"?"尚无自录提示音":"尚无自定义振动";continue;}
+    const pool=$(kind==="sound"?"sleepFeedbackSoundPool":"sleepFeedbackVibrationPool"),main=$(kind==="sound"?"sleepFeedbackSound":"sleepFeedbackVibrationPattern");
+    for(const c of items){
+     const row=document.createElement("div");row.className="sleep-material-row";
+     const info=document.createElement("div"),name=document.createElement("strong"),meta=document.createElement("small");name.textContent=c.name;meta.textContent=(Number(c.duration_ms)/1000).toFixed(2)+"s"+(main.value===c.id?" · 当前选中":"");info.append(name,meta);row.append(info);
+     if(kind==="vibration"&&Array.isArray(c.samples)){const wave=document.createElement("div");wave.className="sleep-pad-wave small";for(const value of c.samples){const bar=document.createElement("i");bar.style.height=value+"%";wave.append(bar);}info.append(wave);}
+     const actions=document.createElement("div");actions.className="sleep-material-actions";
+     const o=[...pool.options].find(o=>o.value===c.id);
+     for(const [action,label] of [["preview","试听"],["select","设为反馈"],["pool",o?.selected?"✓ 候选池":"＋候选池"]]){
+      const button=document.createElement("button");button.type="button";button.className="secondary mini";button.textContent=label;button.disabled=action!=="preview"&&!!o?.disabled;button.onclick=()=>useMaterial(kind,c,action);actions.append(button);
+     }
+     row.append(actions);root.append(row);
+    }
+   }
+   $("sleepCueRecord").disabled=micActive||feedbackActive;
+   if(micActive&&!feedbackActive)materialMessage("麦克风正在采集；停止监听或录音后可录制自己的声音");
+  }
+  $("sleepMaterialRefresh").onclick=()=>bridge()?.sleepFeedbackStatus?.();
+  $("sleepCueRecord").onclick=()=>{if(!micActive&&!feedbackActive)bridge()?.sleepCueImport?.(true);};
+  $("sleepCueImport").onclick=()=>{if(feedbackActive)materialMessage("先关闭自动反馈再导入");else bridge()?.sleepCueImport?.(false);};
+  const pad=$("sleepVibrationPad"),padCursor=$("sleepPadCursor");
+  let padArmed=false,padActive=false,padPointer=null,padLevel=0,padStart=0,padTimer=0,padSamples=[],padSaving=false,padSaved=false,padLastMotor=0;
+  function drawPad(){
+   $("sleepPadTime").textContent=(padSamples.length*.05).toFixed(2)+" / 2.00s";
+   $("sleepPadLevel").textContent=padLevel+"%";
+   $("sleepPadRecord").textContent=padActive?"■ 结束录制":padArmed?"取消准备":"准备录制";
+   $("sleepPadSave").disabled=padArmed||padActive||padSaving||padSaved||padSamples.length<2||!padSamples.some(v=>v>0);
+   const root=$("sleepPadWave");root.replaceChildren();
+   for(let i=0;i<40;i++){const bar=document.createElement("i");bar.style.height=(padSamples[i]||0)+"%";if(i<padSamples.length)bar.className="sampled";root.append(bar);}
+  }
+  function padMotor(value){bridge()?.sleepVibrationTouch?.(value);}
+  function samplePad(now){
+   if(!padActive)return;
+   const target=Math.min(40,Math.floor((now-padStart)/50));
+   while(padSamples.length<target)padSamples.push(padLevel);
+  }
+  function stopPad(){
+   if(!padArmed&&!padActive)return;
+   if(padActive)samplePad(performance.now());
+   clearInterval(padTimer);padTimer=0;padArmed=padActive=false;padPointer=null;padLevel=0;padCursor.hidden=true;padMotor(0);
+   $("sleepPadStatus").textContent=padSamples.some(v=>v>0)?"录制完成 · 保存后可试听":"未录到有效振动";
+   drawPad();
+  }
+  function updatePad(evt){
+   if(evt.pointerId!==padPointer)return;
+   samplePad(performance.now());
+   const rect=pad.getBoundingClientRect(),y=Math.max(0,Math.min(1,(evt.clientY-rect.top)/Math.max(1,rect.height)));
+   padLevel=Math.round(5+95*y);padCursor.hidden=false;padCursor.style.top=(y*100)+"%";padCursor.textContent=padLevel+"%";
+   const now=performance.now();if(now-padLastMotor>=90){padMotor(padLevel);padLastMotor=now;}drawPad();
+  }
+  pad.onpointerdown=evt=>{
+   if(!padArmed&&!padActive)return;
+   if(padPointer!==null)return;
+   if(feedbackActive||previewPending){stopPad();$("sleepPadStatus").textContent="请先关闭反馈及试听";return;}
+   evt.preventDefault();padPointer=evt.pointerId;try{pad.setPointerCapture(evt.pointerId);}catch(_){}
+   if(padArmed){padArmed=false;padActive=true;padStart=performance.now();padLastMotor=-Infinity;$("sleepPadStatus").textContent="录制中 · 松手保留间隔";
+    padTimer=setInterval(()=>{const now=performance.now();samplePad(now);if(padSamples.length>=40){stopPad();return;}if(padLevel&&now-padLastMotor>=90){padMotor(padLevel);padLastMotor=now;}drawPad();},50);}
+   padLastMotor=-Infinity;updatePad(evt);
+  };
+  pad.onpointermove=evt=>{if(evt.pointerId===padPointer){evt.preventDefault();updatePad(evt);}};
+  function releasePad(evt){if(evt.pointerId!==padPointer)return;samplePad(performance.now());padPointer=null;padLevel=0;padCursor.hidden=true;padMotor(0);drawPad();}
+  pad.onpointerup=releasePad;pad.onpointercancel=releasePad;pad.onlostpointercapture=releasePad;
+  $("sleepPadRecord").onclick=()=>{
+   if(padActive||padArmed){stopPad();return;}
+   if(feedbackActive||previewPending||padSaving){$("sleepPadStatus").textContent="请先关闭自动反馈和试听";return;}
+   if(!bridge()?.sleepVibrationSave||!bridge()?.sleepVibrationTouch){$("sleepPadStatus").textContent="请安装含自定义振动功能的新版 APK";return;}
+   if(vibrationAvailable===false){$("sleepPadStatus").textContent="未检测到振动马达";return;}
+   padSamples=[];padSaved=false;padArmed=true;$("sleepPadStatus").textContent="已准备 · 触摸板开始计时";drawPad();
+  };
+  $("sleepPadClear").onclick=()=>{if(padSaving)return;stopPad();padSamples=[];padSaved=false;$("sleepPadStatus").textContent="已清空 · 可重新录制";drawPad();};
+  $("sleepPadSave").onclick=()=>{
+   if(padSaving||padSaved||padSamples.length<2||!padSamples.some(v=>v>0))return;
+   if(feedbackActive){$("sleepPadStatus").textContent="先关闭自动反馈再保存";return;}
+   padSaving=true;drawPad();$("sleepPadStatus").textContent="正在保存…";
+   bridge()?.sleepVibrationSave?.(JSON.stringify({name:$("sleepPadName").value,samples:padSamples}));
+   setTimeout(()=>{if(padSaving){padSaving=false;drawPad();$("sleepPadStatus").textContent="保存未确认，请刷新素材库";}},10000);
+  };
+  document.addEventListener("visibilitychange",()=>{if(document.hidden)stopPad();});
+  window.addEventListener("blur",stopPad);
+  drawPad();
   $("sleepExcludeSound").onclick=()=>bridge()?.sleepExperimentExclude?.("sound",$("sleepFeedbackSound").value);
   $("sleepExcludeRhythm").onclick=()=>bridge()?.sleepExperimentExclude?.("rhythm",$("sleepFeedbackSoundRhythm").value);
   $("sleepExcludeVibration").onclick=()=>bridge()?.sleepExperimentExclude?.("vibration",$("sleepFeedbackVibrationPattern").value);
@@ -1413,8 +1527,12 @@
     clearTimeout(selfTimer);selfPending=false;
     if(evt.ok){renderSelfReport(evt.state);$("sleepSelfStatus").textContent="✓ 已记录 "+clock(Date.now())+" · 可以锁屏继续睡";bridge()?.sleepFeedbackStatus?.();}
     else {renderSelfReport(selfState);$("sleepSelfStatus").textContent=evt.message||"保存失败";bridge()?.sleepFeedbackStatus?.();}
+   }else if(evt.type==="sleep_feedback_material_saved"){
+    if(evt.kind==="vibration"){padSaving=false;padSaved=true;drawPad();$("sleepPadStatus").textContent="✓ 已保存 · 在下方试听或加入候选池";}
+    else materialMessage("✓ 自录声音已保存 · 在下方试听或设为反馈");
+    renderMaterials();bridge()?.sleepFeedbackStatus?.();
    }else if(evt.type==="sleep_feedback_clip_recording"){
-    $("sleepCueRecord").textContent=evt.active?"■ 停止录音":"● 录制声音";$("sleepFeedbackInfo").textContent=evt.message||"";
+    $("sleepCueRecord").textContent=evt.active?"■ 停止录音":"● 录制我的声音";$("sleepFeedbackInfo").textContent=evt.message||"";materialMessage(evt.message||"");
    }else if(evt.type==="sleep_feedback_mic"){
     if(!micActive){micActive=true;bridge()?.sleepFeedbackStatus?.();}
     micSecond(evt);
@@ -1440,11 +1558,13 @@
     toast(evt.message||"反馈日志已复制");
    }else if(evt.type==="sleep_feedback_preview"){
     previewBusy(false);
+    if(consoleTab==="materials")materialMessage(evt.message||"试听结束");
     $("sleepFeedbackInfo").textContent=evt.message||(evt.ok?"测试完成":"测试失败");
     if(evt.channel==="vibration"||evt.channel==="mixed")$("sleepVibrationNow").textContent=evt.ok?"请求已执行 · 请确认体感":"振动请求失败";
    }else if(evt.type==="sleep_feedback_error"||
       (evt.type==="error"&&/麦克风|鼾声|反馈/.test(evt.message||""))){
     $("sleepFeedbackInfo").textContent=evt.message||"反馈操作失败";
+    if(consoleTab==="materials"){materialMessage(evt.message||"素材操作失败");if(padSaving){padSaving=false;drawPad();$("sleepPadStatus").textContent=evt.message||"保存失败";}}
     bridge()?.sleepFeedbackStatus?.();
    }
   };

@@ -2303,3 +2303,23 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 #sleepFeedbackPanel .sleep-trial-tags span{font-size:9px;padding:2px 4px;border:1px solid #40514b;border-radius:4px;color:#a5b2ac}
 #sleepFeedbackPanel .sleep-trial-tags .confirmed{border-color:#659f7c;color:#b8f0c9;background:#243c2e}
 #sleepFeedbackPanel.sleep-live-dim .sleep-console-head,#sleepFeedbackPanel.sleep-live-dim .sleep-self-report{filter:brightness(.65)}
+
+#sleepFeedbackPanel .sleep-console-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
+#sleepFeedbackPanel .sleep-console-tabs button{font-size:11px;padding:3px 2px}
+#sleepFeedbackPanel .sleep-vibration-pad{position:relative;touch-action:none;user-select:none;min-height:144px;margin:7px 0;border:1px solid #668c80;border-radius:8px;overflow:hidden;background:linear-gradient(#1d342f,#4c6252 50%,#ad7850);color:#fff;display:flex;flex-direction:column;justify-content:space-between;padding:9px;box-sizing:border-box}
+#sleepFeedbackPanel .sleep-vibration-pad span{font-size:11px;pointer-events:none}
+#sleepFeedbackPanel .sleep-pad-mid{align-self:center;font-size:13px!important;color:#fff}
+#sleepFeedbackPanel .sleep-pad-bottom{align-self:flex-end}
+#sleepFeedbackPanel #sleepPadCursor{position:absolute;left:0;right:0;transform:translateY(-50%);height:2px;background:#f2efc9;pointer-events:none;text-align:center;color:#fff;font-size:13px;font-weight:bold}
+#sleepFeedbackPanel .sleep-pad-readout{display:flex;justify-content:space-between;gap:4px;align-items:center;font-size:11px;color:#b5cec4}
+#sleepFeedbackPanel .sleep-pad-readout strong{font-size:18px;color:#9ae4ba}
+#sleepFeedbackPanel .sleep-pad-wave{display:flex;align-items:flex-end;height:36px;gap:2px;margin:4px 0;background:#142422;border-bottom:1px solid #607970;border-radius:4px;overflow:hidden}
+#sleepFeedbackPanel .sleep-pad-wave i{flex:1;min-width:1px;background:#ad9be0;border-radius:1px 1px 0 0}
+#sleepFeedbackPanel .sleep-pad-wave.small{height:22px}
+#sleepFeedbackPanel .sleep-material-save{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;align-items:center}
+#sleepFeedbackPanel .sleep-material-save input{min-width:0;width:100%;margin:0;font-size:12px;padding:5px}
+#sleepFeedbackPanel .sleep-material-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:center;border-top:1px solid #385149;padding:6px 0}
+#sleepFeedbackPanel .sleep-material-row strong,#sleepFeedbackPanel .sleep-material-row small{display:block;font-size:11px;overflow-wrap:anywhere}
+#sleepFeedbackPanel .sleep-material-row small{font-size:10px;color:#acc5bb}
+#sleepFeedbackPanel .sleep-material-actions{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end}
+#sleepFeedbackPanel .sleep-material-actions button{font-size:10px;padding:4px 5px}

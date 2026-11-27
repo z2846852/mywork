@@ -169,7 +169,7 @@ final class FeedbackExperiment {
     static synchronized void excludeType(Context c,String kind,String id)throws Exception{
         String prefix;
         if("sound".equals(kind)){prefix="deny_sound_";if(!(CueLibrary.validId(id)||DreamCueSynth.supports(id)||Arrays.asList("soft","low","double","bell").contains(id)))throw new IllegalArgumentException("未知声音");}
-        else if("vibration".equals(kind)){prefix="deny_vib_";if(!Arrays.asList("continuous","triplet","rising","falling","shortlong").contains(id))throw new IllegalArgumentException("未知震动");}
+        else if("vibration".equals(kind)){prefix="deny_vib_";if(!Arrays.asList("continuous","triplet","rising","falling","shortlong").contains(id)&&!VibrationLibrary.validId(id))throw new IllegalArgumentException("未知震动");}
         else if("rhythm".equals(kind)){prefix="deny_rhythm_";if(!Arrays.asList("single","triplet","rising","falling","shortlong").contains(id))throw new IllegalArgumentException("未知节奏");}
         else throw new IllegalArgumentException("未知刺激类型");
         append(c,new JSONObject().put("kind","exclude").put("time_ms",System.currentTimeMillis()).put("key",prefix+id));

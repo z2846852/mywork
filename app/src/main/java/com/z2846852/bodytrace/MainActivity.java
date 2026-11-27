@@ -408,7 +408,7 @@ public final class MainActivity extends Activity {
         }
         Uri uri=data==null?null:data.getData();
         if(requestCode==7214){if(uri==null){error("未选择实验日志保存位置");return;}worker.execute(()->{try(OutputStream out=getContentResolver().openOutputStream(uri,"w")){if(out==null)throw new IllegalStateException("不能写入文件");FeedbackExperiment.writeJournal(this,out);reply(message("sleep_feedback_session_exported").put("message","长期实验 JSONL 已保存"));}catch(Exception e){error("反馈实验导出失败："+safeMessage(e));}});return;}
-        if(requestCode==7211||requestCode==7212){if(uri==null){error("未获得提示录音");return;}worker.execute(()->{try{CueLibrary.add(this,uri);reply(SleepRecorderService.feedbackStatus(this));}catch(Exception e){error("反馈录音导入失败："+safeMessage(e));}});return;}
+        if(requestCode==7211||requestCode==7212){if(uri==null){error("未获得提示录音");return;}worker.execute(()->{try{String id=CueLibrary.add(this,uri);reply(SleepRecorderService.feedbackStatus(this));reply(message("sleep_feedback_material_saved").put("kind","sound").put("id",id));}catch(Exception e){error("反馈录音导入失败："+safeMessage(e));}});return;}
         if(requestCode==PICK_APK_PATCH_REQUEST){
             if(uri==null){error("未选择差分补丁");return;}
             worker.execute(()->{
@@ -839,7 +839,7 @@ public final class MainActivity extends Activity {
         boolean ok=false;try{recorder.stop();ok=true;}catch(Exception ignored){}finally{recorder.release();}
         if(save&&ok&&temp!=null&&android.os.SystemClock.elapsedRealtime()-cueStarted>=150){
             cueRecordStatus(false,"正在处理录音…");
-            worker.execute(()->{try{CueLibrary.addFile(this,temp);reply(SleepRecorderService.feedbackStatus(this));cueRecordStatus(false,"录音已保存，勾选素材参与实验");}catch(Exception e){error("提示录音保存失败："+safeMessage(e));}finally{temp.delete();}});
+            worker.execute(()->{try{String id=CueLibrary.addFile(this,temp);reply(SleepRecorderService.feedbackStatus(this));reply(message("sleep_feedback_material_saved").put("kind","sound").put("id",id));cueRecordStatus(false,"录音已保存，可试听或加入素材池");}catch(Exception e){error("提示录音保存失败："+safeMessage(e));}finally{temp.delete();}});
         }else{if(temp!=null)temp.delete();cueRecordStatus(false,save?"录音太短或无效":"录音已取消");}
     }
     private void startSleepCapture() {
@@ -2449,6 +2449,25 @@ public final class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public void sleepVibrationSave(String raw){
+            worker.execute(()->{try{
+                JSONObject cue=VibrationLibrary.save(MainActivity.this,raw);
+                reply(SleepRecorderService.feedbackStatus(MainActivity.this));
+                reply(message("sleep_feedback_material_saved").put("kind","vibration").put("id",cue.getString("id")));
+            }catch(Exception ex){error("自定义振动保存失败："+safeMessage(ex));}});
+        }
+        @JavascriptInterface public void sleepVibrationTouch(int percent){
+            runOnUiThread(()->{try{
+                if(SleepRecorderService.isFeedbackEnabled()||SnoreFeedbackController.isCuePlaying())return;
+                android.os.Vibrator v=SnoreFeedbackController.getVibrator(MainActivity.this);
+                if(v==null||!v.hasVibrator())return;
+                if(percent<=0){v.cancel();return;}
+                int p=Math.max(1,Math.min(100,percent));
+                boolean amplitude=v.hasAmplitudeControl()&&!SnoreFeedbackController.Settings.load(MainActivity.this).vibrationCompatibility;
+                android.os.VibrationEffect effect=android.os.VibrationEffect.createOneShot(amplitude?100:Math.max(1,p),amplitude?Math.max(1,Math.round(p*255/100f)):android.os.VibrationEffect.DEFAULT_AMPLITUDE);
+                v.vibrate(effect,new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).build());
+            }catch(Exception ignored){}});
+        }
         @JavascriptInterface public void sleepCueImport(boolean record){
             runOnUiThread(()->{try{
                 if(record){startCueRecord();return;}

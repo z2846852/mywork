@@ -466,7 +466,7 @@ body.overview-muscle-open{overflow:hidden}
  <section class="sleep-feedback-panel sleep-feedback-v2" id="sleepFeedbackPanel" hidden aria-label="实时鼾声反馈">
   <div class="sleep-feedback-intro"><h2>鼾声实验控制台</h2><button type="button" class="secondary" id="sleepLiveDim" aria-pressed="false">☾ 夜间</button></div>
   <div class="sleep-console-tabs" role="group" aria-label="反馈功能">
-   <button type="button" data-console="night" aria-pressed="true" class="active">今晚实验</button><button type="button" data-console="test" aria-pressed="false">检测与试听</button><button type="button" data-console="settings" aria-pressed="false">高级设置</button>
+   <button type="button" data-console="night" aria-pressed="true" class="active">今晚实验</button><button type="button" data-console="test" aria-pressed="false">检测与试听</button><button type="button" data-console="materials" aria-pressed="false">素材库</button><button type="button" data-console="settings" aria-pressed="false">高级设置</button>
   </div>
   <div class="sleep-io-card sleep-console-head">
    <div class="sleep-io-heading"><strong id="sleepConsoleState">未开始实验</strong><label class="sleep-feedback-toggle" for="sleepFeedbackEnabled"><span id="sleepSpeakerBadge">反馈关闭</span><input type="checkbox" id="sleepFeedbackEnabled" aria-label="启用自动鼾声提示"></label></div>
@@ -562,7 +562,7 @@ body.overview-muscle-open{overflow:hidden}
       <label>声音幅度上限(%) <input type="number" id="sleepFeedbackSoundMax" min="1" max="100" value="40"></label>
       <label>声音时长上限(ms) <input type="number" id="sleepFeedbackSoundMsMax" min="150" max="5000" value="5000"></label>
       <label>声音节奏池 <select id="sleepFeedbackSoundRhythmPool" multiple size="3"><option value="single" selected>原音</option><option value="triplet" selected>三连</option><option value="rising" selected>递增</option><option value="falling" selected>递减</option><option value="shortlong" selected>短短长</option></select></label>
-      <div class="actions"><button type="button" class="secondary mini" id="sleepExcludeSound">排除当前声音</button><button type="button" class="secondary mini" id="sleepExcludeRhythm">排除当前节奏</button></div></div><div><button type="button" class="secondary" id="sleepCueRecord">录制声音</button> <button type="button" class="secondary" id="sleepCueImport">导入录音</button></div></details>
+      <div class="actions"><button type="button" class="secondary mini" id="sleepExcludeSound">排除当前声音</button><button type="button" class="secondary mini" id="sleepExcludeRhythm">排除当前节奏</button></div></div></details>
     <div class="sleep-oscilloscope speaker-wave"><canvas id="sleepSpeakerCanvas" width="660" height="140" aria-label="当前提示音合成波形"></canvas></div>
     <span class="sub" id="sleepSpeakerNow">等待声音输出</span>
    </div>
@@ -571,6 +571,28 @@ body.overview-muscle-open{overflow:hidden}
    </div>
   <div class="sleep-io-card sleep-live-log"><div class="sleep-io-heading"><strong>本次实验记录</strong><button type="button" class="secondary" id="sleepLiveExport">导出日志</button></div><div id="sleepLiveEvents" class="sleep-live-events">暂无自动反馈或手动标记</div><p class="sub">最近3条 · 最多导出1000条 · 进程内保存</p></div>
 
+  </div>
+  <div id="sleepConsoleMaterials" hidden>
+   <div class="sleep-io-card sleep-material-card">
+    <div class="sleep-io-heading"><strong>我的声音 · 提示音</strong><button type="button" class="secondary mini" id="sleepMaterialRefresh">↻</button></div>
+    <div class="sleep-console-quick"><button type="button" class="primary" id="sleepCueRecord">● 录制我的声音</button><button type="button" class="secondary" id="sleepCueImport">导入录音</button></div>
+    <p class="sub" id="sleepMaterialSoundStatus">录制约0.15–5秒，例如「翻个身」。录制前请停止其他麦克风采集。</p>
+    <div id="sleepMaterialSoundList" class="sleep-material-list">尚无自录提示音</div>
+   </div>
+   <div class="sleep-io-card sleep-material-card">
+    <div class="sleep-io-heading"><strong>我的振动 · 触摸录制</strong><span id="sleepPadTime" class="sub">0.00 / 2.00s</span></div>
+    <div id="sleepVibrationPad" class="sleep-vibration-pad" role="group" aria-label="振动录制触摸板：上轻下重">
+     <span class="sleep-pad-top">轻 · 5%</span><span class="sleep-pad-mid">按住振动 / 松开停顿</span><span class="sleep-pad-bottom">重 · 100%</span>
+     <div id="sleepPadCursor" hidden></div>
+    </div>
+    <div class="sleep-pad-readout"><strong id="sleepPadLevel">0%</strong><span id="sleepPadStatus">点击准备，再触摸开始录制</span></div>
+    <div id="sleepPadWave" class="sleep-pad-wave" aria-label="已录制的振动强度曲线"></div>
+    <div class="sleep-console-quick"><button type="button" class="primary" id="sleepPadRecord">准备录制</button><button type="button" class="secondary" id="sleepPadClear">清空重录</button></div>
+    <div class="sleep-material-save"><input type="text" id="sleepPadName" maxlength="40" placeholder="振动名称（可选）"><button type="button" class="primary" id="sleepPadSave" disabled>保存振动</button></div>
+    <p class="sub">每50ms记录强度；上下滑动改变强度，横向位置不影响。保留松手停顿，最长2秒。强度为请求值；不支持振幅的马达以占空比近似。</p>
+    <div id="sleepMaterialVibList" class="sleep-material-list">尚无自定义振动</div>
+   </div>
+   <p class="sub">保存不启动自动反馈；选择素材或加入候选池后才使用。vivo 请确认关闭系统静音。</p>
   </div>
   <div id="sleepConsoleSettings" hidden>
    <div class="sleep-io-card"><div class="sleep-io-heading"><strong>实验模式与保护</strong></div>

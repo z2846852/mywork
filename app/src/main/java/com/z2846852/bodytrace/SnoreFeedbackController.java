@@ -60,7 +60,7 @@ final class SnoreFeedbackController {
             s.pauseOnScreen=json.optBoolean("pauseOnScreen",true);
             s.maxCues=clamp(json.optInt("maxCues",12),1,40);
             s.delayMinutes=clamp(json.optInt("delayMinutes",30),0,120);
-            s.vibrationPattern=choice(json.optString("vibrationPattern"),"triplet","continuous","triplet","rising","falling","shortlong");
+            s.vibrationPattern=VibrationLibrary.validId(json.optString("vibrationPattern"))?json.optString("vibrationPattern"):choice(json.optString("vibrationPattern"),"triplet","continuous","triplet","rising","falling","shortlong");
             s.soundRhythm=choice(json.optString("soundRhythm"),"single","single","triplet","rising","falling","shortlong");
             s.mode=choice(json.optString("mode"),"fixed","fixed","limited","stairs","explore","adaptive","control","vibration_threshold");
             s.soundRhythmPool=validateRhythms(json.optString("soundRhythmPool","single,triplet,rising,falling,shortlong"));
@@ -85,7 +85,7 @@ final class SnoreFeedbackController {
             java.util.LinkedHashSet<String> set=new java.util.LinkedHashSet<>();
             for(String v:raw.split(",")){
                 boolean valid=sound?("soft".equals(v)||"low".equals(v)||"double".equals(v)||"bell".equals(v)||DreamCueSynth.supports(v)||CueLibrary.validId(v)):
-                    !choice(v,"","continuous","triplet","rising","falling","shortlong").isEmpty();
+                    (VibrationLibrary.validId(v)||!choice(v,"","continuous","triplet","rising","falling","shortlong").isEmpty());
                 if(!valid||set.size()>=64)throw new IllegalArgumentException("无效刺激素材池");
                 set.add(v);
             }return String.join(",",set);
@@ -153,7 +153,8 @@ final class SnoreFeedbackController {
         if(nm!=null)info.put("interruption_filter",nm.getCurrentInterruptionFilter());
         return info;
     }
-    static VibrationEffect vibrationEffect(Settings s,boolean amplitudeControl){
+    static VibrationEffect vibrationEffect(Context context,Settings s,boolean amplitudeControl)throws Exception{
+        if(VibrationLibrary.validId(s.vibrationPattern))return VibrationLibrary.effect(context,s.vibrationPattern,s.vibrationAmplitude,s.vibrationMs,amplitudeControl);
         int amplitude=Math.max(1,Math.min(255,Math.round(s.vibrationAmplitude*255/100f)));
         int total=s.vibrationMs;
         // On binary motors encode requested intensity as duty cycle, not fake amplitude.
@@ -258,7 +259,7 @@ final class SnoreFeedbackController {
                 if(vibrator==null||!vibrator.hasVibrator())
                     throw new IllegalStateException("设备没有可用震动马达");
                 boolean explicitAmplitude=vibrator.hasAmplitudeControl()&&!s.vibrationCompatibility;
-                VibrationEffect effect=defaultMotorTest?VibrationEffect.createOneShot(s.vibrationMs,VibrationEffect.DEFAULT_AMPLITUDE):vibrationEffect(s,explicitAmplitude);
+                VibrationEffect effect=defaultMotorTest?VibrationEffect.createOneShot(s.vibrationMs,VibrationEffect.DEFAULT_AMPLITUDE):vibrationEffect(context,s,explicitAmplitude);
                 android.media.AudioAttributes attrs=new AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .setUsage(foregroundPreview?AudioAttributes.USAGE_MEDIA:AudioAttributes.USAGE_NOTIFICATION).build();
