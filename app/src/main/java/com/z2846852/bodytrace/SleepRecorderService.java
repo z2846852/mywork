@@ -58,9 +58,9 @@ public final class SleepRecorderService extends Service {
     private static volatile String triggerReason="自动反馈关闭";
     private static final FeedbackPolicy.DirectGainState directGainState=new FeedbackPolicy.DirectGainState();
     static boolean isCurrentDirectTrial(String id){return feedbackEnabled&&directGainState.matches(feedbackStartedMs,id);}
-    static int reportDirectGain(String id,boolean tooStrong){
+    static int reportDirectGain(String id,String action){
         if(!feedbackEnabled)return -1;
-        return directGainState.report(feedbackStartedMs,id,tooStrong);
+        return directGainState.adjust(feedbackStartedMs,id,action);
     }
     private volatile Thread autoCueThread;
     private void stopAutoCue(){Thread cue=autoCueThread;if(cue!=null)cue.interrupt();}

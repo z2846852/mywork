@@ -92,17 +92,18 @@ final class FeedbackExperiment {
         return new JSONObject().put("session_id",session).put("trial_id",id).put("cue",linked?last:new JSONObject()).put("checked",saved).put("gain_adjustable",adjustable);
     }
     static synchronized JSONObject selfReport(Context c,String kind,String expectedTrial)throws Exception{
-        if(!Arrays.asList("felt_vibration","heard_snoring","aware_snoring","turned_side","awake_unsure","gain_hold","gain_too_strong").contains(kind))throw new IllegalArgumentException("未知自报项目");
+        if(!Arrays.asList("felt_vibration","heard_snoring","aware_snoring","turned_side","awake_unsure","gain_hold","gain_too_strong","gain_too_weak").contains(kind))throw new IllegalArgumentException("未知自报项目");
         JSONObject state=reportStatus(c);
         String session=state.optString("session_id"),trial=state.optString("trial_id");
         boolean adjustable=state.optBoolean("gain_adjustable");
-        boolean gainAction=kind.equals("gain_hold")||kind.equals("gain_too_strong");
+        boolean gainAction=kind.startsWith("gain_");
+        boolean repeatable=kind.equals("gain_too_strong")||kind.equals("gain_too_weak");
         if(session.isEmpty()&&!adjustable)throw new IllegalStateException("请先开始录音或等待直接反馈");
         if(gainAction&&!adjustable)throw new IllegalStateException("没有可调节的当前反馈，请刷新");
         if(!trial.equals(expectedTrial))throw new IllegalStateException("近期刺激已变化，请刷新后确认");
         JSONObject checked=state.optJSONObject("checked");
         if(checked==null)checked=new JSONObject();
-        if(checked.optBoolean(kind))return state;
+        if(checked.optBoolean(kind)&&!repeatable)return state;
         long now=System.currentTimeMillis();
         JSONObject event=new JSONObject().put("kind","self_report").put("report",kind).put("session_id",session)
             .put("trial_id",trial).put("linked",!trial.isEmpty()).put("time_ms",now);
@@ -118,7 +119,7 @@ final class FeedbackExperiment {
         }
         if(!edit.commit())throw new IOException("自报状态保存失败");
         int next=-1;
-        if(adjustable&&!kind.equals("awake_unsure"))next=SleepRecorderService.reportDirectGain(trial,kind.equals("gain_too_strong"));
+        if(adjustable&&!kind.equals("awake_unsure"))next=SleepRecorderService.reportDirectGain(trial,gainAction?kind:"gain_hold");
         if(next>0){append(c,new JSONObject().put("kind","gain_adjustment").put("trial_id",trial).put("time_ms",now).put("reason",kind).put("next_gain",next));state.put("next_gain",next);}
         return state.put("checked",checked);
     }

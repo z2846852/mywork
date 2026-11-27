@@ -486,7 +486,7 @@
   for(const e of filtered.slice(0,feedbackEventLimit)){
    const sec=Math.max(0,Number(e.offset_ms)||0)/1000;
    const label=window.BodyTraceSleepVisual?.formatTime?.(sec,analysis.id)||clock(analysis.started_ms+sec*1000);
-   const selfLabels={gain_hold:"保持强度",gain_too_strong:"太强/太吵",felt_vibration:"感到振动",heard_snoring:"听到自己的鼾声",aware_snoring:"意识到自己在打鼾",turned_side:"已翻身侧睡",awake_unsure:"醒来原因不确定"};
+   const selfLabels={gain_hold:"保持强度",gain_too_strong:"太强/太吵",gain_too_weak:"太弱",felt_vibration:"感到振动",heard_snoring:"听到自己的鼾声",aware_snoring:"意识到自己在打鼾",turned_side:"已翻身侧睡",awake_unsure:"醒来原因不确定"};
    const name=e.kind==="trial_outcome"?({stopped:"鼾声候选减少",continued:"仍有鼾声候选",incomplete:"观察不完整"}[e.result]||"试验结果"):e.kind==="self_report"?(selfLabels[e.report]||"夜间自报"):e.kind==="feedback_on"?"开启反馈":e.kind==="feedback_off"?"关闭反馈":e.kind==="manual"?"手动标记":e.kind==="preview"?"手动试听":e.kind==="control"?"无刺激对照":"自动"+(e.vibration&&e.sound_enabled?"声音＋震动":e.vibration?"震动":"提示音");
    const sound=[...$("sleepFeedbackSound").options].find(o=>o.value===e.sound)?.textContent.split(" · ")[0]||e.sound||"";
    const meta=[];if(e.kind==="self_report")meta.push(e.linked?"关联近期刺激":"未关联刺激");if(e.kind==="trial_outcome")meta.push(`${e.snore_seconds||0}/${e.valid_seconds||0}s 鼾声候选`);if(e.kind!=="control"&&e.kind!=="self_report"&&e.kind!=="trial_outcome"){if(e.sound_enabled??!e.vibration){if(e.sound)meta.push(sound+" · "+e.volume+"%");}if(e.vibration)meta.push((e.parameters?.vibrationPattern||"震动")+" · "+(e.parameters?.vibrationAmplitude??"系统默认")+"%");}if(Number.isFinite(e.score))meta.push("AI "+e.score.toFixed(3));if(Number(e.planned_duration_ms)>0)meta.push((e.planned_duration_ms/1000).toFixed(2)+"s");
@@ -1028,7 +1028,7 @@
    const cue=selfState.cue||{},checked=selfState.checked||{};
    $("sleepSelfCue").textContent=selfState.trial_id?"最近刺激 "+clock(cue.started_ms||cue.time_ms)+" · "+(cue.direct_gain_percent?"强度 "+cue.direct_gain_percent+"% · ":"")+(cue.soundEnabled?"声音 "+cue.volume+"% ":"")+(cue.vibrate?"振动 "+cue.vibrationAmplitude+"%":"")+(cue.direct_repeats===2?" · 双播":""):(recordActive?"当前感受 · 无可关联的近期刺激":"等待反馈；有刺激后可确认强度");
    for(const button of selfButtons){
-    const kind=button.dataset.report,adjust=kind.startsWith("gain_");const done=!!checked[kind];button.classList.toggle("checked",done);
+    const kind=button.dataset.report,adjust=kind.startsWith("gain_"),repeatable=kind==="gain_too_strong"||kind==="gain_too_weak";const done=!repeatable&&!!checked[kind];button.classList.toggle("checked",done);
     button.setAttribute("aria-pressed",String(done));button.disabled=selfPending||done||(adjust?!selfState.gain_adjustable:!recordActive&&!selfState.gain_adjustable);
    }
   }
@@ -1059,7 +1059,7 @@
    if(!recordActive&&!feedbackActive&&cfg().mode!=="direct"){$("sleepFeedbackInfo").textContent="请先开始录音，再开启实验反馈";return;}
    $("sleepFeedbackEnabled").checked=!feedbackActive;$("sleepFeedbackEnabled").onchange();
   };
-  const reportLabels={gain_hold:"保持强度",gain_too_strong:"太强/太吵",felt_vibration:"感到振动",heard_snoring:"听到鼾声",aware_snoring:"意识到打鼾",turned_side:"翻身",awake_unsure:"醒来原因未知"};
+  const reportLabels={gain_hold:"保持强度",gain_too_strong:"太强/太吵",gain_too_weak:"太弱",felt_vibration:"感到振动",heard_snoring:"听到鼾声",aware_snoring:"意识到打鼾",turned_side:"翻身",awake_unsure:"醒来原因未知"};
   function renderTrialBoard(e){
    const root=$("sleepConsoleTrials");root.replaceChildren();
    const trials=Array.isArray(e.recent_trials)?e.recent_trials:[];

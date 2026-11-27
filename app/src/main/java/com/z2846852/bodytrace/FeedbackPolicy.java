@@ -45,13 +45,13 @@ final class FeedbackPolicy {
     // next scheduled level. No click does not prove absence of awareness.
     static final class DirectGainState {
         private long epoch=-1;
-        private boolean sweep,locked,rejected,maxCompleted,extensionUsed;
+        private boolean sweep,locked,rejected,maxCompleted,extensionUsed,manual;
         private int next=20,played,lower;
         private String trial="";
         private final java.util.TreeSet<Integer> levels=new java.util.TreeSet<>();
         synchronized void ensure(long arm,boolean enabled){
             if(epoch==arm&&sweep==enabled)return;
-            epoch=arm;sweep=enabled;locked=false;rejected=false;maxCompleted=extensionUsed=false;next=enabled?20:100;played=lower=0;trial="";levels.clear();
+            epoch=arm;sweep=enabled;locked=false;rejected=false;manual=false;maxCompleted=extensionUsed=false;next=enabled?20:100;played=lower=0;trial="";levels.clear();
         }
         synchronized int next(){return next;}
         synchronized boolean locked(){return locked;}
@@ -70,10 +70,24 @@ final class FeedbackPolicy {
             next=sweep?Math.min(100,played+20):100;
         }
         synchronized int report(long arm,String id,boolean tooStrong){
+            return adjust(arm,id,tooStrong?"gain_too_strong":"gain_hold");
+        }
+        synchronized int adjust(long arm,String id,String action){
             if(!matches(arm,id))return -1;
-            if(tooStrong){
-                if(!rejected){next=Math.max(1,Math.min(played-1,(played+lower)/2));locked=true;rejected=true;}
-            }else if(!rejected){next=played;locked=true;}
+            switch(action){
+                case "gain_too_strong":
+                    // First objection brackets the played level. All further
+                    // manual presses operate on the pending level, not history.
+                    next=manual?Math.max(1,next-10):Math.max(1,Math.min(played-1,(played+lower)/2));
+                    manual=true;locked=true;rejected=true;break;
+                case "gain_too_weak":
+                    next=Math.min(100,(manual?next:played)+10);
+                    manual=true;locked=true;break;
+                case "gain_hold":
+                    if(!manual&&!rejected)next=played;
+                    locked=true;break;
+                default:return -1;
+            }
             return next;
         }
     }

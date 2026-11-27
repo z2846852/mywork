@@ -104,9 +104,16 @@ public final class FeedbackPolicyTest {
         gains.started(10,"c",60);gains.completed(10,"c",true);
         check(gains.next()==80,"unrated steps progress");
         check(gains.report(10,"c",true)==50&&gains.locked(),"60 too strong after 40: midpoint 50");
-        check(gains.report(10,"c",false)==50&&gains.report(10,"c",true)==50,"rejection wins and idempotent");
+        check(gains.report(10,"c",false)==50&&gains.report(10,"c",true)==40,"hold preserves manual; repeated down works");
+        check(gains.adjust(10,"c","gain_too_weak")==50,"up reverses down");
         gains.started(10,"d",50);gains.completed(10,"d",true);
-        check(gains.next()==50&&gains.report(10,"d",true)==45,"repeated midpoint refinement");
+        check(gains.next()==50&&gains.report(10,"d",true)==40,"manual mode persists across trials");
+        for(int i=0;i<10;i++)gains.adjust(10,"d","gain_too_strong");
+        check(gains.next()==1,"repeated down clamps at 1");
+        for(int i=0;i<20;i++)gains.adjust(10,"d","gain_too_weak");
+        check(gains.next()==100&&gains.locked()&&!gains.canExtend(),"repeated up clamps at 100 and locks");
+        check(gains.adjust(10,"d","gain_too_strong")==90&&gains.adjust(10,"d","gain_too_strong")==80,"100 to 90 to 80 without new trial");
+        check(gains.adjust(10,"d","gain_hold")==80,"hold cannot restore played level after manual adjustment");
         check(gains.report(10,"c",false)==-1,"stale trial rejected");
         gains.ensure(11,true);gains.started(11,"e",20);
         check(gains.report(11,"e",false)==20,"hold while playback active");
