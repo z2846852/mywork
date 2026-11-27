@@ -1160,6 +1160,16 @@
    else if(metrics)bridge()?.sleepStatus?.();
    else requestAnimationFrame(()=>window.BodyTraceSleepVisual?.refreshFilters?.());
   }
+  let lastTriggerPaint=-Infinity;
+  function paintTriggerCount(evt,force=false){
+   if($("sleepFeedbackPanel").hidden)return;
+   const now=performance.now();
+   if(!force&&now-lastTriggerPaint<3000)return;
+   lastTriggerPaint=now;
+   const value="鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
+   const node=$("sleepTriggerCount");
+   if(node.textContent!==value)node.textContent=value;
+  }
   function status(evt){
    const oldMic=micActive;
    const session=Number(evt.capture_started_ms)||0;
@@ -1186,7 +1196,7 @@
    $("sleepFeedbackCount").textContent=String(evt.cues||0);
    const count=Number(evt.inferred_windows)||0;
    $("sleepFeedbackScore").textContent=micActive&&count>0?Number(evt.last_score||0).toFixed(3):"—";
-   $("sleepTriggerCount").textContent="鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.settings?.minimum)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
+   paintTriggerCount(evt,true);
    $("sleepLiveAnalyzed").textContent=micActive?count+"s":"—";
    $("sleepInferenceStatus").textContent=evt.inference_state==="error"?"AI 错误："+evt.inference_error:
     evt.inference_state==="loading"?"AI 加载中":
@@ -1359,7 +1369,7 @@
     const row=micHistory.find(r=>Number(r.second)===Number(evt.second));
     if(row){row.score=Number(evt.score);row.muted=!!evt.muted;}
     $("sleepFeedbackScore").textContent=Number(evt.score).toFixed(3);
-    $("sleepTriggerCount").textContent="鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.trigger_required)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
+    paintTriggerCount(evt);
     $("sleepLiveAnalyzed").textContent=evt.inferred_windows+"s";
     $("sleepInferenceStatus").textContent="AI 正常 · 丢弃 "+evt.dropped_windows+" 窗"+(evt.muted?" · 抑制":"");
     micGraph();
