@@ -50,10 +50,22 @@ jobs:
           java -cp /tmp/feedback-tests com.z2846852.bodytrace.SnoreMetricsTest
       - name: Validate Beijing date rollover, workout edits and heatmap
         run: node scripts/test_workout_date_heat.js
+      # Stable generated assets are keyed by their pinned-source builders, not the app version.
+      - uses: actions/cache@v4
+        id: offline-assets
+        with:
+          path: |
+            app/src/main/assets/en_pronunciation_zh.tsv.gzdata
+            app/src/main/assets/yamnet.tflite
+            app/src/main/assets/ipa_audio
+            app/libs/sherpa-onnx-2.0.1.aar
+          key: ${{ runner.os }}-bodytrace-offline-v1-${{ hashFiles('scripts/build_pronunciation_lexicon.py', 'scripts/fetch_yamnet.sh', 'scripts/fetch_ipa_samples.py', 'scripts/fetch_sherpa_aar.sh') }}
       - name: Build pinned offline American IPA and English-Chinese dictionary
         run: |
           set -euo pipefail
-          python3 scripts/build_pronunciation_lexicon.py
+          if [[ "${{ steps.offline-assets.outputs.cache-hit }}" != true || ! -s app/src/main/assets/en_pronunciation_zh.tsv.gzdata ]]; then
+            python3 scripts/build_pronunciation_lexicon.py
+          fi
           test -s app/src/main/assets/en_pronunciation_zh.tsv.gzdata
           python3 - <<'PY'
           import gzip,pathlib
@@ -66,7 +78,12 @@ jobs:
           print("Verified embedded bilingual IPA lexicon",len(lines),"entries",f.stat().st_size,"bytes")
           PY
       - name: Fetch and SHA256-verify offline YAMNet model
-        run: bash scripts/fetch_yamnet.sh
+        run: |
+          set -euo pipefail
+          model=app/src/main/assets/yamnet.tflite
+          if ! echo "10c95ea3eb9a7bb4cb8bddf6feb023250381008177ac162ce169694d05c317de  $model" | sha256sum -c --status; then
+            bash scripts/fetch_yamnet.sh
+          fi
       - name: Reuse previously verified human IPA Ogg audio from latest signed APK
         env:
           GH_TOKEN: ${{ github.token }}
@@ -74,6 +91,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/ipa-previous" app/src/main/assets/ipa_audio
+          if [[ -s app/src/main/assets/ipa_audio/retroflex_sh.ogg && -s app/src/main/assets/ipa_audio/central_i.ogg ]] &&
+             [[ "$(head -c 4 app/src/main/assets/ipa_audio/retroflex_sh.ogg)" == OggS && "$(head -c 4 app/src/main/assets/ipa_audio/central_i.ogg)" == OggS ]]; then
+            echo "Cached Ogg assets present"
+            exit 0
+          fi
           if gh release download --pattern 'BodyTrace-release.apk' \
             --dir "$RUNNER_TEMP/ipa-previous" --clobber; then
             for name in retroflex_sh.ogg central_i.ogg; do
@@ -96,7 +118,13 @@ jobs:
           cp build/ui_bundle.zip BodyTrace-ui.zip
       - name: Android SDK platform
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          set -euo pipefail
+          missing=()
+          for pkg in "platforms;android-35" "build-tools;35.0.0"; do
+            dir="${pkg//;/\/}"
+            [[ -f "$ANDROID_HOME/$dir/source.properties" ]] || missing+=("$pkg")
+          done
+          if (( ${#missing[@]} )); then "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "${missing[@]}"; fi
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
@@ -116,7 +144,7 @@ jobs:
       - name: Fetch SHA256-pinned sherpa-onnx Android runtime (model weights excluded)
         run: bash scripts/fetch_sherpa_aar.sh
       - name: Assemble signed Release APK
-        run: gradle --no-daemon -PappBuildNumber="$GITHUB_RUN_NUMBER" :app:assembleRelease
+        run: gradle --no-daemon --build-cache -PappBuildNumber="$GITHUB_RUN_NUMBER" :app:assembleRelease
       - name: Verify APK signature and app version
         run: |
           set -euo pipefail
