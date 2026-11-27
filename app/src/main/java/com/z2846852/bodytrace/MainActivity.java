@@ -2457,6 +2457,12 @@ public final class MainActivity extends Activity {
                 startActivityForResult(i,7211);
             }catch(Exception e){error("反馈录音入口失败："+safeMessage(e));}});
         }
+        @JavascriptInterface public void sleepExperimentSelfReport(String kind,String expectedTrial){
+            worker.execute(()->{try{
+                JSONObject state=FeedbackExperiment.selfReport(MainActivity.this,kind,expectedTrial);
+                reply(message("sleep_feedback_self_report").put("ok",true).put("state",state));
+            }catch(Exception ex){try{reply(message("sleep_feedback_self_report").put("ok",false).put("message",safeMessage(ex)));}catch(Exception ignored){}}});
+        }
         @JavascriptInterface public void sleepExperimentReview(String scope){
             worker.execute(()->{try{
                 if(!"acceptable".equals(scope)&&SleepRecorderService.isFeedbackEnabled())

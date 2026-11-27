@@ -24,4 +24,27 @@ final class FeedbackPolicy {
         return count<max&&(lastWall==0||now-lastWall>=60000);
     }
     static boolean reduced(int valid,int hits){return valid>=30&&hits<=3;}
+    static int[][] vibrationLadder(int lower,int upper,int durationCap){
+        if(upper<1||durationCap<100)return new int[0][];
+        int hi=Math.min(100,upper),lo=Math.max(1,Math.min(lower,hi)),base=Math.min(500,durationCap),end=Math.min(durationCap,1500);
+        java.util.ArrayList<int[]> out=new java.util.ArrayList<>();
+        out.add(new int[]{lo,base});
+        for(int v=lo+20;v<hi;v+=20)out.add(new int[]{v,base});
+        if(hi!=lo)out.add(new int[]{hi,base});
+        for(int ms:new int[]{800,1200})if(ms>base&&ms<end)out.add(new int[]{hi,ms});
+        if(end>base)out.add(new int[]{hi,end});
+        return out.toArray(new int[0][]);
+    }
+    static int nextVibrationLevel(int level,int length,String outcome){
+        if(length<=0)return 0;
+        int current=Math.max(0,Math.min(length-1,level));
+        return "stopped".equals(outcome)?Math.max(0,current-1):"continued".equals(outcome)?Math.min(length-1,current+1):current;
+    }
+    static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=4;}
+    static boolean thresholdBudget(int count,int max,long lastWall,long now,long sinceEnd){
+        return count<Math.min(max,8)&&sinceEnd>=300000&&(lastWall==0||now-lastWall>=300000);
+    }
+    static boolean reportLink(String current,String trialSession,long age){
+        return current!=null&&!current.isEmpty()&&current.equals(trialSession)&&age>=0&&age<=120000;
+    }
 }

@@ -125,6 +125,12 @@ public final class SleepRecorderService extends Service {
             android.util.Log.e("SleepFeedback",journalError,e);
         }
     }
+    static synchronized void recordSelfReport(android.content.Context context,JSONObject event)throws Exception{
+        String session=currentId;
+        if(session.isEmpty()||!session.equals(event.optString("session_id")))throw new IllegalStateException("录音已结束或切换");
+        event.put("offset_ms",Math.max(0,SystemClock.elapsedRealtime()-recordingOriginElapsed));
+        SleepSessions.appendFeedback(context,session,event);
+    }
     static void recordPreview(android.content.Context context,SnoreFeedbackController.Settings settings,int duration){
         recordingEvent(context,"preview",Double.NaN,settings,-1,duration);
     }
@@ -442,7 +448,10 @@ public final class SleepRecorderService extends Service {
                     .put("muted",block.muted).put("inferred_windows",inferredWindows)
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
-                if(feedbackEnabled&&!screenPaused)experiment.observe(block.second,score,block.muted,now,settings.threshold);else{experiment.close();if(screenPaused)stopAutoCue();}
+                if(feedbackEnabled&&(!screenPaused||experiment.observingThreshold())){
+                    experiment.observe(block.second,score,uncertain,now,settings.threshold,screenPaused);
+                    if(screenPaused)stopAutoCue();
+                }else{experiment.close();if(screenPaused)stopAutoCue();}
                 if(consecutive>=settings.minimum &&
                         (previousCue==0||now-previousCue>=settings.repeat*1000L)&&
                         !SnoreFeedbackController.isCuePlaying()&&

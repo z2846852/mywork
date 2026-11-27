@@ -22,6 +22,16 @@ public final class FeedbackPolicyTest {
         check(FeedbackPolicy.rhythmFits("single",1800,2000),"single fits independently");
         check(!FeedbackPolicy.rhythmFits("single",1800,1000),"too-long clip excluded");
         check(!FeedbackPolicy.rhythmFits("triplet",0,170)&&FeedbackPolicy.rhythmFits("triplet",0,180),"pulse minimum");
+        int[][] ladder=FeedbackPolicy.vibrationLadder(40,100,1500);
+        check(ladder.length==7&&ladder[0][0]==40&&ladder[0][1]==500&&ladder[6][0]==100&&ladder[6][1]==1500,"bounded threshold ladder");
+        for(int i=1;i<ladder.length;i++)check((ladder[i][0]==ladder[i-1][0])!=(ladder[i][1]==ladder[i-1][1]),"one coordinate per level");
+        check(FeedbackPolicy.nextVibrationLevel(3,7,"stopped")==2&&FeedbackPolicy.nextVibrationLevel(2,7,"continued")==3,"down after response up after persistence");
+        check(FeedbackPolicy.nextVibrationLevel(0,7,"stopped")==0&&FeedbackPolicy.nextVibrationLevel(6,7,"continued")==6&&FeedbackPolicy.nextVibrationLevel(2,7,"incomplete")==2,"bounds and invalid observations");
+        check(FeedbackPolicy.vibrationLadder(40,20,350)[0][0]==20&&FeedbackPolicy.vibrationLadder(40,20,350)[0][1]==350,"learned caps");
+        check(FeedbackPolicy.vibrationLadder(1,0,500).length==0&&FeedbackPolicy.vibrationLadder(1,100,90).length==0,"excluded channel");
+        check(!FeedbackPolicy.thresholdBaseline(9,9)&&!FeedbackPolicy.thresholdBaseline(10,3)&&FeedbackPolicy.thresholdBaseline(10,4),"baseline validity");
+        check(!FeedbackPolicy.thresholdBudget(8,40,0,500000,500000)&&!FeedbackPolicy.thresholdBudget(1,8,1000,300999,500000)&&!FeedbackPolicy.thresholdBudget(1,8,0,500000,299999)&&FeedbackPolicy.thresholdBudget(1,8,1000,301000,300000),"night budget and cooldown");
+        check(FeedbackPolicy.reportLink("session","session",120000)&&!FeedbackPolicy.reportLink("session","session",120001)&&!FeedbackPolicy.reportLink("session","other",100)&&!FeedbackPolicy.reportLink("","",0),"self-report temporal/session link");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

@@ -62,7 +62,7 @@ final class SnoreFeedbackController {
             s.delayMinutes=clamp(json.optInt("delayMinutes",30),0,120);
             s.vibrationPattern=choice(json.optString("vibrationPattern"),"triplet","continuous","triplet","rising","falling","shortlong");
             s.soundRhythm=choice(json.optString("soundRhythm"),"single","single","triplet","rising","falling","shortlong");
-            s.mode=choice(json.optString("mode"),"fixed","fixed","limited","stairs","explore","adaptive","control");
+            s.mode=choice(json.optString("mode"),"fixed","fixed","limited","stairs","explore","adaptive","control","vibration_threshold");
             s.soundRhythmPool=validateRhythms(json.optString("soundRhythmPool","single,triplet,rising,falling,shortlong"));
             s.soundPool=validatePool(json.optString("soundPool",""),true);
             s.vibrationPool=validatePool(json.optString("vibrationPool","continuous,triplet,rising,falling,shortlong"),false);

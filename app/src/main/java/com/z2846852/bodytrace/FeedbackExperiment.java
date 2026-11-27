@@ -13,6 +13,8 @@ final class FeedbackExperiment {
     private int samples, hits, quiet, attempts, sessionCues;
     private boolean observing;
     private double afterSum;
+    private String ladderKey="";
+    private int ladderLevel,ladderLength;
     private final ArrayDeque<Double> baseline=new ArrayDeque<>();
     private long last=-1, lastEnd, began;
     FeedbackExperiment(Context c){this.c=c;this.prefs=c.getSharedPreferences(PREF,0);}
@@ -28,7 +30,51 @@ final class FeedbackExperiment {
             .put("last",new JSONObject(p.getString("last","{}"))).put("excluded",excluded(p))
             .put("channels",channels(p)).put("nightCount",nightCount(p))
             .put("soundDurationLimit",p.getInt("soundDurationLimit",5000)).put("vibrationDurationLimit",p.getInt("vibrationDurationLimit",2000))
-            .put("types",types(p)).put("candidates",candidates(p));
+            .put("types",types(p)).put("candidates",candidates(p)).put("vibration_threshold",thresholdSummary(p)).put("self_report",reportStatus(c));
+    }
+    private static JSONObject thresholdSummary(SharedPreferences p)throws Exception{
+        if(!night().equals(p.getString("vth_night","")))return new JSONObject();
+        String[] fields=p.getString("vth_key","").split(":");
+        JSONObject result=new JSONObject().put("next_level",p.getInt("vth_level",0)+1).put("length",p.getInt("vth_length",0))
+            .put("upper_failures",p.getInt("vth_upper_failures",0)).put("trials",p.getInt("vth_trials",0))
+            .put("last",new JSONObject(p.getString("vth_last","{}")));
+        if(fields.length==5){
+            int[][] ladder=FeedbackPolicy.vibrationLadder(Integer.parseInt(fields[0]),Integer.parseInt(fields[1]),Integer.parseInt(fields[2]));
+            JSONArray rows=new JSONArray();
+            for(int i=0;i<ladder.length;i++)rows.put(new JSONObject().put("level",i+1).put("amplitude",ladder[i][0]).put("duration_ms",ladder[i][1])
+                .put("stopped",p.getInt("vth_ok_"+i,0)).put("continued",p.getInt("vth_no_"+i,0)));
+            result.put("levels",rows);
+        }
+        return result;
+    }
+    static synchronized JSONObject reportStatus(Context c)throws Exception{
+        SharedPreferences p=prefs(c);
+        JSONObject last=new JSONObject(p.getString("last","{}"));
+        String session=SleepRecorderService.currentSessionId();
+        boolean linked=FeedbackPolicy.reportLink(session,last.optString("session_id"),System.currentTimeMillis()-last.optLong("started_ms",last.optLong("time_ms",0)));
+        String id=linked?last.optString("id"):"";
+        JSONObject saved=new JSONObject(p.getString("self_report_latest","{}"));
+        if(!session.equals(saved.optString("session_id"))||!id.equals(saved.optString("trial_id"))||(!linked&&System.currentTimeMillis()-saved.optLong("time_ms",0)>120000))saved=new JSONObject();
+        return new JSONObject().put("session_id",session).put("trial_id",id).put("cue",linked?last:new JSONObject()).put("checked",saved);
+    }
+    static synchronized JSONObject selfReport(Context c,String kind,String expectedTrial)throws Exception{
+        if(!Arrays.asList("felt_vibration","aware_snoring","turned_side","awake_unsure").contains(kind))throw new IllegalArgumentException("未知自报项目");
+        JSONObject state=reportStatus(c);
+        String session=state.optString("session_id"),trial=state.optString("trial_id");
+        if(session.isEmpty())throw new IllegalStateException("请先开始睡眠录音");
+        if(!trial.equals(expectedTrial))throw new IllegalStateException("近期刺激已变化，请刷新后确认");
+        JSONObject checked=state.optJSONObject("checked");
+        if(checked==null)checked=new JSONObject();
+        if(checked.optBoolean(kind))return state;
+        long now=System.currentTimeMillis();
+        JSONObject event=new JSONObject().put("kind","self_report").put("report",kind).put("session_id",session)
+            .put("trial_id",trial).put("linked",!trial.isEmpty()).put("time_ms",now);
+        if(!trial.isEmpty())event.put("cue",state.optJSONObject("cue"));
+        SleepRecorderService.recordSelfReport(c,event);
+        append(c,event);
+        checked.put("session_id",session).put("trial_id",trial).put("time_ms",now).put(kind,true);
+        if(!prefs(c).edit().putString("self_report_latest",checked.toString()).commit())throw new IOException("自报状态保存失败");
+        return state.put("checked",checked);
     }
     private static JSONObject channels(SharedPreferences p)throws Exception{
         JSONObject out=new JSONObject();for(String k:new String[]{"sound","vib","mix"})out.put(k,new JSONObject().put("observed",p.getInt("observed_"+k,0)).put("stopped",p.getInt("stopped_"+k,0)));return out;
@@ -119,22 +165,41 @@ final class FeedbackExperiment {
         if(out.isEmpty()&&raw.isEmpty()&&!prefs.getBoolean(prefix+fallback,false))out.add(fallback);
         return out.toArray(new String[0]);
     }
-    synchronized void observe(long second,double score,boolean muted,long now,double threshold)throws Exception{
+    synchronized void observe(long second,double score,boolean muted,long now,double threshold,boolean screenOn)throws Exception{
         boolean gap=last>=0&&second!=last+1;last=second;
-        if(gap||muted)baseline.clear();
-        if(!muted){if(score<threshold)quiet++;else quiet=0;if(quiet>=10)attempts=0;baseline.addLast(score);while(baseline.size()>30)baseline.removeFirst();}
+        if(gap||muted||screenOn)baseline.clear();
+        if(!muted&&!screenOn){if(score<threshold)quiet++;else quiet=0;if(quiet>=10)attempts=0;baseline.addLast(score);while(baseline.size()>30)baseline.removeFirst();}
         if(pending==null||!observing)return;
-        if(now<lastEnd||muted)return;
-        if(gap&&samples>0){finish("incomplete");return;}
+        if(screenOn)pending.put("screen_on_during_observation",true);
+        if(now<lastEnd)return;
+        if(muted){if("vibration_threshold".equals(pending.optString("mode"))&&samples>0)finish("incomplete");return;}
+        if(gap&&(samples>0||"vibration_threshold".equals(pending.optString("mode")))){finish("incomplete");return;}
         samples++;afterSum+=score;if(score>=pending.optDouble("threshold",.15))hits++;
         if(samples>=30)finish(FeedbackPolicy.reduced(samples,hits)?"stopped":"continued");
     }
     synchronized void close()throws Exception{if(pending!=null)finish("incomplete");}
+    synchronized boolean observingThreshold(){return pending!=null&&"vibration_threshold".equals(pending.optString("mode"));}
     private void finish(String result)throws Exception{
         JSONObject e=new JSONObject().put("kind","outcome").put("id",pending.optString("id")).put("time_ms",System.currentTimeMillis())
             .put("result",result).put("valid_seconds",samples).put("snore_seconds",hits).put("mean_score",samples>0?afterSum/samples:0).put("settings",pending);
         append(c,e);
         boolean control=pending.optBoolean("control");SharedPreferences.Editor ed=prefs.edit();
+        if("vibration_threshold".equals(pending.optString("mode"))){
+            int level=pending.optInt("ladder_level",-1),length=pending.optInt("ladder_length",0);
+            if(level>=0&&level<length&&pending.optString("ladder_key").equals(prefs.getString("vth_key",""))&&night().equals(prefs.getString("vth_night",""))){
+                boolean screen=pending.optBoolean("screen_on_during_observation");
+                ed.putString("vth_last",new JSONObject().put("level",level+1).put("result",result).put("control",control)
+                    .put("screen_on",screen).put("amplitude",pending.optInt("vibrationAmplitude")).put("duration_ms",pending.optInt("actualVibrationMs"))
+                    .put("valid_seconds",samples).put("snore_seconds",hits).toString());
+                if(!control&&!"incomplete".equals(result)){
+                    boolean stopped="stopped".equals(result);
+                    String count=(stopped?"vth_ok_":"vth_no_")+level;
+                    ed.putInt(count,prefs.getInt(count,0)+1);
+                    if(stopped||!screen)ed.putInt("vth_level",FeedbackPolicy.nextVibrationLevel(level,length,result));
+                    if(level==length-1&&!screen)ed.putInt("vth_upper_failures",stopped?0:prefs.getInt("vth_upper_failures",0)+1);
+                }
+            }
+        }
         if(!"incomplete".equals(result)){
             String observed=control?"controlObserved":"observed",stopped=control?"controlStopped":"stopped";
             ed.putInt(observed,prefs.getInt(observed,0)+1);
@@ -177,6 +242,27 @@ final class FeedbackExperiment {
         x.vibrationMsMax=Math.min(x.vibrationMsMax,prefs.getInt("vibrationDurationLimit",2000));
         if(x.soundMax==0||x.soundMsMax<150)x.soundEnabled=false;if(x.vibrationMax==0||x.vibrationMsMax<100)x.vibrate=false;
         if(!x.soundEnabled&&!x.vibrate)return null;
+        if("vibration_threshold".equals(s.mode)){
+            if(!x.vibrate||!FeedbackPolicy.thresholdBudget(nightCount(prefs),s.maxCues,prefs.getLong("lastTrialWall",0),System.currentTimeMillis(),now-lastEnd)
+                    ||System.currentTimeMillis()-enabledAt<Math.max(30,s.delayMinutes)*60000L)return null;
+            int n=0,hits=0;Iterator<Double> it=baseline.descendingIterator();
+            while(it.hasNext()&&n<10){if(it.next()>=s.threshold)hits++;n++;}
+            if(!FeedbackPolicy.thresholdBaseline(n,hits))return null;
+            x.soundEnabled=false;
+            int[][] ladder=FeedbackPolicy.vibrationLadder(x.vibrationMin,x.vibrationMax,x.vibrationMsMax);
+            if(ladder.length==0||prefs.getBoolean("deny_vib_"+x.vibrationPattern,false)||prefs.getBoolean("deny_pair_"+key(x.json()),false))return null;
+            String key=x.vibrationMin+":"+x.vibrationMax+":"+x.vibrationMsMax+":"+x.vibrationPattern+":"+x.vibrationCompatibility;
+            if(!night().equals(prefs.getString("vth_night",""))||!key.equals(prefs.getString("vth_key",""))){
+                SharedPreferences.Editor reset=prefs.edit().putString("vth_night",night()).putString("vth_key",key)
+                    .putInt("vth_level",0).putInt("vth_length",ladder.length).putInt("vth_upper_failures",0).putInt("vth_trials",0).remove("vth_last");
+                for(String k:prefs.getAll().keySet())if(k.startsWith("vth_ok_")||k.startsWith("vth_no_"))reset.remove(k);
+                if(!reset.commit())throw new IOException("阈值实验初始化失败");
+            }
+            if(prefs.getInt("vth_upper_failures",0)>=2)return null;
+            ladderKey=key;ladderLength=ladder.length;ladderLevel=Math.max(0,Math.min(ladderLength-1,prefs.getInt("vth_level",0)));
+            x.vibrationAmplitude=ladder[ladderLevel][0];x.vibrationMs=ladder[ladderLevel][1];
+            return x;
+        }
         int trial=prefs.getInt("trials",0);
         if("explore".equals(s.mode)||"adaptive".equals(s.mode)){
             String[] sounds=pool(s.soundPool,s.sound,"deny_sound_"),vibs=pool(s.vibrationPool,s.vibrationPattern,"deny_vib_"),rhythms=pool(s.soundRhythmPool,s.soundRhythm,"deny_rhythm_");
@@ -239,13 +325,16 @@ final class FeedbackExperiment {
     }
     synchronized boolean begin(SnoreFeedbackController.Settings x,long now,String session)throws Exception{
         if(pending!=null)return false;
-        int trial=prefs.getInt("trials",0);boolean control=("control".equals(x.mode)&&java.util.concurrent.ThreadLocalRandom.current().nextInt(3)==0)||("adaptive".equals(x.mode)&&java.util.concurrent.ThreadLocalRandom.current().nextInt(5)==0);
+        int trial=prefs.getInt("trials",0);boolean control=("control".equals(x.mode)&&java.util.concurrent.ThreadLocalRandom.current().nextInt(3)==0)||("adaptive".equals(x.mode)&&java.util.concurrent.ThreadLocalRandom.current().nextInt(5)==0)||("vibration_threshold".equals(x.mode)&&prefs.getInt("vth_trials",0)%4==3);
         pending=x.json().put("id",UUID.randomUUID().toString()).put("kind","trial").put("time_ms",System.currentTimeMillis()).put("session_id",session).put("control",control);
+        if("vibration_threshold".equals(x.mode))pending.put("ladder_key",ladderKey).put("ladder_level",ladderLevel).put("ladder_length",ladderLength);
         double sum=0;int beforeHits=0;for(double value:baseline){sum+=value;if(value>=x.threshold)beforeHits++;}
         pending.put("baseline_seconds",baseline.size()).put("baseline_snore_seconds",beforeHits).put("baseline_mean_score",baseline.isEmpty()?0:sum/baseline.size());
         x.trialId=pending.optString("id");samples=hits=0;afterSum=0;observing=false;sessionCues++;attempts++;lastEnd=now+6000;
         append(c,pending);
-        if(!prefs.edit().putInt("trials",trial+1).putInt("controls",prefs.getInt("controls",0)+(control?1:0)).putString("night",night()).putInt("nightCount",nightCount(prefs)+1).putLong("lastTrialWall",System.currentTimeMillis()).commit())throw new IOException("实验进度保存失败");
+        SharedPreferences.Editor progress=prefs.edit().putInt("trials",trial+1).putInt("controls",prefs.getInt("controls",0)+(control?1:0)).putString("night",night()).putInt("nightCount",nightCount(prefs)+1).putLong("lastTrialWall",System.currentTimeMillis());
+        if("vibration_threshold".equals(x.mode))progress.putInt("vth_trials",prefs.getInt("vth_trials",0)+1);
+        if(!progress.commit())throw new IOException("实验进度保存失败");
         return control;
     }
     synchronized void started(SnoreFeedbackController.Settings selected)throws Exception{

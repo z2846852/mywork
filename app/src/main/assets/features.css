@@ -2260,3 +2260,10 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 #sleepFeedbackPanel .sleep-live-control-grid .actions button{white-space:normal;min-width:0}
 
 #sleepFeedbackPanel .sleep-vibration-diagnostics{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0}#sleepFeedbackPanel .sleep-vibration-diagnostics button{min-width:0;white-space:normal;padding:5px 3px;font-size:11px}
+
+#page-sleep .sleep-self-report{padding:8px;margin:5px 0;background:#142522;border:1px solid #41675b;border-radius:10px;color:#d4e5df}
+#page-sleep .sleep-self-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+#page-sleep .sleep-self-grid button{min-height:48px;white-space:normal;line-height:1.2;margin:0;font-size:13px;padding:6px}
+#page-sleep .sleep-self-grid button.checked{background:#2d5d48;border-color:#6cbb9a;opacity:.9}
+#page-sleep .sleep-self-grid button.checked:before{content:"✓ "}
+#page-sleep .sleep-self-report .sub{font-size:11px;margin:4px 0}
