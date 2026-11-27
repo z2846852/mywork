@@ -68,6 +68,11 @@ public final class MainActivity extends Activity {
     private String pendingSleepStart="";
     private final Handler sleepHandler=new Handler(Looper.getMainLooper());
     private MediaPlayer sleepPlayer;
+    private android.media.MediaRecorder cueRecorder;
+    private File cueTemp;
+    private long cueStarted;
+    private static final int CUE_RECORD_PERMISSION_REQUEST=7213;
+    private final Runnable cueAutoStop=()->stopCueRecord(true);
     private Runnable stopPlayback;
     private final java.util.ArrayList<int[]> playbackRanges=new java.util.ArrayList<>();
     private int playbackIndex=0;
@@ -771,7 +776,39 @@ public final class MainActivity extends Activity {
             reply(SleepRecorderService.feedbackStatus(this));
         }catch(Exception e){error("读取睡眠记录失败："+safeMessage(e));}
     }
+    private void cueRecordStatus(boolean active,String text){
+        try{reply(message("sleep_feedback_clip_recording").put("active",active).put("message",text));}catch(Exception ignored){}
+    }
+    private void startCueRecord(){
+        if(cueRecorder!=null){stopCueRecord(true);return;}
+        if(SleepRecorderService.isMicrophoneActive()||SnoreFeedbackController.isCuePlaying()||(voiceLab!=null&&voiceLab.isRunning())){error("请先停止其他麦克风或提示音操作");return;}
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},CUE_RECORD_PERMISSION_REQUEST);return;
+        }
+        try{
+            cueTemp=File.createTempFile("mywork-cue-",".m4a",getCacheDir());
+            cueRecorder=Build.VERSION.SDK_INT>=31?new android.media.MediaRecorder(this):new android.media.MediaRecorder();
+            cueRecorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC);
+            cueRecorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
+            cueRecorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
+            cueRecorder.setAudioSamplingRate(44100);cueRecorder.setAudioEncodingBitRate(64000);
+            cueRecorder.setOutputFile(cueTemp.getAbsolutePath());cueRecorder.prepare();cueRecorder.start();
+            cueStarted=android.os.SystemClock.elapsedRealtime();sleepHandler.postDelayed(cueAutoStop,4900);
+            cueRecordStatus(true,"录音中，点击停止；最长约5秒");
+        }catch(Exception e){stopCueRecord(false);error("提示录音启动失败："+safeMessage(e));}
+    }
+    private void stopCueRecord(boolean save){
+        sleepHandler.removeCallbacks(cueAutoStop);
+        android.media.MediaRecorder recorder=cueRecorder;File temp=cueTemp;cueRecorder=null;cueTemp=null;
+        if(recorder==null){if(temp!=null)temp.delete();return;}
+        boolean ok=false;try{recorder.stop();ok=true;}catch(Exception ignored){}finally{recorder.release();}
+        if(save&&ok&&temp!=null&&android.os.SystemClock.elapsedRealtime()-cueStarted>=150){
+            cueRecordStatus(false,"正在处理录音…");
+            worker.execute(()->{try{CueLibrary.addFile(this,temp);reply(SleepRecorderService.feedbackStatus(this));cueRecordStatus(false,"录音已保存，勾选素材参与实验");}catch(Exception e){error("提示录音保存失败："+safeMessage(e));}finally{temp.delete();}});
+        }else{if(temp!=null)temp.delete();cueRecordStatus(false,save?"录音太短或无效":"录音已取消");}
+    }
     private void startSleepCapture() {
+        if(cueRecorder!=null){error("请先结束提示音录制");return;}
         if(SleepRecorderService.isRecording()){worker.execute(this::sendSleepStatus);return;}
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
             error("没有麦克风权限，无法开始睡眠录音");return;
@@ -783,6 +820,7 @@ public final class MainActivity extends Activity {
         }catch(Exception e){error("启动前台录音失败："+safeMessage(e));}
     }
     private void startMicMonitor() {
+        if(cueRecorder!=null){error("请先结束提示音录制");return;}
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
             error("麦克风权限未开启，不能监听");return;
         }
@@ -796,6 +834,7 @@ public final class MainActivity extends Activity {
         }catch(Exception e){error("麦克风监听失败："+safeMessage(e));}
     }
     private void startSnoreFeedback() {
+        if(cueRecorder!=null){error("请先结束提示音录制");return;}
         if(SleepRecorderService.isFeedbackEnabled()){
             worker.execute(()->{
                 try{reply(SleepRecorderService.feedbackStatus(this));}catch(Exception ignored){}
@@ -814,6 +853,7 @@ public final class MainActivity extends Activity {
     }
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grants){
         super.onRequestPermissionsResult(requestCode,permissions,grants);
+        if(requestCode==CUE_RECORD_PERMISSION_REQUEST){if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)startCueRecord();else error("录音权限未授权");return;}
         if(requestCode==VOICE_LAB_MIC_PERMISSION_REQUEST){
             String requested=pendingVoiceLabMode;
             pendingVoiceLabMode="";
@@ -2375,9 +2415,10 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface public void sleepCueImport(boolean record){
             runOnUiThread(()->{try{
-                if(record&&SleepRecorderService.isMicrophoneActive())throw new IllegalStateException("请先停止麦克风监听/录音");
-                Intent i=record?new Intent(android.provider.MediaStore.Audio.Media.RECORD_SOUND_ACTION):new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE);
-                startActivityForResult(i,record?7212:7211);
+                if(record){startCueRecord();return;}
+                if(cueRecorder!=null)throw new IllegalStateException("请先结束提示音录制");
+                Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE);
+                startActivityForResult(i,7211);
             }catch(Exception e){error("反馈录音入口失败："+safeMessage(e));}});
         }
         @JavascriptInterface public void sleepExperimentReview(String scope){
@@ -2802,12 +2843,14 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onPause() {
+        if(cueRecorder!=null)stopCueRecord(true);
         if(ipaSamplePlayer!=null)ipaSamplePlayer.stop();
         if(voiceLab!=null&&voiceLab.isRunning())voiceLab.cancel(true);
         super.onPause();
     }
 
     @Override protected void onDestroy() {
+        if(cueRecorder!=null)stopCueRecord(false);
         if(ipaSamplePlayer!=null)ipaSamplePlayer.stop();
         if(voiceLab!=null)voiceLab.cancel(false);
         if(exampleSpeechPlayer!=null){

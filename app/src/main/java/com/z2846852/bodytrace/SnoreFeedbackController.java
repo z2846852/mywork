@@ -55,8 +55,8 @@ final class SnoreFeedbackController {
             s.vibrationPattern=choice(json.optString("vibrationPattern"),"triplet","continuous","triplet","rising","falling","shortlong");
             s.soundRhythm=choice(json.optString("soundRhythm"),"single","single","triplet","rising","falling","shortlong");
             s.mode=choice(json.optString("mode"),"fixed","fixed","limited","stairs","explore","adaptive","control");
-            s.soundPool=json.optString("soundPool","");
-            s.vibrationPool=json.optString("vibrationPool","continuous,triplet,rising,falling,shortlong");
+            s.soundPool=validatePool(json.optString("soundPool",""),true);
+            s.vibrationPool=validatePool(json.optString("vibrationPool","continuous,triplet,rising,falling,shortlong"),false);
             if (s.volume < 1 || s.volume > 100 ||
                     !Double.isFinite(s.threshold) || s.threshold < 0.01 ||
                     s.threshold > 0.80 || s.minimum < 1 || s.minimum > 5 ||
@@ -65,6 +65,16 @@ final class SnoreFeedbackController {
             return s;
         }
 
+        private static String validatePool(String raw,boolean sound){
+            if(raw.isEmpty()||"__none__".equals(raw))return raw;
+            java.util.LinkedHashSet<String> set=new java.util.LinkedHashSet<>();
+            for(String v:raw.split(",")){
+                boolean valid=sound?("soft".equals(v)||"low".equals(v)||"double".equals(v)||"bell".equals(v)||DreamCueSynth.supports(v)||CueLibrary.validId(v)):
+                    !choice(v,"","continuous","triplet","rising","falling","shortlong").isEmpty();
+                if(!valid||set.size()>=64)throw new IllegalArgumentException("无效刺激素材池");
+                set.add(v);
+            }return String.join(",",set);
+        }
         private static int clamp(int x,int lo,int hi){return Math.max(lo,Math.min(hi,x));}
         private static String choice(String x,String fallback,String... values){for(String v:values)if(v.equals(x))return v;return fallback;}
         JSONObject json() throws Exception {
@@ -110,6 +120,15 @@ final class SnoreFeedbackController {
         }
         return result;
     }
+    static Vibrator getVibrator(Context context){
+        if(android.os.Build.VERSION.SDK_INT>=31){
+            android.os.VibratorManager manager=(android.os.VibratorManager)context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+            return manager==null?null:manager.getDefaultVibrator();
+        }return (Vibrator)context.getSystemService(Context.VIBRATOR_SERVICE);
+    }
+    static JSONObject vibrationHardware(Context c)throws Exception{
+        Vibrator v=getVibrator(c);return new JSONObject().put("available",v!=null&&v.hasVibrator()).put("amplitude",v!=null&&v.hasAmplitudeControl());
+    }
     static VibrationEffect vibrationEffect(Settings s,boolean amplitudeControl){
         int amplitude=Math.max(1,Math.min(255,Math.round(s.vibrationAmplitude*255/100f)));
         int total=s.vibrationMs;
@@ -138,7 +157,6 @@ final class SnoreFeedbackController {
     static boolean playCue(Context context,Settings s,CueListener listener) {
         if(!SOUND_PLAYING.compareAndSet(false,true))return false;
         AudioTrack track=null;
-        android.media.MediaPlayer player=null;
         Vibrator vibrator=null;
         short[] samples=new short[0];
         try{
@@ -147,18 +165,14 @@ final class SnoreFeedbackController {
             int duration=dream?DreamCueSynth.durationMs(s.sound):"double".equals(s.sound)?470:
                 "bell".equals(s.sound)?510:
                 "low".equals(s.sound)?330:270;
-            if(s.soundEnabled && CueLibrary.validId(s.sound)) {
-                player=new android.media.MediaPlayer();
-                player.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build());
-                player.setDataSource(CueLibrary.file(context,s.sound).getAbsolutePath()); player.prepare();
-                duration=Math.min(5000,player.getDuration()); if(s.soundMs>0)duration=Math.min(duration,s.soundMs);
-                player.setVolume(s.volume/100f,s.volume/100f);
-            } else if(s.soundEnabled) {
-                if(dream){samples=DreamCueSynth.synthesize(s.sound,s.volume);}
+            if(s.soundEnabled) {
+                boolean clip=CueLibrary.validId(s.sound);
+                if(clip){samples=CueLibrary.loadPcm(context,s.sound);}
+                else if(dream){samples=DreamCueSynth.synthesize(s.sound,100);}
                 else {
                 int length=duration*rate/1000;
                 samples=new short[length];
-                double gain=0.50*s.volume/100.0;
+                double gain=0.20;
                 for(int i=0;i<length;i++){
                     double ms=i*1000.0/rate;
                     double freq= "low".equals(s.sound)?320:
@@ -179,13 +193,7 @@ final class SnoreFeedbackController {
                     samples[i]=(short)(sample*envelope*gain*32767);
                 }
                 }
-                if(s.soundMs>0){
-                    int target=Math.max(1,s.soundMs*rate/1000);
-                    short[] resized=new short[target];
-                    for(int i=0;i<target;i++)resized[i]=samples[(int)((long)i*samples.length/target)];
-                    samples=resized;
-                }
-                samples=applyRhythm(samples,s.soundRhythm);
+                samples=CuePcm.render(samples,s.soundMs,s.soundRhythm,clip,s.volume);
                 duration=(int)((long)samples.length*1000/rate);
                 track=new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder()
@@ -203,19 +211,18 @@ final class SnoreFeedbackController {
                 if(written!=samples.length||track.getState()!=AudioTrack.STATE_INITIALIZED)
                     throw new IllegalStateException("声音缓冲区写入失败："+written);
             }
+            if(s.vibrate){vibrator=getVibrator(context);if(vibrator==null||!vibrator.hasVibrator())throw new IllegalStateException("设备没有可用震动马达");}
             if(Thread.currentThread().isInterrupted())return false;
-            if(track!=null||player!=null){
+            if(track!=null){
                 android.media.AudioManager audio=(android.media.AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
                 if(audio!=null&&audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)==0)
                     throw new IllegalStateException("系统媒体音量为0，请调高媒体音量");
-                if(player!=null)player.start();else track.play();
-                if(player==null&&track.getPlayState()!=AudioTrack.PLAYSTATE_PLAYING)
+                track.play();
+                if(track.getPlayState()!=AudioTrack.PLAYSTATE_PLAYING)
                     throw new IllegalStateException("系统未进入播放状态");
             }
             if(s.vibrate){
-                vibrator=android.os.Build.VERSION.SDK_INT>=31?
-                    ((android.os.VibratorManager)context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)).getDefaultVibrator():
-                    (Vibrator)context.getSystemService(Context.VIBRATOR_SERVICE);
+                vibrator=getVibrator(context);
                 if(vibrator==null||!vibrator.hasVibrator())
                     throw new IllegalStateException("设备没有可用震动马达");
                 VibrationEffect effect=vibrationEffect(s,vibrator.hasAmplitudeControl());
@@ -236,7 +243,6 @@ final class SnoreFeedbackController {
             throw new IllegalStateException("提示音/震动失败："+failure.getClass().getSimpleName()+" "+failure.getMessage(),failure);
         }finally{
             if(vibrator!=null)try{vibrator.cancel();}catch(Exception ignored){}
-            if(player!=null){try{player.stop();}catch(Exception ignored){}player.release();}
             if(track!=null){try{track.stop();}catch(Exception ignored){}try{track.release();}catch(Exception ignored){}}
             muteTailUntil=android.os.SystemClock.elapsedRealtime()+500L;
             SOUND_PLAYING.set(false);

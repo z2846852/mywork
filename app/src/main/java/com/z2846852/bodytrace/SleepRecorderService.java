@@ -165,7 +165,7 @@ public final class SleepRecorderService extends Service {
             .put("microphone_active",microphoneActive)
             .put("monitor_only",microphoneActive&&!isRecording())
             .put("recording",isRecording())
-            .put("settings",SnoreFeedbackController.Settings.load(c).json()).put("experiment",FeedbackExperiment.summary(c)).put("clips",CueLibrary.list(c))
+            .put("settings",SnoreFeedbackController.Settings.load(c).json()).put("experiment",FeedbackExperiment.summary(c)).put("clips",CueLibrary.list(c)).put("vibration_hardware",SnoreFeedbackController.vibrationHardware(c))
             .put("inference_state",inferenceState).put("inference_error",inferenceError)
             .put("inferred_windows",inferredWindows).put("dropped_windows",droppedWindows)
             .put("latest_mic",latestMic)

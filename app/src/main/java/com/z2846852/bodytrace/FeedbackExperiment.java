@@ -21,7 +21,11 @@ final class FeedbackExperiment {
             .put("stopped",p.getInt("stopped",0)).put("controls",p.getInt("controls",0))
             .put("controlStopped",p.getInt("controlStopped",0)).put("controlObserved",p.getInt("controlObserved",0))
             .put("soundLimit",p.getInt("soundLimit",100)).put("vibrationLimit",p.getInt("vibrationLimit",100))
-            .put("last",new JSONObject(p.getString("last","{}"))).put("excluded",excluded(p));
+            .put("last",new JSONObject(p.getString("last","{}"))).put("excluded",excluded(p))
+            .put("channels",channels(p));
+    }
+    private static JSONObject channels(SharedPreferences p)throws Exception{
+        JSONObject out=new JSONObject();for(String k:new String[]{"sound","vib","mix"})out.put(k,new JSONObject().put("observed",p.getInt("observed_"+k,0)).put("stopped",p.getInt("stopped_"+k,0)));return out;
     }
     private static JSONArray excluded(SharedPreferences p){
         JSONArray a=new JSONArray();for(Map.Entry<String,?> e:p.getAll().entrySet())if(e.getKey().startsWith("deny_")&&Boolean.TRUE.equals(e.getValue()))a.put(e.getKey());return a;
@@ -81,7 +85,16 @@ final class FeedbackExperiment {
             if("stopped".equals(result))ed.putInt(stopped,prefs.getInt(stopped,0)+1);
             if(!control){String k=key(pending);ed.putInt("n_"+k,prefs.getInt("n_"+k,0)+1);
                 if("stopped".equals(result))ed.putInt("ok_"+k,prefs.getInt("ok_"+k,0)+1);
-                if("stopped".equals(result))ed.putString("best_"+k,pending.toString());}
+                if("stopped".equals(result)){
+                    JSONObject old=new JSONObject(prefs.getString("best_"+k,"{}"));
+                    int cost=(pending.optBoolean("soundEnabled")?pending.optInt("volume"):0)+(pending.optBoolean("vibrate")?pending.optInt("vibrationAmplitude"):0);
+                    int oldCost=(old.optBoolean("soundEnabled")?old.optInt("volume"):0)+(old.optBoolean("vibrate")?old.optInt("vibrationAmplitude"):0);
+                    if(old.length()==0||cost<=oldCost)ed.putString("best_"+k,pending.toString());
+                }
+                // Track separate channels only on pure trials; mixed outcomes cannot be attributed.
+                String channel=pending.optBoolean("soundEnabled")&&pending.optBoolean("vibrate")?"mix":pending.optBoolean("soundEnabled")?"sound":"vib";
+                ed.putInt("observed_"+channel,prefs.getInt("observed_"+channel,0)+1);
+                if("stopped".equals(result))ed.putInt("stopped_"+channel,prefs.getInt("stopped_"+channel,0)+1);}
         }
         if(!ed.commit())throw new IOException("实验统计保存失败");pending=null;observing=false;samples=hits=0;
     }
@@ -108,32 +121,41 @@ final class FeedbackExperiment {
                 }
             }
             if(options.isEmpty())return null;
-            JSONObject pick=options.get(trial%options.size());
+            // Sample channel families first, then types; pure sound failure never bans a mixed family.
+            ArrayList<JSONObject> family=new ArrayList<>();int familyIndex=trial%3;
+            for(JSONObject o:options)if((o.optBoolean("soundEnabled")?o.optBoolean("vibrate")?1:0:2)==familyIndex)family.add(o);
+            if(family.isEmpty())family=options;
+            JSONObject pick=family.get((trial/3)%family.size());
             if("adaptive".equals(s.mode)&&trial%5!=0){
                 double best=-1;for(JSONObject o:options){String k=key(o);int n=prefs.getInt("n_"+k,0);if(n>=3){double v=(prefs.getInt("ok_"+k,0)+1.0)/(n+2);if(v>best){best=v;pick=o;}}}
             }
             x.soundEnabled=pick.optBoolean("soundEnabled");x.vibrate=pick.optBoolean("vibrate");x.sound=pick.optString("sound");x.vibrationPattern=pick.optString("vibrationPattern");
-            int step=trial%3;
-            x.volume=FeedbackPolicy.coarse(x.soundMax,step);x.vibrationAmplitude=FeedbackPolicy.coarse(x.vibrationMax,step);
-            x.vibrationMs=new int[]{200,500,1000}[step];x.soundMs=new int[]{300,800,1500}[step];
+            int step=(trial/3)%3,vstep=(trial/9+step)%3;
+            x.volume=FeedbackPolicy.coarse(x.soundMax,step);x.vibrationAmplitude=FeedbackPolicy.coarse(x.vibrationMax,vstep);
+            x.vibrationMs=new int[]{200,500,1000}[vstep];x.soundMs=new int[]{300,800,1500}[step];
+            x.soundRhythm="single"; // The selected built-in motif already has its own rhythm.
+            if(x.soundEnabled&&!CueLibrary.validId(x.sound)&&trial%4==3)x.soundRhythm="triplet";
             if("adaptive".equals(s.mode)&&trial%5!=0){
                 JSONObject best=new JSONObject(prefs.getString("best_"+key(pick),"{}"));
                 x.volume=best.optInt("volume",x.volume);x.vibrationAmplitude=best.optInt("vibrationAmplitude",x.vibrationAmplitude);
                 x.vibrationMs=best.optInt("vibrationMs",x.vibrationMs);x.soundMs=best.optInt("soundMs",x.soundMs);
-                if(trial%5==1){x.volume=Math.max(1,x.volume-5);x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude-5);}
+                x.soundRhythm=best.optString("soundRhythm",x.soundRhythm);
+                // Coordinate refinement: alter only one actuator at a time.
+                if(trial%5==1){if(x.soundEnabled)x.volume=Math.max(1,x.volume-5);else x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude-5);}
+                if(trial%5==2&&x.vibrate)x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude-5);
             }
             // Avoid truncating spoken clips.
-            if(CueLibrary.validId(x.sound))x.soundMs=0;
+            if(CueLibrary.validId(x.sound)){x.soundMs=0;x.soundRhythm="single";}
         }else if("stairs".equals(s.mode)){
             x.volume=Math.max(1,x.volume*(attempts+1)/3);x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude*(attempts+1)/3);
         }
-        x.volume=Math.max(1,Math.min(x.volume,x.soundMax));x.vibrationAmplitude=Math.max(1,Math.min(x.vibrationAmplitude,x.vibrationMax));
+        x.volume=Math.max(1,FeedbackPolicy.cap(x.volume,x.soundMax,100));x.vibrationAmplitude=Math.max(1,FeedbackPolicy.cap(x.vibrationAmplitude,x.vibrationMax,100));
         if(x.soundEnabled&&prefs.getBoolean("deny_sound_"+x.sound,false)||x.vibrate&&prefs.getBoolean("deny_vib_"+x.vibrationPattern,false)||prefs.getBoolean("deny_pair_"+key(x.json()),false))return null;
         return x;
     }
     synchronized boolean begin(SnoreFeedbackController.Settings x,long now,String session)throws Exception{
         if(pending!=null)return false;
-        int trial=prefs.getInt("trials",0);boolean control="control".equals(x.mode)&&trial%3==0||"adaptive".equals(x.mode)&&trial%5==4;
+        int trial=prefs.getInt("trials",0);boolean control=("control".equals(x.mode)&&java.util.concurrent.ThreadLocalRandom.current().nextInt(3)==0)||("adaptive".equals(x.mode)&&java.util.concurrent.ThreadLocalRandom.current().nextInt(5)==0);
         pending=x.json().put("id",UUID.randomUUID().toString()).put("kind","trial").put("time_ms",System.currentTimeMillis()).put("session_id",session).put("control",control);
         x.trialId=pending.optString("id");samples=hits=0;observing=false;sessionCues++;attempts++;lastEnd=now+6000;
         append(c,pending);
