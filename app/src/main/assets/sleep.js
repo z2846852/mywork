@@ -1242,8 +1242,9 @@
   function paintTriggerCount(evt){
    if($("sleepFeedbackPanel").hidden)return;
    if(evt.trigger_reason!==undefined)$("sleepTriggerReason").textContent=evt.trigger_reason;
+   if(evt.pulse_snore!==undefined)$("sleepPulseScores").textContent="最近单声复核 · 鼾声 "+Number(evt.pulse_snore).toFixed(3)+" / 呼吸 "+Number(evt.pulse_breathing).toFixed(3)+" / 其他 "+Number(evt.pulse_other).toFixed(3);
    if(evt.direct_next_gain!==undefined){const n=Number(evt.direct_next_gain),locked=!!evt.direct_gain_locked,extend=!!evt.direct_can_extend;if(nextDirectGain!==n||directLocked!==locked||directCanExtend!==extend){nextDirectGain=n;directLocked=locked;directCanExtend=extend;renderPlan();}}
-   const value="鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
+   const value="AI鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
    const node=$("sleepTriggerCount");
    if(node.textContent!==value){node.textContent=value;const root=$("sleepTriggerProgress"),need=Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4),count=Number(evt.trigger_count)||0;root.replaceChildren();for(let i=0;i<need;i++){const cell=document.createElement("i");cell.className=i<count?"hit":"";root.append(cell);}}
   }

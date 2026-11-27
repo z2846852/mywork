@@ -124,6 +124,21 @@ public final class FeedbackPolicyTest {
         gains.ensure(15,false);gains.started(15,"fixed",100);gains.completed(15,"fixed",true);
         check(gains.canExtend(),"fixed mode can extend once");
         gains.report(15,"fixed",false);check(!gains.canExtend(),"confirmation cancels escalation");
+        check(!FeedbackPolicy.confirmSnore(.03,.8,.01,.15),"ordinary breath rejected");
+        check(!FeedbackPolicy.confirmSnore(.22,.8,.01,.15),"breathing-dominant ambiguous pulse rejected");
+        check(!FeedbackPolicy.confirmSnore(.2,.1,.7,.15),"snort or speech dominant rejected");
+        check(FeedbackPolicy.confirmSnore(.65,.7,.1,.15),"snoring with parent breathing label accepted");
+        gate.reset();
+        short[] mixed=new short[16000];
+        for(int k=0;k<mixed.length;k++)if((k>=800&&k<4000)||(k>=7200&&k<10400)||(k>=12800&&k<15200))mixed[k]=(short)(Math.sin(k*.2)*12000);
+        final int[] reviews={0};
+        gate.updatePcm(0,true,mixed,16000,(wave,len)->{reviews[0]++;return reviews[0]==2;});
+        gate.updatePcm(1,true,new short[16000],16000,(wave,len)->{reviews[0]++;return false;});
+        check(reviews[0]==3&&gate.peaks()==3&&gate.count()==1,"three separate pulses, only middle confirmed");
+        gate.reset();reviews[0]=0;
+        gate.updatePcm(0,true,mixed,16000,(wave,len)->{reviews[0]++;return false;});
+        gate.updatePcm(1,true,new short[16000],16000,(wave,len)->{reviews[0]++;return false;});
+        check(gate.count()==0&&!gate.ready(4),"normal breathing never triggers if classifier rejects");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

@@ -79,6 +79,11 @@ final class FeedbackPolicy {
     }
     static int scaleGain(int max,int gain){return Math.max(1,Math.min(100,Math.round(max*gain/100f)));}
     static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=3;}
+    static boolean confirmSnore(double snore,double breathing,double other,double threshold){
+        return Double.isFinite(snore)&&Double.isFinite(breathing)&&Double.isFinite(other)
+            &&snore>=threshold&&snore>=.8*breathing&&snore>other;
+    }
+    interface PulseClassifier { boolean confirm(short[] pcm,int length); }
     static final int SNORE_WINDOW_SECONDS=300;
     // Count rises of the 50ms RMS envelope, independently of classifier windows.
     // 150ms dwell and separate on/off thresholds reject carrier cycles and brief clicks.
@@ -87,15 +92,17 @@ final class FeedbackPolicy {
         private long last=Long.MIN_VALUE;
         private double floor=Double.NaN,peak=Double.NaN,onsetFloor=Double.NaN;
         private int rise,fall;
-        private boolean active,classified,needQuiet;
-        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=false;}
+        private boolean active,classified,needQuiet,pulseReviewed;
+        private final short[] pulse=new short[15600];
+        private int pulseLength;
+        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=pulseReviewed=false;pulseLength=0;}
         private void expire(long tick){
             while(!peaks.isEmpty()&&tick-peaks.peekFirst()>=SNORE_WINDOW_SECONDS*20L)peaks.removeFirst();
             while(!snore.isEmpty()&&tick-snore.peekFirst()>=SNORE_WINDOW_SECONDS*20L)snore.removeFirst();
         }
         // A gap is not a quiet valley. Keep older verified counts, but require
         // a new real valley before counting any new rise.
-        void interrupt(long tick){last=tick;expire(tick);active=classified=false;needQuiet=true;rise=fall=0;}
+        void interrupt(long tick){last=tick;expire(tick);active=classified=false;needQuiet=true;rise=fall=0;pulseLength=0;pulseReviewed=false;}
         void sample(long tick,double db,boolean ai){
             if(last!=Long.MIN_VALUE&&tick!=last+1)interrupt(tick-1);
             if(!Double.isFinite(db)){interrupt(tick);return;}
@@ -138,6 +145,37 @@ final class FeedbackPolicy {
                 double db=10*Math.log10(Math.max(1e-10,sum/n));
                 sample(second*20+i,db,ai);
             }
+        }
+        // Production: each envelope event gets its own PCM and classifier
+        // decision. No inheritance of a positive one-second label.
+        void updatePcm(long second,boolean valid,short[] pcm,int rate,PulseClassifier verifier){
+            if(!valid||rate!=16000||pcm.length!=rate){interrupt(second*20+19);return;}
+            if(last!=Long.MIN_VALUE&&second*20!=last+1)interrupt(second*20-1);
+            int n=rate/20;
+            for(int i=0;i<20;i++){
+                long tick=second*20+i;
+                int start=i*n;
+                double sum=0;
+                for(int k=start;k<start+n;k++){double v=pcm[k]/32768.0;sum+=v*v;}
+                double db=10*Math.log10(Math.max(1e-10,sum/n));
+                boolean wasActive=active;
+                sample(tick,db,false);
+                if(!wasActive&&!active&&rise==0){pulseLength=0;pulseReviewed=false;continue;}
+                if(wasActive&&!active){
+                    reviewPulse(tick,verifier);pulseLength=0;pulseReviewed=false;continue;
+                }
+                if(!pulseReviewed&&(active?fall==0:rise>0)){
+                    int count=Math.min(n,pulse.length-pulseLength);
+                    System.arraycopy(pcm,start,pulse,pulseLength,count);
+                    pulseLength+=count;
+                    if(active&&pulseLength==pulse.length)reviewPulse(tick,verifier);
+                }
+            }
+        }
+        private void reviewPulse(long tick,PulseClassifier verifier){
+            if(pulseReviewed)return;
+            pulseReviewed=true;
+            if(pulseLength>=2400&&verifier.confirm(pulse,pulseLength))snore.addLast(tick);
         }
         int peaks(){return peaks.size();}
         int count(){return snore.size();}

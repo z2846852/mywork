@@ -28,7 +28,8 @@ final class SleepYamnetClassifier implements AutoCloseable {
     private static final int RATE=16000;
     private static final int WINDOW=15600;
     private static final int STRIDE=16000;
-    private static final int SPEECH=0, SNORING=38, SNORT=41, CLASSES=521;
+    private static final int SPEECH=0, BREATHING=36, WHEEZE=37, SNORING=38, GASP=39, PANT=40, SNORT=41, COUGH=42, SNIFF=45, CLASSES=521;
+    private double pulseSnore,pulseBreathing,pulseOther;
 
     private final Interpreter interpreter;
     private final float[] ring=new float[WINDOW];
@@ -134,6 +135,22 @@ final class SleepYamnetClassifier implements AutoCloseable {
         }
     }
 
+    // Same interpreter, separate inference for the isolated envelope event.
+    // Center shorter events in a zero-padded model input; no other pulse PCM.
+    boolean confirmPulse(short[] pcm,int length,double threshold){
+        if(length<2400||length>WINDOW||length>pcm.length)return false;
+        int offset=(WINDOW-length)/2;
+        input.clear();
+        for(int i=0;i<WINDOW;i++)input.putFloat(i>=offset&&i<offset+length?pcm[i-offset]/32768f:0f);
+        input.rewind();interpreter.run(input,output);
+        pulseSnore=output[0][SNORING];pulseBreathing=output[0][BREATHING];
+        pulseOther=0;
+        for(int k:new int[]{SPEECH,WHEEZE,GASP,PANT,SNORT,COUGH,SNIFF})pulseOther=Math.max(pulseOther,output[0][k]);
+        return FeedbackPolicy.confirmSnore(pulseSnore,pulseBreathing,pulseOther,threshold);
+    }
+    double pulseSnore(){return pulseSnore;}
+    double pulseBreathing(){return pulseBreathing;}
+    double pulseOther(){return pulseOther;}
     /** Latest completed one-second window, for live microphone feedback. */
     int scoreCount() { return scores.size(); }
     double lastSnoreScore() { return scores.isEmpty()?0:scores.get(scores.size()-1); }
