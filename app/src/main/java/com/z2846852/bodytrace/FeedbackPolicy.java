@@ -47,10 +47,10 @@ final class FeedbackPolicy {
     static final class SnoreTrigger {
         private final java.util.ArrayDeque<Long> peaks=new java.util.ArrayDeque<>(),snore=new java.util.ArrayDeque<>();
         private long last=Long.MIN_VALUE;
-        private double floor=-65;
+        private double floor=Double.NaN,peak=Double.NaN,onsetFloor=Double.NaN;
         private int rise,fall;
         private boolean active,classified,needQuiet;
-        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=-65;rise=fall=0;active=classified=needQuiet=false;}
+        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=false;}
         private void expire(long tick){
             while(!peaks.isEmpty()&&tick-peaks.peekFirst()>=SNORE_WINDOW_SECONDS*20L)peaks.removeFirst();
             while(!snore.isEmpty()&&tick-snore.peekFirst()>=SNORE_WINDOW_SECONDS*20L)snore.removeFirst();
@@ -62,24 +62,34 @@ final class FeedbackPolicy {
             if(last!=Long.MIN_VALUE&&tick!=last+1)interrupt(tick-1);
             if(!Double.isFinite(db)){interrupt(tick);return;}
             last=tick;expire(tick);
-            double on=Math.max(-65,floor+8),off=Math.max(-69,floor+4);
+            // Initialise against actual room noise, rather than a fixed -65dBFS
+            // floor. A valley need not be silence: release on a sustained 7dB
+            // fall from the local peak, even when the room noise is relatively loud.
+            if(!Double.isFinite(floor))floor=Math.max(-96,db);
+            double on=Math.max(-75,floor+6);
             if(needQuiet){
-                if(db<=off){if(++fall>=3){needQuiet=false;fall=0;}}
+                double quiet=Double.isFinite(peak)?Math.max(floor+3,peak-7):floor+3;
+                if(db<=quiet){if(++fall>=3){needQuiet=false;fall=0;floor=db;peak=Double.NaN;}}
                 else fall=0;
                 return;
             }
             if(!active){
                 if(db>=on){
+                    if(rise==0){onsetFloor=floor;peak=db;}
+                    else peak=Math.max(peak,db);
                     if(++rise>=3){active=true;classified=false;fall=0;peaks.addLast(tick);}
                 }else{
                     rise=0;
-                    floor=Math.max(-96,Math.min(-25,floor+(db-floor)*(db<floor?.25:.025)));
+                    floor=Math.max(-96,Math.min(0,floor+(db-floor)*(db<floor?.45:.12)));
                 }
             }else{
-                if(db<=off){if(++fall>=3){active=false;classified=false;rise=fall=0;}}
-                else fall=0;
+                peak=Math.max(peak,db);
+                double off=Math.max(onsetFloor+3,peak-7);
+                if(db<=off){
+                    if(++fall>=3){active=false;classified=false;rise=fall=0;floor=Math.max(-96,db);peak=Double.NaN;}
+                }else fall=0;
             }
-            if(active&&!classified&&ai&&db>off){snore.addLast(tick);classified=true;}
+            if(active&&!classified&&ai&&fall==0){snore.addLast(tick);classified=true;}
         }
         void updatePcm(long second,boolean valid,short[] pcm,int rate,boolean ai){
             if(!valid||rate<20||pcm.length!=rate){interrupt(second*20+19);return;}

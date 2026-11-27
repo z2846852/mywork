@@ -66,6 +66,34 @@ public final class FeedbackPolicyTest {
         short[] pcm=new short[16000];
         for(int i=0;i<pcm.length;i++)if((i>=800&&i<4000)||(i>=7200&&i<10400)||(i>=12800&&i<16000))pcm[i]=(short)(Math.sin(i*.2)*12000);
         gate.reset();gate.updatePcm(0,true,pcm,16000,true);check(gate.count()==3&&gate.ready(3),"three RMS pulses in one classifier window");
+        // Real room valleys do not fall to -65dBFS. Reproduce the old
+        // one-and-done latch with a -39dBFS background and repeated loud peaks.
+        gate.reset();tick=0;
+        for(int i=0;i<20;i++)gate.sample(tick++,-39,false);
+        for(int k=0;k<8;k++){
+            for(int i=0;i<12;i++)gate.sample(tick++,-20,true);
+            for(int i=0;i<10;i++)gate.sample(tick++,-39,false);
+            check(gate.peaks()==k+1&&gate.count()==k+1,"noisy room pulse "+k);
+        }
+        check(gate.ready(4),"noisy room triggers on fourth or later");
+        gate.reset();tick=0;
+        for(int i=0;i<20;i++)gate.sample(tick++,-55,false);
+        for(int k=0;k<5;k++){
+            for(int i=0;i<10;i++)gate.sample(tick++,-24,true);
+            for(int i=0;i<10;i++)gate.sample(tick++,-34,false);
+        }
+        check(gate.count()==5,"relative valleys above initial noise floor");
+        gate.reset();tick=0;
+        for(int i=0;i<20;i++)gate.sample(tick++,-40,false);
+        for(int i=0;i<200;i++)gate.sample(tick++,-20+(i%2==0?0:1),true);
+        check(gate.peaks()==1&&gate.count()==1,"sustained sound cannot retrigger");
+        gate.reset();tick=0;
+        for(int i=0;i<20;i++)gate.sample(tick++,-40,false);
+        for(int k=0;k<4;k++){
+            for(int i=0;i<12;i++)gate.sample(tick++,-20,k%2==0);
+            for(int i=0;i<10;i++)gate.sample(tick++,-40,false);
+        }
+        check(gate.peaks()==4&&gate.count()==2&&!gate.ready(4),"AI and raw envelope stay distinct");
         System.out.println("FeedbackPolicy checks passed");
     }
 }
