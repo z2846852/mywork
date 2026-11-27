@@ -486,10 +486,10 @@
   for(const e of filtered.slice(0,feedbackEventLimit)){
    const sec=Math.max(0,Number(e.offset_ms)||0)/1000;
    const label=window.BodyTraceSleepVisual?.formatTime?.(sec,analysis.id)||clock(analysis.started_ms+sec*1000);
-   const selfLabels={felt_vibration:"感到振动",aware_snoring:"意识到自己在打鼾",turned_side:"已翻身侧睡",awake_unsure:"醒来原因不确定"};
-   const name=e.kind==="self_report"?(selfLabels[e.report]||"夜间自报"):e.kind==="feedback_on"?"开启反馈":e.kind==="feedback_off"?"关闭反馈":e.kind==="manual"?"手动标记":e.kind==="preview"?"手动试听":e.kind==="control"?"无刺激对照":"自动"+(e.vibration&&e.sound_enabled?"声音＋震动":e.vibration?"震动":"提示音");
+   const selfLabels={felt_vibration:"感到振动",heard_snoring:"听到自己的鼾声",aware_snoring:"意识到自己在打鼾",turned_side:"已翻身侧睡",awake_unsure:"醒来原因不确定"};
+   const name=e.kind==="trial_outcome"?({stopped:"鼾声候选减少",continued:"仍有鼾声候选",incomplete:"观察不完整"}[e.result]||"试验结果"):e.kind==="self_report"?(selfLabels[e.report]||"夜间自报"):e.kind==="feedback_on"?"开启反馈":e.kind==="feedback_off"?"关闭反馈":e.kind==="manual"?"手动标记":e.kind==="preview"?"手动试听":e.kind==="control"?"无刺激对照":"自动"+(e.vibration&&e.sound_enabled?"声音＋震动":e.vibration?"震动":"提示音");
    const sound=[...$("sleepFeedbackSound").options].find(o=>o.value===e.sound)?.textContent.split(" · ")[0]||e.sound||"";
-   const meta=[];if(e.kind==="self_report")meta.push(e.linked?"关联近期刺激":"未关联刺激");if(e.kind!=="control"&&e.kind!=="self_report"){if(e.sound_enabled??!e.vibration){if(e.sound)meta.push(sound+" · "+e.volume+"%");}if(e.vibration)meta.push((e.parameters?.vibrationPattern||"震动")+" · "+(e.parameters?.vibrationAmplitude??"系统默认")+"%");}if(Number.isFinite(e.score))meta.push("AI "+e.score.toFixed(3));if(Number(e.planned_duration_ms)>0)meta.push((e.planned_duration_ms/1000).toFixed(2)+"s");
+   const meta=[];if(e.kind==="self_report")meta.push(e.linked?"关联近期刺激":"未关联刺激");if(e.kind==="trial_outcome")meta.push(`${e.snore_seconds||0}/${e.valid_seconds||0}s 鼾声候选`);if(e.kind!=="control"&&e.kind!=="self_report"&&e.kind!=="trial_outcome"){if(e.sound_enabled??!e.vibration){if(e.sound)meta.push(sound+" · "+e.volume+"%");}if(e.vibration)meta.push((e.parameters?.vibrationPattern||"震动")+" · "+(e.parameters?.vibrationAmplitude??"系统默认")+"%");}if(Number.isFinite(e.score))meta.push("AI "+e.score.toFixed(3));if(Number(e.planned_duration_ms)>0)meta.push((e.planned_duration_ms/1000).toFixed(2)+"s");
    if(Number.isFinite(e.detector_offset_ms))meta.push("检测 "+(window.BodyTraceSleepVisual?.formatTime?.(e.detector_offset_ms/1000,analysis.id)||duration(e.detector_offset_ms/1000)));
    const row=document.createElement("div");row.className="sleep-recorded-feedback-row";const info=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("small");title.textContent=label+" · "+name;detail.textContent=meta.join(" · ");info.append(title,detail);
    const controls=document.createElement("div");controls.className="actions";const focus=document.createElement("button"),play=document.createElement("button");focus.type=play.type="button";focus.className=play.className="secondary mini";focus.textContent="定位";play.textContent="回听";const from=Math.max(0,Math.floor(sec)-3),end=Math.min(analysis.levels_dbfs.length,Math.ceil(sec+Math.max(3,(Number(e.planned_duration_ms)||0)/1000+3)));
@@ -1024,9 +1024,9 @@
   const selfButtons=[...$("sleepSelfReport").querySelectorAll("[data-report]")];
   function renderSelfReport(state){
    selfState=state||{};
-   $("sleepSelfReport").hidden=!recordActive;
+   $("sleepSelfReport").hidden=false;
    const cue=selfState.cue||{},checked=selfState.checked||{};
-   $("sleepSelfCue").textContent=selfState.trial_id?"最近刺激 "+clock(cue.started_ms||cue.time_ms)+" · "+(cue.vibrate?cue.vibrationAmplitude+"% / "+cue.actualVibrationMs+"ms":"声音")+" · 2分钟内关联":"当前感受 · 无可关联的近期刺激";
+   $("sleepSelfCue").textContent=!recordActive?"请先开始录音，才能记录主动确认":selfState.trial_id?"最近刺激 "+clock(cue.started_ms||cue.time_ms)+" · "+(cue.vibrate?cue.vibrationAmplitude+"% / "+cue.actualVibrationMs+"ms":"声音")+" · 2分钟内关联":"当前感受 · 无可关联的近期刺激";
    for(const button of selfButtons){
     const done=!!checked[button.dataset.report];button.classList.toggle("checked",done);
     button.setAttribute("aria-pressed",String(done));button.disabled=selfPending||done||!recordActive;
@@ -1040,6 +1040,67 @@
    bridge().sleepExperimentSelfReport(button.dataset.report,selfState.trial_id||"");
   };
   $("sleepSelfRefresh").onclick=()=>bridge()?.sleepFeedbackStatus?.();
+  let consoleTab="night",lastExperiment={},reportExpiryRequested="";
+  const consoleTabs=[...$("sleepFeedbackPanel").querySelectorAll("[data-console]")];
+  function setConsoleTab(tab){
+   consoleTab=tab;
+   for(const b of consoleTabs){const active=b.dataset.console===tab;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));}
+   for(const [id,key] of [["sleepConsoleNight","night"],["sleepConsoleTest","test"],["sleepConsoleSettings","settings"]])$(id).hidden=tab!==key;
+   if(tab==="test")requestAnimationFrame(()=>{micGraph();speakerGraph();});
+  }
+  consoleTabs.forEach(b=>b.onclick=()=>setConsoleTab(b.dataset.console));
+  $("sleepConsoleRefresh").onclick=()=>bridge()?.sleepFeedbackStatus?.();
+  $("sleepConsoleRecord").onclick=()=>{if(recordActive){$("sleepFeedbackInfo").textContent="正在录音；如需结束请到录音页停止并保存。";switchPage("browser");}else if(bridge()?.sleepStart){$("sleepFeedbackInfo").textContent="正在启动录音…";bridge().sleepStart();}};
+  $("sleepConsoleArm").onclick=()=>{
+   if(!recordActive&&!feedbackActive){$("sleepFeedbackInfo").textContent="请先开始录音，再开启反馈";return;}
+   $("sleepFeedbackEnabled").checked=!feedbackActive;$("sleepFeedbackEnabled").onchange();
+  };
+  const reportLabels={felt_vibration:"感到振动",heard_snoring:"听到鼾声",aware_snoring:"意识到打鼾",turned_side:"翻身",awake_unsure:"醒来原因未知"};
+  function renderTrialBoard(e){
+   const root=$("sleepConsoleTrials");root.replaceChildren();
+   const trials=Array.isArray(e.recent_trials)?e.recent_trials:[];
+   if(!trials.length){root.textContent="暂无试验；开始后自动更新。";return;}
+   for(const t of [...trials].reverse()){
+    const row=document.createElement("div");row.className="sleep-trial-row";
+    const head=document.createElement("div");head.className="sleep-trial-head";
+    const stimulus=t.control?"无刺激对照":[t.vibrate?"振动 "+t.vibrationAmplitude+"% / "+(t.actualVibrationMs||t.vibrationMs)+"ms":"",t.soundEnabled?"声音 "+t.volume+"%":""].filter(Boolean).join(" ＋ ");
+    const left=document.createElement("strong");left.textContent=clock(t.time_ms)+" · "+stimulus;
+    const result=document.createElement("span");result.className="sleep-trial-result "+t.result;result.textContent=({pending:"待观察",stopped:"低鼾",continued:"持续",incomplete:"不完整"}[t.result]||"未知");head.append(left,result);row.append(head);
+    const info=document.createElement("small");info.textContent=t.result==="pending"?"等待30秒有效观测":(t.snore_seconds||0)+"/"+(t.valid_seconds||0)+"秒鼾声候选"+(t.screen_on?" · 亮屏":"");row.append(info);
+    const tags=document.createElement("div");tags.className="sleep-trial-tags";
+    for(const [key,name] of Object.entries(reportLabels)){const tag=document.createElement("span");tag.className=t.reports?.[key]?"confirmed":"unknown";tag.textContent=(t.reports?.[key]?"✓ ":"? ")+name;tags.append(tag);}row.append(tags);root.append(row);
+   }
+  }
+  function renderPlan(e=lastExperiment){
+   const c=cfg(),vt=e.vibration_threshold||{},mode=c.mode==="vibration_threshold";
+   $("sleepConsoleState").textContent=feedbackActive?"自动反馈已开启":recordActive?"录音中 · 反馈关闭":micActive?"检测测试中":"未开始实验";
+   $("sleepConsoleRecord").textContent=recordActive?"录音中 · 管理录音":"开始录音";
+   $("sleepConsoleArm").textContent=feedbackActive?"关闭反馈":"开启反馈";
+   $("sleepConsoleArm").disabled=!recordActive&&!feedbackActive;
+   $("sleepConsoleConfig").textContent=(mode?"阈值搜索 · 纯振动":$("sleepFeedbackMode").selectedOptions[0]?.textContent||c.mode)+" · "+c.minimum+"声/5分钟 · "+Math.max(mode?30:0,c.delayMinutes)+"分钟保护 · 最多"+Math.min(mode?8:40,c.maxCues)+"次"+(mode?" · 冷却5分钟":"");
+   const root=$("sleepThresholdLadder");root.replaceChildren();
+   const liveLevels=mode&&Array.isArray(vt.levels)&&vt.levels.length?vt.levels:null;
+   const low=Math.min(c.vibrationMin,c.vibrationMax,e.vibrationLimit??100),high=Math.min(c.vibrationMax,e.vibrationLimit??100),cap=Math.min(c.vibrationMsMax,e.vibrationDurationLimit??2000,1500);
+   let planned=[];
+   if(mode&&!liveLevels&&high>=1&&cap>=100){
+    const base=Math.min(500,cap),a=Math.max(1,low);
+    for(let v=a;v<high;v+=20)planned.push({amplitude:v,duration_ms:base});
+    planned.push({amplitude:high,duration_ms:base});
+    for(const ms of [800,1200])if(ms>base&&ms<cap)planned.push({amplitude:high,duration_ms:ms});
+    if(cap>base)planned.push({amplitude:high,duration_ms:cap});
+    planned=planned.map((v,i)=>({...v,level:i+1,stopped:0,continued:0}));
+   }
+   const levels=liveLevels||planned,next=liveLevels?Number(vt.next_level):1;
+   const selected=levels.find(v=>v.level===next);
+   $("sleepConsoleNext").textContent=mode?(vt.upper_failures>=2?"最高档两次无响应 · 停止搜索":selected?"下一档 "+selected.amplitude+"% / "+selected.duration_ms+"ms · 第"+next+"/"+levels.length+"档":"无可用档位 · 检查排除限制"):"当前模式："+($("sleepFeedbackMode").selectedOptions[0]?.textContent||c.mode)+" · 应用今晚方案开启阶梯";
+   if(!mode){root.textContent="当前不是阈值搜索模式。点击上方「应用今晚方案」。";return;}
+   for(const level of levels){
+    const cell=document.createElement("div");cell.className="sleep-ladder-cell "+(level.stopped?"passed":level.continued?"failed":"untested")+(level.level===next?" next":"");
+    const title=document.createElement("strong");title.textContent=(level.level===next?"▶ ":"")+level.amplitude+"%";
+    const detail=document.createElement("small");detail.textContent=level.duration_ms+"ms · "+(level.stopped||0)+"/"+((level.stopped||0)+(level.continued||0));
+    cell.append(title,detail);root.append(cell);
+   }
+  }
   const micHistory=[];
   let latestSecond=-1,liveSpan=60,captureStart=0;
   const sensitivity={high:{threshold:.05,minimum:4},normal:{threshold:.15,minimum:4},low:{threshold:.30,minimum:5}};
@@ -1063,6 +1124,7 @@
    mode:$("sleepFeedbackMode").value,delayMinutes:Number($("sleepFeedbackDelayMinutes").value),maxCues:Number($("sleepFeedbackMaxCues").value)
   });
   function labels(){
+   renderPlan();
    $("sleepFeedbackVolumeText").textContent=cfg().volume+"%";
    $("sleepDreamHint").hidden=!cfg().sound.startsWith("dream_");
    $("sleepFeedbackThresholdText").textContent=cfg().threshold.toFixed(2);
@@ -1082,7 +1144,7 @@
    return true;
   }
   function graph(id,values,color,progress=1,autoScale=false){
-   if($("sleepFeedbackPanel").hidden)return;
+   if($("sleepFeedbackPanel").hidden||consoleTab!=="test")return;
    const canvas=$(id);
    if(!canvas||typeof canvas.getContext!=="function")return;
    const ctx=canvas.getContext("2d");if(!ctx)return;
@@ -1113,7 +1175,7 @@
    }
   }
   function micGraph(){
-   if(!$("sleepFeedbackPanel").hidden)window.BodyTraceLiveEnvelope?.($("sleepMicCanvas"),micHistory.slice(-liveSpan),cfg().threshold,liveSpan);
+   if(!$("sleepFeedbackPanel").hidden&&consoleTab==="test")window.BodyTraceLiveEnvelope?.($("sleepMicCanvas"),micHistory.slice(-liveSpan),cfg().threshold,liveSpan);
   }
   function micSecond(evt){
    const sec=Number(evt.second);if(!Number.isFinite(sec))return;
@@ -1164,7 +1226,7 @@
    if($("sleepFeedbackPanel").hidden)return;
    const value="鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
    const node=$("sleepTriggerCount");
-   if(node.textContent!==value)node.textContent=value;
+   if(node.textContent!==value){node.textContent=value;const root=$("sleepTriggerProgress"),need=Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4),count=Number(evt.trigger_count)||0;root.replaceChildren();for(let i=0;i<need;i++){const cell=document.createElement("i");cell.className=i<count?"hit":"";root.append(cell);}}
   }
   function status(evt){
    const oldMic=micActive;
@@ -1207,7 +1269,7 @@
     const pool=$("sleepFeedbackSoundPool");[...main.options].forEach(o=>{if(![...pool.options].some(p=>p.value===o.value)){const n=o.cloneNode(true);n.selected=false;pool.append(n);}});
    }
    if(evt.vibration_hardware){const v=evt.vibration_hardware;vibrationAvailable=!!v.available;vibrationAmplitudeControl=!!v.amplitude;$("sleepVibrationHardware").textContent=(v.model?v.model+" · ":"")+(!v.available?"未发现振动马达":v.amplitude?"支持振幅控制":"仅占空比")+(v.permission===false?" · VIBRATE 权限缺失":"")+(v.interruption_filter===2||v.interruption_filter===3||v.interruption_filter===4?" · 勿扰限制可能生效":"");if(!previewPending)previewBusy(false);}
-   if(evt.experiment){const e=evt.experiment,l=e.last||{};const stats=e.channels||{};$("sleepExperimentChannels").textContent=[["纯声音","sound"],["纯震动","vib"],["混合","mix"]].map(([name,k])=>name+" "+(stats[k]?.stopped||0)+"/"+(stats[k]?.observed||0)).join(" · ");const restore=$("sleepExperimentRestoreKey");restore.replaceChildren();for(const key of [...(e.excluded||[]),...(e.soundLimit<100?["soundLimit"]:[]),...(e.vibrationLimit<100?["vibrationLimit"]:[]),...(e.soundDurationLimit<5000?["soundDurationLimit"]:[]),...(e.vibrationDurationLimit<2000?["vibrationDurationLimit"]:[])]){const o=document.createElement("option");o.value=key;o.textContent=key==="soundLimit"?"恢复声音上限":key==="vibrationLimit"?"恢复震动上限":key==="soundDurationLimit"?"恢复声音时长上限":key==="vibrationDurationLimit"?"恢复震动时长上限":key.replace("deny_sound_","声音：").replace("deny_vib_","震动：").replace("deny_pair_","搭配：").replace("deny_rhythm_","声音节奏：");restore.append(o);} $("sleepExperimentRestore").disabled=!restore.options.length;for(const o of $("sleepFeedbackSoundPool").options){o.disabled=(e.excluded||[]).includes("deny_sound_"+o.value);if(o.disabled)o.selected=false;}for(const o of $("sleepFeedbackVibrationPool").options){o.disabled=(e.excluded||[]).includes("deny_vib_"+o.value);if(o.disabled)o.selected=false;}
+   if(evt.experiment){lastExperiment=evt.experiment;renderTrialBoard(lastExperiment);const e=evt.experiment,l=e.last||{};const stats=e.channels||{};$("sleepExperimentChannels").textContent=[["纯声音","sound"],["纯震动","vib"],["混合","mix"]].map(([name,k])=>name+" "+(stats[k]?.stopped||0)+"/"+(stats[k]?.observed||0)).join(" · ");const restore=$("sleepExperimentRestoreKey");restore.replaceChildren();for(const key of [...(e.excluded||[]),...(e.soundLimit<100?["soundLimit"]:[]),...(e.vibrationLimit<100?["vibrationLimit"]:[]),...(e.soundDurationLimit<5000?["soundDurationLimit"]:[]),...(e.vibrationDurationLimit<2000?["vibrationDurationLimit"]:[])]){const o=document.createElement("option");o.value=key;o.textContent=key==="soundLimit"?"恢复声音上限":key==="vibrationLimit"?"恢复震动上限":key==="soundDurationLimit"?"恢复声音时长上限":key==="vibrationDurationLimit"?"恢复震动时长上限":key.replace("deny_sound_","声音：").replace("deny_vib_","震动：").replace("deny_pair_","搭配：").replace("deny_rhythm_","声音节奏：");restore.append(o);} $("sleepExperimentRestore").disabled=!restore.options.length;for(const o of $("sleepFeedbackSoundPool").options){o.disabled=(e.excluded||[]).includes("deny_sound_"+o.value);if(o.disabled)o.selected=false;}for(const o of $("sleepFeedbackVibrationPool").options){o.disabled=(e.excluded||[]).includes("deny_vib_"+o.value);if(o.disabled)o.selected=false;}
      for(const o of $("sleepFeedbackSoundRhythmPool").options){o.disabled=(e.excluded||[]).includes("deny_rhythm_"+o.value);if(o.disabled)o.selected=false;}
      const typeRoot=$("sleepExperimentTypes");typeRoot.replaceChildren();
      for(const [title,id,prefix,suffix] of [["声音","sleepFeedbackSoundPool","deny_sound_","|off"],["震动","sleepFeedbackVibrationPool","deny_vib_",""]]){
@@ -1225,12 +1287,6 @@
      const candidateRoot=$("sleepExperimentCandidates");candidateRoot.replaceChildren();
      const heading=document.createElement("strong");heading.textContent="候选方案（非已证实疗效）";candidateRoot.append(heading);
      for(const p of e.candidates||[]){const row=document.createElement("div");row.className="sleep-live-event";row.textContent=(p.soundEnabled?p.sound+" "+p.volume+"% "+p.soundRhythm:"静音")+" / "+(p.vibrate?p.vibrationPattern+" "+p.vibrationAmplitude+"%":"无震动")+" · "+p.stopped+"/"+p.observed;candidateRoot.append(row);}
-     const vt=e.vibration_threshold||{},ladder=$("sleepThresholdLadder");ladder.replaceChildren();
-     if(Array.isArray(vt.levels)&&vt.levels.length){
-      const info=document.createElement("div");info.textContent=vt.upper_failures>=2?"最高档两次无响应：本晚停止搜索":"下一档 "+vt.next_level+"/"+vt.length+" · 已安排 "+vt.trials+" 次（含对照）";ladder.append(info);
-      for(const level of vt.levels){const line=document.createElement("div");line.textContent=(level.level===vt.next_level?"▶ ":"　")+level.amplitude+"% / "+level.duration_ms+"ms · 低鼾 "+level.stopped+" · 持续 "+level.continued;ladder.append(line);}
-      if(vt.last?.result){const last=document.createElement("div");last.textContent="最近："+(vt.last.control?"无刺激对照 · ":"")+({stopped:"鼾声候选减少",continued:"仍有鼾声候选",incomplete:"观察不完整"}[vt.last.result]||vt.last.result)+(vt.last.screen_on?" · 观察中亮屏":"");ladder.append(last);}
-     }
      $("sleepExperimentSummary").textContent=`今晚 ${e.nightCount||0} 次 · 累计 ${e.trials} · 刺激后低鼾声 ${e.stopped}/${e.observed} · 对照 ${e.controlStopped}/${e.controlObserved} · 人工上限 声${e.soundLimit}%/${e.soundDurationLimit}ms 震${e.vibrationLimit}%/${e.vibrationDurationLimit}ms · 最近 ${l.sound||"—"} ${l.volume||0}% / ${l.vibrationPattern||"—"} ${l.vibrationAmplitude||0}%`;}
    if(evt.settings&&typeof evt.settings==="object"&&
        !ids.includes(document.activeElement?.id)){
@@ -1245,6 +1301,7 @@
     for(const k of ["SoundPool","VibrationPool","SoundRhythmPool"]){const key=k[0].toLowerCase()+k.slice(1), set=new Set(String(evt.settings[key]||(k==="SoundPool"?evt.settings.sound:"")).split(","));for(const o of $("sleepFeedback"+k).options)o.selected=!o.disabled&&set.has(o.value); }
     labels();renderVibrationPattern();
    }
+   renderPlan();
    if(recordActive!==recording)bridge()?.sleepStatus?.();
   }
   function renderEvents(events){
@@ -1288,7 +1345,7 @@
    for(const [id,value] of Object.entries(values))$(id).value=String(value);
    $("sleepFeedbackSoundEnabled").checked=false;$("sleepFeedbackVibrate").checked=true;$("sleepFeedbackPauseOnScreen").checked=true;
    labels();renderVibrationPattern();
-   if(save())$("sleepFeedbackInfo").textContent="已配置今晚阈值搜索；确认关闭系统静音，开始录音后手动开启自动反馈";
+   if(save()){$("sleepFeedbackInfo").textContent="今晚方案已保存 · 确认系统静音关闭后，开始录音、开启反馈";renderPlan();bridge()?.sleepFeedbackStatus?.();}
   };
   $("sleepFeedbackEnabled").onchange=()=>{
    if(!save()){
@@ -1354,7 +1411,7 @@
     status(evt);
    }else if(evt.type==="sleep_feedback_self_report"){
     clearTimeout(selfTimer);selfPending=false;
-    if(evt.ok){renderSelfReport(evt.state);$("sleepSelfStatus").textContent="✓ 已记录 "+clock(Date.now())+" · 可以锁屏继续睡";}
+    if(evt.ok){renderSelfReport(evt.state);$("sleepSelfStatus").textContent="✓ 已记录 "+clock(Date.now())+" · 可以锁屏继续睡";bridge()?.sleepFeedbackStatus?.();}
     else {renderSelfReport(selfState);$("sleepSelfStatus").textContent=evt.message||"保存失败";bridge()?.sleepFeedbackStatus?.();}
    }else if(evt.type==="sleep_feedback_clip_recording"){
     $("sleepCueRecord").textContent=evt.active?"■ 停止录音":"● 录制声音";$("sleepFeedbackInfo").textContent=evt.message||"";
@@ -1366,6 +1423,7 @@
     if(row){row.score=Number(evt.score);row.muted=!!evt.muted;}
     $("sleepFeedbackScore").textContent=Number(evt.score).toFixed(3);
     paintTriggerCount(evt);
+    if(selfState.trial_id&&selfState.trial_id!==reportExpiryRequested&&Date.now()-Number(selfState.cue?.started_ms||selfState.cue?.time_ms)>120000){reportExpiryRequested=selfState.trial_id;bridge()?.sleepFeedbackStatus?.();}
     $("sleepLiveAnalyzed").textContent=evt.inferred_windows+"s";
     $("sleepInferenceStatus").textContent="AI 正常 · 丢弃 "+evt.dropped_windows+" 窗"+(evt.muted?" · 抑制":"");
     micGraph();
@@ -1395,6 +1453,6 @@
    if(evt?.type?.startsWith("sleep_feedback_"))window.bodyTraceReceiveFeedback(evt);
    else if(typeof prior==="function")prior(evt);
   };
-  labels();renderVibrationPattern();
+  labels();renderVibrationPattern();setConsoleTab("night");renderSelfReport({});
  })();
 })();

@@ -13,6 +13,8 @@ final class FeedbackExperiment {
     private int samples, hits, quiet, attempts, sessionCues;
     private boolean observing;
     private double afterSum;
+    private long outcomeRevision;
+    synchronized long outcomeRevision(){return outcomeRevision;}
     private String ladderKey="";
     private int ladderLevel,ladderLength;
     private final ArrayDeque<Double> baseline=new ArrayDeque<>();
@@ -30,7 +32,38 @@ final class FeedbackExperiment {
             .put("last",new JSONObject(p.getString("last","{}"))).put("excluded",excluded(p))
             .put("channels",channels(p)).put("nightCount",nightCount(p))
             .put("soundDurationLimit",p.getInt("soundDurationLimit",5000)).put("vibrationDurationLimit",p.getInt("vibrationDurationLimit",2000))
-            .put("types",types(p)).put("candidates",candidates(p)).put("vibration_threshold",thresholdSummary(p)).put("self_report",reportStatus(c));
+            .put("types",types(p)).put("candidates",candidates(p)).put("vibration_threshold",thresholdSummary(p)).put("self_report",reportStatus(c)).put("recent_trials",dashboardTrials(p));
+    }
+    // A bounded nightly read model for the live dashboard; JSONL remains the full audit log.
+    private static synchronized JSONArray recentTrials(SharedPreferences p)throws Exception{
+        if(!night().equals(p.getString("dashboard_night","")))return new JSONArray();
+        return new JSONArray(p.getString("dashboard_trials","[]"));
+    }
+    private static synchronized void rememberTrial(SharedPreferences p,JSONObject settings,String outcome,int valid,int hits)throws Exception{
+        JSONArray old=recentTrials(p),rows=new JSONArray();
+        String id=settings.optString("id");
+        JSONObject row=new JSONObject().put("id",id).put("session_id",settings.optString("session_id"))
+            .put("time_ms",settings.optLong("started_ms",settings.optLong("time_ms"))).put("mode",settings.optString("mode"))
+            .put("control",settings.optBoolean("control")).put("soundEnabled",settings.optBoolean("soundEnabled"))
+            .put("vibrate",settings.optBoolean("vibrate")).put("sound",settings.optString("sound"))
+            .put("volume",settings.optInt("volume")).put("vibrationPattern",settings.optString("vibrationPattern"))
+            .put("vibrationAmplitude",settings.optInt("vibrationAmplitude")).put("vibrationMs",settings.optInt("vibrationMs"))
+            .put("actualVibrationMs",settings.optInt("actualVibrationMs")).put("actualSoundMs",settings.optInt("actualSoundMs"))
+            .put("level",settings.optInt("ladder_level",-1)+1).put("result",outcome)
+            .put("screen_on",settings.optBoolean("screen_on_during_observation")).put("valid_seconds",valid).put("snore_seconds",hits);
+        JSONObject reports=new JSONObject(p.getString("dashboard_reports","{}"));
+        if(!night().equals(p.getString("dashboard_night","")))reports=new JSONObject();
+        for(int i=0;i<old.length();i++){JSONObject x=old.optJSONObject(i);if(x!=null&&!id.equals(x.optString("id")))rows.put(x);}
+        rows.put(row);
+        JSONArray bounded=new JSONArray();JSONObject kept=new JSONObject();
+        for(int i=Math.max(0,rows.length()-16);i<rows.length();i++){JSONObject x=rows.getJSONObject(i);bounded.put(x);String k=x.optString("id");if(reports.has(k))kept.put(k,reports.get(k));}
+        if(!p.edit().putString("dashboard_night",night()).putString("dashboard_trials",bounded.toString()).putString("dashboard_reports",kept.toString()).commit())
+            throw new IOException("实验面板记录保存失败");
+    }
+    private static synchronized JSONArray dashboardTrials(SharedPreferences p)throws Exception{
+        JSONArray rows=recentTrials(p);JSONObject reports=new JSONObject(p.getString("dashboard_reports","{}"));
+        for(int i=0;i<rows.length();i++){JSONObject row=rows.getJSONObject(i);JSONObject checks=reports.optJSONObject(row.optString("id"));row.put("reports",checks==null?new JSONObject():checks);}
+        return rows;
     }
     private static JSONObject thresholdSummary(SharedPreferences p)throws Exception{
         if(!night().equals(p.getString("vth_night","")))return new JSONObject();
@@ -58,7 +91,7 @@ final class FeedbackExperiment {
         return new JSONObject().put("session_id",session).put("trial_id",id).put("cue",linked?last:new JSONObject()).put("checked",saved);
     }
     static synchronized JSONObject selfReport(Context c,String kind,String expectedTrial)throws Exception{
-        if(!Arrays.asList("felt_vibration","aware_snoring","turned_side","awake_unsure").contains(kind))throw new IllegalArgumentException("未知自报项目");
+        if(!Arrays.asList("felt_vibration","heard_snoring","aware_snoring","turned_side","awake_unsure").contains(kind))throw new IllegalArgumentException("未知自报项目");
         JSONObject state=reportStatus(c);
         String session=state.optString("session_id"),trial=state.optString("trial_id");
         if(session.isEmpty())throw new IllegalStateException("请先开始睡眠录音");
@@ -73,7 +106,13 @@ final class FeedbackExperiment {
         SleepRecorderService.recordSelfReport(c,event);
         append(c,event);
         checked.put("session_id",session).put("trial_id",trial).put("time_ms",now).put(kind,true);
-        if(!prefs(c).edit().putString("self_report_latest",checked.toString()).commit())throw new IOException("自报状态保存失败");
+        SharedPreferences p=prefs(c);SharedPreferences.Editor edit=p.edit().putString("self_report_latest",checked.toString());
+        if(!trial.isEmpty()&&night().equals(p.getString("dashboard_night",""))){
+            JSONObject reports=new JSONObject(p.getString("dashboard_reports","{}"));
+            JSONObject checks=reports.optJSONObject(trial);if(checks==null)checks=new JSONObject();
+            checks.put(kind,now);reports.put(trial,checks);edit.putString("dashboard_reports",reports.toString());
+        }
+        if(!edit.commit())throw new IOException("自报状态保存失败");
         return state.put("checked",checked);
     }
     private static JSONObject channels(SharedPreferences p)throws Exception{
@@ -217,7 +256,15 @@ final class FeedbackExperiment {
                 ed.putInt("observed_"+channel,prefs.getInt("observed_"+channel,0)+1);
                 if("stopped".equals(result))ed.putInt("stopped_"+channel,prefs.getInt("stopped_"+channel,0)+1);}
         }
-        if(!ed.commit())throw new IOException("实验统计保存失败");pending=null;observing=false;samples=hits=0;afterSum=0;
+        if(!ed.commit())throw new IOException("实验统计保存失败");
+        rememberTrial(prefs,pending,result,samples,hits);
+        if(!pending.optString("session_id").isEmpty()&&SleepRecorderService.isCurrentSession(pending.optString("session_id"))){
+            try{SleepRecorderService.recordSelfReport(c,new JSONObject().put("kind","trial_outcome").put("session_id",pending.optString("session_id"))
+                .put("trial_id",pending.optString("id")).put("time_ms",System.currentTimeMillis()).put("result",result)
+                .put("control",control).put("valid_seconds",samples).put("snore_seconds",hits).put("screen_on",pending.optBoolean("screen_on_during_observation")));}
+            catch(Exception ex){android.util.Log.w("SleepFeedback","session outcome journal",ex);}
+        }
+        outcomeRevision++;pending=null;observing=false;samples=hits=0;afterSum=0;
     }
     private String[] compatibleRhythms(String sound,String[] rhythms,int limit){
         long clipMs=0;
@@ -334,12 +381,14 @@ final class FeedbackExperiment {
         SharedPreferences.Editor progress=prefs.edit().putInt("trials",trial+1).putInt("controls",prefs.getInt("controls",0)+(control?1:0)).putString("night",night()).putInt("nightCount",nightCount(prefs)+1).putLong("lastTrialWall",System.currentTimeMillis());
         if("vibration_threshold".equals(x.mode))progress.putInt("vth_trials",prefs.getInt("vth_trials",0)+1);
         if(!progress.commit())throw new IOException("实验进度保存失败");
+        rememberTrial(prefs,pending,"pending",0,0);
         return control;
     }
     synchronized void started(SnoreFeedbackController.Settings selected)throws Exception{
         if(pending==null)return;
         pending.put("actualSoundMs",selected.actualSoundMs).put("actualVibrationMs",selected.actualVibrationMs).put("started_ms",System.currentTimeMillis());
         if(!pending.optBoolean("control")&&!prefs.edit().putString("last",pending.toString()).commit())throw new IOException("最近实验保存失败");
+        rememberTrial(prefs,pending,"pending",0,0);
         append(c,new JSONObject().put("kind","started").put("id",pending.optString("id")).put("time_ms",System.currentTimeMillis()).put("actualSoundMs",selected.actualSoundMs).put("actualVibrationMs",selected.actualVibrationMs));
     }
     synchronized void executed(boolean ok)throws Exception{

@@ -428,6 +428,7 @@ public final class SleepRecorderService extends Service {
         long previousCue=0,lastSecond=-2;
         boolean previousMuted=true;
         FeedbackExperiment experiment=new FeedbackExperiment(this);
+        long publishedOutcome=0;
         try(SleepYamnetClassifier classifier=new SleepYamnetClassifier(this,SAMPLE_RATE,1)){
             inferenceState="running";sendFeedbackStatus();
             while(running){
@@ -462,6 +463,8 @@ public final class SleepRecorderService extends Service {
                     experiment.observe(block.second,score,uncertain,now,settings.threshold,screenPaused);
                     if(screenPaused)stopAutoCue();
                 }else{experiment.close();if(screenPaused)stopAutoCue();}
+                long revision=experiment.outcomeRevision();
+                if(revision!=publishedOutcome){publishedOutcome=revision;sendFeedbackStatus();}
                 if(armed&&triggerValid&&snoreTrigger.ready(settings.minimum) &&
                         (previousCue==0||now-previousCue>=settings.repeat*1000L)&&
                         !SnoreFeedbackController.isCuePlaying()&&

@@ -140,3 +140,5 @@ Android 应用私有 files/bodytrace/
 ## 历史与来源
 
 长期保留且优先参考的历史是 [main 提交记录](https://github.com/z2846852/mywork/commits/main) 与 [Release 历史](https://github.com/z2846852/mywork/releases)。README 不再保留按日期排列的几十个历史更新章节。需要考察特定版本为什么变化时，使用 GitHub Commit / Compare 和对应源码，避免历史叙述与当前行为互相矛盾。
+
+实时反馈页：今晚实验（预设、录音、自动开关、4声累计、阶梯、五项独立自报、按试验结果关联）、检测与试听（麦克风、振动/声音独立测试）、高级设置（模式、保护、排除规则）。本晚试验面板从原生持久化记录读取，观察结束自动刷新；长期 JSONL 和录音事件仍独立保存。
