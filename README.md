@@ -4,6 +4,8 @@
 
 [下载最新 APK](https://github.com/z2846852/mywork/releases/latest) · [最新成功发布状态](build-status.json) · [正式构建 Actions](https://github.com/z2846852/mywork/actions/workflows/android.yml) · [夜间回归](https://github.com/z2846852/mywork/actions/workflows/nightly-tests.yml) · [代码提交记录](https://github.com/z2846852/mywork/commits/main)
 
+日常 APK 构建复用按固定资源生成脚本哈希索引的离线词典、语音样本、YAMNet 与 sherpa-onnx 缓存，以及 Gradle 构建缓存；已有 Android SDK 组件不重复安装。保留短时反馈策略、日期、资源完整性、签名及差分验证；全面回归仍由夜间流程负责。
+
 > **阅读规则：** 先读此 README，再检查 `main` 的实时源码、Actions、Release；它记录当前目标和已确认的默认行为，不是未来改动的强制需求。本文避免按日期堆砌版本流水账，过去的变更在 Git 历史和 Release 中查看。代码实现、CI 成功、APK 发布、手机真机验证是四件不同的事，不能互相替代。
 
 ## 个人开发约定
