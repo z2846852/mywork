@@ -368,6 +368,7 @@ public final class MainActivity extends Activity {
             return;
         }
         Uri uri=data==null?null:data.getData();
+        if(requestCode==7211||requestCode==7212){if(uri==null){error("未获得提示录音");return;}worker.execute(()->{try{CueLibrary.add(this,uri);reply(SleepRecorderService.feedbackStatus(this));}catch(Exception e){error("反馈录音导入失败："+safeMessage(e));}});return;}
         if(requestCode==PICK_APK_PATCH_REQUEST){
             if(uri==null){error("未选择差分补丁");return;}
             worker.execute(()->{
@@ -2372,6 +2373,26 @@ public final class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public void sleepCueImport(boolean record){
+            runOnUiThread(()->{try{
+                if(record&&SleepRecorderService.isMicrophoneActive())throw new IllegalStateException("请先停止麦克风监听/录音");
+                Intent i=record?new Intent(android.provider.MediaStore.Audio.Media.RECORD_SOUND_ACTION):new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE);
+                startActivityForResult(i,record?7212:7211);
+            }catch(Exception e){error("反馈录音入口失败："+safeMessage(e));}});
+        }
+        @JavascriptInterface public void sleepExperimentReview(String scope){
+            worker.execute(()->{try{
+                if(!"acceptable".equals(scope)&&SleepRecorderService.isFeedbackEnabled())
+                    startService(new Intent(MainActivity.this,SleepRecorderService.class).setAction(SleepRecorderService.ACTION_FEEDBACK_OFF));
+                FeedbackExperiment.reject(MainActivity.this,scope);reply(SleepRecorderService.feedbackStatus(MainActivity.this));
+            }catch(Exception e){error("反馈实验评价失败："+safeMessage(e));}});
+        }
+        @JavascriptInterface public void sleepExperimentExport(){
+            worker.execute(()->{try{
+                String raw=FeedbackExperiment.export(MainActivity.this);
+                runOnUiThread(()->startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,raw),"导出长期实验 JSONL")));
+            }catch(Exception e){error("反馈实验导出失败："+safeMessage(e));}});
+        }
         @JavascriptInterface public boolean sleepFeedbackSave(String raw) {
             try {
                 SnoreFeedbackController.Settings.save(MainActivity.this,raw);

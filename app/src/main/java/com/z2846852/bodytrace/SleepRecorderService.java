@@ -78,7 +78,8 @@ public final class SleepRecorderService extends Service {
                 .put("time_ms",System.currentTimeMillis());
             if(Double.isFinite(score))event.put("score",score);
             if(settings!=null)event.put("sound",settings.sound).put("volume",settings.volume)
-                .put("vibration",settings.vibrate).put("threshold",settings.threshold)
+                .put("vibration",settings.vibrate).put("sound_enabled",settings.soundEnabled)
+                .put("parameters",settings.json()).put("threshold",settings.threshold)
                 .put("minimum",settings.minimum).put("repeat",settings.repeat);
             if(duration>0)event.put("planned_duration_ms",duration);
             if(detectorSecond>=0){
@@ -88,7 +89,8 @@ public final class SleepRecorderService extends Service {
             SleepSessions.appendFeedback(context,session,event);
             if("cue".equals(kind)){
                 recordingCueCount++;
-                if(settings!=null&&settings.vibrate)recordingVibrationCount++;else recordingSoundCount++;
+                if(settings!=null&&settings.vibrate)recordingVibrationCount++;
+                if(settings!=null&&settings.soundEnabled)recordingSoundCount++;
             }
         }catch(Exception e){
             journalError="反馈日志保存失败："+e.getMessage();
@@ -163,7 +165,7 @@ public final class SleepRecorderService extends Service {
             .put("microphone_active",microphoneActive)
             .put("monitor_only",microphoneActive&&!isRecording())
             .put("recording",isRecording())
-            .put("settings",SnoreFeedbackController.Settings.load(c).json())
+            .put("settings",SnoreFeedbackController.Settings.load(c).json()).put("experiment",FeedbackExperiment.summary(c)).put("clips",CueLibrary.list(c))
             .put("inference_state",inferenceState).put("inference_error",inferenceError)
             .put("inferred_windows",inferredWindows).put("dropped_windows",droppedWindows)
             .put("latest_mic",latestMic)
@@ -378,6 +380,7 @@ public final class SleepRecorderService extends Service {
     private void inferLoop() {
         int consecutive=0;
         long previousCue=0,lastSecond=-2;
+        FeedbackExperiment experiment=new FeedbackExperiment(this);
         try(SleepYamnetClassifier classifier=new SleepYamnetClassifier(this,SAMPLE_RATE,1)){
             inferenceState="running";sendFeedbackStatus();
             while(running){
@@ -399,27 +402,34 @@ public final class SleepRecorderService extends Service {
                     .put("muted",block.muted).put("inferred_windows",inferredWindows)
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
+                if(feedbackEnabled)experiment.observe(block.second,score,block.muted,now);else experiment.close();
                 if(consecutive>=settings.minimum &&
                         (previousCue==0||now-previousCue>=settings.repeat*1000L)&&
                         !SnoreFeedbackController.isCuePlaying()&&
                         (autoCueThread==null||!autoCueThread.isAlive())){
+                    SnoreFeedbackController.Settings selected=experiment.choose(settings,now,feedbackStartedMs);
+                    if(selected==null)continue;
                     previousCue=now;consecutive=0;
+                    if(experiment.begin(selected,now,currentId)){experiment.executed(true);sendFeedbackStatus();continue;}
                     // Longer dream motifs never block the YAMNet inference thread.
                     Thread cue=new Thread(()->{
-                        if(!running||!feedbackEnabled||Thread.currentThread().isInterrupted())return;
+                        if(!running||!feedbackEnabled||Thread.currentThread().isInterrupted()){try{experiment.executed(false);}catch(Exception ignored){}return;}
+                        boolean success=false;
                         try{
-                            if(SnoreFeedbackController.playCue(this,settings,(samples,rate,duration,vibration)->
+                            if(SnoreFeedbackController.playCue(this,selected,(samples,rate,duration,vibration)->
                                     {
-                                        recordingEvent(this,"cue",score,settings,block.second,duration);
+                                        recordingEvent(this,"cue",score,selected,block.second,duration);
                                         sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发");
                                         sendFeedbackStatus();
                                     })){
+                                success=true;
                                 if(running){
                                     feedbackCount++;lastFeedbackMs=System.currentTimeMillis();
-                                    addLiveLog("cue",score,settings.sound,settings.volume,settings.vibrate,block.second);
+                                    addLiveLog("cue",score,selected.sound,selected.volume,selected.vibrate,block.second);
                                 }
                             }
                         }catch(Exception e){if(running)sendError("自动提示音失败："+e.getMessage());}
+                        finally{try{experiment.executed(success);}catch(Exception e){feedbackEnabled=false;sendError("实验日志失败："+e.getMessage());}}
                         if(running)sendFeedbackStatus();
                     },"sleep-auto-cue");
                     autoCueThread=cue;cue.start();
@@ -432,7 +442,7 @@ public final class SleepRecorderService extends Service {
             android.util.Log.e("SleepFeedback","Live inference failed",e);
             if(feedbackEnabled)recordingEvent(this,"feedback_off",Double.NaN,null,-1,0);
             feedbackEnabled=false;sendFeedbackStatus();
-        }
+        }finally{try{experiment.close();}catch(Exception e){sendError("实验日志保存失败："+e.getMessage());}}
     }
 
     static JSONObject speakerWave(short[] samples,int rate,int duration,

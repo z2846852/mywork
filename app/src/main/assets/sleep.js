@@ -413,7 +413,7 @@
   $("sleepRecordedFeedbackSummary").textContent=analysis.feedback_journal_error?"日志读取失败："+analysis.feedback_journal_error:!analysis.feedback_journal_version?"旧录音或导入文件：未记录反馈事件，无法追溯是否播放。":`自动反馈 ${cues.length} 次 · 声音 ${sounds.length} · 震动 ${vibrations.length} · 试听 ${previews} · 标记 ${manual}`;
   $("sleepFeedbackSessionExport").disabled=!analysis.feedback_journal_version||!bridge()?.sleepFeedbackExportSession;
   const filter=$("sleepRecordedFeedbackFilter").value;
-  const filtered=items.filter(e=>filter==="all"||filter===e.kind||filter==="sound"&&e.kind==="cue"&&!e.vibration||filter==="vibrate"&&e.kind==="cue"&&e.vibration||filter==="switch"&&["feedback_on","feedback_off"].includes(e.kind)).sort((a,b)=>Number(a.offset_ms)-Number(b.offset_ms));
+  const filtered=items.filter(e=>filter==="all"||filter===e.kind||filter==="sound"&&e.kind==="cue"&&(e.sound_enabled??!e.vibration)||filter==="vibrate"&&e.kind==="cue"&&e.vibration||filter==="switch"&&["feedback_on","feedback_off"].includes(e.kind)).sort((a,b)=>Number(a.offset_ms)-Number(b.offset_ms));
   for(const e of filtered.slice(0,feedbackEventLimit)){
    const sec=Math.max(0,Number(e.offset_ms)||0)/1000;
    const label=window.BodyTraceSleepVisual?.formatTime?.(sec,analysis.id)||clock(analysis.started_ms+sec*1000);
@@ -943,7 +943,7 @@
  // and synthesized cue previews work without microphone permission.
  (function initSnoreFeedback(){
   const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold",
-   "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate"];
+   "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate","sleepFeedbackSoundEnabled","sleepFeedbackSoundPool","sleepFeedbackVibrationPool","sleepFeedbackSoundRhythm","sleepFeedbackSoundMs","sleepFeedbackSoundMax","sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationMax","sleepFeedbackMode","sleepFeedbackDelayMinutes","sleepFeedbackMaxCues"];
   let micActive=false,recordActive=false,feedbackActive=false;
   const micHistory=[];
   let latestSecond=-1,liveSpan=60,captureStart=0;
@@ -955,7 +955,14 @@
    threshold:Number($("sleepFeedbackThreshold").value),
    minimum:Number($("sleepFeedbackMinimum").value),
    repeat:Number($("sleepFeedbackRepeat").value),
-   vibrate:$("sleepFeedbackVibrate").checked
+   vibrate:$("sleepFeedbackVibrate").checked,
+   soundEnabled:$("sleepFeedbackSoundEnabled").checked,
+   soundPool:[...$("sleepFeedbackSoundPool").selectedOptions].map(o=>o.value).join(","),
+   vibrationPool:[...$("sleepFeedbackVibrationPool").selectedOptions].map(o=>o.value).join(","),
+   soundRhythm:$("sleepFeedbackSoundRhythm").value,soundMs:Number($("sleepFeedbackSoundMs").value),
+   soundMax:Number($("sleepFeedbackSoundMax").value),vibrationMax:Number($("sleepFeedbackVibrationMax").value),
+   vibrationPattern:$("sleepFeedbackVibrationPattern").value,vibrationAmplitude:Number($("sleepFeedbackVibrationAmplitude").value),vibrationMs:Number($("sleepFeedbackVibrationMs").value),
+   mode:$("sleepFeedbackMode").value,delayMinutes:Number($("sleepFeedbackDelayMinutes").value),maxCues:Number($("sleepFeedbackMaxCues").value)
   });
   function labels(){
    $("sleepFeedbackVolumeText").textContent=cfg().volume+"%";
@@ -1082,13 +1089,21 @@
    if(!micActive&&oldMic){
     micHistory.length=0;latestSecond=-1;$("sleepMicDbfs").textContent="—";$("sleepLivePeak").textContent="峰值 —";micGraph();
    }
+   if(Array.isArray(evt.clips)){
+    const main=$("sleepFeedbackSound");
+    evt.clips.forEach(c=>{if(![...main.options].some(o=>o.value===c.id)){const o=document.createElement("option");o.value=c.id;o.textContent=c.name;main.append(o);}});
+    const pool=$("sleepFeedbackSoundPool");[...main.options].forEach(o=>{if(![...pool.options].some(p=>p.value===o.value)){const n=o.cloneNode(true);n.selected=false;pool.append(n);}});
+   }
+   if(evt.experiment){const e=evt.experiment,l=e.last||{};$("sleepExperimentSummary").textContent=`累计 ${e.trials} · 刺激后低鼾声 ${e.stopped}/${e.observed} · 对照 ${e.controlStopped}/${e.controlObserved} · 人工上限 声${e.soundLimit}%/震${e.vibrationLimit}% · 最近 ${l.sound||"—"} ${l.volume||0}% / ${l.vibrationPattern||"—"} ${l.vibrationAmplitude||0}%`;}
    if(evt.settings&&typeof evt.settings==="object"&&
        !ids.includes(document.activeElement?.id)){
-    for(const k of ["sound","volume","threshold","minimum","repeat"]){
+    for(const k of ["sound","volume","threshold","minimum","repeat","soundRhythm","soundMs","soundMax","vibrationMax","vibrationPattern","vibrationAmplitude","vibrationMs","mode","delayMinutes","maxCues"]){
      const id="sleepFeedback"+k[0].toUpperCase()+k.slice(1);
      if(evt.settings[k]!==undefined)$(id).value=String(evt.settings[k]);
     }
     $("sleepFeedbackVibrate").checked=!!evt.settings.vibrate;
+    $("sleepFeedbackSoundEnabled").checked=evt.settings.soundEnabled!==false;
+    for(const k of ["SoundPool","VibrationPool"]){const key=k[0].toLowerCase()+k.slice(1), set=new Set(String(evt.settings[key]||"").split(","));for(const o of $("sleepFeedback"+k).options)o.selected=set.has(o.value); }
     labels();
    }
    if(recordActive!==recording)bridge()?.sleepStatus?.();
@@ -1144,15 +1159,19 @@
     $("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;
    }
    $("sleepFeedbackInfo").textContent="正在测试提示音，下面的波形会同步变化…";
-   bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),vibrate:false}));
+   bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),soundEnabled:true,vibrate:false}));
   };
   $("sleepFeedbackVibratePreview").onclick=()=>{
    if(!bridge()?.sleepFeedbackPreview){
     $("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;
    }
    $("sleepFeedbackInfo").textContent="正在测试震动（喇叭保持静音）…";
-   bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),vibrate:true}));
+   bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),soundEnabled:false,vibrate:true}));
   };
+  $("sleepCueRecord").onclick=()=>bridge()?.sleepCueImport?.(true);
+  $("sleepCueImport").onclick=()=>bridge()?.sleepCueImport?.(false);
+  $("sleepExperimentApply").onclick=()=>bridge()?.sleepExperimentReview?.($("sleepExperimentReview").value);
+  $("sleepExperimentExport").onclick=()=>bridge()?.sleepExperimentExport?.();
   window.bodyTraceReceiveFeedback=function(evt){
    if(!evt?.type)return;
    if(evt.type==="sleep_feedback_status"){
