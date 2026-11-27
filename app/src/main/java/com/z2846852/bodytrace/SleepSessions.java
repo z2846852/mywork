@@ -228,6 +228,71 @@ final class SleepSessions {
             .put("sound_count",sound).put("vibration_count",vibration).put("mixed_count",mixed)
             .put("hourly",hourly).put("responses",responses);
     }
+    // Cache derived summaries only, never rewrite a historical envelope. Keyed by
+    // cache/journal revision so manual refresh sees completed analysis and new markers.
+    private static final java.util.LinkedHashMap<String,OfflineEntry> offlineMetrics=new java.util.LinkedHashMap<>(64,.75f,true);
+    private static final class OfflineEntry{
+        final String revision;final JSONObject metrics;
+        OfflineEntry(String revision,JSONObject metrics){this.revision=revision;this.metrics=metrics;}
+    }
+    private static String stamp(File f){return f.lastModified()+":"+f.length();}
+    static synchronized JSONObject offlineSnoreMetrics(Context context,String id)throws Exception{
+        JSONObject meta=loadMetadata(context,id);
+        if(meta.has("snore_metrics"))return meta.optJSONObject("snore_metrics");
+        if(SleepRecorderService.isCurrentSession(id))return null;
+        File envelope=envelopeFile(context,id),journal=feedbackFile(context,id);
+        String revision=stamp(envelope)+"/"+stamp(journal)+"/"+meta.optInt("feedback_journal_version",0);
+        if(!envelope.isFile())revision+="/"+stamp(json(context,id));
+        OfflineEntry cached=offlineMetrics.get(id);
+        if(cached!=null&&revision.equals(cached.revision))return cached.metrics;
+        JSONObject doc=load(context,id);
+        JSONArray scores=doc.optJSONArray("ai_snore_scores"),levels=doc.optJSONArray("levels_dbfs");
+        JSONObject result=null;
+        if(scores!=null&&levels!=null&&scores.length()==levels.length()&&scores.length()>0){
+            double[] values=new double[scores.length()];
+            for(int i=0;i<values.length;i++)values[i]=scores.optDouble(i,Double.NaN);
+            StringBuilder windows=new StringBuilder(SnoreMetrics.offlineWindows(values));
+            JSONArray events=new JSONArray();
+            boolean journalKnown=meta.optInt("feedback_journal_version",0)>0;
+            if(journalKnown){try{events=readFeedback(context,id);}catch(Exception e){journalKnown=false;}}
+            int sound=0,vibration=0,mixed=0;boolean channelsKnown=journalKnown;
+            for(int i=0;i<events.length();i++){
+                JSONObject e=events.optJSONObject(i);
+                if(e==null)continue;
+                String kind=e.optString("kind");
+                if(!"cue".equals(kind)&&!"preview".equals(kind))continue;
+                JSONObject p=e.optJSONObject("parameters");
+                int duration=e.optInt("planned_duration_ms",0);
+                if(p!=null)duration=Math.max(duration,Math.max(p.optInt("actualSoundMs"),p.optInt("actualVibrationMs")));
+                SnoreMetrics.maskCue(windows,e.optLong("offset_ms",-1),duration>0?duration:5000);
+                if(!"cue".equals(kind))continue;
+                boolean a,b;
+                if(p!=null&&(p.optInt("actualSoundMs")>0||p.optInt("actualVibrationMs")>0)){
+                    a=p.optInt("actualSoundMs")>0;b=p.optInt("actualVibrationMs")>0;
+                }else if(e.has("sound_enabled")&&e.has("vibration")){
+                    a=e.optBoolean("sound_enabled");b=e.optBoolean("vibration");
+                }else{channelsKnown=false;continue;}
+                if(a)sound++;if(b)vibration++;if(a&&b)mixed++;
+            }
+            result=statsJson(SnoreMetrics.summarize(windows,0,windows.length()))
+                .put("source","offline").put("threshold",SnoreMetrics.OFFLINE_THRESHOLD)
+                .put("window_seconds",windows.length()).put("journal_known",journalKnown)
+                .put("sound_count",channelsKnown?sound:JSONObject.NULL)
+                .put("vibration_count",channelsKnown?vibration:JSONObject.NULL)
+                .put("mixed_count",channelsKnown?mixed:JSONObject.NULL);
+            result.remove("armed_seconds");result.remove("silent_seconds");
+            JSONArray hourly=new JSONArray();
+            for(int i=0;i<windows.length();i+=3600){
+                JSONObject h=statsJson(SnoreMetrics.summarize(windows,i,i+3600)).put("offset_seconds",i);
+                h.remove("armed_seconds");h.remove("silent_seconds");hourly.put(h);
+            }
+            result.put("hourly",hourly);
+            // Offline model scores cannot reconstruct real-time intervention response.
+        }
+        offlineMetrics.put(id,new OfflineEntry(revision,result));
+        while(offlineMetrics.size()>64)offlineMetrics.remove(offlineMetrics.keySet().iterator().next());
+        return result;
+    }
     static synchronized void rateSleep(Context context,String id,int quality)throws Exception{
         if(quality<0||quality>5)throw new IllegalArgumentException("评分必须为1–5或清空");
         if(SleepRecorderService.isCurrentSession(id))throw new IllegalStateException("请在录音结束后评分");
@@ -379,7 +444,16 @@ final class SleepSessions {
         }
         entries.sort(Comparator.comparingLong((JSONObject s)->s.optLong("started_ms",0)).reversed());
         JSONArray result = new JSONArray();
-        for (int i=0;i<Math.min(50,entries.size());i++) result.put(entries.get(i));
+        for (int i=0;i<Math.min(50,entries.size());i++){
+            JSONObject entry=entries.get(i);
+            if(!entry.has("snore_metrics")&&entry.optBoolean("levels_cached")&&!"recording".equals(entry.optString("status"))){
+                try{
+                    JSONObject derived=offlineSnoreMetrics(context,entry.getString("id"));
+                    if(derived!=null)entry.put("snore_metrics",derived);
+                }catch(Exception e){entry.put("snore_metrics_error",true);}
+            }
+            result.put(entry);
+        }
         return result;
     }
 }

@@ -2530,7 +2530,7 @@ public final class MainActivity extends Activity {
                     JSONObject meta=SleepSessions.loadMetadata(MainActivity.this,sessionId);
                     String raw=new JSONObject().put("session_id",sessionId).put("started_ms",meta.optLong("started_ms"))
                         .put("feedback_journal_version",meta.optInt("feedback_journal_version",0))
-                        .put("snore_metrics",meta.opt("snore_metrics"))
+                        .put("snore_metrics",SleepSessions.offlineSnoreMetrics(MainActivity.this,sessionId))
                         .put("snore_windows_v1",meta.opt("snore_windows_v1"))
                         .put("snore_settings_v1",meta.opt("snore_settings_v1"))
                         .put("sleep_quality",meta.opt("sleep_quality"))

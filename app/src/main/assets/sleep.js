@@ -250,28 +250,73 @@
    analyze();
   }
  }
+ const nightNumber=v=>v===null||v===undefined||!Number.isFinite(Number(v))?null:Number(v);
+ const nightFmt=v=>nightNumber(v)===null?"—":duration(Math.max(0,Number(v)));
+ const nightRate=x=>x?.valid_seconds>0&&nightNumber(x.episodes_per_hour)!==null?Number(x.episodes_per_hour).toFixed(1)+" 次/h":"—";
+ const nightMode=x=>!x?"待分析":x.source==="offline"?"离线回算":x.armed_seconds>0?(x.silent_seconds>0?"混合":"反馈开启"):(x.valid_seconds>0?"静默":"无有效窗口");
+ function nightValue(session,key){
+  const m=session?.snore_metrics;
+  if(key==="sleep_quality")return nightNumber(session?.sleep_quality);
+  if(key==="snore_fraction")return m?.valid_seconds>0?100*m.snore_seconds/m.valid_seconds:null;
+  if(["episodes_per_hour","snore_seconds"].includes(key)&&!(m?.valid_seconds>0))return null;
+  return nightNumber(m?.[key]);
+ }
+ function nightValueText(v,key){
+  if(v===null)return "—";
+  if(key==="snore_seconds")return nightFmt(v);
+  if(key==="episodes_per_hour")return v.toFixed(1)+" 次/h";
+  if(key==="snore_fraction")return v.toFixed(1)+"%";
+  return String(v);
+ }
+ function nightBar(root,label,value,max,detail,offline,onClick){
+  const row=document.createElement("div");row.style.cssText="display:grid;grid-template-columns:minmax(70px,110px) 1fr minmax(48px,auto);align-items:center;gap:5px;font-size:12px";
+  const name=document.createElement(onClick?"button":"span");name.textContent=label;name.title=detail||label;
+  if(onClick){name.type="button";name.className="secondary mini";name.style.cssText="padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";name.onclick=onClick;}
+  const track=document.createElement("div");track.style.cssText="height:10px;border-radius:3px;background:rgba(128,128,128,.17);overflow:hidden";
+  const fill=document.createElement("div");fill.style.cssText="height:100%;border-radius:3px;background:"+(offline?"#879bb7":"#43a88d");
+  fill.style.width=value===null?"0%":Math.max(0,Math.min(100,value/max*100))+"%";track.append(fill);
+  const count=document.createElement("span");count.textContent=detail;count.style.textAlign="right";
+  row.append(name,track,count);root.append(row);
+ }
+ function renderNightHistory(){
+  const root=$("sleepNightHistoryChart");if(!root)return;root.replaceChildren();
+  const key=$("sleepNightHistoryMetric").value;
+  const rows=sessions.filter(s=>s.status!=="recording").slice(0,14).reverse();
+  const max=Math.max(key==="sleep_quality"?5:key==="snore_fraction"?100:1,...rows.map(s=>nightValue(s,key)??0));
+  for(const s of rows){
+   const val=nightValue(s,key),m=s.snore_metrics;
+   const label=s.date_basis==="imported_at"?(s.original_name||"导入"):(s.started_ms?new Date(s.started_ms).toLocaleDateString("zh-CN",{month:"numeric",day:"numeric",timeZone:"Asia/Shanghai"}):"未知");
+   nightBar(root,label+(m?.source==="offline"?" 离":!m?" 待":""),val,max,nightValueText(val,key),m?.source==="offline",()=>selectSession(s.id));
+  }
+  if(!rows.length)root.textContent="暂无历史录音";
+ }
  function renderNightExperiment(chosen){
   const panel=$("sleepNightExperiment");if(!panel)return;
   panel.hidden=!chosen;
   if(!chosen)return;
-  const m=chosen.snore_metrics;
-  const rate=x=>x?.valid_seconds>0&&Number.isFinite(Number(x.episodes_per_hour))?Number(x.episodes_per_hour).toFixed(1)+" 次/h":"—";
-  const fmt=x=>duration(Math.max(0,Number(x)||0));
-  const mode=x=>!x?"未记录":x.armed_seconds>0?(x.silent_seconds>0?"混合":"反馈开启"):(x.valid_seconds>0?"静默":"无有效窗口");
-  $("sleepNightSummary").textContent=m?
-   mode(m)+" · 有效 "+fmt(m.valid_seconds)+" · 鼾声 "+rate(m)+" / "+fmt(m.snore_seconds)+
-   " · 声 "+m.sound_count+" / 震 "+m.vibration_count+" / 混合 "+m.mixed_count+"（声震含混合）":
-   "此录音暂无新版实时实验指标";
+  const m=chosen.snore_metrics, mode=nightMode(m);
+  $("sleepNightSummary").textContent=m?mode+" · 有效 "+nightFmt(m.valid_seconds)+(m.source==="offline"?" · AI ≥0.15"+(!m.journal_known?" · 反馈日志未知":""):""):
+    chosen.snore_metrics_error?"缓存读取失败，点刷新重试":"暂无 AI 指标，选择录音后可分析";
+  const kpis=$("sleepNightKpis");kpis.replaceChildren();
+  const metrics=[["鼾声频率",nightRate(m)],["累计时长",nightValueText(nightValue(chosen,"snore_seconds"),"snore_seconds")],["时间占比",nightValueText(nightValue(chosen,"snore_fraction"),"snore_fraction")],["声音反馈",nightValueText(nightValue(chosen,"sound_count"),"sound_count")],["振动反馈",nightValueText(nightValue(chosen,"vibration_count"),"vibration_count")],["混合反馈",nightValueText(nightValue(chosen,"mixed_count"),"mixed_count")]];
+  for(const [label,value] of metrics){const box=document.createElement("div");box.style.cssText="padding:4px;border:1px solid rgba(128,128,128,.25);border-radius:5px;min-width:0";
+   const title=document.createElement("small"),number=document.createElement("strong");title.textContent=label;title.style.cssText="display:block;opacity:.75;font-size:11px";number.textContent=value;number.style.cssText="display:block;font-size:14px";box.append(title,number);kpis.append(box);}
   const quality=$("sleepNightQuality");quality.value=String(chosen.sleep_quality||0);
   quality.disabled=chosen.status==="recording"||recording||typeof bridge()?.sleepRateNight!=="function";
-  quality.onchange=()=>{const v=Number(quality.value);bridge()?.sleepRateNight?.(chosen.id,v);};
-  const hourly=(m?.hourly||[]).map((h,i)=>"第"+(i+1)+"小时 · "+rate(h)+" · 鼾声 "+fmt(h.snore_seconds)+" · 有效 "+fmt(h.valid_seconds));
-  const responses=(m?.responses||[]).map(r=>fmt(r.offset_ms/1000)+" "+(r.sound&&r.vibration?"混合":r.sound?"声音":"震动")+" · "+(!r.observed?"未获得有效观察":(r.censored?"至少 ":"")+fmt(r.quiet_seconds)+(r.censored?"（观察中断/结束）":"")));
-  $("sleepNightDetail").textContent=[...hourly,...responses].join("\n")||"暂无有效记录";
-  $("sleepNightHistory").textContent=sessions.filter(s=>s.snore_metrics||s.sleep_quality).slice(0,14).map(s=>{
-   const n=s.snore_metrics;
-   return time(s.started_ms)+" · "+mode(n)+" · "+rate(n)+" · "+(n?.valid_seconds>0?fmt(n.snore_seconds):"—")+" · 声 "+(n?.sound_count??"—")+" · 评分 "+(s.sleep_quality||"—");
-  }).join("\n")||"暂无记录";
+  quality.onchange=()=>bridge()?.sleepRateNight?.(chosen.id,Number(quality.value));
+  const hourly=m?.hourly||[],chart=$("sleepNightHourlyChart");chart.replaceChildren();
+  const max=Math.max(1,...hourly.map(h=>h.valid_seconds>0?Number(h.episodes_per_hour)||0:0));
+  hourly.forEach((h,i)=>{
+   const offset=Number(h.offset_seconds)||i*3600;
+   const label=chosen.date_basis==="imported_at"?"+"+(offset/3600)+"h":clock(Number(chosen.started_ms)+offset*1000);
+   nightBar(chart,label,h.valid_seconds>0?nightNumber(h.episodes_per_hour):null,max,nightRate(h),m.source==="offline");
+  });
+  if(!hourly.length)chart.textContent="暂无小时指标";
+  const hourLines=hourly.map((h,i)=>"第"+(i+1)+"小时 · "+nightRate(h)+" · 鼾声 "+(h.valid_seconds>0?nightFmt(h.snore_seconds):"—")+" · 有效 "+nightFmt(h.valid_seconds));
+  const responses=(m?.responses||[]).map(r=>nightFmt(r.offset_ms/1000)+" "+(r.sound&&r.vibration?"混合":r.sound?"声音":"震动")+" · "+(!r.observed?"未获得有效观察":(r.censored?"至少 ":"")+nightFmt(r.quiet_seconds)+(r.censored?"（观察中断/结束）":"")));
+  $("sleepNightDetail").textContent=[...hourLines,...responses,...(m?.source==="offline"?["历史回算不能还原实时反馈后的未检出时长"]:[])].join("\n")||"暂无有效记录";
+  $("sleepNightHistory").textContent=sessions.slice(0,14).map(s=>{const n=s.snore_metrics;return time(s.started_ms)+" · "+nightMode(n)+" · "+nightRate(n)+" · "+nightValueText(nightValue(s,"snore_seconds"),"snore_seconds")+" · 声 "+nightValueText(nightValue(s,"sound_count"),"sound_count")+" · 评分 "+(s.sleep_quality||"—");}).join("\n")||"暂无记录";
+  renderNightHistory();
  }
  function render(){
   $("sleepStatus").textContent=recording?
@@ -616,10 +661,15 @@
   $("sleepStatus").textContent="正在停止并保存，请不要强行结束 APP…";
   bridge().sleepStop();
  };
- $("sleepRefresh").onclick=()=>{
+ function refreshNightMetrics(){
   if(!bridge()?.sleepStatus){toast("请在 Android APP 内查看本机录音",true);return;}
   bridge().sleepStatus();
- };
+  toast("正在刷新录音及实验指标");
+ }
+ $("sleepRefresh").onclick=refreshNightMetrics;
+ $("sleepNightRefresh")?.addEventListener("click",refreshNightMetrics);
+ $("sleepNightRefreshPanel")?.addEventListener("click",refreshNightMetrics);
+ $("sleepNightHistoryMetric")?.addEventListener("change",renderNightHistory);
  $("sleepAnalyze").onclick=analyze;
  $("sleepSaveStart").onclick=()=>{
   const value=$("sleepEditStart").value;

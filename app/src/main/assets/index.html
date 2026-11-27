@@ -566,6 +566,7 @@ body.overview-muscle-open{overflow:hidden}
   <div class="sleep-active-row" id="sleepAudioToolbar">
    <label for="sleepSessionSelect" class="sr-only">选择录音</label>
    <select id="sleepSessionSelect" aria-label="当前录音"><option value="">请选择录音</option></select>
+   <button type="button" class="secondary mini" id="sleepNightRefresh" title="刷新全部录音及实验指标" aria-label="刷新录音及实验指标">↻</button>
    <button type="button" class="secondary mini" id="sleepStart" aria-label="开始录音" title="开始录音">●</button>
    <button type="button" class="secondary mini" id="sleepStop" aria-label="停止并保存录音" title="停止并保存录音" disabled>■</button>
    <button type="button" class="secondary mini" id="sleepImport" aria-label="导入音频" title="导入音频">＋</button>
@@ -592,13 +593,15 @@ body.overview-muscle-open{overflow:hidden}
   <p id="sleepSelectedFile" class="sub">录音大小和缓存状态将显示在这里</p>
   <details id="sleepNightExperiment" class="sleep-live-help" hidden open>
    <summary>鼾声实验 · 本次录音</summary>
-   <p id="sleepNightSummary" class="sub"></p>
+   <div class="row wrap" style="justify-content:space-between;align-items:center"><span id="sleepNightSummary" class="sub"></span><button type="button" class="secondary mini" id="sleepNightRefreshPanel">刷新指标</button></div>
+   <div id="sleepNightKpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:5px 0"></div>
+   <div id="sleepNightHourlyChart" style="display:grid;gap:3px"></div>
    <div class="row wrap"><label for="sleepNightQuality" class="sub">次日主观睡眠质量</label>
     <select id="sleepNightQuality"><option value="0">未评分</option><option value="1">1 很差</option><option value="2">2 较差</option><option value="3">3 一般</option><option value="4">4 较好</option><option value="5">5 很好</option></select>
    </div>
    <details><summary>每小时鼾声 · 反馈后未检出时长</summary><div id="sleepNightDetail" class="sub" style="white-space:pre-line"></div></details>
-   <details><summary>历史对照（最近录音）</summary><div id="sleepNightHistory" class="sub" style="white-space:pre-line"></div></details>
-   <p class="sub">仅 AI 鼾声候选，非睡眠时长或呼吸暂停诊断；静默录音同样记录。旧版无实时指标不按零计算。</p>
+   <details open><summary>历史指标趋势（最近14次）</summary><div class="row wrap"><label class="sub" for="sleepNightHistoryMetric">指标</label><select id="sleepNightHistoryMetric"><option value="episodes_per_hour">鼾声次数 / h</option><option value="snore_seconds">鼾声累计时长</option><option value="snore_fraction">鼾声时间占比</option><option value="sound_count">声音反馈次数</option><option value="vibration_count">振动反馈次数</option><option value="sleep_quality">主观睡眠评分</option></select></div><div id="sleepNightHistoryChart" style="display:grid;gap:4px"></div><details><summary>完整数字</summary><div id="sleepNightHistory" class="sub" style="white-space:pre-line"></div></details></details>
+   <p class="sub">仅 AI 鼾声候选，非睡眠时长或呼吸暂停诊断。离线回算阈值固定 0.15；旧录音与实时记录来源不同，不推断静默模式或反馈效果。</p>
   </details>
   <details id="sleepEditStartRow" class="sleep-time-edit" hidden>
     <summary>校正录制时间</summary>

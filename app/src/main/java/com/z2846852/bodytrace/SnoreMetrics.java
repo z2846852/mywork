@@ -15,6 +15,23 @@ final class SnoreMetrics {
         while(windows.length()<second)windows.append('?');
         windows.append(value);
     }
+    static final double OFFLINE_THRESHOLD=0.15;
+    /** Old cache padded an unfinished final window with zero; exclude it.
+     * Lowercase states encode candidates only; mode is explicitly unknown in offline summaries. */
+    static String offlineWindows(double[] scores){
+        StringBuilder out=new StringBuilder(scores.length);
+        for(int i=0;i<scores.length;i++){
+            double x=scores[i];
+            out.append(i==scores.length-1||!Double.isFinite(x)||x<0||x>1?'?':x>=OFFLINE_THRESHOLD?'h':'q');
+        }
+        return out.toString();
+    }
+    static void maskCue(StringBuilder windows,long offsetMs,int durationMs){
+        if(offsetMs<0)return;
+        int from=(int)Math.min(windows.length(),offsetMs/1000);
+        int to=(int)Math.min(windows.length(),(offsetMs+Math.max(0,durationMs)+3500+999)/1000);
+        for(int i=from;i<to;i++)windows.setCharAt(i,'?');
+    }
     static final class Stats {
         int valid,hit,episodes,armed,silent;
         double perHour(){return valid==0?Double.NaN:episodes*3600.0/valid;}

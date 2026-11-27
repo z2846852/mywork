@@ -15,6 +15,12 @@ public final class SnoreMetricsTest {
         check(windows.toString().equals("??h"));
         String cross="q".repeat(3599)+"hhh";check(SnoreMetrics.summarize(cross,0,3600).episodes==1);
         check(SnoreMetrics.summarize(cross,3600,7200).episodes==0&&SnoreMetrics.summarize(cross,3600,7200).hit==2);
+        String offline=SnoreMetrics.offlineWindows(new double[]{.14,.15,.9,Double.NaN,0});
+        check(offline.equals("qhh??"));
+        StringBuilder masked=new StringBuilder("hhhhhhhhhh");
+        SnoreMetrics.maskCue(masked,1500,1000);
+        check(masked.toString().equals("h?????hhhh"));
+        check(SnoreMetrics.summarize(masked,0,masked.length()).hit==5);
         System.out.println("SnoreMetricsTest passed");
     }
 }
