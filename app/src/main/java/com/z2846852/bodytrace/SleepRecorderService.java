@@ -614,7 +614,7 @@ public final class SleepRecorderService extends Service {
         PendingIntent reject=PendingIntent.getService(this,4218,new Intent(this,SleepRecorderService.class).setAction(ACTION_REJECT_LAST),immutable);
         return new Notification.Builder(this,CHANNEL)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("BodyTrace · 麦克风活动中")
+            .setContentTitle("Better · 麦克风活动中")
             .setContentText("可录制、监听与鼾声提醒 · 点击停止")
             .setContentIntent(open).setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)

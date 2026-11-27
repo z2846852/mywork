@@ -2563,7 +2563,7 @@ public final class MainActivity extends Activity {
                         .put("events",SleepSessions.readFeedback(MainActivity.this,sessionId)).toString(2);
                     runOnUiThread(()->{
                         try{android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("MyWork 录音反馈日志",raw));
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Better 录音反馈日志",raw));
                             reply(message("sleep_feedback_session_exported").put("message","反馈 JSON 已复制到剪贴板"));}
                         catch(Exception e){error("反馈日志复制失败："+safeMessage(e));}
                     });
@@ -2575,7 +2575,7 @@ public final class MainActivity extends Activity {
                 try{
                     String raw=SleepRecorderService.liveLogExport().toString(2);
                     Intent share=new Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_SUBJECT,"MyWork 实时鼾声实验记录")
+                        .putExtra(Intent.EXTRA_SUBJECT,"Better 实时鼾声实验记录")
                         .putExtra(Intent.EXTRA_TEXT,raw);
                     startActivity(Intent.createChooser(share,"分享或保存实验日志"));
                 }catch(Exception e){error("鼾声反馈日志导出失败："+safeMessage(e));}

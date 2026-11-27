@@ -237,7 +237,7 @@ jobs:
             "release-updates/BodyTrace-updates.json#Cross-version APK delta manifest" \
             "${patch_assets[@]}" \
             --target "$GITHUB_SHA" \
-            --title "BodyTrace $tag (Release)" \
+            --title "Better $tag (Release)" \
             --notes-file release-notes.md \
             --latest
           echo "https://github.com/$GH_REPO/releases/latest/download/BodyTrace-release.apk"

@@ -1,4 +1,6 @@
-# 体迹 · BodyTrace / MyWork
+# Better
+
+原名 MyWork / 体迹（BodyTrace）。仅更新显示名称，保留原 Android 包名、签名、仓库与升级文件名，兼容既有数据和差分升级。
 
 个人使用的 Android 数据看板：**健身记录、身体趋势、饮食、睡眠录音与声音分析**。数据优先在手机本地保存，GitHub 用作按需同步和版本化备份。此 README 是跨 ChatGPT / Codex 窗口接手项目的**唯一概要入口**。
 

@@ -23,7 +23,7 @@
     </queries>
     <application
         android:name=".BodyTraceApp"
-        android:label="体迹 · BodyTrace"
+        android:label="Better"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
