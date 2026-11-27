@@ -81,7 +81,12 @@ final class FeedbackPolicy {
     static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=3;}
     static boolean confirmSnore(double snore,double breathing,double other,double threshold){
         return Double.isFinite(snore)&&Double.isFinite(breathing)&&Double.isFinite(other)
-            &&snore>=Math.max(.20,threshold)&&snore>=breathing*1.10&&snore>=other*1.10;
+            &&snore>=Math.max(.35,threshold)&&snore>=breathing*.65&&snore>=other;
+    }
+    static boolean contextSnore(double snore,double breathing,double other,double threshold){
+        // Breathing and Snoring are overlapping multilabel categories, not exclusive.
+        return Double.isFinite(snore)&&Double.isFinite(breathing)&&Double.isFinite(other)
+            &&snore>=Math.max(.30,threshold)&&snore>=breathing*.55&&snore>=other;
     }
     interface PulseClassifier { boolean confirm(short[] pcm,int length); }
     static final int SNORE_WINDOW_SECONDS=300;
@@ -96,7 +101,9 @@ final class FeedbackPolicy {
         private long lastConfirmed=Long.MIN_VALUE;
         private final short[] pulse=new short[15600];
         private int pulseLength;
-        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=pulseReviewed=pulseContext=false;pulseLength=0;lastConfirmed=Long.MIN_VALUE;}
+        private String reviewReason="waiting";
+        String reviewReason(){return reviewReason;}
+        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=peak=onsetFloor=Double.NaN;rise=fall=0;active=classified=needQuiet=pulseReviewed=pulseContext=false;pulseLength=0;lastConfirmed=Long.MIN_VALUE;reviewReason="waiting";}
         private void expire(long tick){
             while(!peaks.isEmpty()&&tick-peaks.peekFirst()>=SNORE_WINDOW_SECONDS*20L)peaks.removeFirst();
             while(!snore.isEmpty()&&tick-snore.peekFirst()>=SNORE_WINDOW_SECONDS*20L)snore.removeFirst();
@@ -179,10 +186,12 @@ final class FeedbackPolicy {
             pulseReviewed=true;
             // Independent PCM confirmation AND positive contextual evidence.
             // Keep at least 1.2s between accepted events, including across consume().
-            if(pulseLength>=4800&&verifier.confirm(pulse,pulseLength)&&pulseContext&&
-                (lastConfirmed==Long.MIN_VALUE||tick-lastConfirmed>=24)){
-                snore.addLast(tick);lastConfirmed=tick;
-            }
+            if(pulseLength<4800){reviewReason="short";return;}
+            boolean isolated=verifier.confirm(pulse,pulseLength);
+            if(!isolated){reviewReason="isolated";return;}
+            if(!pulseContext){reviewReason="context";return;}
+            if(lastConfirmed!=Long.MIN_VALUE&&tick-lastConfirmed<24){reviewReason="duplicate";return;}
+            snore.addLast(tick);lastConfirmed=tick;reviewReason="accepted";
         }
         int confirmedInSecond(long second){int n=0;for(long tick:snore)if(tick/20==second)n++;return n;}
         int peaks(){return peaks.size();}

@@ -127,7 +127,12 @@ public final class FeedbackPolicyTest {
         check(!FeedbackPolicy.confirmSnore(.03,.8,.01,.15),"ordinary breath rejected");
         check(!FeedbackPolicy.confirmSnore(.22,.8,.01,.15),"breathing-dominant ambiguous pulse rejected");
         check(!FeedbackPolicy.confirmSnore(.2,.1,.7,.15),"snort or speech dominant rejected");
-        check(!FeedbackPolicy.confirmSnore(.65,.7,.1,.15),"ambiguous breathing rejected");
+        check(FeedbackPolicy.confirmSnore(.65,.7,.1,.15),"overlapping parent breathing label allowed");
+        check(FeedbackPolicy.confirmSnore(.586,.668,.332,.15),"user screenshot isolated score accepted");
+        check(!FeedbackPolicy.confirmSnore(.30,.65,.1,.15),"breathing-dominant low snore rejected");
+        check(!FeedbackPolicy.confirmSnore(.58,.65,.7,.15),"competing non-snore dominates");
+        check(FeedbackPolicy.contextSnore(.85,.92,.2,.15),"strong contextual snore despite parent label");
+        check(!FeedbackPolicy.contextSnore(.04,.8,.01,.15),"ordinary breathing context rejected");
         check(FeedbackPolicy.confirmSnore(.8,.5,.1,.15),"snoring dominates breathing");
         check(!FeedbackPolicy.confirmSnore(.19,.01,.01,.01),"conservative minimum");
         // Two envelope peaks in one breath: only one may count even if AI
@@ -143,7 +148,7 @@ public final class FeedbackPolicyTest {
         gate.reset();reviews[0]=0;
         gate.updatePcm(0,true,pair,16000,false,(wave,len)->{reviews[0]++;return true;});
         gate.updatePcm(1,true,silence,16000,false,(wave,len)->{reviews[0]++;return true;});
-        check(reviews[0]==2&&gate.count()==0,"context negative vetoes isolated false positives");
+        check(reviews[0]==2&&gate.count()==0&&"context".equals(gate.reviewReason()),"context negative vetoes isolated false positives");
         gate.reset();
         for(int k=0;k<4;k++){
             gate.updatePcm(k*2,true,pair,16000,true,(wave,len)->true);
