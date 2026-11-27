@@ -250,6 +250,29 @@
    analyze();
   }
  }
+ function renderNightExperiment(chosen){
+  const panel=$("sleepNightExperiment");if(!panel)return;
+  panel.hidden=!chosen;
+  if(!chosen)return;
+  const m=chosen.snore_metrics;
+  const rate=x=>x?.valid_seconds>0&&Number.isFinite(Number(x.episodes_per_hour))?Number(x.episodes_per_hour).toFixed(1)+" 次/h":"—";
+  const fmt=x=>duration(Math.max(0,Number(x)||0));
+  const mode=x=>!x?"未记录":x.armed_seconds>0?(x.silent_seconds>0?"混合":"反馈开启"):(x.valid_seconds>0?"静默":"无有效窗口");
+  $("sleepNightSummary").textContent=m?
+   mode(m)+" · 有效 "+fmt(m.valid_seconds)+" · 鼾声 "+rate(m)+" / "+fmt(m.snore_seconds)+
+   " · 声 "+m.sound_count+" / 震 "+m.vibration_count+" / 混合 "+m.mixed_count+"（声震含混合）":
+   "此录音暂无新版实时实验指标";
+  const quality=$("sleepNightQuality");quality.value=String(chosen.sleep_quality||0);
+  quality.disabled=chosen.status==="recording"||recording||typeof bridge()?.sleepRateNight!=="function";
+  quality.onchange=()=>{const v=Number(quality.value);bridge()?.sleepRateNight?.(chosen.id,v);};
+  const hourly=(m?.hourly||[]).map((h,i)=>"第"+(i+1)+"小时 · "+rate(h)+" · 鼾声 "+fmt(h.snore_seconds)+" · 有效 "+fmt(h.valid_seconds));
+  const responses=(m?.responses||[]).map(r=>fmt(r.offset_ms/1000)+" "+(r.sound&&r.vibration?"混合":r.sound?"声音":"震动")+" · "+(!r.observed?"未获得有效观察":(r.censored?"至少 ":"")+fmt(r.quiet_seconds)+(r.censored?"（观察中断/结束）":"")));
+  $("sleepNightDetail").textContent=[...hourly,...responses].join("\n")||"暂无有效记录";
+  $("sleepNightHistory").textContent=sessions.filter(s=>s.snore_metrics||s.sleep_quality).slice(0,14).map(s=>{
+   const n=s.snore_metrics;
+   return time(s.started_ms)+" · "+mode(n)+" · "+rate(n)+" · "+(n?.valid_seconds>0?fmt(n.snore_seconds):"—")+" · 声 "+(n?.sound_count??"—")+" · 评分 "+(s.sleep_quality||"—");
+  }).join("\n")||"暂无记录";
+ }
  function render(){
   $("sleepStatus").textContent=recording?
    "● 录音中":"未录音";
@@ -261,6 +284,7 @@
   $("sleepImport").textContent=importing?"…":"＋";
   $("sleepImport").title=importing?"读取音频信息…":"导入本机音频";
   const chosen=current();
+  renderNightExperiment(chosen);
   $("sleepAnalyze").disabled=!chosen||recording||busy||!!loadingCachedId||
    !(chosen.status==="completed"||chosen.status==="interrupted");
   const ready=analysis?.id===selectedId&&aiAvailable();

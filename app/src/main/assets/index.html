@@ -590,6 +590,16 @@ body.overview-muscle-open{overflow:hidden}
   <p id="sleepImportStatus" class="sub sleep-top-feedback" role="status"></p>
   <div id="sleepSelected" class="sleep-selected">请从下方选择一个已完成的录音</div>
   <p id="sleepSelectedFile" class="sub">录音大小和缓存状态将显示在这里</p>
+  <details id="sleepNightExperiment" class="sleep-live-help" hidden open>
+   <summary>鼾声实验 · 本次录音</summary>
+   <p id="sleepNightSummary" class="sub"></p>
+   <div class="row wrap"><label for="sleepNightQuality" class="sub">次日主观睡眠质量</label>
+    <select id="sleepNightQuality"><option value="0">未评分</option><option value="1">1 很差</option><option value="2">2 较差</option><option value="3">3 一般</option><option value="4">4 较好</option><option value="5">5 很好</option></select>
+   </div>
+   <details><summary>每小时鼾声 · 反馈后未检出时长</summary><div id="sleepNightDetail" class="sub" style="white-space:pre-line"></div></details>
+   <details><summary>历史对照（最近录音）</summary><div id="sleepNightHistory" class="sub" style="white-space:pre-line"></div></details>
+   <p class="sub">仅 AI 鼾声候选，非睡眠时长或呼吸暂停诊断；静默录音同样记录。旧版无实时指标不按零计算。</p>
+  </details>
   <details id="sleepEditStartRow" class="sleep-time-edit" hidden>
     <summary>校正录制时间</summary>
    <label for="sleepEditStart">录音开始时间 · 北京时间</label>

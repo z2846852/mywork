@@ -184,6 +184,59 @@ final class SleepSessions {
         return doc;
     }
 
+    static synchronized void saveSnoreMetrics(Context context,String id,String windows,JSONArray changes)throws Exception{
+        JSONObject meta=loadMetadata(context,id);
+        JSONObject metrics=snoreSummary(windows,readFeedback(context,id));
+        meta.put("snore_windows_v1",windows).put("snore_settings_v1",changes).put("snore_metrics",metrics);
+        write(context,meta);
+    }
+    private static JSONObject statsJson(SnoreMetrics.Stats s)throws Exception{
+        return new JSONObject().put("valid_seconds",s.valid).put("snore_seconds",s.hit)
+            .put("episodes",s.episodes).put("episodes_per_hour",s.valid==0?JSONObject.NULL:s.perHour())
+            .put("armed_seconds",s.armed).put("silent_seconds",s.silent);
+    }
+    private static JSONObject snoreSummary(String windows,JSONArray events)throws Exception{
+        JSONObject out=statsJson(SnoreMetrics.summarize(windows,0,windows.length()));
+        JSONArray hourly=new JSONArray();
+        for(int i=0;i<windows.length();i+=3600)hourly.put(statsJson(SnoreMetrics.summarize(windows,i,i+3600)).put("offset_seconds",i));
+        ArrayList<JSONObject> cues=new ArrayList<>();
+        for(int i=0;i<events.length();i++){
+            JSONObject e=events.optJSONObject(i);
+            if(e!=null&&("cue".equals(e.optString("kind"))||"preview".equals(e.optString("kind"))))cues.add(e);
+        }
+        cues.sort(Comparator.comparingLong(e->e.optLong("offset_ms")));
+        int sound=0,vibration=0,mixed=0;JSONArray responses=new JSONArray();
+        for(int i=0;i<cues.size();i++){
+            JSONObject e=cues.get(i);
+            if(!"cue".equals(e.optString("kind")))continue;
+            JSONObject p=e.optJSONObject("parameters");
+            boolean a=p!=null&&p.optInt("actualSoundMs")>0,b=p!=null&&p.optInt("actualVibrationMs")>0;
+            if(a)sound++;if(b)vibration++;if(a&&b)mixed++;
+            if(!a&&!b)continue;
+            long offset=e.optLong("offset_ms");
+            // Window offsets are quantized to 1s; wait an extra second beyond
+            // playback plus tail to avoid counting the app's own sound.
+            int start=(int)((offset+Math.max(p.optInt("actualSoundMs"),p.optInt("actualVibrationMs"))+3500+999)/1000);
+            int end=windows.length();
+            if(i+1<cues.size())end=Math.min(end,(int)(cues.get(i+1).optLong("offset_ms")/1000));
+            SnoreMetrics.Response r=SnoreMetrics.response(windows,start,end);
+            responses.put(new JSONObject().put("offset_ms",offset).put("observation_start_seconds",start)
+                .put("sound",a).put("vibration",b).put("quiet_seconds",r.quiet)
+                .put("censored",r.censored).put("observed",start<end&&SnoreMetrics.valid(SnoreMetrics.at(windows,start))));
+        }
+        return out.put("schema_version",1).put("window_seconds",windows.length())
+            .put("sound_count",sound).put("vibration_count",vibration).put("mixed_count",mixed)
+            .put("hourly",hourly).put("responses",responses);
+    }
+    static synchronized void rateSleep(Context context,String id,int quality)throws Exception{
+        if(quality<0||quality>5)throw new IllegalArgumentException("评分必须为1–5或清空");
+        if(SleepRecorderService.isCurrentSession(id))throw new IllegalStateException("请在录音结束后评分");
+        JSONObject meta=loadMetadata(context,id);
+        if(quality==0){meta.remove("sleep_quality");meta.remove("sleep_quality_at_ms");}
+        else meta.put("sleep_quality",quality).put("sleep_quality_at_ms",System.currentTimeMillis());
+        write(context,meta);
+    }
+
     /** Load 1s envelope only for a selected audio, not for the 50-item list. */
     static synchronized JSONObject load(Context context,String id) throws Exception {
         JSONObject doc=loadMetadata(context,id);
@@ -305,7 +358,7 @@ final class SleepSessions {
                     }
                     JSONObject summary = new JSONObject();
                     for (String key : new String[]{"id","started_ms","ended_ms","status","error",
-                            "source","date_basis","original_name","duration_ms"}) {
+                            "source","date_basis","original_name","duration_ms","snore_metrics","sleep_quality","sleep_quality_at_ms"}) {
                         if (s.has(key)) summary.put(key, s.get(key));
                     }
                     boolean external=isExternal(s);

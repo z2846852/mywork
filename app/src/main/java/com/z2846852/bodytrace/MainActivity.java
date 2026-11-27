@@ -2519,12 +2519,22 @@ public final class MainActivity extends Activity {
                 reply(SleepRecorderService.feedbackStatus(MainActivity.this));
             }catch(Exception e){error("鼾声标记失败："+safeMessage(e));}
         }
+        @JavascriptInterface public void sleepRateNight(String sessionId,int quality){
+            worker.execute(()->{try{
+                SleepSessions.rateSleep(MainActivity.this,sessionId,quality);sendSleepStatus();
+            }catch(Exception e){error("睡眠评分保存失败："+safeMessage(e));}});
+        }
         @JavascriptInterface public void sleepFeedbackExportSession(String sessionId){
             worker.execute(()->{
                 try{
                     JSONObject meta=SleepSessions.loadMetadata(MainActivity.this,sessionId);
                     String raw=new JSONObject().put("session_id",sessionId).put("started_ms",meta.optLong("started_ms"))
                         .put("feedback_journal_version",meta.optInt("feedback_journal_version",0))
+                        .put("snore_metrics",meta.opt("snore_metrics"))
+                        .put("snore_windows_v1",meta.opt("snore_windows_v1"))
+                        .put("snore_settings_v1",meta.opt("snore_settings_v1"))
+                        .put("sleep_quality",meta.opt("sleep_quality"))
+                        .put("sleep_quality_at_ms",meta.opt("sleep_quality_at_ms"))
                         .put("events",SleepSessions.readFeedback(MainActivity.this,sessionId)).toString(2);
                     runOnUiThread(()->{
                         try{android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);

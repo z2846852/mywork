@@ -67,6 +67,33 @@ public final class SleepRecorderService extends Service {
     private static volatile long capturedSamples;
     private static int recordingCueCount,recordingSoundCount,recordingVibrationCount;
     private static volatile String journalError="";
+    private static final StringBuilder snoreWindows=new StringBuilder();
+    private static final JSONArrayHolder snoreConfig=new JSONArrayHolder();
+    private static final class JSONArrayHolder { JSONArray changes=new JSONArray(); String last=""; }
+    private static int snoreLastCheckpoint;
+    private static synchronized void observeNight(android.content.Context c,long second,double score,boolean invalid,boolean armed,SnoreFeedbackController.Settings settings){
+        if(currentId.isEmpty())return;
+        long offset=second*SAMPLE_RATE-recordingBaseSamples;
+        if(offset<0)return; // never include a window beginning before recording
+        int index=(int)(offset/SAMPLE_RATE);
+        if(index<snoreWindows.length()||index>=SnoreMetrics.MAX_SECONDS)return;
+        try{
+            JSONObject config=settings.json().put("feedback_armed",armed);
+            String encoded=config.toString();
+            if(!encoded.equals(snoreConfig.last)){
+                snoreConfig.changes.put(new JSONObject().put("second",index).put("settings",config));
+                snoreConfig.last=encoded;
+            }
+            char value=invalid||!Double.isFinite(score)?'?':score>=settings.threshold?(armed?'H':'h'):(armed?'Q':'q');
+            SnoreMetrics.record(snoreWindows,index,value);
+            if(snoreWindows.length()-snoreLastCheckpoint>=30){
+                saveNight(c);snoreLastCheckpoint=snoreWindows.length();
+            }
+        }catch(Exception e){journalError="鼾声实验指标保存失败："+e.getMessage();android.util.Log.e("SleepFeedback",journalError,e);}
+    }
+    private static synchronized void saveNight(android.content.Context c)throws Exception{
+        if(!currentId.isEmpty())SleepSessions.saveSnoreMetrics(c,currentId,snoreWindows.toString(),snoreConfig.changes);
+    }
     /** Timestamp at actual action, not after playback. Separate from live monitor-only history. */
     private static synchronized void recordingEvent(android.content.Context context,String kind,
             double score,SnoreFeedbackController.Settings settings,long detectorSecond,int duration){
@@ -279,6 +306,7 @@ public final class SleepRecorderService extends Service {
         synchronized(SleepRecorderService.class){
             recordingOriginElapsed=SystemClock.elapsedRealtime();recordingBaseSamples=capturedSamples;
             recordingCueCount=0;recordingSoundCount=0;recordingVibrationCount=0;journalError="";
+            snoreWindows.setLength(0);snoreConfig.changes=new JSONArray();snoreConfig.last="";snoreLastCheckpoint=0;
             started=true;currentId=id;
             if(feedbackEnabled)recordingEvent(this,"feedback_on",Double.NaN,SnoreFeedbackController.Settings.load(this),-1,0);
         }
@@ -387,14 +415,16 @@ public final class SleepRecorderService extends Service {
     private void inferLoop() {
         int consecutive=0;
         long previousCue=0,lastSecond=-2;
+        boolean previousMuted=true;
         FeedbackExperiment experiment=new FeedbackExperiment(this);
         try(SleepYamnetClassifier classifier=new SleepYamnetClassifier(this,SAMPLE_RATE,1)){
             inferenceState="running";sendFeedbackStatus();
             while(running){
                 LiveWindow block=inferenceQueue.poll(300,TimeUnit.MILLISECONDS);
                 if(block==null)continue;
+                boolean uncertain=block.muted||previousMuted||block.second!=lastSecond+1;
                 if(block.second!=lastSecond+1)consecutive=0;
-                lastSecond=block.second;
+                lastSecond=block.second;previousMuted=block.muted;
                 int before=classifier.scoreCount();
                 for(short sample:block.pcm)classifier.addSample(block.muted?0:sample);
                 if(classifier.scoreCount()==before)continue;
@@ -404,6 +434,7 @@ public final class SleepRecorderService extends Service {
                 SnoreFeedbackController.Settings settings=SnoreFeedbackController.Settings.load(this);
                 PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
                 boolean screenPaused=settings.pauseOnScreen&&power!=null&&power.isInteractive();
+                observeNight(this,block.second,score,uncertain,feedbackEnabled&&!screenPaused,settings);
                 consecutive=feedbackEnabled&&!screenPaused&&!block.muted&&score>=settings.threshold?
                     Math.min(consecutive+1,5):0;
                 broadcast(new JSONObject().put("type","sleep_feedback_score")
@@ -494,7 +525,10 @@ public final class SleepRecorderService extends Service {
     private void finalizeSession(boolean valid,String problem){
         if(!started){currentId="";return;}
         started=false;
-        synchronized(SleepRecorderService.class){currentId="";}
+        synchronized(SleepRecorderService.class){
+            try{saveNight(this);}catch(Exception e){journalError="最终鼾声实验保存失败："+e.getMessage();sendError(journalError);}
+            currentId="";
+        }
         boolean saved=false;
         long bytes=0,elapsed=0;
         String failure=problem==null?"":problem;
