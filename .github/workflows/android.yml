@@ -44,6 +44,8 @@ jobs:
           mkdir -p /tmp/feedback-tests
           javac -d /tmp/feedback-tests app/src/main/java/com/z2846852/bodytrace/FeedbackPolicy.java scripts/FeedbackPolicyTest.java
           java -cp /tmp/feedback-tests com.z2846852.bodytrace.FeedbackPolicyTest
+          javac -d /tmp/feedback-tests app/src/main/java/com/z2846852/bodytrace/AiSnoreCounter.java scripts/AiSnoreCounterTest.java
+          java -cp /tmp/feedback-tests com.z2846852.bodytrace.AiSnoreCounterTest
           javac -d /tmp/feedback-tests app/src/main/java/com/z2846852/bodytrace/CuePcm.java scripts/CuePcmTest.java
           java -cp /tmp/feedback-tests com.z2846852.bodytrace.CuePcmTest
           javac -d /tmp/feedback-tests app/src/main/java/com/z2846852/bodytrace/SnoreMetrics.java scripts/SnoreMetricsTest.java

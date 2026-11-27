@@ -1120,12 +1120,12 @@
   }
   const micHistory=[];
   let latestSecond=-1,liveSpan=60,captureStart=0;
-  const sensitivity={high:{threshold:.05,minimum:4},normal:{threshold:.15,minimum:4},low:{threshold:.30,minimum:5}};
+  const sensitivity={high:{threshold:.35,minimum:4},normal:{threshold:.50,minimum:4},low:{threshold:.65,minimum:4}};
   let outputWave=[],outputStarted=0,outputDuration=300,animation=0;
   const cfg=()=>({
    sound:$("sleepFeedbackSound").value,
    volume:Number($("sleepFeedbackVolume").value),
-   threshold:Number($("sleepFeedbackThreshold").value),
+   ai_curve_version:1,threshold:Number($("sleepFeedbackThreshold").value),
    minimum:Math.max(3,Number($("sleepFeedbackMinimum").value)||4),trigger_episodes:Math.max(3,Number($("sleepFeedbackMinimum").value)||4),trigger_window_seconds:300,
    repeat:Number($("sleepFeedbackRepeat").value),
    vibrate:$("sleepFeedbackVibrate").checked,
@@ -1246,7 +1246,7 @@
   function paintTriggerCount(evt){
    if($("sleepFeedbackPanel").hidden)return;
    if(evt.trigger_reason!==undefined)$("sleepTriggerReason").textContent=evt.trigger_reason;
-   if(evt.pulse_snore!==undefined)$("sleepPulseScores").textContent="整秒 鼾"+Number(evt.context_snore||0).toFixed(3)+" / 呼吸"+Number(evt.context_breathing||0).toFixed(3)+(evt.context_confirmed?" ✓":" ×")+"；最近单声 鼾"+Number(evt.pulse_snore).toFixed(3)+" / 呼吸"+Number(evt.pulse_breathing).toFixed(3)+" / 其他"+Number(evt.pulse_other).toFixed(3)+" · "+({waiting:"等待",short:"不足300ms",isolated:"单声未通过",context:"整秒证据不足",duplicate:"间隔不足1.2秒",accepted:"已计入",context_rescue:"强AI证据补计"}[evt.pulse_review_reason]||"待复核");
+   if(evt.ai_enter!==undefined)$("sleepPulseScores").textContent="AI 鼾声 "+Number(evt.context_snore||0).toFixed(3)+" · 进入 "+Number(evt.ai_enter).toFixed(2)+" / 退出 "+Number(evt.ai_exit).toFixed(2)+" · "+(evt.ai_curve_wait_low?"等待有效低谷":evt.ai_curve_active?"已计入，等待下降":"等待下一个鼾声峰");
    if(evt.direct_next_gain!==undefined){const n=Number(evt.direct_next_gain),locked=!!evt.direct_gain_locked,extend=!!evt.direct_can_extend;if(nextDirectGain!==n||directLocked!==locked||directCanExtend!==extend){nextDirectGain=n;directLocked=locked;directCanExtend=extend;renderPlan();}}
    const value="AI鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
    const node=$("sleepTriggerCount");

@@ -428,7 +428,8 @@ public final class SleepRecorderService extends Service {
     }
 
     private void inferLoop() {
-        FeedbackPolicy.SnoreTrigger snoreTrigger=new FeedbackPolicy.SnoreTrigger();
+        AiSnoreCounter snoreTrigger=new AiSnoreCounter();
+        FeedbackPolicy.SnoreTrigger envelopeTrigger=new FeedbackPolicy.SnoreTrigger();
         long triggerArm=-1;
         double triggerThreshold=Double.NaN;
         int triggerRequired=-1;
@@ -459,11 +460,12 @@ public final class SleepRecorderService extends Service {
                 boolean armed=feedbackEnabled&&!screenPaused;
                 if(direct)directGainState.ensure(arm,settings.directGain);
                 if(arm!=triggerArm||armed!=previousArmed||Double.compare(triggerThreshold,settings.threshold)!=0||triggerRequired!=settings.minimum){
-                    snoreTrigger.reset();triggerArm=arm;previousArmed=armed;triggerThreshold=settings.threshold;triggerRequired=settings.minimum;
+                    snoreTrigger.reset();envelopeTrigger.reset();triggerArm=arm;previousArmed=armed;triggerThreshold=settings.threshold;triggerRequired=settings.minimum;
                 }
-                boolean triggerValid=!block.muted&&Double.isFinite(score)&&!SnoreFeedbackController.suppressMicrophone();
-                snoreTrigger.updatePcm(block.second,triggerValid,block.pcm,SAMPLE_RATE,classifier.contextConfirms(settings.threshold),classifier.strongContextConfirms(settings.threshold),(pulse,length)->classifier.confirmPulse(pulse,length,settings.threshold));
-                snoreTriggerCount=snoreTrigger.count();snoreEnvelopeCount=snoreTrigger.peaks();
+                boolean triggerValid=!block.muted&&Double.isFinite(classifier.contextSnore())&&!SnoreFeedbackController.suppressMicrophone();
+                snoreTrigger.update(block.second,triggerValid,classifier.contextSnore(),settings.threshold);
+                envelopeTrigger.updatePcm(block.second,triggerValid,block.pcm,SAMPLE_RATE,false);
+                snoreTriggerCount=snoreTrigger.count();snoreEnvelopeCount=envelopeTrigger.peaks();
 
                 if(!feedbackEnabled)triggerReason="自动反馈关闭";
                 else if(!settings.soundEnabled&&!settings.vibrate)triggerReason="未启用声音或振动";
@@ -474,7 +476,7 @@ public final class SleepRecorderService extends Service {
                 else triggerReason="等待新鼾声 "+snoreTriggerCount+"/"+settings.minimum;
                 broadcast(new JSONObject().put("type","sleep_feedback_score")
                     .put("second",block.second).put("score",score)
-                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("confirmed_pulses",snoreTrigger.confirmedInSecond(block.second)).put("pulse_review_reason",snoreTrigger.reviewReason()).put("context_snore",classifier.contextSnore()).put("context_breathing",classifier.contextBreathing()).put("context_confirmed",classifier.contextConfirms(settings.threshold)).put("pulse_snore",classifier.pulseSnore()).put("pulse_breathing",classifier.pulseBreathing()).put("pulse_other",classifier.pulseOther()).put("trigger_reason",triggerReason).put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("direct_can_extend",directGainState.canExtend()).put("inferred_windows",inferredWindows)
+                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("confirmed_pulses",snoreTrigger.confirmedInSecond(block.second)).put("ai_curve_active",snoreTrigger.active()).put("ai_curve_wait_low",snoreTrigger.waitingForLow()).put("ai_enter",settings.threshold).put("ai_exit",AiSnoreCounter.exit(settings.threshold)).put("context_snore",classifier.contextSnore()).put("context_breathing",classifier.contextBreathing()).put("trigger_reason",triggerReason).put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("direct_can_extend",directGainState.canExtend()).put("inferred_windows",inferredWindows)
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
                 if(feedbackEnabled&&(!screenPaused||experiment.observingThreshold())){
@@ -504,7 +506,7 @@ public final class SleepRecorderService extends Service {
                     }else selected=experiment.choose(settings,now,feedbackStartedMs);
                     if(selected==null){triggerReason="实验策略限制 · 未选出刺激";continue;}
                     triggerReason="触发成功，正在输出";
-                    previousCue=now;snoreTrigger.consume();snoreTriggerCount=0;snoreEnvelopeCount=0;
+                    previousCue=now;snoreTrigger.consume();envelopeTrigger.consume();snoreTriggerCount=0;snoreEnvelopeCount=0;
                     if(experiment.begin(selected,now,currentId)){recordingEvent(this,"control",score,selected,block.second,0);experiment.executed(true);sendFeedbackStatus();continue;}
                     // Longer dream motifs never block the YAMNet inference thread.
                     Thread cue=new Thread(()->{

@@ -21,7 +21,7 @@ final class SnoreFeedbackController {
     static final class Settings {
         String sound = "soft";
         int volume = 20;
-        double threshold = 0.15;
+        double threshold = 0.50;
         int minimum = 4;
         int repeat = 5;
         boolean vibrate = false, soundEnabled = true, vibrationCompatibility=false;
@@ -42,7 +42,7 @@ final class SnoreFeedbackController {
                     "double".equals(s.sound) || "bell".equals(s.sound) || DreamCueSynth.supports(s.sound) || CueLibrary.validId(s.sound)))
                 throw new IllegalArgumentException("不支持的提示音");
             s.volume = json.optInt("volume", 20);
-            s.threshold = json.optDouble("threshold", 0.15);
+            s.threshold = json.optInt("ai_curve_version",0)==1?json.optDouble("threshold",0.50):0.50;
             s.minimum = json.optInt("trigger_window_seconds",0)==FeedbackPolicy.SNORE_WINDOW_SECONDS?Math.max(3,json.optInt("trigger_episodes",4)):4;
             s.repeat = json.optInt("repeat", 5);
             s.vibrate = json.optBoolean("vibrate", false);
@@ -97,7 +97,7 @@ final class SnoreFeedbackController {
         private static String choice(String x,String fallback,String... values){for(String v:values)if(v.equals(x))return v;return fallback;}
         JSONObject json() throws Exception {
             return new JSONObject().put("sound",sound).put("volume",volume)
-                .put("threshold",threshold).put("minimum",minimum).put("trigger_episodes",minimum).put("trigger_window_seconds",FeedbackPolicy.SNORE_WINDOW_SECONDS)
+                .put("ai_curve_version",1).put("threshold",threshold).put("minimum",minimum).put("trigger_episodes",minimum).put("trigger_window_seconds",FeedbackPolicy.SNORE_WINDOW_SECONDS)
                 .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled).put("vibrationCompatibility",vibrationCompatibility)
                 .put("vibrationAmplitude",vibrationAmplitude).put("vibrationMs",vibrationMs)
                 .put("vibrationPattern",vibrationPattern).put("soundMs",soundMs).put("soundRhythm",soundRhythm)
