@@ -33,17 +33,39 @@ public final class FeedbackPolicyTest {
         check(!FeedbackPolicy.thresholdBudget(8,40,0,500000,500000)&&!FeedbackPolicy.thresholdBudget(1,8,1000,300999,500000)&&!FeedbackPolicy.thresholdBudget(1,8,0,500000,299999)&&FeedbackPolicy.thresholdBudget(1,8,1000,301000,300000),"night budget and cooldown");
         check(FeedbackPolicy.reportLink("session","session",120000)&&!FeedbackPolicy.reportLink("session","session",120001)&&!FeedbackPolicy.reportLink("session","other",100)&&!FeedbackPolicy.reportLink("","",0),"self-report temporal/session link");
         FeedbackPolicy.SnoreTrigger gate=new FeedbackPolicy.SnoreTrigger();
-        for(int i=0;i<10;i++){gate.update(i,true,true);check(!gate.ready(3),"long continuous snore is one");}
-        gate.update(10,true,false);gate.update(11,true,true);check(!gate.ready(3),"two sounds insufficient");
-        gate.update(12,true,false);check(gate.update(13,true,true)==3&&gate.ready(3)&&!gate.ready(4),"three independent sounds");
-        gate.consume();check(gate.update(14,true,true)==0&&!gate.ready(3),"consumed current sound not recounted");
-        gate.update(15,true,false);gate.update(16,true,true);gate.update(17,false,false);
-        check(gate.update(18,true,true)==1&&!gate.ready(3),"unknown invalidates accumulated evidence");
-        gate.update(19,true,false);gate.update(20,true,true);check(gate.update(22,true,true)==1,"missing window resets");
-        gate.reset();gate.update(0,true,true);for(int i=1;i<19;i++)gate.update(i,true,false);
-        check(gate.update(19,true,true)==2&&!gate.ready(3),"window edge");
-        gate.update(20,true,false);check(gate.update(21,true,true)==2&&!gate.ready(3),"expired sound cannot trigger");
-        gate.reset();gate.update(0,true,true);gate.update(1,true,false);gate.update(2,true,true);check(!gate.ready(1),"hard minimum is three");
+        long tick=0;
+        for(int i=0;i<20;i++)gate.sample(tick++,-75,false);
+        for(int i=0;i<60;i++)gate.sample(tick++,-25,true);
+        check(gate.peaks()==1&&gate.count()==1&&!gate.ready(3),"continuous loud sound is one");
+        for(int i=0;i<1200;i++)gate.sample(tick++,-75,false);
+        for(int i=0;i<10;i++)gate.sample(tick++,-25,true);
+        check(gate.count()==2&&!gate.ready(3),"second sound after a minute");
+        for(int i=0;i<1200;i++)gate.sample(tick++,-75,false);
+        for(int i=0;i<10;i++)gate.sample(tick++,-25,true);
+        check(gate.count()==3&&gate.ready(3)&&!gate.ready(4),"third sound after two minutes");
+        gate.consume();for(int i=0;i<10;i++)gate.sample(tick++,-25,true);
+        check(gate.count()==0&&!gate.ready(3),"consumed pulse not counted twice");
+        for(int i=0;i<5;i++)gate.sample(tick++,-75,false);
+        for(int i=0;i<10;i++)gate.sample(tick++,-25,false);
+        check(gate.peaks()==1&&gate.count()==0,"non-snore peak separate from confirmed count");
+        gate.reset();tick=0;
+        for(int i=0;i<10;i++)gate.sample(tick++,-75,false);
+        for(int k=0;k<3;k++){
+            for(int i=0;i<5;i++)gate.sample(tick++,-25,true);
+            for(int i=0;i<5;i++)gate.sample(tick++,-75,false);
+        }
+        check(gate.count()==3&&gate.ready(3),"three sub-second pulses within two seconds");
+        gate.interrupt(tick+10);tick+=11;
+        for(int i=0;i<10;i++)gate.sample(tick++,-25,true);
+        check(gate.count()==3,"missing data cannot create a new peak");
+        for(int i=0;i<6100;i++)gate.sample(tick++,-75,false);
+        check(gate.count()==0&&!gate.ready(3),"five minute expiry");
+        gate.reset();for(int i=0;i<10;i++)gate.sample(i,-75,false);
+        for(int i=10;i<12;i++)gate.sample(i,-25,true);
+        gate.sample(12,-75,false);check(gate.count()==0,"short click rejected");
+        short[] pcm=new short[16000];
+        for(int i=0;i<pcm.length;i++)if((i>=800&&i<4000)||(i>=7200&&i<10400)||(i>=12800&&i<16000))pcm[i]=(short)(Math.sin(i*.2)*12000);
+        gate.reset();gate.updatePcm(0,true,pcm,16000,true);check(gate.count()==3&&gate.ready(3),"three RMS pulses in one classifier window");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

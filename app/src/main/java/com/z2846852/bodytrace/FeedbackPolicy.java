@@ -41,25 +41,60 @@ final class FeedbackPolicy {
         return "stopped".equals(outcome)?Math.max(0,current-1):"continued".equals(outcome)?Math.min(length-1,current+1):current;
     }
     static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=3;}
-    static final int SNORE_WINDOW_SECONDS=20;
-    // A continuous above-threshold run is one candidate, regardless of its length.
-    // Unknown windows never act as the quiet separator between candidates.
+    static final int SNORE_WINDOW_SECONDS=300;
+    // Count rises of the 50ms RMS envelope, independently of classifier windows.
+    // 150ms dwell and separate on/off thresholds reject carrier cycles and brief clicks.
     static final class SnoreTrigger {
-        private final java.util.ArrayDeque<Long> starts=new java.util.ArrayDeque<>();
+        private final java.util.ArrayDeque<Long> peaks=new java.util.ArrayDeque<>(),snore=new java.util.ArrayDeque<>();
         private long last=Long.MIN_VALUE;
-        private boolean inHit;
-        void reset(){starts.clear();inHit=false;last=Long.MIN_VALUE;}
-        int update(long second,boolean valid,boolean hit){
-            if(!valid){reset();return 0;}
-            if(last!=Long.MIN_VALUE&&second!=last+1)reset();
-            last=second;
-            while(!starts.isEmpty()&&second-starts.peekFirst()>=SNORE_WINDOW_SECONDS)starts.removeFirst();
-            if(hit&&!inHit)starts.addLast(second);
-            inHit=hit;
-            return starts.size();
+        private double floor=-65;
+        private int rise,fall;
+        private boolean active,classified,needQuiet;
+        void reset(){peaks.clear();snore.clear();last=Long.MIN_VALUE;floor=-65;rise=fall=0;active=classified=needQuiet=false;}
+        private void expire(long tick){
+            while(!peaks.isEmpty()&&tick-peaks.peekFirst()>=SNORE_WINDOW_SECONDS*20L)peaks.removeFirst();
+            while(!snore.isEmpty()&&tick-snore.peekFirst()>=SNORE_WINDOW_SECONDS*20L)snore.removeFirst();
         }
-        boolean ready(int required){return inHit&&starts.size()>=Math.max(3,required);}
-        void consume(){starts.clear();} // keep the current hit latched until a real quiet window
+        // A gap is not a quiet valley. Keep older verified counts, but require
+        // a new real valley before counting any new rise.
+        void interrupt(long tick){last=tick;expire(tick);active=classified=false;needQuiet=true;rise=fall=0;}
+        void sample(long tick,double db,boolean ai){
+            if(last!=Long.MIN_VALUE&&tick!=last+1)interrupt(tick-1);
+            if(!Double.isFinite(db)){interrupt(tick);return;}
+            last=tick;expire(tick);
+            double on=Math.max(-65,floor+8),off=Math.max(-69,floor+4);
+            if(needQuiet){
+                if(db<=off){if(++fall>=3){needQuiet=false;fall=0;}}
+                else fall=0;
+                return;
+            }
+            if(!active){
+                if(db>=on){
+                    if(++rise>=3){active=true;classified=false;fall=0;peaks.addLast(tick);}
+                }else{
+                    rise=0;
+                    floor=Math.max(-96,Math.min(-25,floor+(db-floor)*(db<floor?.25:.025)));
+                }
+            }else{
+                if(db<=off){if(++fall>=3){active=false;classified=false;rise=fall=0;}}
+                else fall=0;
+            }
+            if(active&&!classified&&ai&&db>off){snore.addLast(tick);classified=true;}
+        }
+        void updatePcm(long second,boolean valid,short[] pcm,int rate,boolean ai){
+            if(!valid||rate<20||pcm.length!=rate){interrupt(second*20+19);return;}
+            int n=rate/20;
+            for(int i=0;i<20;i++){
+                double sum=0;
+                for(int k=i*n;k<(i+1)*n;k++){double v=pcm[k]/32768.0;sum+=v*v;}
+                double db=10*Math.log10(Math.max(1e-10,sum/n));
+                sample(second*20+i,db,ai);
+            }
+        }
+        int peaks(){return peaks.size();}
+        int count(){return snore.size();}
+        boolean ready(int required){return snore.size()>=Math.max(3,required)&&last-snore.peekLast()<40;}
+        void consume(){peaks.clear();snore.clear();} // preserve current pulse latch
     }
     static boolean thresholdBudget(int count,int max,long lastWall,long now,long sinceEnd){
         return count<Math.min(max,8)&&sinceEnd>=300000&&(lastWall==0||now-lastWall>=300000);

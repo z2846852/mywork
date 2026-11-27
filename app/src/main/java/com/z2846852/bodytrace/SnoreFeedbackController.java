@@ -22,7 +22,7 @@ final class SnoreFeedbackController {
         String sound = "soft";
         int volume = 20;
         double threshold = 0.15;
-        int minimum = 3;
+        int minimum = 4;
         int repeat = 5;
         boolean vibrate = false, soundEnabled = true, vibrationCompatibility=false;
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
@@ -43,7 +43,7 @@ final class SnoreFeedbackController {
                 throw new IllegalArgumentException("不支持的提示音");
             s.volume = json.optInt("volume", 20);
             s.threshold = json.optDouble("threshold", 0.15);
-            s.minimum = Math.max(3,json.optInt("trigger_episodes",json.optInt("minimum",3)));
+            s.minimum = json.optInt("trigger_window_seconds",0)==FeedbackPolicy.SNORE_WINDOW_SECONDS?Math.max(3,json.optInt("trigger_episodes",4)):4;
             s.repeat = json.optInt("repeat", 5);
             s.vibrate = json.optBoolean("vibrate", false);
             s.vibrationCompatibility=json.optBoolean("vibrationCompatibility",false);

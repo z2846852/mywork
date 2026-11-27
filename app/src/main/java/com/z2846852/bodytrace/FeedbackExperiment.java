@@ -245,9 +245,8 @@ final class FeedbackExperiment {
         if("vibration_threshold".equals(s.mode)){
             if(!x.vibrate||!FeedbackPolicy.thresholdBudget(nightCount(prefs),s.maxCues,prefs.getLong("lastTrialWall",0),System.currentTimeMillis(),now-lastEnd)
                     ||System.currentTimeMillis()-enabledAt<Math.max(30,s.delayMinutes)*60000L)return null;
-            int n=0,hits=0;Iterator<Double> it=baseline.descendingIterator();
-            while(it.hasNext()&&n<FeedbackPolicy.SNORE_WINDOW_SECONDS){if(it.next()>=s.threshold)hits++;n++;}
-            if(!FeedbackPolicy.thresholdBaseline(n,hits))return null;
+            // The caller's 300-second envelope gate already requires three
+            // AI-confirmed rises and a fresh one; do not require clustered hits.
             x.soundEnabled=false;
             int[][] ladder=FeedbackPolicy.vibrationLadder(x.vibrationMin,x.vibrationMax,x.vibrationMsMax);
             if(ladder.length==0||prefs.getBoolean("deny_vib_"+x.vibrationPattern,false)||prefs.getBoolean("deny_pair_"+key(x.json()),false))return null;
