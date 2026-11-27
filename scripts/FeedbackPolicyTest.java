@@ -115,6 +115,15 @@ public final class FeedbackPolicyTest {
         check(gains.report(12,"f",true)==10,"first step too strong");
         gains.ensure(13,false);gains.started(13,"g",100);gains.completed(13,"g",true);
         check(gains.report(13,"g",true)==50&&gains.locked(),"fixed gain may lower on explicit report");
+        gains.ensure(14,true);
+        check(!gains.canExtend(),"no early extension");
+        for(int level=20;level<=100;level+=20){String id="level"+level;gains.started(14,id,level);gains.completed(14,id,true);}
+        check(gains.canExtend(),"one bounded extension after full gain");
+        gains.started(14,"extra",100);gains.extended(14,"extra");gains.completed(14,"extra",true);
+        check(!gains.canExtend(),"extension never repeats indefinitely");
+        gains.ensure(15,false);gains.started(15,"fixed",100);gains.completed(15,"fixed",true);
+        check(gains.canExtend(),"fixed mode can extend once");
+        gains.report(15,"fixed",false);check(!gains.canExtend(),"confirmation cancels escalation");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

@@ -15,6 +15,13 @@ final class CuePcm {
         fade(out,Math.min(RATE/40,out.length/2));return out;
     }
     static void fade(short[] a,int n){for(int i=0;i<n;i++){double k=(i+1.0)/(n+1);a[i]=(short)(a[i]*k);a[a.length-1-i]=(short)(a[a.length-1-i]*k);}}
+    // One extra complete copy, no time stretching, maximum ten seconds.
+    static short[] repeatOnce(short[] source){
+        if(source.length==0||source.length>MAX)throw new IllegalArgumentException("invalid cue duration");
+        int gap=Math.min(RATE/10,2*MAX-2*source.length);
+        short[] out=Arrays.copyOf(source,2*source.length+gap);
+        System.arraycopy(source,0,out,source.length+gap,source.length);return out;
+    }
     static short[] render(short[] source,int ms,String rhythm,boolean spoken,int volume){
         if(source.length==0)throw new IllegalArgumentException("empty cue");
         int max=ms==0?MAX:Math.max(1,Math.min(MAX,ms*RATE/1000));

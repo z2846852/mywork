@@ -45,16 +45,18 @@ final class FeedbackPolicy {
     // next scheduled level. No click does not prove absence of awareness.
     static final class DirectGainState {
         private long epoch=-1;
-        private boolean sweep,locked,rejected;
+        private boolean sweep,locked,rejected,maxCompleted,extensionUsed;
         private int next=20,played,lower;
         private String trial="";
         private final java.util.TreeSet<Integer> levels=new java.util.TreeSet<>();
         synchronized void ensure(long arm,boolean enabled){
             if(epoch==arm&&sweep==enabled)return;
-            epoch=arm;sweep=enabled;locked=false;rejected=false;next=enabled?20:100;played=lower=0;trial="";levels.clear();
+            epoch=arm;sweep=enabled;locked=false;rejected=false;maxCompleted=extensionUsed=false;next=enabled?20:100;played=lower=0;trial="";levels.clear();
         }
         synchronized int next(){return next;}
         synchronized boolean locked(){return locked;}
+        synchronized boolean canExtend(){return next==100&&maxCompleted&&!locked&&!extensionUsed;}
+        synchronized void extended(long arm,String id){if(matches(arm,id))extensionUsed=true;}
         synchronized boolean matches(long arm,String id){return epoch==arm&&!trial.isEmpty()&&trial.equals(id);}
         synchronized void started(long arm,String id,int gain){
             if(epoch!=arm||id==null||id.isEmpty())return;
@@ -64,6 +66,7 @@ final class FeedbackPolicy {
         }
         synchronized void completed(long arm,String id,boolean ok){
             if(!matches(arm,id)||!ok||locked||rejected)return;
+            if(played==100)maxCompleted=true;
             next=sweep?Math.min(100,played+20):100;
         }
         synchronized int report(long arm,String id,boolean tooStrong){

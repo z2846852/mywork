@@ -46,7 +46,7 @@ final class FeedbackExperiment {
             .put("time_ms",settings.optLong("started_ms",settings.optLong("time_ms"))).put("mode",settings.optString("mode"))
             .put("control",settings.optBoolean("control")).put("soundEnabled",settings.optBoolean("soundEnabled"))
             .put("vibrate",settings.optBoolean("vibrate")).put("sound",settings.optString("sound"))
-            .put("volume",settings.optInt("volume")).put("direct_gain_percent",settings.optInt("direct_gain_percent")).put("vibrationPattern",settings.optString("vibrationPattern"))
+            .put("volume",settings.optInt("volume")).put("direct_gain_percent",settings.optInt("direct_gain_percent")).put("direct_repeats",settings.optInt("direct_repeats",1)).put("vibrationPattern",settings.optString("vibrationPattern"))
             .put("vibrationAmplitude",settings.optInt("vibrationAmplitude")).put("vibrationMs",settings.optInt("vibrationMs"))
             .put("actualVibrationMs",settings.optInt("actualVibrationMs")).put("actualSoundMs",settings.optInt("actualSoundMs"))
             .put("level",settings.optInt("ladder_level",-1)+1).put("result",outcome)

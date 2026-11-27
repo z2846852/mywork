@@ -212,7 +212,7 @@ public final class SleepRecorderService extends Service {
             .put("inferred_windows",inferredWindows).put("dropped_windows",droppedWindows)
             .put("latest_mic",latestMic)
             .put("last_score",lastFeedbackScore).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount)
-            .put("trigger_reason",feedbackEnabled?triggerReason:"自动反馈关闭").put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("cues",feedbackCount).put("last_cue_ms",lastFeedbackMs)
+            .put("trigger_reason",feedbackEnabled?triggerReason:"自动反馈关闭").put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("direct_can_extend",directGainState.canExtend()).put("cues",feedbackCount).put("last_cue_ms",lastFeedbackMs)
             .put("started_ms",feedbackStartedMs).put("capture_started_ms",captureStartedMs)
             .put("recent_events",recentLiveLog()).put("recording_id",currentId)
             .put("recording_cues",recordingCueCount).put("recording_sound_cues",recordingSoundCount)
@@ -474,7 +474,7 @@ public final class SleepRecorderService extends Service {
                 else triggerReason="等待新鼾声 "+snoreTriggerCount+"/"+settings.minimum;
                 broadcast(new JSONObject().put("type","sleep_feedback_score")
                     .put("second",block.second).put("score",score)
-                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("trigger_reason",triggerReason).put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("inferred_windows",inferredWindows)
+                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("trigger_reason",triggerReason).put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("direct_can_extend",directGainState.canExtend()).put("inferred_windows",inferredWindows)
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
                 if(feedbackEnabled&&(!screenPaused||experiment.observingThreshold())){
@@ -495,6 +495,7 @@ public final class SleepRecorderService extends Service {
                         experiment.close();
                         selected=SnoreFeedbackController.Settings.parse(settings.json().toString());
                         selected.directGainPercent=directGainState.next();
+                        selected.directRepeats=settings.directExtend&&settings.soundEnabled&&directGainState.canExtend()?2:1;
                         selected.volume=FeedbackPolicy.scaleGain(settings.volume,selected.directGainPercent);
                         selected.vibrationAmplitude=FeedbackPolicy.scaleGain(settings.vibrationAmplitude,selected.directGainPercent);
                         if(CueLibrary.validId(selected.sound)){selected.soundRhythm="single";selected.soundMs=0;selected.soundMsMax=5000;}
@@ -512,7 +513,7 @@ public final class SleepRecorderService extends Service {
                         try{
                             if(SnoreFeedbackController.playCue(this,selected,(samples,rate,duration,vibration)->
                                     {
-                                        if(direct)directGainState.started(arm,selected.trialId,selected.directGainPercent);
+                                        if(direct){directGainState.started(arm,selected.trialId,selected.directGainPercent);if(selected.directRepeats==2)directGainState.extended(arm,selected.trialId);}
                                         try{experiment.started(selected);}catch(Exception e){sendError("实验开始日志失败："+e.getMessage());}
                                         recordingEvent(this,"cue",score,selected,block.second,duration);
                                         sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发");

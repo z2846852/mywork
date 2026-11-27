@@ -479,7 +479,7 @@ body.overview-muscle-open{overflow:hidden}
    <div class="sleep-io-card sleep-console-plan">
     <div class="sleep-io-heading"><strong>反馈方式</strong><button type="button" class="secondary mini" id="sleepThresholdPreset">使用直接反馈</button></div>
     <div class="sleep-console-quick"><button type="button" id="sleepConsoleRecord" class="secondary">开始录音</button><button type="button" id="sleepConsoleArm" class="primary" disabled>开启反馈</button></div>
-    <p id="sleepConsoleConfig" class="sub">每4声触发 · 保持素材不变</p><label class="sleep-feedback-checkbox" id="sleepDirectGainRow"><input id="sleepFeedbackDirectGain" type="checkbox" checked>强度从低到高（20→100%）</label><div id="sleepDirectMaterials" class="sub"></div>
+    <p id="sleepConsoleConfig" class="sub">每4声触发 · 保持素材不变</p><label class="sleep-feedback-checkbox" id="sleepDirectGainRow"><input id="sleepFeedbackDirectGain" type="checkbox" checked>强度从低到高（20→100%）</label><label class="sleep-feedback-checkbox" id="sleepDirectExtendRow"><input id="sleepFeedbackDirectExtend" type="checkbox" checked>满档后仍有新鼾声：尝试一次双播</label><div id="sleepDirectMaterials" class="sub"></div>
     <div id="sleepThresholdLadder" class="sleep-threshold-ladder"></div>
     <p class="sub" id="sleepLadderLegend">只缩放强度，不改变素材节奏及原始时长。</p>
    </div>
@@ -493,7 +493,8 @@ body.overview-muscle-open{overflow:hidden}
    <button type="button" class="secondary" data-report="turned_side">已经翻身侧睡</button>
    <button type="button" class="secondary" data-report="awake_unsure">醒了，但原因不确定</button>
   </div>
-  <p id="sleepSelfStatus" class="sub" role="status">录音中可确认；未点击＝未知。</p>
+  <div class="sleep-self-grid"><button type="button" class="primary" data-report="gain_hold">感知到了 · 保持强度</button><button type="button" class="secondary" data-report="gain_too_strong">太强 / 太吵 · 降低强度</button></div>
+  <p id="sleepSelfStatus" class="sub" role="status">有明确感知才确认；未点击＝未知。</p>
  </section>
 
    <div class="sleep-io-card sleep-console-results"><div class="sleep-io-heading"><strong>本晚试验 · AI 与主观确认</strong><button type="button" class="secondary mini" id="sleepConsoleRefresh">↻</button></div><div id="sleepConsoleTrials" class="sleep-console-trials">暂无试验；开启后自动更新。</div><p class="sub">没有勾选＝未知；低鼾声候选不能证明微觉醒或改善睡眠。</p></div>

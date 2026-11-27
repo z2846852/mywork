@@ -27,8 +27,8 @@ final class SnoreFeedbackController {
         boolean vibrate = false, soundEnabled = true, vibrationCompatibility=false;
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
         int soundMax=40, vibrationMax=40, soundMin=5, vibrationMin=5, soundMsMax=5000, vibrationMsMax=1000, maxCues=12, delayMinutes=30;
-        int actualSoundMs=0,actualVibrationMs=0,directGainPercent=0;
-        boolean pauseOnScreen=true, directGain=true;
+        int actualSoundMs=0,actualVibrationMs=0,directGainPercent=0,directRepeats=1;
+        boolean pauseOnScreen=true, directGain=true,directExtend=true;
         String vibrationPattern="triplet", mode="direct", soundPool="", vibrationPool="continuous,triplet,rising,falling,shortlong";
         String soundRhythm="single", soundRhythmPool="single,triplet,rising,falling,shortlong", trialId="";
 
@@ -64,6 +64,7 @@ final class SnoreFeedbackController {
             s.soundRhythm=choice(json.optString("soundRhythm"),"single","single","triplet","rising","falling","shortlong");
             s.mode=json.has("directGain")?choice(json.optString("mode"),"direct","direct","fixed","limited","stairs","explore","adaptive","control","vibration_threshold"):"direct";
             s.directGain=json.optBoolean("directGain",true);
+            s.directExtend=json.optBoolean("directExtend",true);
             if("direct".equals(s.mode)){s.minimum=4;s.pauseOnScreen=false;}
             s.soundRhythmPool=validateRhythms(json.optString("soundRhythmPool","single,triplet,rising,falling,shortlong"));
             s.soundPool=validatePool(json.optString("soundPool",""),true);
@@ -100,10 +101,10 @@ final class SnoreFeedbackController {
                 .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled).put("vibrationCompatibility",vibrationCompatibility)
                 .put("vibrationAmplitude",vibrationAmplitude).put("vibrationMs",vibrationMs)
                 .put("vibrationPattern",vibrationPattern).put("soundMs",soundMs).put("soundRhythm",soundRhythm)
-                .put("trial_id",trialId).put("direct_gain_percent",directGainPercent).put("actualSoundMs",actualSoundMs).put("actualVibrationMs",actualVibrationMs)
+                .put("trial_id",trialId).put("direct_gain_percent",directGainPercent).put("direct_repeats",directRepeats).put("actualSoundMs",actualSoundMs).put("actualVibrationMs",actualVibrationMs)
                 .put("soundMin",soundMin).put("vibrationMin",vibrationMin).put("soundMsMax",soundMsMax).put("vibrationMsMax",vibrationMsMax).put("pauseOnScreen",pauseOnScreen).put("soundRhythmPool",soundRhythmPool)
                 .put("soundMax",soundMax).put("vibrationMax",vibrationMax).put("maxCues",maxCues)
-                .put("delayMinutes",delayMinutes).put("mode",mode).put("directGain",directGain).put("soundPool",soundPool).put("vibrationPool",vibrationPool);
+                .put("delayMinutes",delayMinutes).put("mode",mode).put("directGain",directGain).put("directExtend",directExtend).put("soundPool",soundPool).put("vibrationPool",vibrationPool);
         }
 
         static Settings load(Context c) {
@@ -229,6 +230,7 @@ final class SnoreFeedbackController {
                 // Preserve a complete spoken clip. For original synthesized motifs, zero means native length.
                 int requested=s.soundMs==0&&"single".equals(s.soundRhythm)&&samples.length*1000L/rate<=limit?0:limit;
                 samples=CuePcm.render(samples,requested,s.soundRhythm,clip,s.volume);
+                if("direct".equals(s.mode)&&s.directRepeats==2)samples=CuePcm.repeatOnce(samples);
                 duration=(int)((long)samples.length*1000/rate);
                 track=new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder()
