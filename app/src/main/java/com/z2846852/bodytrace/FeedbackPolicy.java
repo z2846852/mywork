@@ -40,7 +40,27 @@ final class FeedbackPolicy {
         int current=Math.max(0,Math.min(length-1,level));
         return "stopped".equals(outcome)?Math.max(0,current-1):"continued".equals(outcome)?Math.min(length-1,current+1):current;
     }
-    static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=4;}
+    static boolean thresholdBaseline(int valid,int hits){return valid>=10&&hits>=3;}
+    static final int SNORE_WINDOW_SECONDS=20;
+    // A continuous above-threshold run is one candidate, regardless of its length.
+    // Unknown windows never act as the quiet separator between candidates.
+    static final class SnoreTrigger {
+        private final java.util.ArrayDeque<Long> starts=new java.util.ArrayDeque<>();
+        private long last=Long.MIN_VALUE;
+        private boolean inHit;
+        void reset(){starts.clear();inHit=false;last=Long.MIN_VALUE;}
+        int update(long second,boolean valid,boolean hit){
+            if(!valid){reset();return 0;}
+            if(last!=Long.MIN_VALUE&&second!=last+1)reset();
+            last=second;
+            while(!starts.isEmpty()&&second-starts.peekFirst()>=SNORE_WINDOW_SECONDS)starts.removeFirst();
+            if(hit&&!inHit)starts.addLast(second);
+            inHit=hit;
+            return starts.size();
+        }
+        boolean ready(int required){return inHit&&starts.size()>=Math.max(3,required);}
+        void consume(){starts.clear();} // keep the current hit latched until a real quiet window
+    }
     static boolean thresholdBudget(int count,int max,long lastWall,long now,long sinceEnd){
         return count<Math.min(max,8)&&sinceEnd>=300000&&(lastWall==0||now-lastWall>=300000);
     }

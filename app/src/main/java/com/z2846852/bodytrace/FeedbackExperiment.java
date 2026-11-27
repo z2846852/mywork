@@ -246,7 +246,7 @@ final class FeedbackExperiment {
             if(!x.vibrate||!FeedbackPolicy.thresholdBudget(nightCount(prefs),s.maxCues,prefs.getLong("lastTrialWall",0),System.currentTimeMillis(),now-lastEnd)
                     ||System.currentTimeMillis()-enabledAt<Math.max(30,s.delayMinutes)*60000L)return null;
             int n=0,hits=0;Iterator<Double> it=baseline.descendingIterator();
-            while(it.hasNext()&&n<10){if(it.next()>=s.threshold)hits++;n++;}
+            while(it.hasNext()&&n<FeedbackPolicy.SNORE_WINDOW_SECONDS){if(it.next()>=s.threshold)hits++;n++;}
             if(!FeedbackPolicy.thresholdBaseline(n,hits))return null;
             x.soundEnabled=false;
             int[][] ladder=FeedbackPolicy.vibrationLadder(x.vibrationMin,x.vibrationMax,x.vibrationMsMax);

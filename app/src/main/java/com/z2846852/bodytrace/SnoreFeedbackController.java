@@ -22,7 +22,7 @@ final class SnoreFeedbackController {
         String sound = "soft";
         int volume = 20;
         double threshold = 0.15;
-        int minimum = 2;
+        int minimum = 3;
         int repeat = 5;
         boolean vibrate = false, soundEnabled = true, vibrationCompatibility=false;
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
@@ -43,7 +43,7 @@ final class SnoreFeedbackController {
                 throw new IllegalArgumentException("不支持的提示音");
             s.volume = json.optInt("volume", 20);
             s.threshold = json.optDouble("threshold", 0.15);
-            s.minimum = json.optInt("minimum", 2);
+            s.minimum = Math.max(3,json.optInt("trigger_episodes",json.optInt("minimum",3)));
             s.repeat = json.optInt("repeat", 5);
             s.vibrate = json.optBoolean("vibrate", false);
             s.vibrationCompatibility=json.optBoolean("vibrationCompatibility",false);
@@ -68,7 +68,7 @@ final class SnoreFeedbackController {
             s.vibrationPool=validatePool(json.optString("vibrationPool","continuous,triplet,rising,falling,shortlong"),false);
             if (s.volume < 1 || s.volume > 100 ||
                     !Double.isFinite(s.threshold) || s.threshold < 0.01 ||
-                    s.threshold > 0.80 || s.minimum < 1 || s.minimum > 5 ||
+                    s.threshold > 0.80 || s.minimum < 3 || s.minimum > 5 ||
                     s.repeat < 1 || s.repeat > 60)
                 throw new IllegalArgumentException("反馈参数超出范围");
             return s;
@@ -94,7 +94,7 @@ final class SnoreFeedbackController {
         private static String choice(String x,String fallback,String... values){for(String v:values)if(v.equals(x))return v;return fallback;}
         JSONObject json() throws Exception {
             return new JSONObject().put("sound",sound).put("volume",volume)
-                .put("threshold",threshold).put("minimum",minimum)
+                .put("threshold",threshold).put("minimum",minimum).put("trigger_episodes",minimum).put("trigger_window_seconds",FeedbackPolicy.SNORE_WINDOW_SECONDS)
                 .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled).put("vibrationCompatibility",vibrationCompatibility)
                 .put("vibrationAmplitude",vibrationAmplitude).put("vibrationMs",vibrationMs)
                 .put("vibrationPattern",vibrationPattern).put("soundMs",soundMs).put("soundRhythm",soundRhythm)

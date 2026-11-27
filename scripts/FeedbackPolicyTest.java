@@ -29,9 +29,21 @@ public final class FeedbackPolicyTest {
         check(FeedbackPolicy.nextVibrationLevel(0,7,"stopped")==0&&FeedbackPolicy.nextVibrationLevel(6,7,"continued")==6&&FeedbackPolicy.nextVibrationLevel(2,7,"incomplete")==2,"bounds and invalid observations");
         check(FeedbackPolicy.vibrationLadder(40,20,350)[0][0]==20&&FeedbackPolicy.vibrationLadder(40,20,350)[0][1]==350,"learned caps");
         check(FeedbackPolicy.vibrationLadder(1,0,500).length==0&&FeedbackPolicy.vibrationLadder(1,100,90).length==0,"excluded channel");
-        check(!FeedbackPolicy.thresholdBaseline(9,9)&&!FeedbackPolicy.thresholdBaseline(10,3)&&FeedbackPolicy.thresholdBaseline(10,4),"baseline validity");
+        check(!FeedbackPolicy.thresholdBaseline(9,9)&&!FeedbackPolicy.thresholdBaseline(10,2)&&FeedbackPolicy.thresholdBaseline(10,3),"baseline validity");
         check(!FeedbackPolicy.thresholdBudget(8,40,0,500000,500000)&&!FeedbackPolicy.thresholdBudget(1,8,1000,300999,500000)&&!FeedbackPolicy.thresholdBudget(1,8,0,500000,299999)&&FeedbackPolicy.thresholdBudget(1,8,1000,301000,300000),"night budget and cooldown");
         check(FeedbackPolicy.reportLink("session","session",120000)&&!FeedbackPolicy.reportLink("session","session",120001)&&!FeedbackPolicy.reportLink("session","other",100)&&!FeedbackPolicy.reportLink("","",0),"self-report temporal/session link");
+        FeedbackPolicy.SnoreTrigger gate=new FeedbackPolicy.SnoreTrigger();
+        for(int i=0;i<10;i++){gate.update(i,true,true);check(!gate.ready(3),"long continuous snore is one");}
+        gate.update(10,true,false);gate.update(11,true,true);check(!gate.ready(3),"two sounds insufficient");
+        gate.update(12,true,false);check(gate.update(13,true,true)==3&&gate.ready(3)&&!gate.ready(4),"three independent sounds");
+        gate.consume();check(gate.update(14,true,true)==0&&!gate.ready(3),"consumed current sound not recounted");
+        gate.update(15,true,false);gate.update(16,true,true);gate.update(17,false,false);
+        check(gate.update(18,true,true)==1&&!gate.ready(3),"unknown invalidates accumulated evidence");
+        gate.update(19,true,false);gate.update(20,true,true);check(gate.update(22,true,true)==1,"missing window resets");
+        gate.reset();gate.update(0,true,true);for(int i=1;i<19;i++)gate.update(i,true,false);
+        check(gate.update(19,true,true)==2&&!gate.ready(3),"window edge");
+        gate.update(20,true,false);check(gate.update(21,true,true)==2&&!gate.ready(3),"expired sound cannot trigger");
+        gate.reset();gate.update(0,true,true);gate.update(1,true,false);gate.update(2,true,true);check(!gate.ready(1),"hard minimum is three");
         System.out.println("FeedbackPolicy checks passed");
     }
 }
