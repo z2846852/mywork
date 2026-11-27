@@ -459,8 +459,9 @@ body.overview-muscle-open{overflow:hidden}
 <section class="page" id="page-sleep">
 
  <div class="sleep-mode-switch" role="group" aria-label="睡眠功能">
-  <button type="button" class="active" id="sleepBrowserTab" aria-pressed="true">录音分析</button>
-  <button type="button" id="sleepFeedbackTab" aria-pressed="false">实时鼾声反馈</button>
+  <button type="button" class="active" id="sleepBrowserTab" aria-pressed="true">录音</button>
+  <button type="button" id="sleepMetricsTab" aria-pressed="false">指标趋势</button>
+  <button type="button" id="sleepFeedbackTab" aria-pressed="false">实时反馈</button>
  </div>
  <section class="sleep-feedback-panel" id="sleepFeedbackPanel" hidden aria-label="实时鼾声反馈">
   <div class="sleep-feedback-intro"><h2>实时声音控制台</h2><button type="button" class="secondary" id="sleepLiveDim" aria-pressed="false">☾ 夜间</button></div>
@@ -478,11 +479,17 @@ body.overview-muscle-open{overflow:hidden}
    <div class="sleep-io-actions"><button type="button" class="primary" id="sleepMicStart">▶ 开启测试</button><button type="button" class="secondary" id="sleepMicStop" disabled>■ 关闭</button><button type="button" class="secondary sleep-mark-button" id="sleepLiveMark" disabled>⚑ 标记鼾声</button></div>
    <p class="sub" id="sleepMicMode">独立监听不保存录音</p>
   </div>
-  <div class="sleep-io-card speaker" aria-label="提示音实时输出">
-   <div class="sleep-io-heading"><div class="sleep-io-title"><span class="sleep-io-icon">🔊</span><strong>喇叭 · 反馈输出</strong></div><span class="sleep-io-state" id="sleepSpeakerBadge">反馈关闭</span></div>
-   <div class="sleep-oscilloscope speaker-wave"><canvas id="sleepSpeakerCanvas" width="660" height="140" aria-label="当前提示音合成波形"></canvas><span class="sleep-osc-label">OUTPUT · SYNTH</span></div>
-   <div class="sleep-live-output-row"><span id="sleepSpeakerNow">等待试听或鼾声触发</span><label class="sleep-feedback-toggle" for="sleepFeedbackEnabled"><strong>自动反馈</strong><input type="checkbox" id="sleepFeedbackEnabled" aria-label="启用自动鼾声提示"></label></div>
-   <div class="sleep-feedback-row"><label><input type="checkbox" id="sleepFeedbackSoundEnabled" checked>声音</label><label for="sleepFeedbackSound">音型</label><select id="sleepFeedbackSound">
+  <div class="sleep-io-card speaker" aria-label="反馈控制">
+   <div class="sleep-io-heading"><strong>自动反馈</strong><label class="sleep-feedback-toggle" for="sleepFeedbackEnabled"><span id="sleepSpeakerBadge">反馈关闭</span><input type="checkbox" id="sleepFeedbackEnabled" aria-label="启用自动鼾声提示"></label></div>
+   <div class="sleep-test-buttons" aria-label="独立手动测试">
+    <button type="button" class="secondary" id="sleepFeedbackPreview">▶ 测试声音</button>
+    <button type="button" class="primary" id="sleepFeedbackVibratePreview">测试振动</button>
+    <button type="button" class="secondary" id="sleepFeedbackMixedPreview">声＋振测试</button>
+   </div>
+   <p class="sub sleep-live-message" id="sleepFeedbackInfo" role="status">手动测试不需要麦克风，不改变自动反馈开关。</p>
+   <div class="sleep-actuator">
+    <div class="sleep-actuator-head"><strong>声音</strong><label><input type="checkbox" id="sleepFeedbackSoundEnabled" checked>自动启用</label></div>
+    <div class="sleep-actuator-row"><select id="sleepFeedbackSound">
       <optgroup label="原有鼾声提示音">
      <option value="soft">轻柔短音 · 480 Hz</option>
      <option value="low">低沉短音 · 320 Hz</option>
@@ -498,37 +505,29 @@ body.overview-muscle-open{overflow:hidden}
        <option value="dream_wave">潮汐 · 无敲击慢渐变</option>
        <option value="dream_chord">浮岛 · 柔和叠加和弦</option>
        <option value="dream_odd">异域五拍 · 2+3</option>
-      </optgroup>
-    </select><button type="button" class="primary" id="sleepFeedbackPreview">▶ 试听</button></div>
-   <div class="sleep-live-presets" id="sleepLivePresets" aria-label="快捷音型"><button type="button" data-sound="dream_triplet">三连</button><button type="button" data-sound="dream_echo">回声</button><button type="button" data-sound="dream_wave">潮汐</button><button type="button" data-sound="dream_orbit">星轨</button><button type="button" data-sound="soft">短音</button></div>
-   <div class="sleep-live-control-grid">
-    <div><div class="sleep-feedback-label"><label for="sleepFeedbackVolume">提示幅度</label><strong id="sleepFeedbackVolumeText">20%</strong></div><input id="sleepFeedbackVolume" type="range" min="1" max="100" step="1" value="20"></div>
-    <div><div class="sleep-feedback-label"><label for="sleepFeedbackRepeat">重复间隔</label><strong id="sleepFeedbackRepeatText">5 秒</strong></div><input id="sleepFeedbackRepeat" type="range" min="1" max="60" step="1" value="5"></div>
-    <div><div class="sleep-feedback-label"><label for="sleepFeedbackThreshold">AI 得分阈值</label><strong id="sleepFeedbackThresholdText">0.15</strong></div><input id="sleepFeedbackThreshold" type="range" min="0.01" max="0.80" step="0.01" value="0.15"></div>
-    <div><div class="sleep-feedback-label"><label for="sleepFeedbackMinimum">连续命中</label><strong id="sleepFeedbackMinimumText">2 秒</strong></div><input id="sleepFeedbackMinimum" type="range" min="1" max="5" step="1" value="2"></div>
-   </div>
-   <div class="sleep-live-options-row"><label for="sleepLiveSensitivity">灵敏度</label><select id="sleepLiveSensitivity" aria-label="灵敏度预设"><option value="high">高</option><option value="normal" selected>标准</option><option value="low">低</option><option value="custom">自定义</option></select><label class="sleep-feedback-checkbox"><input id="sleepFeedbackVibrate" type="checkbox">震动</label><button type="button" class="secondary" id="sleepFeedbackVibratePreview">测试震动</button></div>
-   <details class="sleep-live-help"><summary>独立刺激设置 · 音型/震动/区间</summary>
-    <div class="sleep-live-control-grid">
-     <label>声音素材池 <select id="sleepFeedbackSoundPool" multiple size="3" aria-label="声音素材多选"></select></label>
-     <label>声音节奏 <select id="sleepFeedbackSoundRhythm"><option value="single">原音</option><option value="triplet">三连</option><option value="rising">递增</option><option value="falling">递减</option><option value="shortlong">短短长</option></select></label>
-     <label>声音时长(ms，0原音) <input type="number" id="sleepFeedbackSoundMs" min="0" max="5000" step="100" value="0"></label>
-     <label>声音幅度下限(%) <input type="number" id="sleepFeedbackSoundMin" min="1" max="100" value="5"></label>
+      </optgroup></select><label>声音节奏 <select id="sleepFeedbackSoundRhythm"><option value="single">原音</option><option value="triplet">三连</option><option value="rising">递增</option><option value="falling">递减</option><option value="shortlong">短短长</option></select></label></div>
+    <div class="sleep-actuator-row"><div><div class="sleep-feedback-label"><label for="sleepFeedbackVolume">提示幅度</label><strong id="sleepFeedbackVolumeText">20%</strong></div><input id="sleepFeedbackVolume" type="range" min="1" max="100" step="1" value="20"></div><label>声音时长(ms，0原音) <input type="number" id="sleepFeedbackSoundMs" min="0" max="5000" step="100" value="0"></label></div>
+    <details class="sleep-live-help"><summary>声音素材 · 探索范围</summary><div class="sleep-live-presets" id="sleepLivePresets" aria-label="快捷音型"><button type="button" data-sound="dream_triplet">三连</button><button type="button" data-sound="dream_echo">回声</button><button type="button" data-sound="dream_wave">潮汐</button><button type="button" data-sound="dream_orbit">星轨</button><button type="button" data-sound="soft">短音</button></div><div class="sleep-live-control-grid"><label>声音素材池 <select id="sleepFeedbackSoundPool" multiple size="3" aria-label="声音素材多选"></select></label><label>声音幅度下限(%) <input type="number" id="sleepFeedbackSoundMin" min="1" max="100" value="5"></label>
       <label>声音幅度上限(%) <input type="number" id="sleepFeedbackSoundMax" min="1" max="100" value="40"></label>
       <label>声音时长上限(ms) <input type="number" id="sleepFeedbackSoundMsMax" min="150" max="5000" value="5000"></label>
       <label>声音节奏池 <select id="sleepFeedbackSoundRhythmPool" multiple size="3"><option value="single" selected>原音</option><option value="triplet" selected>三连</option><option value="rising" selected>递增</option><option value="falling" selected>递减</option><option value="shortlong" selected>短短长</option></select></label>
-      <div class="actions"><button type="button" class="secondary mini" id="sleepExcludeSound">排除当前声音</button><button type="button" class="secondary mini" id="sleepExcludeRhythm">排除当前节奏</button></div>
-     <label>震动类型 <select id="sleepFeedbackVibrationPattern"><option value="continuous">连续</option><option value="triplet" selected>三连</option><option value="rising">递增</option><option value="falling">递减</option><option value="shortlong">短短长</option></select></label>
-     <label>震动类型池 <select id="sleepFeedbackVibrationPool" multiple size="3"><option value="continuous" selected>连续</option><option value="triplet" selected>三连</option><option value="rising" selected>递增</option><option value="falling" selected>递减</option><option value="shortlong" selected>短短长</option></select></label>
-     <p class="sub" id="sleepVibrationHardware">检查震动硬件…</p><label>震动强度(%) <input type="number" id="sleepFeedbackVibrationAmplitude" min="1" max="100" value="30"></label>
-     <label>震动时长(ms) <input type="number" id="sleepFeedbackVibrationMs" min="100" max="2000" step="100" value="500"></label>
-     <label>震动幅度下限(%) <input type="number" id="sleepFeedbackVibrationMin" min="1" max="100" value="5"></label>
+      <div class="actions"><button type="button" class="secondary mini" id="sleepExcludeSound">排除当前声音</button><button type="button" class="secondary mini" id="sleepExcludeRhythm">排除当前节奏</button></div></div><div><button type="button" class="secondary" id="sleepCueRecord">录制声音</button> <button type="button" class="secondary" id="sleepCueImport">导入录音</button></div></details>
+    <div class="sleep-oscilloscope speaker-wave"><canvas id="sleepSpeakerCanvas" width="660" height="140" aria-label="当前提示音合成波形"></canvas></div>
+    <span class="sub" id="sleepSpeakerNow">等待声音输出</span>
+   </div>
+   <div class="sleep-actuator vibration">
+    <div class="sleep-actuator-head"><strong>振动</strong><label><input id="sleepFeedbackVibrate" type="checkbox">自动启用</label></div>
+    <div class="sleep-actuator-row"><label>震动类型 <select id="sleepFeedbackVibrationPattern"><option value="continuous">连续</option><option value="triplet" selected>三连</option><option value="rising">递增</option><option value="falling">递减</option><option value="shortlong">短短长</option></select></label><label>震动时长(ms) <input type="number" id="sleepFeedbackVibrationMs" min="100" max="2000" step="100" value="500"></label></div>
+    <div class="sleep-actuator-row"><label>震动强度(%) <input type="number" id="sleepFeedbackVibrationAmplitude" min="1" max="100" value="30"></label><span class="sub" id="sleepVibrationNow" role="status">等待振动测试</span></div>
+    <div class="sleep-vibration-track" id="sleepVibrationTrack" aria-hidden="true"></div>
+    <p class="sub" id="sleepVibrationHardware">检查震动硬件…</p>
+    <details class="sleep-live-help"><summary>振动类型池 · 探索范围</summary><div class="sleep-live-control-grid"><label>震动类型池 <select id="sleepFeedbackVibrationPool" multiple size="3"><option value="continuous" selected>连续</option><option value="triplet" selected>三连</option><option value="rising" selected>递增</option><option value="falling" selected>递减</option><option value="shortlong" selected>短短长</option></select></label><label>震动幅度下限(%) <input type="number" id="sleepFeedbackVibrationMin" min="1" max="100" value="5"></label>
       <label>震动幅度上限(%) <input type="number" id="sleepFeedbackVibrationMax" min="1" max="100" value="40"></label>
       <label>震动时长上限(ms) <input type="number" id="sleepFeedbackVibrationMsMax" min="100" max="2000" value="1000"></label>
-      <button type="button" class="secondary mini" id="sleepExcludeVibration">排除当前震动类型</button>
-     <div><button type="button" class="secondary" id="sleepCueRecord">录制声音</button> <button type="button" class="secondary" id="sleepCueImport">导入录音</button></div>
-    </div></details>
-    <details open class="sleep-live-help"><summary>跨夜实验</summary>
+      <button type="button" class="secondary mini" id="sleepExcludeVibration">排除当前震动类型</button></div></details>
+   </div>
+   <details class="sleep-live-help"><summary>检测参数 · 触发条件</summary><div class="sleep-live-options-row"><label for="sleepLiveSensitivity">灵敏度</label><select id="sleepLiveSensitivity" aria-label="灵敏度预设"><option value="high">高</option><option value="normal" selected>标准</option><option value="low">低</option><option value="custom">自定义</option></select></div><div class="sleep-live-control-grid"><div><div class="sleep-feedback-label"><label for="sleepFeedbackThreshold">AI 得分阈值</label><strong id="sleepFeedbackThresholdText">0.15</strong></div><input id="sleepFeedbackThreshold" type="range" min="0.01" max="0.80" step="0.01" value="0.15"></div><div><div class="sleep-feedback-label"><label for="sleepFeedbackMinimum">连续命中</label><strong id="sleepFeedbackMinimumText">2 秒</strong></div><input id="sleepFeedbackMinimum" type="range" min="1" max="5" step="1" value="2"></div><div><div class="sleep-feedback-label"><label for="sleepFeedbackRepeat">重复间隔</label><strong id="sleepFeedbackRepeatText">5 秒</strong></div><input id="sleepFeedbackRepeat" type="range" min="1" max="60" step="1" value="5"></div></div></details>
+   <details class="sleep-live-help"><summary>实验策略 · 排除规则与结果</summary>
      <div class="sleep-live-control-grid"><label>模式 <select id="sleepFeedbackMode"><option value="fixed">固定</option><option value="limited">有限重试</option><option value="stairs">阶梯增强</option><option value="explore">自动探索</option><option value="adaptive">自适应</option><option value="control">对照</option></select></label>
      <label>入睡保护(分钟) <input type="number" id="sleepFeedbackDelayMinutes" min="0" max="120" value="30"></label><label>每晚最大实验次数 <input type="number" id="sleepFeedbackMaxCues" min="1" max="40" value="12"></label></div>
      <label class="sleep-feedback-checkbox"><input id="sleepFeedbackPauseOnScreen" type="checkbox" checked>亮屏暂停自动刺激</label>
@@ -537,7 +536,6 @@ body.overview-muscle-open{overflow:hidden}
      <div class="actions"><select id="sleepExperimentRestoreKey" aria-label="已排除限制"></select><button type="button" class="secondary" id="sleepExperimentRestore">恢复选中限制</button></div>
      <p class="sub">排除操作停止自动反馈；不改变原始录音。至少60秒冷却，30秒有效观测；鼾声变化不代表觉醒。录音素材请使用0.15–5秒音频。</p>
     </details>
-    <p class="sub sleep-live-message" id="sleepFeedbackInfo" role="status">试听独立于麦克风；响度受媒体音量影响。</p>
    <details class="sleep-live-help"><summary>实验说明</summary><p class="sub" id="sleepDreamHint" hidden>清醒时熟悉固定音型；从低幅度开始。鼾声不代表 REM，不能保证清醒梦。</p><p class="sub">输出图为合成信号，不是实测声压。鼾声得分为 AI 分类结果。</p></details>
   </div>
   <div class="sleep-io-card sleep-live-log"><div class="sleep-io-heading"><strong>本次实验记录</strong><button type="button" class="secondary" id="sleepLiveExport">导出日志</button></div><div id="sleepLiveEvents" class="sleep-live-events">暂无自动反馈或手动标记</div><p class="sub">最近3条 · 最多导出1000条 · 进程内保存</p></div>
@@ -591,18 +589,19 @@ body.overview-muscle-open{overflow:hidden}
   <p id="sleepImportStatus" class="sub sleep-top-feedback" role="status"></p>
   <div id="sleepSelected" class="sleep-selected">请从下方选择一个已完成的录音</div>
   <p id="sleepSelectedFile" class="sub">录音大小和缓存状态将显示在这里</p>
-  <details id="sleepNightExperiment" class="sleep-live-help" hidden open>
-   <summary>鼾声实验 · 本次录音</summary>
+  <section id="sleepNightExperiment" class="sleep-metrics-page" hidden>
+   <h3>本次录音</h3>
    <div class="row wrap" style="justify-content:space-between;align-items:center"><span id="sleepNightSummary" class="sub"></span><button type="button" class="secondary mini" id="sleepNightRefreshPanel">刷新指标</button></div>
    <div id="sleepNightKpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:5px 0"></div>
-   <div id="sleepNightHourlyChart" style="display:grid;gap:3px"></div>
+   <h3>每小时鼾声频率</h3><div id="sleepNightHourlyChart" class="sleep-metric-chart"></div>
    <div class="row wrap"><label for="sleepNightQuality" class="sub">次日主观睡眠质量</label>
     <select id="sleepNightQuality"><option value="0">未评分</option><option value="1">1 很差</option><option value="2">2 较差</option><option value="3">3 一般</option><option value="4">4 较好</option><option value="5">5 很好</option></select>
    </div>
    <details><summary>每小时鼾声 · 反馈后未检出时长</summary><div id="sleepNightDetail" class="sub" style="white-space:pre-line"></div></details>
-   <details open><summary>历史指标趋势（最近14次）</summary><div class="row wrap"><label class="sub" for="sleepNightHistoryMetric">指标</label><select id="sleepNightHistoryMetric"><option value="episodes_per_hour">鼾声次数 / h</option><option value="snore_seconds">鼾声累计时长</option><option value="snore_fraction">鼾声时间占比</option><option value="sound_count">声音反馈次数</option><option value="vibration_count">振动反馈次数</option><option value="sleep_quality">主观睡眠评分</option></select></div><div id="sleepNightHistoryChart" style="display:grid;gap:4px"></div><details><summary>完整数字</summary><div id="sleepNightHistory" class="sub" style="white-space:pre-line"></div></details></details>
-   <p class="sub">仅 AI 鼾声候选，非睡眠时长或呼吸暂停诊断。离线回算阈值固定 0.15；旧录音与实时记录来源不同，不推断静默模式或反馈效果。</p>
-  </details>
+   <details class="sleep-metrics-history" open><summary>历史趋势 · 最近14次</summary><div class="row wrap"><label class="sub" for="sleepNightHistoryMetric">指标</label><select id="sleepNightHistoryMetric"><option value="episodes_per_hour">鼾声次数 / h</option><option value="snore_seconds">鼾声累计时长</option><option value="snore_fraction">鼾声时间占比</option><option value="sound_count">声音反馈次数</option><option value="vibration_count">振动反馈次数</option><option value="sleep_quality">主观睡眠评分</option></select></div><div id="sleepNightHistoryChart" style="display:grid;gap:4px"></div><details><summary>完整数字</summary><div id="sleepNightHistory" class="sub" style="white-space:pre-line"></div></details></details>
+   <details class="sleep-live-help"><summary>统计口径</summary><p class="sub">仅 AI 鼾声候选，非睡眠时长或呼吸暂停诊断。离线回算阈值固定 0.15；旧录音与实时记录来源不同，不推断静默模式或反馈效果。</p></details>
+  </section>
+  <div id="sleepAnalysisArea">
   <details id="sleepEditStartRow" class="sleep-time-edit" hidden>
     <summary>校正录制时间</summary>
    <label for="sleepEditStart">录音开始时间 · 北京时间</label>
@@ -736,8 +735,13 @@ body.overview-muscle-open{overflow:hidden}
     <p id="sleepVisualCaveat" class="sub">YAMNet 依据音频内容分类；得分不是实际概率，未经个人录音验证。dB 仅用于辅助波形，不是声压计。</p>
    </details>
   </div>
-
+ <details class="sleep-events-details">
+  <summary>候选声音片段明细 <span id="sleepEventCount">0 段</span></summary>
+  <div id="sleepAnalysis" class="sleep-analysis" aria-live="polite"></div>
+ </details>
+  </div>
  </div>
+ <details id="sleepDeviceReports" class="sleep-extras"><summary>手机 / 手表睡眠报告</summary>
  <div class="panel phone-sleep-panel" id="phoneSleepPanel">
   <div class="phone-sleep-head">
    <div><h3>手机行为 · 睡眠报告</h3><span class="sub">本机历史 · 非医学睡眠测量</span></div>
@@ -769,9 +773,6 @@ body.overview-muscle-open{overflow:hidden}
    </details>
   </div>
  </details>
- <details class="sleep-events-details">
-  <summary>候选声音片段明细 <span id="sleepEventCount">0 段</span></summary>
-  <div id="sleepAnalysis" class="sleep-analysis" aria-live="polite"></div>
  </details>
  </div>
 </section>

@@ -2569,8 +2569,10 @@ public final class MainActivity extends Activity {
                                 duration,vibrate,"手动试听"));}
                             catch(Exception ignored){}
                         });}catch(Exception e){failure=safeMessage(e);}
-                    try{reply(message("sleep_feedback_preview").put("ok",played)
-                        .put("message",played?"试听完成":failure.isEmpty()?"仍在播放上一个提示":failure)); }
+                    String channel=settings.vibrate?(settings.soundEnabled?"mixed":"vibration"):"sound";
+                    String title=settings.vibrate?(settings.soundEnabled?"声音＋振动":"振动"):"声音";
+                    try{reply(message("sleep_feedback_preview").put("ok",played).put("channel",channel)
+                        .put("message",played?title+"测试完成":failure.isEmpty()?"仍在播放上一个提示":failure)); }
                     catch(Exception ignored){}
                 },"snore-feedback-preview").start();
             }catch(Exception e){error("试听配置无效："+safeMessage(e));}

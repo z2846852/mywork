@@ -2229,3 +2229,32 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 
 /* Independent cue type filters: compact, explicit human exclusions. */
 .sleep-feedback-type-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:4px 0 7px}.sleep-feedback-type-chip{white-space:normal;line-height:1.25;min-width:0;padding:5px 2px!important;min-height:30px;font-size:11px}.sleep-feedback-type-chip.excluded{opacity:.55;filter:grayscale(1);text-decoration:line-through}.sleep-feedback-type-chip.observed{border-color:#46aa88}.sleep-live-control-grid input[type=number],.sleep-live-control-grid select{max-width:100%;min-width:0;width:100%}
+
+/* Sleep workbench: distinct recording, metrics and live controls. */
+#page-sleep .sleep-mode-switch{position:sticky;top:0;z-index:8;margin:3px 0 6px;padding:3px;gap:3px}
+#page-sleep .sleep-mode-switch button{min-height:34px;font-size:12px;padding:4px}
+#page-sleep [hidden]{display:none!important}
+#page-sleep .sleep-metrics-page{display:grid;gap:6px;padding:5px 0 0}
+#page-sleep .sleep-metrics-page h3{font-size:13px;margin:3px 0}
+#page-sleep .sleep-metric-chart{display:grid;gap:3px}
+#page-sleep .sleep-metrics-history{padding:6px 0;border-top:1px solid rgba(128,128,128,.25)}
+#page-sleep .sleep-metrics-history>summary{font-size:13px;font-weight:600}
+#page-sleep .sleep-metrics-history select{min-width:0;margin:4px 0}
+#sleepFeedbackPanel .sleep-test-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:6px 0}
+#sleepFeedbackPanel .sleep-test-buttons button{min-width:0;white-space:normal;font-size:12px;min-height:36px;padding:5px 3px;margin:0}
+#sleepFeedbackPanel .sleep-actuator{padding:7px 0;border-top:1px solid rgba(155,170,160,.28)}
+#sleepFeedbackPanel .sleep-actuator-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:12px}
+#sleepFeedbackPanel .sleep-actuator-head label{display:flex;align-items:center;gap:5px;font-size:11px}
+#sleepFeedbackPanel .sleep-actuator-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:center;margin:3px 0}
+#sleepFeedbackPanel .sleep-actuator-row>*{min-width:0;margin:0;font-size:11px}
+#sleepFeedbackPanel .sleep-actuator-row select,#sleepFeedbackPanel .sleep-actuator-row input[type=number]{width:100%;min-width:0;margin:0;padding:4px 6px;min-height:30px}
+#sleepFeedbackPanel .sleep-actuator-row label{display:block;line-height:1.25}
+#sleepFeedbackPanel .sleep-actuator-row label:has(input[type=number]),#sleepFeedbackPanel .sleep-actuator-row label:has(select){display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:4px}
+#sleepFeedbackPanel .sleep-vibration-track{display:flex;height:12px;gap:3px;margin:6px 0 3px;background:#182323;border-radius:4px;overflow:hidden}
+#sleepFeedbackPanel .sleep-vibration-track div{height:100%;min-width:0}
+#sleepFeedbackPanel .sleep-vibration-track i{display:block;background:#b4a2e7;height:100%;border-radius:2px}
+#sleepFeedbackPanel .sleep-vibration-track.running{outline:1px solid #d0baf4}
+#sleepFeedbackPanel .sleep-io-card.speaker{background:#172323;border-color:#425f57}
+#sleepFeedbackPanel .sleep-live-control-grid label{font-size:11px;min-width:0}
+#sleepFeedbackPanel .sleep-live-control-grid .actions{flex-wrap:wrap}
+#sleepFeedbackPanel .sleep-live-control-grid .actions button{white-space:normal;min-width:0}

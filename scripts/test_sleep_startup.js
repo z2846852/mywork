@@ -85,4 +85,9 @@ assert.ok(sessions.includes("appendFeedback")&&sessions.includes("getFD().sync()
 assert.ok(recorder.includes('recordingEvent(this,"cue",score,settings,block.second,duration)')&&recorder.includes('recordingEvent(this,"feedback_on"'),"Actual output start and toggle events journaled");
 assert.ok(main.includes('answer.put("feedback_events"')&&visual.includes('result.feedback_events')&&sleep.includes('renderRecordedFeedback'),"Persistent feedback reaches analysis timeline and list");
 console.log("SleepFeedbackTest passed: decoupled mic/recording and input/output graph contracts");
+for(const id of ["sleepMetricsTab","sleepAnalysisArea","sleepFeedbackVibratePreview","sleepFeedbackMixedPreview","sleepVibrationTrack"]){
+ assert.ok(html.includes('id="'+id+'"')&&sleep.includes('$("'+id+'")'),"Sleep layout control wired: "+id);
+}
+assert.ok(sleep.includes('preview("vibration")')&&sleep.includes('preview("sound")')&&sleep.includes('preview("mixed")'),"Independent preview entrypoints");
+assert.ok(sleep.includes('soundEnabled:a,vibrate:v')&&sleep.includes('mode!=="sound"')&&sleep.includes('mode!=="vibration"'),"Preview channels independent of automatic switches");
 console.log("SleepStartupTest passed: old records, no popup, local crash diagnostics");

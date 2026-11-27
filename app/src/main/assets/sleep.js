@@ -3,7 +3,7 @@
  "use strict";
  const $=id=>document.getElementById(id);
  const receiver=window.bodyTraceReceive;
- let recording=false,sessions=[],selectedId="",analysis=null,busy=false;
+ let recording=false,sessions=[],selectedId="",analysis=null,busy=false,sleepView="browser";
  let pendingDelete="";
  let eventLimit=80,feedbackEventLimit=40;
  let runningAnalysisId="";
@@ -292,7 +292,7 @@
  }
  function renderNightExperiment(chosen){
   const panel=$("sleepNightExperiment");if(!panel)return;
-  panel.hidden=!chosen;
+  panel.hidden=!chosen||sleepView!=="metrics";
   if(!chosen)return;
   const m=chosen.snore_metrics, mode=nightMode(m);
   $("sleepNightSummary").textContent=m?mode+" · 有效 "+nightFmt(m.valid_seconds)+(m.source==="offline"?" · AI ≥0.15"+(!m.journal_known?" · 反馈日志未知":""):""):
@@ -1118,19 +1118,25 @@
     const p=Math.min(1,(performance.now()-outputStarted)/outputDuration);
     speakerGraph(p);
     if(p<1)animation=requestAnimationFrame(frame);
-    else $("sleepSpeakerNow").textContent="本次输出结束 · 保留波形";
+    else {if(outputWave.length)$("sleepSpeakerNow").textContent="声音输出结束 · 保留波形";if($("sleepVibrationTrack").classList.contains("running")){$("sleepVibrationTrack").classList.remove("running");$("sleepVibrationNow").textContent="振动输出时段结束";}}
    }
    animation=requestAnimationFrame(frame);
   }
   function switchPage(page){
-   const live=page==="feedback";
+   const live=page==="feedback",metrics=page==="metrics";
+   sleepView=page;
    $("sleepBrowserPanel").hidden=live;
    $("sleepFeedbackPanel").hidden=!live;
-   for(const [id,pressed] of [["sleepFeedbackTab",live],["sleepBrowserTab",!live]]){
+   $("sleepAnalysisArea").hidden=metrics;
+   $("sleepDeviceReports").hidden=metrics;
+   for(const [id,pressed] of [["sleepFeedbackTab",live],["sleepBrowserTab",!live&&!metrics],["sleepMetricsTab",metrics]]){
     $(id).classList.toggle("active",pressed);
     $(id).setAttribute("aria-pressed",String(pressed));
    }
+   renderNightExperiment(current());
    if(live){micGraph();speakerGraph();bridge()?.sleepFeedbackStatus?.();}
+   else if(metrics)bridge()?.sleepStatus?.();
+   else requestAnimationFrame(()=>window.BodyTraceSleepVisual?.refreshFilters?.());
   }
   function status(evt){
    const oldMic=micActive;
@@ -1170,7 +1176,7 @@
     evt.clips.forEach(c=>{if(![...main.options].some(o=>o.value===c.id)){const o=document.createElement("option");o.value=c.id;o.textContent=c.name;main.append(o);}});
     const pool=$("sleepFeedbackSoundPool");[...main.options].forEach(o=>{if(![...pool.options].some(p=>p.value===o.value)){const n=o.cloneNode(true);n.selected=false;pool.append(n);}});
    }
-   if(evt.vibration_hardware){const v=evt.vibration_hardware;$("sleepVibrationHardware").textContent=!v.available?"未发现震动马达":v.amplitude?"硬件支持振幅控制（请求值）":"硬件不支持振幅控制：使用脉冲占空比";}
+   if(evt.vibration_hardware){const v=evt.vibration_hardware;vibrationAvailable=!!v.available;vibrationAmplitudeControl=!!v.amplitude;$("sleepVibrationHardware").textContent=!v.available?"未发现振动马达":v.amplitude?"支持振幅控制 · 示意为请求值":"不支持振幅控制 · 使用脉冲占空比";if(!previewPending)previewBusy(false);}
    if(evt.experiment){const e=evt.experiment,l=e.last||{};const stats=e.channels||{};$("sleepExperimentChannels").textContent=[["纯声音","sound"],["纯震动","vib"],["混合","mix"]].map(([name,k])=>name+" "+(stats[k]?.stopped||0)+"/"+(stats[k]?.observed||0)).join(" · ");const restore=$("sleepExperimentRestoreKey");restore.replaceChildren();for(const key of [...(e.excluded||[]),...(e.soundLimit<100?["soundLimit"]:[]),...(e.vibrationLimit<100?["vibrationLimit"]:[]),...(e.soundDurationLimit<5000?["soundDurationLimit"]:[]),...(e.vibrationDurationLimit<2000?["vibrationDurationLimit"]:[])]){const o=document.createElement("option");o.value=key;o.textContent=key==="soundLimit"?"恢复声音上限":key==="vibrationLimit"?"恢复震动上限":key==="soundDurationLimit"?"恢复声音时长上限":key==="vibrationDurationLimit"?"恢复震动时长上限":key.replace("deny_sound_","声音：").replace("deny_vib_","震动：").replace("deny_pair_","搭配：").replace("deny_rhythm_","声音节奏：");restore.append(o);} $("sleepExperimentRestore").disabled=!restore.options.length;for(const o of $("sleepFeedbackSoundPool").options){o.disabled=(e.excluded||[]).includes("deny_sound_"+o.value);if(o.disabled)o.selected=false;}for(const o of $("sleepFeedbackVibrationPool").options){o.disabled=(e.excluded||[]).includes("deny_vib_"+o.value);if(o.disabled)o.selected=false;}
      for(const o of $("sleepFeedbackSoundRhythmPool").options){o.disabled=(e.excluded||[]).includes("deny_rhythm_"+o.value);if(o.disabled)o.selected=false;}
      const typeRoot=$("sleepExperimentTypes");typeRoot.replaceChildren();
@@ -1200,7 +1206,7 @@
     $("sleepFeedbackSoundEnabled").checked=evt.settings.soundEnabled!==false;
     $("sleepFeedbackPauseOnScreen").checked=evt.settings.pauseOnScreen!==false;
     for(const k of ["SoundPool","VibrationPool","SoundRhythmPool"]){const key=k[0].toLowerCase()+k.slice(1), set=new Set(String(evt.settings[key]||(k==="SoundPool"?evt.settings.sound:"")).split(","));for(const o of $("sleepFeedback"+k).options)o.selected=!o.disabled&&set.has(o.value); }
-    labels();
+    labels();renderVibrationPattern();
    }
    if(recordActive!==recording)bridge()?.sleepStatus?.();
   }
@@ -1226,6 +1232,7 @@
    $(id).addEventListener("change",save);
   });
   $("sleepBrowserTab").onclick=()=>switchPage("browser");
+  $("sleepMetricsTab").onclick=()=>switchPage("metrics");
   $("sleepFeedbackTab").onclick=()=>switchPage("feedback");
   $("sleepMicStart").onclick=()=>{
    if(!bridge()?.sleepMicMonitorStart){
@@ -1250,20 +1257,42 @@
     bridge()?.sleepFeedbackStop?.();
    }
   };
-  $("sleepFeedbackPreview").onclick=()=>{
-   if(!bridge()?.sleepFeedbackPreview){
-    $("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;
+  let previewPending=false,previewTimeout=0,vibrationAvailable=null,vibrationAmplitudeControl=null;
+  function previewBusy(value){
+   previewPending=value;
+   for(const id of ["sleepFeedbackPreview","sleepFeedbackVibratePreview","sleepFeedbackMixedPreview"]){
+    $(id).disabled=value||(id!=="sleepFeedbackPreview"&&vibrationAvailable===false);
    }
-   $("sleepFeedbackInfo").textContent="正在测试提示音，下面的波形会同步变化…";
-   bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),soundEnabled:true,vibrate:false}));
-  };
-  $("sleepFeedbackVibratePreview").onclick=()=>{
-   if(!bridge()?.sleepFeedbackPreview){
-    $("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;
+   if(!value){clearTimeout(previewTimeout);previewTimeout=0;}
+  }
+  function preview(mode){
+   if(previewPending)return;
+   if(!bridge()?.sleepFeedbackPreview){$("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;}
+   if(mode!=="sound"&&vibrationAvailable===false){$("sleepFeedbackInfo").textContent="设备没有可用振动马达";return;}
+   const c=cfg(),v=mode!=="sound",a=mode!=="vibration";
+   $("sleepFeedbackInfo").textContent=mode==="sound"?"正在测试声音（无振动）":mode==="vibration"?"正在测试振动（无声音）":"正在测试声音＋振动";
+   if(v)$("sleepVibrationNow").textContent="请求 "+c.vibrationAmplitude+"% · "+c.vibrationMs+"ms";
+   previewBusy(true);
+   previewTimeout=setTimeout(()=>{previewBusy(false);$("sleepFeedbackInfo").textContent="未收到测试结果，请重试";},10000);
+   bridge().sleepFeedbackPreview(JSON.stringify({...c,soundEnabled:a,vibrate:v}));
+  }
+  $("sleepFeedbackPreview").onclick=()=>preview("sound");
+  $("sleepFeedbackVibratePreview").onclick=()=>preview("vibration");
+  $("sleepFeedbackMixedPreview").onclick=()=>preview("mixed");
+  function renderVibrationPattern(){
+   const root=$("sleepVibrationTrack");root.replaceChildren();
+   const c=cfg(),continuous=c.vibrationPattern==="continuous";
+   const n=continuous?1:3;
+   for(let i=0;i<n;i++){
+    const ratio=c.vibrationPattern==="rising"?(i+1)/3:c.vibrationPattern==="falling"?(3-i)/3:1;
+    const duty=continuous?1:c.vibrationPattern==="shortlong"&&i<2?.35:.7;
+    const seg=document.createElement("div"),pulse=document.createElement("i");
+    seg.style.flex="1";pulse.style.width=(100*duty*(vibrationAmplitudeControl===false?c.vibrationAmplitude/100*ratio:1))+"%";
+    pulse.style.opacity=String(Math.max(.15,vibrationAmplitudeControl===false?1:c.vibrationAmplitude/100*ratio));seg.append(pulse);root.append(seg);
    }
-   $("sleepFeedbackInfo").textContent="正在测试震动（喇叭保持静音）…";
-   bridge().sleepFeedbackPreview(JSON.stringify({...cfg(),soundEnabled:false,vibrate:true}));
-  };
+   root.title="请求节奏示意，非实测振动";
+  }
+  for(const id of ["sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs"])$(id).addEventListener("input",renderVibrationPattern);
   $("sleepCueRecord").onclick=()=>bridge()?.sleepCueImport?.(true);
   $("sleepCueImport").onclick=()=>bridge()?.sleepCueImport?.(false);
   $("sleepExcludeSound").onclick=()=>bridge()?.sleepExperimentExclude?.("sound",$("sleepFeedbackSound").value);
@@ -1292,14 +1321,16 @@
     outputWave=Array.isArray(evt.wave)?evt.wave.map(Number):[];
     outputDuration=Math.max(120,Number(evt.duration_ms)||300);
     outputStarted=performance.now();
-    $("sleepSpeakerNow").textContent=(evt.reason||"提示音")+
-     (evt.vibration?" · 已触发震动":" · 正在播放");
+    const sound=outputWave.length>0;
+    $("sleepSpeakerNow").textContent=sound?(evt.reason||"提示音")+" · 正在播放":"本次无声音输出";
+    if(evt.vibration){$("sleepVibrationNow").textContent="系统已启动振动 · "+outputDuration+"ms 内";$("sleepVibrationTrack").classList.add("running");}
     animateOutput();
    }else if(evt.type==="sleep_feedback_session_exported"){
     toast(evt.message||"反馈日志已复制");
    }else if(evt.type==="sleep_feedback_preview"){
-    $("sleepFeedbackInfo").textContent=evt.message||
-     (evt.ok?"试听完成":"提示音播放失败");
+    previewBusy(false);
+    $("sleepFeedbackInfo").textContent=evt.message||(evt.ok?"测试完成":"测试失败");
+    if(evt.channel==="vibration"||evt.channel==="mixed")$("sleepVibrationNow").textContent=evt.ok?"振动测试完成":"振动测试失败";
    }else if(evt.type==="sleep_feedback_error"||
       (evt.type==="error"&&/麦克风|鼾声|反馈/.test(evt.message||""))){
     $("sleepFeedbackInfo").textContent=evt.message||"反馈操作失败";
@@ -1311,6 +1342,6 @@
    if(evt?.type?.startsWith("sleep_feedback_"))window.bodyTraceReceiveFeedback(evt);
    else if(typeof prior==="function")prior(evt);
   };
-  labels();
+  labels();renderVibrationPattern();
  })();
 })();
