@@ -1017,7 +1017,7 @@
  // The input and output graphs are independent: PCM monitoring works without cues,
  // and synthesized cue previews work without microphone permission.
  (function initSnoreFeedback(){
-  const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold","sleepFeedbackDirectGain","sleepFeedbackDirectExtend",
+  const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold","sleepFeedbackDecaySeconds","sleepFeedbackDirectGain","sleepFeedbackDirectExtend",
    "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate","sleepFeedbackSoundEnabled","sleepFeedbackSoundPool","sleepFeedbackVibrationPool","sleepFeedbackVibrationCompatibility","sleepFeedbackSoundRhythm","sleepFeedbackSoundMs","sleepFeedbackSoundMax","sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationMax","sleepFeedbackMode","sleepFeedbackDelayMinutes","sleepFeedbackMaxCues","sleepFeedbackSoundMin","sleepFeedbackVibrationMin","sleepFeedbackSoundMsMax","sleepFeedbackVibrationMsMax","sleepFeedbackSoundRhythmPool","sleepFeedbackPauseOnScreen"];
   let micActive=false,recordActive=false,feedbackActive=false;
   let selfState={},selfPending=false,selfTimer=0;
@@ -1085,7 +1085,7 @@
    $("sleepLadderLegend").textContent=direct?"只缩放整体强度；素材、节奏和录制时长不变。":"绿：低鼾声候选；橙：仍有鼾声；灰：待测。";
    if(direct){
     const sound=$("sleepFeedbackSound").selectedOptions[0]?.textContent||c.sound,vib=$("sleepFeedbackVibrationPattern").selectedOptions[0]?.textContent||c.vibrationPattern;
-    $("sleepConsoleConfig").textContent="每4声触发 · 无入睡等待 · 亮屏/锁屏均可 · 播放后重新累计";
+    $("sleepConsoleConfig").textContent="每4声触发 · 无新鼾声 "+c.decaySeconds+"秒退一格 · 播放后归零";
     $("sleepDirectMaterials").textContent="声音："+(c.soundEnabled?sound+"（上限 "+c.volume+"%）":"关闭")+"；振动："+(c.vibrate?vib+"（上限 "+c.vibrationAmplitude+"%）":"关闭");
     const gain=feedbackActive?nextDirectGain:(c.directGain?20:100);
     $("sleepConsoleNext").textContent="下一次 · "+(c.soundEnabled?"声音 "+Math.max(1,Math.round(c.volume*gain/100))+"% ":"")+(c.vibrate?"振动 "+Math.max(1,Math.round(c.vibrationAmplitude*gain/100))+"%":"")+(c.soundEnabled||c.vibrate?" · "+gain+"%档"+(feedbackActive&&directLocked?" · 已锁定":feedbackActive&&directCanExtend&&c.directExtend&&c.soundEnabled?" · 下次双播":""):"请启用反馈通道");
@@ -1094,7 +1094,7 @@
     for(const n of levels){const cell=document.createElement("div");cell.className="sleep-ladder-cell "+(n===gain?"next":n<gain?"passed":"untested");const title=document.createElement("strong");title.textContent=(n===gain?"▶ ":"")+n+"%";cell.append(title);root.append(cell);}
     return;
    }
-   $("sleepConsoleConfig").textContent=(mode?"阈值搜索 · 纯振动":$("sleepFeedbackMode").selectedOptions[0]?.textContent||c.mode)+" · "+c.minimum+"声/5分钟 · "+Math.max(mode?30:0,c.delayMinutes)+"分钟保护 · 最多"+Math.min(mode?8:40,c.maxCues)+"次"+(mode?" · 冷却5分钟":"");
+   $("sleepConsoleConfig").textContent=(mode?"阈值搜索 · 纯振动":$("sleepFeedbackMode").selectedOptions[0]?.textContent||c.mode)+" · "+c.minimum+"声触发 · "+c.decaySeconds+"秒退格 · "+Math.max(mode?30:0,c.delayMinutes)+"分钟保护 · 最多"+Math.min(mode?8:40,c.maxCues)+"次"+(mode?" · 冷却5分钟":"");
    const root=$("sleepThresholdLadder");root.replaceChildren();
    const liveLevels=mode&&Array.isArray(vt.levels)&&vt.levels.length?vt.levels:null;
    const low=Math.min(c.vibrationMin,c.vibrationMax,e.vibrationLimit??100),high=Math.min(c.vibrationMax,e.vibrationLimit??100),cap=Math.min(c.vibrationMsMax,e.vibrationDurationLimit??2000,1500);
@@ -1127,7 +1127,7 @@
    volume:Number($("sleepFeedbackVolume").value),
    ai_curve_version:1,threshold:Number($("sleepFeedbackThreshold").value),
    minimum:Math.max(3,Number($("sleepFeedbackMinimum").value)||4),trigger_episodes:Math.max(3,Number($("sleepFeedbackMinimum").value)||4),trigger_window_seconds:300,
-   repeat:Number($("sleepFeedbackRepeat").value),
+   repeat:Number($("sleepFeedbackRepeat").value),decaySeconds:Number($("sleepFeedbackDecaySeconds").value),
    vibrate:$("sleepFeedbackVibrate").checked,
    soundEnabled:$("sleepFeedbackSoundEnabled").checked,
    soundPool:[...$("sleepFeedbackSoundPool").selectedOptions].map(o=>o.value).join(",")||"__none__",
@@ -1147,6 +1147,7 @@
    $("sleepFeedbackThresholdText").textContent=cfg().threshold.toFixed(2);
    $("sleepFeedbackMinimumText").textContent=cfg().minimum+" 声";
    $("sleepFeedbackRepeatText").textContent=cfg().repeat+" 秒";
+   $("sleepFeedbackDecaySecondsText").textContent=cfg().decaySeconds+" 秒";
    $("sleepLiveSensitivity").value=Object.keys(sensitivity).find(k=>Math.abs(sensitivity[k].threshold-cfg().threshold)<.0001&&sensitivity[k].minimum===cfg().minimum)||"custom";
    $("sleepLivePresets").querySelectorAll("[data-sound]").forEach(b=>{const active=b.dataset.sound===cfg().sound;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));});
   }
@@ -1246,7 +1247,7 @@
   function paintTriggerCount(evt){
    if($("sleepFeedbackPanel").hidden)return;
    if(evt.trigger_reason!==undefined)$("sleepTriggerReason").textContent=evt.trigger_reason;
-   if(evt.ai_enter!==undefined)$("sleepPulseScores").textContent="AI 鼾声 "+Number(evt.context_snore||0).toFixed(3)+" · 进入 "+Number(evt.ai_enter).toFixed(2)+" / 退出 "+Number(evt.ai_exit).toFixed(2)+" · "+(evt.ai_curve_wait_low?"等待有效低谷":evt.ai_curve_active?"已计入，等待下降":"等待下一个鼾声峰");
+   if(evt.ai_enter!==undefined)$("sleepPulseScores").textContent="AI 鼾声 "+Number(evt.context_snore||0).toFixed(3)+" · 进入 "+Number(evt.ai_enter).toFixed(2)+" / 退出 "+Number(evt.ai_exit).toFixed(2)+" · "+(evt.ai_curve_wait_low?"等待有效低谷":evt.ai_curve_active?"已计入，等待下降":"等待下一个鼾声峰")+(Number(evt.trigger_count)>0&&evt.decay_remaining!==undefined?" · "+evt.decay_remaining+"秒后退格":"");
    if(evt.direct_next_gain!==undefined){const n=Number(evt.direct_next_gain),locked=!!evt.direct_gain_locked,extend=!!evt.direct_can_extend;if(nextDirectGain!==n||directLocked!==locked||directCanExtend!==extend){nextDirectGain=n;directLocked=locked;directCanExtend=extend;renderPlan();}}
    const value="AI鼾声 "+(Number(evt.trigger_count)||0)+"/"+Math.max(3,Number(evt.trigger_required??evt.settings?.minimum)||4)+" · 起伏 "+(Number(evt.envelope_count)||0);
    const node=$("sleepTriggerCount");
@@ -1319,7 +1320,7 @@
      $("sleepExperimentSummary").textContent=`今晚 ${e.nightCount||0} 次 · 累计 ${e.trials} · 刺激后低鼾声 ${e.stopped}/${e.observed} · 对照 ${e.controlStopped}/${e.controlObserved} · 人工上限 声${e.soundLimit}%/${e.soundDurationLimit}ms 震${e.vibrationLimit}%/${e.vibrationDurationLimit}ms · 最近 ${l.sound||"—"} ${l.volume||0}% / ${l.vibrationPattern||"—"} ${l.vibrationAmplitude||0}%`;}
    if(evt.settings&&typeof evt.settings==="object"&&
        !ids.includes(document.activeElement?.id)){
-    for(const k of ["sound","volume","threshold","minimum","repeat","soundRhythm","soundMs","soundMax","vibrationMax","vibrationPattern","vibrationAmplitude","vibrationMs","mode","delayMinutes","maxCues","soundMin","vibrationMin","soundMsMax","vibrationMsMax"]){
+    for(const k of ["sound","volume","threshold","minimum","repeat","decaySeconds","soundRhythm","soundMs","soundMax","vibrationMax","vibrationPattern","vibrationAmplitude","vibrationMs","mode","delayMinutes","maxCues","soundMin","vibrationMin","soundMsMax","vibrationMsMax"]){
      const id="sleepFeedback"+k[0].toUpperCase()+k.slice(1);
      if(evt.settings[k]!==undefined)$(id).value=String(evt.settings[k]);
     }

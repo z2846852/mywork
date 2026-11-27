@@ -24,6 +24,7 @@ final class SnoreFeedbackController {
         double threshold = 0.50;
         int minimum = 4;
         int repeat = 5;
+        int decaySeconds = AiSnoreCounter.DEFAULT_DECAY_SECONDS;
         boolean vibrate = false, soundEnabled = true, vibrationCompatibility=false;
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
         int soundMax=40, vibrationMax=40, soundMin=5, vibrationMin=5, soundMsMax=5000, vibrationMsMax=1000, maxCues=12, delayMinutes=30;
@@ -45,6 +46,7 @@ final class SnoreFeedbackController {
             s.threshold = json.optInt("ai_curve_version",0)==1?json.optDouble("threshold",0.50):0.50;
             s.minimum = json.optInt("trigger_window_seconds",0)==FeedbackPolicy.SNORE_WINDOW_SECONDS?Math.max(3,json.optInt("trigger_episodes",4)):4;
             s.repeat = json.optInt("repeat", 5);
+            s.decaySeconds=AiSnoreCounter.clampDecay(json.optInt("decaySeconds",AiSnoreCounter.DEFAULT_DECAY_SECONDS));
             s.vibrate = json.optBoolean("vibrate", false);
             s.vibrationCompatibility=json.optBoolean("vibrationCompatibility",false);
             s.soundEnabled=json.optBoolean("soundEnabled",!s.vibrate);
@@ -98,7 +100,7 @@ final class SnoreFeedbackController {
         JSONObject json() throws Exception {
             return new JSONObject().put("sound",sound).put("volume",volume)
                 .put("ai_curve_version",1).put("threshold",threshold).put("minimum",minimum).put("trigger_episodes",minimum).put("trigger_window_seconds",FeedbackPolicy.SNORE_WINDOW_SECONDS)
-                .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled).put("vibrationCompatibility",vibrationCompatibility)
+                .put("repeat",repeat).put("decaySeconds",decaySeconds).put("vibrate",vibrate).put("soundEnabled",soundEnabled).put("vibrationCompatibility",vibrationCompatibility)
                 .put("vibrationAmplitude",vibrationAmplitude).put("vibrationMs",vibrationMs)
                 .put("vibrationPattern",vibrationPattern).put("soundMs",soundMs).put("soundRhythm",soundRhythm)
                 .put("trial_id",trialId).put("direct_gain_percent",directGainPercent).put("direct_repeats",directRepeats).put("actualSoundMs",actualSoundMs).put("actualVibrationMs",actualVibrationMs)

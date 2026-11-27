@@ -463,7 +463,7 @@ public final class SleepRecorderService extends Service {
                     snoreTrigger.reset();envelopeTrigger.reset();triggerArm=arm;previousArmed=armed;triggerThreshold=settings.threshold;triggerRequired=settings.minimum;
                 }
                 boolean triggerValid=!block.muted&&Double.isFinite(classifier.contextSnore())&&!SnoreFeedbackController.suppressMicrophone();
-                snoreTrigger.update(block.second,triggerValid,classifier.contextSnore(),settings.threshold);
+                snoreTrigger.update(block.second,triggerValid,classifier.contextSnore(),settings.threshold,settings.decaySeconds);
                 envelopeTrigger.updatePcm(block.second,triggerValid,block.pcm,SAMPLE_RATE,false);
                 snoreTriggerCount=snoreTrigger.count();snoreEnvelopeCount=envelopeTrigger.peaks();
 
@@ -476,7 +476,7 @@ public final class SleepRecorderService extends Service {
                 else triggerReason="等待新鼾声 "+snoreTriggerCount+"/"+settings.minimum;
                 broadcast(new JSONObject().put("type","sleep_feedback_score")
                     .put("second",block.second).put("score",score)
-                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("confirmed_pulses",snoreTrigger.confirmedInSecond(block.second)).put("ai_curve_active",snoreTrigger.active()).put("ai_curve_wait_low",snoreTrigger.waitingForLow()).put("ai_enter",settings.threshold).put("ai_exit",AiSnoreCounter.exit(settings.threshold)).put("context_snore",classifier.contextSnore()).put("context_breathing",classifier.contextBreathing()).put("trigger_reason",triggerReason).put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("direct_can_extend",directGainState.canExtend()).put("inferred_windows",inferredWindows)
+                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("confirmed_pulses",snoreTrigger.confirmedInSecond(block.second)).put("ai_curve_active",snoreTrigger.active()).put("ai_curve_wait_low",snoreTrigger.waitingForLow()).put("decay_remaining",snoreTrigger.secondsToDecay()).put("decay_seconds",settings.decaySeconds).put("ai_enter",settings.threshold).put("ai_exit",AiSnoreCounter.exit(settings.threshold)).put("context_snore",classifier.contextSnore()).put("context_breathing",classifier.contextBreathing()).put("trigger_reason",triggerReason).put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("direct_can_extend",directGainState.canExtend()).put("inferred_windows",inferredWindows)
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
                 if(feedbackEnabled&&(!screenPaused||experiment.observingThreshold())){
