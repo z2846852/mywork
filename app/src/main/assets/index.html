@@ -526,6 +526,7 @@ body.overview-muscle-open{overflow:hidden}
      <label>入睡保护(分钟) <input type="number" id="sleepFeedbackDelayMinutes" min="0" max="120" value="30"></label><label>本次最大实验次数 <input type="number" id="sleepFeedbackMaxCues" min="1" max="40" value="12"></label></div>
      <p id="sleepExperimentSummary" class="sub">尚无长期实验</p>
      <div class="actions"><select id="sleepExperimentReview"><option value="vibration">震动太强：降低全局上限</option><option value="sound">声音太响：降低全局上限</option><option value="soundType">排除最近声音类型</option><option value="vibrationType">排除最近震动类型</option><option value="mixed">排除最近搭配</option><option value="acceptable">最近刺激可接受</option></select><button type="button" id="sleepExperimentApply">记录评价</button><button type="button" class="secondary" id="sleepExperimentExport">长期日志</button></div>
+     <div class="actions"><select id="sleepExperimentRestoreKey" aria-label="已排除限制"></select><button type="button" class="secondary" id="sleepExperimentRestore">恢复选中限制</button></div>
      <p class="sub">排除操作停止自动反馈；不改变原始录音。至少60秒冷却，30秒有效观测；鼾声变化不代表觉醒。录音素材请使用0.15–5秒音频。</p>
     </details>
     <p class="sub sleep-live-message" id="sleepFeedbackInfo" role="status">试听独立于麦克风；响度受媒体音量影响。</p>

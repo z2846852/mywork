@@ -28,7 +28,7 @@ final class SnoreFeedbackController {
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
         int soundMax=40, vibrationMax=40, maxCues=12, delayMinutes=30;
         String vibrationPattern="triplet", mode="fixed", soundPool="", vibrationPool="continuous,triplet,rising,falling,shortlong";
-        String soundRhythm="single";
+        String soundRhythm="single", trialId="";
 
         static Settings parse(String source) throws Exception {
             if (source == null || source.length() > 12000)
@@ -73,7 +73,7 @@ final class SnoreFeedbackController {
                 .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled)
                 .put("vibrationAmplitude",vibrationAmplitude).put("vibrationMs",vibrationMs)
                 .put("vibrationPattern",vibrationPattern).put("soundMs",soundMs).put("soundRhythm",soundRhythm)
-                .put("soundMax",soundMax).put("vibrationMax",vibrationMax).put("maxCues",maxCues)
+                .put("trial_id",trialId).put("soundMax",soundMax).put("vibrationMax",vibrationMax).put("maxCues",maxCues)
                 .put("delayMinutes",delayMinutes).put("mode",mode).put("soundPool",soundPool).put("vibrationPool",vibrationPool);
         }
 

@@ -410,7 +410,7 @@ public final class SleepRecorderService extends Service {
                     SnoreFeedbackController.Settings selected=experiment.choose(settings,now,feedbackStartedMs);
                     if(selected==null)continue;
                     previousCue=now;consecutive=0;
-                    if(experiment.begin(selected,now,currentId)){experiment.executed(true);sendFeedbackStatus();continue;}
+                    if(experiment.begin(selected,now,currentId)){recordingEvent(this,"control",score,selected,block.second,0);experiment.executed(true);sendFeedbackStatus();continue;}
                     // Longer dream motifs never block the YAMNet inference thread.
                     Thread cue=new Thread(()->{
                         if(!running||!feedbackEnabled||Thread.currentThread().isInterrupted()){try{experiment.executed(false);}catch(Exception ignored){}return;}
@@ -418,6 +418,7 @@ public final class SleepRecorderService extends Service {
                         try{
                             if(SnoreFeedbackController.playCue(this,selected,(samples,rate,duration,vibration)->
                                     {
+                                        try{experiment.started();}catch(Exception e){sendError("实验开始日志失败："+e.getMessage());}
                                         recordingEvent(this,"cue",score,selected,block.second,duration);
                                         sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发");
                                         sendFeedbackStatus();
@@ -544,12 +545,14 @@ public final class SleepRecorderService extends Service {
             immutable);
         PendingIntent stop=PendingIntent.getService(this,4216,
             new Intent(this,SleepRecorderService.class).setAction(ACTION_STOP),immutable);
+        PendingIntent quiet=PendingIntent.getService(this,4217,new Intent(this,SleepRecorderService.class).setAction(ACTION_FEEDBACK_OFF),immutable);
         return new Notification.Builder(this,CHANNEL)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("BodyTrace · 麦克风活动中")
             .setContentText("可录制、监听与鼾声提醒 · 点击停止")
             .setContentIntent(open).setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
+            .addAction(android.R.drawable.ic_media_pause,"停止反馈",quiet)
             .addAction(android.R.drawable.ic_media_pause,"停止麦克风",stop)
             .build();
     }

@@ -2387,6 +2387,7 @@ public final class MainActivity extends Activity {
                 FeedbackExperiment.reject(MainActivity.this,scope);reply(SleepRecorderService.feedbackStatus(MainActivity.this));
             }catch(Exception e){error("反馈实验评价失败："+safeMessage(e));}});
         }
+        @JavascriptInterface public void sleepExperimentRestore(String key){worker.execute(()->{try{FeedbackExperiment.restore(MainActivity.this,key);reply(SleepRecorderService.feedbackStatus(MainActivity.this));}catch(Exception e){error("恢复反馈限制失败："+safeMessage(e));}});}
         @JavascriptInterface public void sleepExperimentExport(){
             worker.execute(()->{try{
                 String raw=FeedbackExperiment.export(MainActivity.this);

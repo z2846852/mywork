@@ -37,6 +37,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify feedback policy and JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check app/src/main/assets/sleep.js
+          mkdir -p /tmp/feedback-tests
+          javac -d /tmp/feedback-tests app/src/main/java/com/z2846852/bodytrace/FeedbackPolicy.java scripts/FeedbackPolicyTest.java
+          java -cp /tmp/feedback-tests com.z2846852.bodytrace.FeedbackPolicyTest
       - name: Validate Beijing date rollover, workout edits and heatmap
         run: node scripts/test_workout_date_heat.js
       - name: Build pinned offline American IPA and English-Chinese dictionary
