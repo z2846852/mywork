@@ -24,7 +24,7 @@ final class SnoreFeedbackController {
         double threshold = 0.15;
         int minimum = 2;
         int repeat = 5;
-        boolean vibrate = false, soundEnabled = true;
+        boolean vibrate = false, soundEnabled = true, vibrationCompatibility=false;
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
         int soundMax=40, vibrationMax=40, soundMin=5, vibrationMin=5, soundMsMax=5000, vibrationMsMax=1000, maxCues=12, delayMinutes=30;
         int actualSoundMs=0,actualVibrationMs=0;
@@ -46,6 +46,7 @@ final class SnoreFeedbackController {
             s.minimum = json.optInt("minimum", 2);
             s.repeat = json.optInt("repeat", 5);
             s.vibrate = json.optBoolean("vibrate", false);
+            s.vibrationCompatibility=json.optBoolean("vibrationCompatibility",false);
             s.soundEnabled=json.optBoolean("soundEnabled",!s.vibrate);
             s.vibrationAmplitude=clamp(json.optInt("vibrationAmplitude",30),1,100);
             s.vibrationMs=clamp(json.optInt("vibrationMs",500),100,2000);
@@ -94,7 +95,7 @@ final class SnoreFeedbackController {
         JSONObject json() throws Exception {
             return new JSONObject().put("sound",sound).put("volume",volume)
                 .put("threshold",threshold).put("minimum",minimum)
-                .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled)
+                .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled).put("vibrationCompatibility",vibrationCompatibility)
                 .put("vibrationAmplitude",vibrationAmplitude).put("vibrationMs",vibrationMs)
                 .put("vibrationPattern",vibrationPattern).put("soundMs",soundMs).put("soundRhythm",soundRhythm)
                 .put("trial_id",trialId).put("actualSoundMs",actualSoundMs).put("actualVibrationMs",actualVibrationMs)
@@ -143,7 +144,14 @@ final class SnoreFeedbackController {
         }return (Vibrator)context.getSystemService(Context.VIBRATOR_SERVICE);
     }
     static JSONObject vibrationHardware(Context c)throws Exception{
-        Vibrator v=getVibrator(c);return new JSONObject().put("available",v!=null&&v.hasVibrator()).put("amplitude",v!=null&&v.hasAmplitudeControl());
+        Vibrator v=getVibrator(c);
+        JSONObject info=new JSONObject().put("available",v!=null&&v.hasVibrator()).put("amplitude",v!=null&&v.hasAmplitudeControl())
+            .put("manufacturer",android.os.Build.MANUFACTURER).put("model",android.os.Build.MODEL)
+            .put("sdk",android.os.Build.VERSION.SDK_INT)
+            .put("permission",c.checkSelfPermission(android.Manifest.permission.VIBRATE)==android.content.pm.PackageManager.PERMISSION_GRANTED);
+        android.app.NotificationManager nm=(android.app.NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE);
+        if(nm!=null)info.put("interruption_filter",nm.getCurrentInterruptionFilter());
+        return info;
     }
     static VibrationEffect vibrationEffect(Settings s,boolean amplitudeControl){
         int amplitude=Math.max(1,Math.min(255,Math.round(s.vibrationAmplitude*255/100f)));
@@ -162,7 +170,7 @@ final class SnoreFeedbackController {
             timings[2*i+1]=on;timings[2*i+2]=segment-on;
             amps[2*i+1]=amplitudeControl?Math.max(1,(int)(amplitude*ratio)):VibrationEffect.DEFAULT_AMPLITUDE;
         }
-        return VibrationEffect.createWaveform(timings,amps,-1);
+        return amplitudeControl?VibrationEffect.createWaveform(timings,amps,-1):VibrationEffect.createWaveform(timings,-1);
     }
     interface CueListener {
         void onStart(short[] samples,int sampleRate,int durationMs,boolean vibrate);
@@ -171,6 +179,11 @@ final class SnoreFeedbackController {
         return playCue(context,s,null);
     }
     static boolean playCue(Context context,Settings s,CueListener listener) {
+        return playCue(context,s,listener,false,false);
+    }
+    // Foreground feedback is interactive media, not a notification.
+    // Overnight cues retain notification usage and respect system policy.
+    static boolean playCue(Context context,Settings s,CueListener listener,boolean foregroundPreview,boolean defaultMotorTest) {
         if(!SOUND_PLAYING.compareAndSet(false,true))return false;
         AudioTrack track=null;
         Vibrator vibrator=null;
@@ -244,11 +257,18 @@ final class SnoreFeedbackController {
                 vibrator=getVibrator(context);
                 if(vibrator==null||!vibrator.hasVibrator())
                     throw new IllegalStateException("设备没有可用震动马达");
-                VibrationEffect effect=vibrationEffect(s,vibrator.hasAmplitudeControl());
-                android.media.AudioAttributes attrs=new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build();
-                if(android.os.Build.VERSION.SDK_INT>=33)
-                    vibrator.vibrate(effect,new android.os.VibrationAttributes.Builder().setUsage(android.os.VibrationAttributes.USAGE_NOTIFICATION).build());
-                else vibrator.vibrate(effect,attrs);
+                boolean explicitAmplitude=vibrator.hasAmplitudeControl()&&!s.vibrationCompatibility;
+                VibrationEffect effect=defaultMotorTest?VibrationEffect.createOneShot(s.vibrationMs,VibrationEffect.DEFAULT_AMPLITUDE):vibrationEffect(s,explicitAmplitude);
+                android.media.AudioAttributes attrs=new AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(foregroundPreview?AudioAttributes.USAGE_MEDIA:AudioAttributes.USAGE_NOTIFICATION).build();
+                if(defaultMotorTest){
+                    // Standalone foreground baseline, without a notification or amplitude array.
+                    vibrator.vibrate(effect);
+                }else if(android.os.Build.VERSION.SDK_INT>=33){
+                    int usage=foregroundPreview?android.os.VibrationAttributes.USAGE_MEDIA:android.os.VibrationAttributes.USAGE_NOTIFICATION;
+                    vibrator.vibrate(effect,new android.os.VibrationAttributes.Builder().setUsage(usage).build());
+                }else vibrator.vibrate(effect,attrs);
             }
             if(!s.soundEnabled&&!s.vibrate)return false;
             s.actualSoundMs=s.soundEnabled?duration:0;s.actualVibrationMs=s.vibrate?s.vibrationMs:0;

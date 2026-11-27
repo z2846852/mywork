@@ -2559,6 +2559,10 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void sleepFeedbackPreview(String raw){
             try{
                 SnoreFeedbackController.Settings settings=SnoreFeedbackController.Settings.parse(raw);
+                JSONObject previewConfig=new JSONObject(raw);
+                boolean motorTest=previewConfig.optBoolean("defaultMotorTest",false);
+                boolean foregroundPreview=!previewConfig.optBoolean("nightChannelTest",false);
+                if(motorTest){settings.soundEnabled=false;settings.vibrate=true;settings.vibrationMs=800;settings.vibrationPattern="continuous";settings.vibrationCompatibility=true;}
                 new Thread(()->{
                     boolean played=false;
                     String failure="";
@@ -2568,11 +2572,12 @@ public final class MainActivity extends Activity {
                             try{reply(SleepRecorderService.speakerWave(samples,rate,
                                 duration,vibrate,"手动试听"));}
                             catch(Exception ignored){}
-                        });}catch(Exception e){failure=safeMessage(e);}
+                        },foregroundPreview,motorTest);}catch(Exception e){failure=safeMessage(e);}
                     String channel=settings.vibrate?(settings.soundEnabled?"mixed":"vibration"):"sound";
                     String title=settings.vibrate?(settings.soundEnabled?"声音＋振动":"振动"):"声音";
                     try{reply(message("sleep_feedback_preview").put("ok",played).put("channel",channel)
-                        .put("message",played?title+"测试完成":failure.isEmpty()?"仍在播放上一个提示":failure)); }
+                        .put("motor_test",motorTest).put("night_channel",!foregroundPreview)
+                        .put("message",played?title+"请求已执行（请确认实际体感）":failure.isEmpty()?"仍在播放上一个提示":failure)); }
                     catch(Exception ignored){}
                 },"snore-feedback-preview").start();
             }catch(Exception e){error("试听配置无效："+safeMessage(e));}

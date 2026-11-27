@@ -1017,7 +1017,7 @@
  // and synthesized cue previews work without microphone permission.
  (function initSnoreFeedback(){
   const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold",
-   "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate","sleepFeedbackSoundEnabled","sleepFeedbackSoundPool","sleepFeedbackVibrationPool","sleepFeedbackSoundRhythm","sleepFeedbackSoundMs","sleepFeedbackSoundMax","sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationMax","sleepFeedbackMode","sleepFeedbackDelayMinutes","sleepFeedbackMaxCues","sleepFeedbackSoundMin","sleepFeedbackVibrationMin","sleepFeedbackSoundMsMax","sleepFeedbackVibrationMsMax","sleepFeedbackSoundRhythmPool","sleepFeedbackPauseOnScreen"];
+   "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate","sleepFeedbackSoundEnabled","sleepFeedbackSoundPool","sleepFeedbackVibrationPool","sleepFeedbackVibrationCompatibility","sleepFeedbackSoundRhythm","sleepFeedbackSoundMs","sleepFeedbackSoundMax","sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationMax","sleepFeedbackMode","sleepFeedbackDelayMinutes","sleepFeedbackMaxCues","sleepFeedbackSoundMin","sleepFeedbackVibrationMin","sleepFeedbackSoundMsMax","sleepFeedbackVibrationMsMax","sleepFeedbackSoundRhythmPool","sleepFeedbackPauseOnScreen"];
   let micActive=false,recordActive=false,feedbackActive=false;
   const micHistory=[];
   let latestSecond=-1,liveSpan=60,captureStart=0;
@@ -1037,6 +1037,7 @@
    soundRhythmPool:[...$("sleepFeedbackSoundRhythmPool").selectedOptions].map(o=>o.value).join(",")||"__none__",
    soundMin:Number($("sleepFeedbackSoundMin").value),vibrationMin:Number($("sleepFeedbackVibrationMin").value),soundMsMax:Number($("sleepFeedbackSoundMsMax").value),vibrationMsMax:Number($("sleepFeedbackVibrationMsMax").value),pauseOnScreen:$("sleepFeedbackPauseOnScreen").checked,
    soundMax:Number($("sleepFeedbackSoundMax").value),vibrationMax:Number($("sleepFeedbackVibrationMax").value),
+   vibrationCompatibility:$("sleepFeedbackVibrationCompatibility").checked,
    vibrationPattern:$("sleepFeedbackVibrationPattern").value,vibrationAmplitude:Number($("sleepFeedbackVibrationAmplitude").value),vibrationMs:Number($("sleepFeedbackVibrationMs").value),
    mode:$("sleepFeedbackMode").value,delayMinutes:Number($("sleepFeedbackDelayMinutes").value),maxCues:Number($("sleepFeedbackMaxCues").value)
   });
@@ -1176,7 +1177,7 @@
     evt.clips.forEach(c=>{if(![...main.options].some(o=>o.value===c.id)){const o=document.createElement("option");o.value=c.id;o.textContent=c.name;main.append(o);}});
     const pool=$("sleepFeedbackSoundPool");[...main.options].forEach(o=>{if(![...pool.options].some(p=>p.value===o.value)){const n=o.cloneNode(true);n.selected=false;pool.append(n);}});
    }
-   if(evt.vibration_hardware){const v=evt.vibration_hardware;vibrationAvailable=!!v.available;vibrationAmplitudeControl=!!v.amplitude;$("sleepVibrationHardware").textContent=!v.available?"未发现振动马达":v.amplitude?"支持振幅控制 · 示意为请求值":"不支持振幅控制 · 使用脉冲占空比";if(!previewPending)previewBusy(false);}
+   if(evt.vibration_hardware){const v=evt.vibration_hardware;vibrationAvailable=!!v.available;vibrationAmplitudeControl=!!v.amplitude;$("sleepVibrationHardware").textContent=(v.model?v.model+" · ":"")+(!v.available?"未发现振动马达":v.amplitude?"支持振幅控制":"仅占空比")+(v.permission===false?" · VIBRATE 权限缺失":"")+(v.interruption_filter===2||v.interruption_filter===3||v.interruption_filter===4?" · 勿扰限制可能生效":"");if(!previewPending)previewBusy(false);}
    if(evt.experiment){const e=evt.experiment,l=e.last||{};const stats=e.channels||{};$("sleepExperimentChannels").textContent=[["纯声音","sound"],["纯震动","vib"],["混合","mix"]].map(([name,k])=>name+" "+(stats[k]?.stopped||0)+"/"+(stats[k]?.observed||0)).join(" · ");const restore=$("sleepExperimentRestoreKey");restore.replaceChildren();for(const key of [...(e.excluded||[]),...(e.soundLimit<100?["soundLimit"]:[]),...(e.vibrationLimit<100?["vibrationLimit"]:[]),...(e.soundDurationLimit<5000?["soundDurationLimit"]:[]),...(e.vibrationDurationLimit<2000?["vibrationDurationLimit"]:[])]){const o=document.createElement("option");o.value=key;o.textContent=key==="soundLimit"?"恢复声音上限":key==="vibrationLimit"?"恢复震动上限":key==="soundDurationLimit"?"恢复声音时长上限":key==="vibrationDurationLimit"?"恢复震动时长上限":key.replace("deny_sound_","声音：").replace("deny_vib_","震动：").replace("deny_pair_","搭配：").replace("deny_rhythm_","声音节奏：");restore.append(o);} $("sleepExperimentRestore").disabled=!restore.options.length;for(const o of $("sleepFeedbackSoundPool").options){o.disabled=(e.excluded||[]).includes("deny_sound_"+o.value);if(o.disabled)o.selected=false;}for(const o of $("sleepFeedbackVibrationPool").options){o.disabled=(e.excluded||[]).includes("deny_vib_"+o.value);if(o.disabled)o.selected=false;}
      for(const o of $("sleepFeedbackSoundRhythmPool").options){o.disabled=(e.excluded||[]).includes("deny_rhythm_"+o.value);if(o.disabled)o.selected=false;}
      const typeRoot=$("sleepExperimentTypes");typeRoot.replaceChildren();
@@ -1203,6 +1204,7 @@
      if(evt.settings[k]!==undefined)$(id).value=String(evt.settings[k]);
     }
     $("sleepFeedbackVibrate").checked=!!evt.settings.vibrate;
+    $("sleepFeedbackVibrationCompatibility").checked=!!evt.settings.vibrationCompatibility;
     $("sleepFeedbackSoundEnabled").checked=evt.settings.soundEnabled!==false;
     $("sleepFeedbackPauseOnScreen").checked=evt.settings.pauseOnScreen!==false;
     for(const k of ["SoundPool","VibrationPool","SoundRhythmPool"]){const key=k[0].toLowerCase()+k.slice(1), set=new Set(String(evt.settings[key]||(k==="SoundPool"?evt.settings.sound:"")).split(","));for(const o of $("sleepFeedback"+k).options)o.selected=!o.disabled&&set.has(o.value); }
@@ -1260,7 +1262,7 @@
   let previewPending=false,previewTimeout=0,vibrationAvailable=null,vibrationAmplitudeControl=null;
   function previewBusy(value){
    previewPending=value;
-   for(const id of ["sleepFeedbackPreview","sleepFeedbackVibratePreview","sleepFeedbackMixedPreview"]){
+   for(const id of ["sleepFeedbackPreview","sleepFeedbackVibratePreview","sleepFeedbackMixedPreview","sleepVibrationMotorTest","sleepVibrationNightTest"]){
     $(id).disabled=value||(id!=="sleepFeedbackPreview"&&vibrationAvailable===false);
    }
    if(!value){clearTimeout(previewTimeout);previewTimeout=0;}
@@ -1269,30 +1271,32 @@
    if(previewPending)return;
    if(!bridge()?.sleepFeedbackPreview){$("sleepFeedbackInfo").textContent="请安装完整新版 APK";return;}
    if(mode!=="sound"&&vibrationAvailable===false){$("sleepFeedbackInfo").textContent="设备没有可用振动马达";return;}
-   const c=cfg(),v=mode!=="sound",a=mode!=="vibration";
-   $("sleepFeedbackInfo").textContent=mode==="sound"?"正在测试声音（无振动）":mode==="vibration"?"正在测试振动（无声音）":"正在测试声音＋振动";
-   if(v)$("sleepVibrationNow").textContent="请求 "+c.vibrationAmplitude+"% · "+c.vibrationMs+"ms";
+   const c=cfg(),v=mode!=="sound",a=mode==="sound"||mode==="mixed";
+   $("sleepFeedbackInfo").textContent=mode==="motor"?"正在测试系统默认振幅 800ms":mode==="night"?"正在测试夜间通知振动通道":mode==="sound"?"正在测试声音（无振动）":mode==="vibration"?"正在测试振动（无声音）":"正在测试声音＋振动";
+   if(v)$("sleepVibrationNow").textContent=mode==="motor"?"系统默认强度 · 800ms":"请求 "+c.vibrationAmplitude+"% · "+c.vibrationMs+"ms";
    previewBusy(true);
    previewTimeout=setTimeout(()=>{previewBusy(false);$("sleepFeedbackInfo").textContent="未收到测试结果，请重试";},10000);
-   bridge().sleepFeedbackPreview(JSON.stringify({...c,soundEnabled:a,vibrate:v}));
+   bridge().sleepFeedbackPreview(JSON.stringify({...c,soundEnabled:a,vibrate:v,defaultMotorTest:mode==="motor",nightChannelTest:mode==="night"}));
   }
   $("sleepFeedbackPreview").onclick=()=>preview("sound");
   $("sleepFeedbackVibratePreview").onclick=()=>preview("vibration");
   $("sleepFeedbackMixedPreview").onclick=()=>preview("mixed");
+  $("sleepVibrationMotorTest").onclick=()=>preview("motor");
+  $("sleepVibrationNightTest").onclick=()=>preview("night");
   function renderVibrationPattern(){
    const root=$("sleepVibrationTrack");root.replaceChildren();
-   const c=cfg(),continuous=c.vibrationPattern==="continuous";
+   const c=cfg(),continuous=c.vibrationPattern==="continuous",dutyMode=c.vibrationCompatibility||vibrationAmplitudeControl===false;
    const n=continuous?1:3;
    for(let i=0;i<n;i++){
     const ratio=c.vibrationPattern==="rising"?(i+1)/3:c.vibrationPattern==="falling"?(3-i)/3:1;
     const duty=continuous?1:c.vibrationPattern==="shortlong"&&i<2?.35:.7;
     const seg=document.createElement("div"),pulse=document.createElement("i");
-    seg.style.flex="1";pulse.style.width=(100*duty*(vibrationAmplitudeControl===false?c.vibrationAmplitude/100*ratio:1))+"%";
-    pulse.style.opacity=String(Math.max(.15,vibrationAmplitudeControl===false?1:c.vibrationAmplitude/100*ratio));seg.append(pulse);root.append(seg);
+    seg.style.flex="1";pulse.style.width=(100*duty*(dutyMode?c.vibrationAmplitude/100*ratio:1))+"%";
+    pulse.style.opacity=String(Math.max(.15,dutyMode?1:c.vibrationAmplitude/100*ratio));seg.append(pulse);root.append(seg);
    }
    root.title="请求节奏示意，非实测振动";
   }
-  for(const id of ["sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs"])$(id).addEventListener("input",renderVibrationPattern);
+  for(const id of ["sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationCompatibility"])$(id).addEventListener("input",renderVibrationPattern);
   $("sleepCueRecord").onclick=()=>bridge()?.sleepCueImport?.(true);
   $("sleepCueImport").onclick=()=>bridge()?.sleepCueImport?.(false);
   $("sleepExcludeSound").onclick=()=>bridge()?.sleepExperimentExclude?.("sound",$("sleepFeedbackSound").value);
@@ -1331,7 +1335,7 @@
    }else if(evt.type==="sleep_feedback_preview"){
     previewBusy(false);
     $("sleepFeedbackInfo").textContent=evt.message||(evt.ok?"测试完成":"测试失败");
-    if(evt.channel==="vibration"||evt.channel==="mixed")$("sleepVibrationNow").textContent=evt.ok?"振动测试完成":"振动测试失败";
+    if(evt.channel==="vibration"||evt.channel==="mixed")$("sleepVibrationNow").textContent=evt.ok?"请求已执行 · 请确认体感":"振动请求失败";
    }else if(evt.type==="sleep_feedback_error"||
       (evt.type==="error"&&/麦克风|鼾声|反馈/.test(evt.message||""))){
     $("sleepFeedbackInfo").textContent=evt.message||"反馈操作失败";

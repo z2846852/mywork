@@ -2258,3 +2258,5 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 #sleepFeedbackPanel .sleep-live-control-grid label{font-size:11px;min-width:0}
 #sleepFeedbackPanel .sleep-live-control-grid .actions{flex-wrap:wrap}
 #sleepFeedbackPanel .sleep-live-control-grid .actions button{white-space:normal;min-width:0}
+
+#sleepFeedbackPanel .sleep-vibration-diagnostics{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0}#sleepFeedbackPanel .sleep-vibration-diagnostics button{min-width:0;white-space:normal;padding:5px 3px;font-size:11px}

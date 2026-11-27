@@ -520,7 +520,10 @@ body.overview-muscle-open{overflow:hidden}
     <div class="sleep-actuator-row"><label>震动类型 <select id="sleepFeedbackVibrationPattern"><option value="continuous">连续</option><option value="triplet" selected>三连</option><option value="rising">递增</option><option value="falling">递减</option><option value="shortlong">短短长</option></select></label><label>震动时长(ms) <input type="number" id="sleepFeedbackVibrationMs" min="100" max="2000" step="100" value="500"></label></div>
     <div class="sleep-actuator-row"><label>震动强度(%) <input type="number" id="sleepFeedbackVibrationAmplitude" min="1" max="100" value="30"></label><span class="sub" id="sleepVibrationNow" role="status">等待振动测试</span></div>
     <div class="sleep-vibration-track" id="sleepVibrationTrack" aria-hidden="true"></div>
-    <p class="sub" id="sleepVibrationHardware">检查震动硬件…</p>
+    <p class="sub" id="sleepVibrationHardware">检查振动硬件…</p>
+    <div class="sleep-actuator-head"><label><input type="checkbox" id="sleepFeedbackVibrationCompatibility">兼容模式（系统振幅＋占空比）</label></div>
+    <div class="sleep-vibration-diagnostics"><button type="button" class="secondary mini" id="sleepVibrationMotorTest">马达基准 · 800ms</button><button type="button" class="secondary mini" id="sleepVibrationNightTest">夜间通道测试</button></div>
+    <p class="sub">基准测试使用系统默认强度，可能较明显；夜间通道使用当前参数。仅手动执行。</p>
     <details class="sleep-live-help"><summary>振动类型池 · 探索范围</summary><div class="sleep-live-control-grid"><label>震动类型池 <select id="sleepFeedbackVibrationPool" multiple size="3"><option value="continuous" selected>连续</option><option value="triplet" selected>三连</option><option value="rising" selected>递增</option><option value="falling" selected>递减</option><option value="shortlong" selected>短短长</option></select></label><label>震动幅度下限(%) <input type="number" id="sleepFeedbackVibrationMin" min="1" max="100" value="5"></label>
       <label>震动幅度上限(%) <input type="number" id="sleepFeedbackVibrationMax" min="1" max="100" value="40"></label>
       <label>震动时长上限(ms) <input type="number" id="sleepFeedbackVibrationMsMax" min="100" max="2000" value="1000"></label>
