@@ -1102,10 +1102,14 @@
      const typeRoot=$("sleepExperimentTypes");typeRoot.replaceChildren();
      for(const [title,id,prefix,suffix] of [["声音","sleepFeedbackSoundPool","deny_sound_","|off"],["震动","sleepFeedbackVibrationPool","deny_vib_",""]]){
       const label=document.createElement("strong");label.textContent=title;typeRoot.append(label);
+      const grid=document.createElement("div");grid.className="sleep-feedback-type-grid";typeRoot.append(grid);
       for(const o of $(id).options){
-       const k=title==="声音"?o.value+suffix:"off|"+o.value,t=e.types?.[k],row=document.createElement("div");
-       row.className="sleep-live-event";row.style.opacity=o.disabled?".45":"1";
-       row.textContent=o.textContent+" · "+(o.disabled?"已排除":t?t.stopped+"/"+t.observed:"待探索");typeRoot.append(row);
+       const k=title==="声音"?o.value+suffix:"off|"+o.value,t=e.types?.[k],row=document.createElement("button");
+       row.type="button";row.className="secondary mini sleep-feedback-type-chip";row.classList.toggle("excluded",o.disabled);row.classList.toggle("observed",!!t?.stopped&&!o.disabled);
+       row.textContent=o.textContent.split(" · ")[0]+" · "+(o.disabled?"排除":t?t.stopped+"/"+t.observed:"待测");
+       row.title=o.disabled?"恢复此类型":"排除此类型";
+       row.onclick=()=>o.disabled?bridge()?.sleepExperimentRestore?.(prefix+o.value):bridge()?.sleepExperimentExclude?.(title==="声音"?"sound":"vibration",o.value);
+       grid.append(row);
       }
      }
      const candidateRoot=$("sleepExperimentCandidates");candidateRoot.replaceChildren();

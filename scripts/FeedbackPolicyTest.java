@@ -18,6 +18,10 @@ public final class FeedbackPolicyTest {
         check(FeedbackPolicy.coarseRange(30,20,1)==20&&FeedbackPolicy.coarseRange(1,0,1)==0,"range after exclusion");
         check(!FeedbackPolicy.nightBudget(12,12,0,60000)&&!FeedbackPolicy.nightBudget(1,12,1000,60999)&&FeedbackPolicy.nightBudget(1,12,1000,61000),"persistent night budget");
         check(FeedbackPolicy.rank(3,4,0)>FeedbackPolicy.rank(1,4,0),"rank by evidence");
+        check(!FeedbackPolicy.rhythmFits("triplet",1800,5000),"three full clips exceed limit");
+        check(FeedbackPolicy.rhythmFits("single",1800,2000),"single fits independently");
+        check(!FeedbackPolicy.rhythmFits("single",1800,1000),"too-long clip excluded");
+        check(!FeedbackPolicy.rhythmFits("triplet",0,170)&&FeedbackPolicy.rhythmFits("triplet",0,180),"pulse minimum");
         System.out.println("FeedbackPolicy checks passed");
     }
 }

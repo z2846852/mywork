@@ -13,6 +13,10 @@ final class FeedbackPolicy {
         int lo=Math.max(1,Math.min(lower,upper));
         return lo+(upper-lo)*Math.min(2,Math.max(0,stage))/2;
     }
+    static boolean rhythmFits(String rhythm,long clipMs,int limit){
+        if(limit<150||clipMs<0)return false;
+        return "single".equals(rhythm)?clipMs<=limit:limit>=180&&(clipMs==0||clipMs*3+170<=limit);
+    }
     static double rank(int ok,int n,int accepted){
         return (ok+1.0)/(n+2.0)+Math.min(2,accepted)*0.05;
     }

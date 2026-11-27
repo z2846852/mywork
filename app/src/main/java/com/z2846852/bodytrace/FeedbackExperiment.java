@@ -154,6 +154,16 @@ final class FeedbackExperiment {
         }
         if(!ed.commit())throw new IOException("实验统计保存失败");pending=null;observing=false;samples=hits=0;afterSum=0;
     }
+    private String[] compatibleRhythms(String sound,String[] rhythms,int limit){
+        long clipMs=0;
+        if(CueLibrary.validId(sound)){
+            clipMs=CueLibrary.pcmFile(c,sound).length()*1000/(2*CuePcm.RATE);
+            if(clipMs<=0)return new String[0];
+        }
+        ArrayList<String> out=new ArrayList<>();
+        for(String rhythm:rhythms)if(FeedbackPolicy.rhythmFits(rhythm,clipMs,limit))out.add(rhythm);
+        return out.toArray(new String[0]);
+    }
     synchronized SnoreFeedbackController.Settings choose(SnoreFeedbackController.Settings s,long now,long enabledAt)throws Exception{
         if(began!=enabledAt){began=enabledAt;sessionCues=0;attempts=0;if(pending!=null)finish("incomplete");}
         if(pending!=null){if(now-lastEnd>90000)finish("incomplete");else return null;}
@@ -170,7 +180,9 @@ final class FeedbackExperiment {
         int trial=prefs.getInt("trials",0);
         if("explore".equals(s.mode)||"adaptive".equals(s.mode)){
             String[] sounds=pool(s.soundPool,s.sound,"deny_sound_"),vibs=pool(s.vibrationPool,s.vibrationPattern,"deny_vib_"),rhythms=pool(s.soundRhythmPool,s.soundRhythm,"deny_rhythm_");
-            if(rhythms.length==0)sounds=new String[0];
+            ArrayList<String> usableSounds=new ArrayList<>();
+            for(String sound:sounds)if(compatibleRhythms(sound,rhythms,x.soundMsMax).length>0)usableSounds.add(sound);
+            sounds=usableSounds.toArray(new String[0]);
             ArrayList<JSONObject> options=new ArrayList<>();
             for(int channel=0;channel<3;channel++){
                 boolean a=channel!=2,b=channel!=0;
@@ -196,27 +208,25 @@ final class FeedbackExperiment {
             int step=(trial/3)%3,vstep=(trial/9+step)%3;
             x.volume=FeedbackPolicy.coarseRange(x.soundMin,x.soundMax,step);x.vibrationAmplitude=FeedbackPolicy.coarseRange(x.vibrationMin,x.vibrationMax,vstep);
             x.vibrationMs=new int[]{200,500,1000}[vstep];x.soundMs=new int[]{300,800,1500}[step];
-            x.soundRhythm=rhythms.length>0?rhythms[(trial/3)%rhythms.length]:"single";
+            String[] feasible=x.soundEnabled?compatibleRhythms(x.sound,rhythms,x.soundMsMax):new String[]{"single"};
+            x.soundRhythm=feasible[(trial/3)%feasible.length];
             if("adaptive".equals(s.mode)&&trial%5!=0){
                 JSONObject best=new JSONObject(prefs.getString("best_"+key(pick),"{}"));
                 x.volume=best.optInt("volume",x.volume);x.vibrationAmplitude=best.optInt("vibrationAmplitude",x.vibrationAmplitude);
                 x.vibrationMs=best.optInt("vibrationMs",x.vibrationMs);x.soundMs=best.optInt("soundMs",x.soundMs);
-                x.soundRhythm=best.optString("soundRhythm",x.soundRhythm);
+                String bestRhythm=best.optString("soundRhythm",x.soundRhythm);
+                if(Arrays.asList(feasible).contains(bestRhythm))x.soundRhythm=bestRhythm;
                 // Coordinate refinement: alter only one actuator at a time.
                 if(trial%5==1){if(x.soundEnabled)x.volume=Math.max(1,x.volume-5);else x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude-5);}
                 if(trial%5==2&&x.vibrate)x.vibrationAmplitude=Math.max(x.vibrationMin,x.vibrationAmplitude-5);
                 if(trial%5==3&&x.soundEnabled&&!CueLibrary.validId(x.sound))x.soundMs=Math.max(150,x.soundMs-200);
                 if(trial%5==4&&x.vibrate)x.vibrationMs=Math.max(100,x.vibrationMs-100);
             }
-            // Avoid truncating spoken clips.
-            if(CueLibrary.validId(x.sound)){
-                long clipMs=CueLibrary.pcmFile(c,x.sound).length()*1000/(2*CuePcm.RATE);
-                if(clipMs<=0||clipMs>x.soundMsMax)return null;
-                x.soundMs=0;
-                if(clipMs*3+170>x.soundMsMax){
-                    if(Arrays.asList(rhythms).contains("single"))x.soundRhythm="single";else return null;
-                }
-            }
+            // All selected clips already fit the learned duration bound.
+            if(x.soundEnabled&&CueLibrary.validId(x.sound))x.soundMs=0;
+            else if(x.soundEnabled&&!"single".equals(x.soundRhythm)&&x.soundMs>0)x.soundMs=Math.max(180,x.soundMs);
+            x.volume=Math.max(Math.min(x.soundMin,x.soundMax),x.volume);
+            x.vibrationAmplitude=Math.max(Math.min(x.vibrationMin,x.vibrationMax),x.vibrationAmplitude);
         }else if("stairs".equals(s.mode)){
             x.volume=Math.max(1,x.volume*(attempts+1)/3);x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude*(attempts+1)/3);
         }

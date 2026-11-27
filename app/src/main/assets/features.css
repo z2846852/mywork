@@ -2226,3 +2226,6 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 .sleep-recorded-feedback-row small{font-size:10px;color:#afc4bd}
 .sleep-recorded-feedback-row button,.sleep-recorded-feedback-head button{font-size:10px;min-height:29px;padding:3px 7px;margin:0}
 .sleep-recorded-feedback-row .actions{display:flex;gap:3px;flex-shrink:0}
+
+/* Independent cue type filters: compact, explicit human exclusions. */
+.sleep-feedback-type-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:4px 0 7px}.sleep-feedback-type-chip{white-space:normal;line-height:1.25;min-width:0;padding:5px 2px!important;min-height:30px;font-size:11px}.sleep-feedback-type-chip.excluded{opacity:.55;filter:grayscale(1);text-decoration:line-through}.sleep-feedback-type-chip.observed{border-color:#46aa88}.sleep-live-control-grid input[type=number],.sleep-live-control-grid select{max-width:100%;min-width:0;width:100%}
