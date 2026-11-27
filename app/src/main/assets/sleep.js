@@ -1321,7 +1321,8 @@
     outputWave=Array.isArray(evt.wave)?evt.wave.map(Number):[];
     outputDuration=Math.max(120,Number(evt.duration_ms)||300);
     outputStarted=performance.now();
-    const sound=outputWave.length>0;
+    const sound=evt.sound===true||(evt.sound===undefined&&outputWave.some(v=>v!==0));
+    if(!sound)outputWave=[];
     $("sleepSpeakerNow").textContent=sound?(evt.reason||"提示音")+" · 正在播放":"本次无声音输出";
     if(evt.vibration){$("sleepVibrationNow").textContent="系统已启动振动 · "+outputDuration+"ms 内";$("sleepVibrationTrack").classList.add("running");}
     animateOutput();

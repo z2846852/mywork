@@ -498,7 +498,7 @@ public final class SleepRecorderService extends Service {
             envelope.put(Math.round(peak*1000.0/32768.0)/1000.0);
         }
         return new JSONObject().put("type","sleep_feedback_output")
-            .put("wave",envelope).put("duration_ms",duration)
+            .put("wave",envelope).put("sound",samples.length>0).put("duration_ms",duration)
             .put("vibration",vibration).put("reason",reason)
             .put("sample_rate",rate);
     }
