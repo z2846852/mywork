@@ -177,6 +177,7 @@ final class FeedbackPolicy {
             pulseReviewed=true;
             if(pulseLength>=2400&&verifier.confirm(pulse,pulseLength))snore.addLast(tick);
         }
+        int confirmedInSecond(long second){int n=0;for(long tick:snore)if(tick/20==second)n++;return n;}
         int peaks(){return peaks.size();}
         int count(){return snore.size();}
         boolean ready(int required){return snore.size()>=Math.max(3,required)&&last-snore.peekLast()<40;}

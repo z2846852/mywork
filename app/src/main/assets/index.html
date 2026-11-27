@@ -475,6 +475,24 @@ body.overview-muscle-open{overflow:hidden}
    <div class="sleep-console-next" id="sleepConsoleNext">等待开启反馈</div><p class="sub" id="sleepTriggerReason" role="status">自动反馈关闭</p>
    <p class="sub sleep-live-message" id="sleepFeedbackInfo" role="status">先配置、开始录音，再开启自动反馈。</p>
   </div>
+  <div id="sleepConsoleLive" aria-label="共享实时检测图表">
+  <div class="sleep-live-metrics">
+   <div><small>当前电平</small><strong id="sleepMicDbfs">—</strong></div>
+   <div><small>鼾声得分</small><strong id="sleepFeedbackScore">—</strong></div>
+   <div><small>AI 已分析</small><strong id="sleepLiveAnalyzed">—</strong></div>
+   <div><small>自动反馈</small><strong id="sleepFeedbackCount">0</strong></div>
+  </div>
+
+  <div class="sleep-io-card mic" aria-label="麦克风实时输入">
+   <div class="sleep-io-heading"><div class="sleep-io-title"><span class="sleep-io-icon">🎙</span><strong>麦克风 · 输入</strong></div><span class="sleep-io-state" id="sleepMicBadge">未连接</span></div>
+   <div class="sleep-live-chart-head"><span>包络 · 粉：AI高分 / 绿：确认鼾声</span><select id="sleepLiveSpan" aria-label="波形时间范围"><option value="15">15秒</option><option value="30">30秒</option><option value="60" selected>60秒</option></select></div>
+   <div class="sleep-oscilloscope"><canvas id="sleepMicCanvas" width="660" height="180" aria-label="实时麦克风声音波形"></canvas></div>
+   <div class="sleep-ai-chart-head"><span>AI 鼾声得分</span><span>紫：得分　黄：阈值</span></div><div class="sleep-oscilloscope sleep-ai-score-wave"><canvas id="sleepAiScoreCanvas" width="660" height="120" aria-label="实时AI鼾声分类得分趋势"></canvas></div><div class="sleep-live-diagnostics"><span id="sleepInferenceStatus" role="status">AI 未运行</span><span id="sleepLivePeak">峰值 —</span></div>
+   <div class="sleep-io-actions"><button type="button" class="primary" id="sleepMicStart">▶ 开启测试</button><button type="button" class="secondary" id="sleepMicStop" disabled>■ 关闭</button><button type="button" class="secondary sleep-mark-button" id="sleepLiveMark" disabled>⚑ 标记鼾声</button></div>
+   <p class="sub" id="sleepMicMode">独立监听不保存录音</p>
+  </div>
+
+  </div>
   <div id="sleepConsoleNight">
    <div class="sleep-io-card sleep-console-plan">
     <div class="sleep-io-heading"><strong>反馈方式</strong><button type="button" class="secondary mini" id="sleepThresholdPreset">使用直接反馈</button></div>
@@ -500,22 +518,6 @@ body.overview-muscle-open{overflow:hidden}
    <div class="sleep-io-card sleep-console-results"><div class="sleep-io-heading"><strong>本晚试验 · AI 与主观确认</strong><button type="button" class="secondary mini" id="sleepConsoleRefresh">↻</button></div><div id="sleepConsoleTrials" class="sleep-console-trials">暂无试验；开启后自动更新。</div><p class="sub">没有勾选＝未知；低鼾声候选不能证明微觉醒或改善睡眠。</p></div>
   </div>
   <div id="sleepConsoleTest" hidden>
-  <div class="sleep-live-metrics">
-   <div><small>当前电平</small><strong id="sleepMicDbfs">—</strong></div>
-   <div><small>鼾声得分</small><strong id="sleepFeedbackScore">—</strong></div>
-   <div><small>AI 已分析</small><strong id="sleepLiveAnalyzed">—</strong></div>
-   <div><small>自动反馈</small><strong id="sleepFeedbackCount">0</strong></div>
-  </div>
-
-  <div class="sleep-io-card mic" aria-label="麦克风实时输入">
-   <div class="sleep-io-heading"><div class="sleep-io-title"><span class="sleep-io-icon">🎙</span><strong>麦克风 · 输入</strong></div><span class="sleep-io-state" id="sleepMicBadge">未连接</span></div>
-   <div class="sleep-live-chart-head"><span>RMS / PEAK / 200ms RMS</span><select id="sleepLiveSpan" aria-label="波形时间范围"><option value="15">15秒</option><option value="30">30秒</option><option value="60" selected>60秒</option></select></div>
-   <div class="sleep-oscilloscope"><canvas id="sleepMicCanvas" width="660" height="180" aria-label="实时麦克风声音波形"></canvas></div>
-   <div class="sleep-live-diagnostics"><span id="sleepInferenceStatus" role="status">AI 未运行</span><span id="sleepLivePeak">峰值 —</span></div>
-   <div class="sleep-io-actions"><button type="button" class="primary" id="sleepMicStart">▶ 开启测试</button><button type="button" class="secondary" id="sleepMicStop" disabled>■ 关闭</button><button type="button" class="secondary sleep-mark-button" id="sleepLiveMark" disabled>⚑ 标记鼾声</button></div>
-   <p class="sub" id="sleepMicMode">独立监听不保存录音</p>
-  </div>
-
    <div class="sleep-io-card speaker"><div class="sleep-io-heading"><strong>手动试听 · 与自动开关独立</strong></div>
    <div class="sleep-test-buttons" aria-label="独立手动测试">
     <button type="button" class="secondary" id="sleepFeedbackPreview">▶ 测试声音</button>

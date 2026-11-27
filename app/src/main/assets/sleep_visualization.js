@@ -142,11 +142,13 @@
   const ctx=canvas.getContext("2d");if(!ctx)return;
   const w=canvas.width,h=canvas.height,left=46,bottom=h-18,top=8,plotWidth=w-left-8;
   const levels=rows.map(r=>r.rms_dbfs),pks=rows.map(r=>r.peak_dbfs),shortLevels=rows.map(r=>r.short_rms_dbfs);
-  const bg=quantile(levels,.20)??-40,low=-5,high=Math.max(10,Math.ceil((Math.max(8,(quantile(shortLevels,.995)??bg+12)-bg)+2)/5)*5);
+  const usable=rows.filter(r=>!r.muted&&Number.isFinite(r.rms_dbfs)&&r.rms_dbfs>-90);
+  const bg=quantile(usable.map(r=>r.rms_dbfs),.20)??-40,low=-5,high=Math.max(10,Math.ceil((Math.max(8,(quantile(usable.map(r=>r.short_rms_dbfs).filter(Number.isFinite),.995)??bg+12)-bg)+2)/5)*5);
   const yAt=db=>clamp(top+(high-(db-bg))/(high-low)*(bottom-top),top,bottom);
   ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,w,h);
   ctx.font="16px system-ui";ctx.textBaseline="middle";ctx.textAlign="left";ctx.fillStyle=COLORS.text;
-  for(let d=0;d<=high;d+=5){const y=yAt(bg+d);ctx.strokeStyle=COLORS.grid;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-8,y);ctx.stroke();ctx.fillStyle=COLORS.text;ctx.fillText("+"+d,3,y);}
+  const step=high<=25?5:high<=50?10:20;
+  for(let d=0;d<=high;d+=step){const y=yAt(bg+d);ctx.strokeStyle=COLORS.grid;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-8,y);ctx.stroke();ctx.fillStyle=COLORS.text;ctx.fillText("+"+d,3,y);}
   const span=Math.max(1,seconds),offset=Math.max(0,span-rows.length);
   const empty=Array(offset).fill(-96);
   drawEnvelope(ctx,{left,bottom,plotWidth,yAt,start:0,span,levels:empty.concat(levels),pks:empty.concat(pks),shortLevels:empty.concat(shortLevels),threshold,ai:true});
@@ -155,7 +157,32 @@
    const x=left+(offset+i)/span*plotWidth,y=yAt(rows[i].short_rms_dbfs);
    ctx.fillStyle="#ff6e81";ctx.fillRect(x,y,Math.max(2,plotWidth/span),3);
   }
+  for(let i=0;i<rows.length;i++){
+   if(rows[i].muted||!rows[i].confirmed)continue;
+   const x=left+(offset+i+.5)/span*plotWidth;
+   ctx.fillStyle="#70dfa5";ctx.beginPath();ctx.arc(x,top+6,4,0,Math.PI*2);ctx.fill();
+   if(rows[i].confirmed>1)ctx.fillText(String(rows[i].confirmed),x+5,top+6);
+  }
   ctx.fillStyle=COLORS.text;ctx.textBaseline="bottom";ctx.fillText("-"+span+"s",left,h);ctx.textAlign="right";ctx.fillText("现在",w-8,h);ctx.textAlign="left";
+ };
+ window.BodyTraceLiveAiScore=function(canvas,rows,threshold,seconds=60){
+  const ctx=canvas?.getContext("2d");if(!ctx)return;
+  const w=canvas.width,h=canvas.height,left=46,right=w-8,top=10,bottom=h-20,span=Math.max(1,seconds),offset=Math.max(0,span-rows.length);
+  const y=v=>bottom-(bottom-top)*clamp(v,0,1),x=i=>left+(offset+i+.5)/span*(right-left);
+  ctx.fillStyle=COLORS.background;ctx.fillRect(0,0,w,h);
+  ctx.font="15px system-ui";ctx.textAlign="left";ctx.textBaseline="middle";
+  for(const value of [0,.5,1]){
+   ctx.strokeStyle=COLORS.grid;ctx.beginPath();ctx.moveTo(left,y(value));ctx.lineTo(right,y(value));ctx.stroke();ctx.fillStyle=COLORS.text;ctx.fillText(value.toFixed(1),3,y(value));
+  }
+  if(Number.isFinite(threshold)){ctx.save();ctx.strokeStyle="#e9b566";ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(left,y(threshold));ctx.lineTo(right,y(threshold));ctx.stroke();ctx.restore();}
+  let previous=null;
+  for(let i=0;i<rows.length;i++){
+   const row=rows[i];if(row.muted||!Number.isFinite(row.score)){previous=null;continue;}
+   const point=[x(i),y(row.score)];
+   if(previous){ctx.strokeStyle="#c5b4ef";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(...previous);ctx.lineTo(...point);ctx.stroke();}
+   ctx.fillStyle=row.score>=threshold?"#ff7187":"#c5b4ef";ctx.beginPath();ctx.arc(...point,2.5,0,Math.PI*2);ctx.fill();previous=point;
+  }
+  ctx.fillStyle=COLORS.text;ctx.textBaseline="bottom";ctx.fillText("-"+span+"s",left,h);ctx.textAlign="right";ctx.fillText("现在",right,h);ctx.textAlign="left";
  };
  function draw(){
   if(!result||!total())return;

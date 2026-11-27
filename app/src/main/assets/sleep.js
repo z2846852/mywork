@@ -1048,7 +1048,8 @@
    consoleTab=tab;
    for(const b of consoleTabs){const active=b.dataset.console===tab;b.classList.toggle("active",active);b.setAttribute("aria-pressed",String(active));}
    for(const [id,key] of [["sleepConsoleNight","night"],["sleepConsoleTest","test"],["sleepConsoleMaterials","materials"],["sleepConsoleSettings","settings"]])$(id).hidden=tab!==key;
-   if(tab==="test")requestAnimationFrame(()=>{micGraph();speakerGraph();});
+   $("sleepConsoleLive").hidden=tab!=="night"&&tab!=="test";
+   if(tab==="night"||tab==="test")requestAnimationFrame(()=>{micGraph();if(tab==="test")speakerGraph();});
    if(tab==="materials"){renderMaterials();bridge()?.sleepFeedbackStatus?.();}
   }
   consoleTabs.forEach(b=>b.onclick=()=>setConsoleTab(b.dataset.console));
@@ -1191,7 +1192,10 @@
    }
   }
   function micGraph(){
-   if(!$("sleepFeedbackPanel").hidden&&consoleTab==="test")window.BodyTraceLiveEnvelope?.($("sleepMicCanvas"),micHistory.slice(-liveSpan),cfg().threshold,liveSpan);
+   if($("sleepFeedbackPanel").hidden||$("sleepConsoleLive").hidden)return;
+   const rows=micHistory.slice(-liveSpan),threshold=cfg().threshold;
+   window.BodyTraceLiveEnvelope?.($("sleepMicCanvas"),rows,threshold,liveSpan);
+   window.BodyTraceLiveAiScore?.($("sleepAiScoreCanvas"),rows,threshold,liveSpan);
   }
   function micSecond(evt){
    const sec=Number(evt.second);if(!Number.isFinite(sec))return;
@@ -1558,7 +1562,7 @@
     micSecond(evt);
    }else if(evt.type==="sleep_feedback_score"){
     const row=micHistory.find(r=>Number(r.second)===Number(evt.second));
-    if(row){row.score=Number(evt.score);row.muted=!!evt.muted;}
+    if(row){row.score=Number(evt.score);row.muted=!!evt.muted;row.confirmed=Number(evt.confirmed_pulses)||0;}
     $("sleepFeedbackScore").textContent=Number(evt.score).toFixed(3);
     paintTriggerCount(evt);
     if(selfState.trial_id&&!selfState.gain_adjustable&&selfState.trial_id!==reportExpiryRequested&&Date.now()-Number(selfState.cue?.started_ms||selfState.cue?.time_ms)>120000){reportExpiryRequested=selfState.trial_id;bridge()?.sleepFeedbackStatus?.();}

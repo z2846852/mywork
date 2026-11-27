@@ -2323,3 +2323,5 @@ body[data-active-page="analytics"] .screen{padding-top:7px}
 #sleepFeedbackPanel .sleep-material-row small{font-size:10px;color:#acc5bb}
 #sleepFeedbackPanel .sleep-material-actions{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end}
 #sleepFeedbackPanel .sleep-material-actions button{font-size:10px;padding:4px 5px}
+
+#sleepFeedbackPanel .sleep-ai-chart-head{display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#b9cbc4;margin:3px 0 1px}#sleepFeedbackPanel .sleep-oscilloscope.sleep-ai-score-wave{height:64px;margin-top:1px}

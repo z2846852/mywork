@@ -474,7 +474,7 @@ public final class SleepRecorderService extends Service {
                 else triggerReason="等待新鼾声 "+snoreTriggerCount+"/"+settings.minimum;
                 broadcast(new JSONObject().put("type","sleep_feedback_score")
                     .put("second",block.second).put("score",score)
-                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("pulse_snore",classifier.pulseSnore()).put("pulse_breathing",classifier.pulseBreathing()).put("pulse_other",classifier.pulseOther()).put("trigger_reason",triggerReason).put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("direct_can_extend",directGainState.canExtend()).put("inferred_windows",inferredWindows)
+                    .put("muted",block.muted).put("trigger_count",snoreTriggerCount).put("envelope_count",snoreEnvelopeCount).put("trigger_required",settings.minimum).put("confirmed_pulses",snoreTrigger.confirmedInSecond(block.second)).put("pulse_snore",classifier.pulseSnore()).put("pulse_breathing",classifier.pulseBreathing()).put("pulse_other",classifier.pulseOther()).put("trigger_reason",triggerReason).put("direct_next_gain",directGainState.next()).put("direct_gain_locked",directGainState.locked()).put("direct_can_extend",directGainState.canExtend()).put("inferred_windows",inferredWindows)
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
                 if(feedbackEnabled&&(!screenPaused||experiment.observingThreshold())){
