@@ -943,7 +943,7 @@
  // and synthesized cue previews work without microphone permission.
  (function initSnoreFeedback(){
   const ids=["sleepFeedbackSound","sleepFeedbackVolume","sleepFeedbackThreshold",
-   "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate","sleepFeedbackSoundEnabled","sleepFeedbackSoundPool","sleepFeedbackVibrationPool","sleepFeedbackSoundRhythm","sleepFeedbackSoundMs","sleepFeedbackSoundMax","sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationMax","sleepFeedbackMode","sleepFeedbackDelayMinutes","sleepFeedbackMaxCues"];
+   "sleepFeedbackMinimum","sleepFeedbackRepeat","sleepFeedbackVibrate","sleepFeedbackSoundEnabled","sleepFeedbackSoundPool","sleepFeedbackVibrationPool","sleepFeedbackSoundRhythm","sleepFeedbackSoundMs","sleepFeedbackSoundMax","sleepFeedbackVibrationPattern","sleepFeedbackVibrationAmplitude","sleepFeedbackVibrationMs","sleepFeedbackVibrationMax","sleepFeedbackMode","sleepFeedbackDelayMinutes","sleepFeedbackMaxCues","sleepFeedbackSoundMin","sleepFeedbackVibrationMin","sleepFeedbackSoundMsMax","sleepFeedbackVibrationMsMax","sleepFeedbackSoundRhythmPool","sleepFeedbackPauseOnScreen"];
   let micActive=false,recordActive=false,feedbackActive=false;
   const micHistory=[];
   let latestSecond=-1,liveSpan=60,captureStart=0;
@@ -960,6 +960,8 @@
    soundPool:[...$("sleepFeedbackSoundPool").selectedOptions].map(o=>o.value).join(",")||"__none__",
    vibrationPool:[...$("sleepFeedbackVibrationPool").selectedOptions].map(o=>o.value).join(",")||"__none__",
    soundRhythm:$("sleepFeedbackSoundRhythm").value,soundMs:Number($("sleepFeedbackSoundMs").value),
+   soundRhythmPool:[...$("sleepFeedbackSoundRhythmPool").selectedOptions].map(o=>o.value).join(",")||"__none__",
+   soundMin:Number($("sleepFeedbackSoundMin").value),vibrationMin:Number($("sleepFeedbackVibrationMin").value),soundMsMax:Number($("sleepFeedbackSoundMsMax").value),vibrationMsMax:Number($("sleepFeedbackVibrationMsMax").value),pauseOnScreen:$("sleepFeedbackPauseOnScreen").checked,
    soundMax:Number($("sleepFeedbackSoundMax").value),vibrationMax:Number($("sleepFeedbackVibrationMax").value),
    vibrationPattern:$("sleepFeedbackVibrationPattern").value,vibrationAmplitude:Number($("sleepFeedbackVibrationAmplitude").value),vibrationMs:Number($("sleepFeedbackVibrationMs").value),
    mode:$("sleepFeedbackMode").value,delayMinutes:Number($("sleepFeedbackDelayMinutes").value),maxCues:Number($("sleepFeedbackMaxCues").value)
@@ -1095,16 +1097,31 @@
     const pool=$("sleepFeedbackSoundPool");[...main.options].forEach(o=>{if(![...pool.options].some(p=>p.value===o.value)){const n=o.cloneNode(true);n.selected=false;pool.append(n);}});
    }
    if(evt.vibration_hardware){const v=evt.vibration_hardware;$("sleepVibrationHardware").textContent=!v.available?"未发现震动马达":v.amplitude?"硬件支持振幅控制（请求值）":"硬件不支持振幅控制：使用脉冲占空比";}
-   if(evt.experiment){const e=evt.experiment,l=e.last||{};const stats=e.channels||{};$("sleepExperimentChannels").textContent=[["纯声音","sound"],["纯震动","vib"],["混合","mix"]].map(([name,k])=>name+" "+(stats[k]?.stopped||0)+"/"+(stats[k]?.observed||0)).join(" · ");const restore=$("sleepExperimentRestoreKey");restore.replaceChildren();for(const key of [...(e.excluded||[]),...(e.soundLimit<100?["soundLimit"]:[]),...(e.vibrationLimit<100?["vibrationLimit"]:[])]){const o=document.createElement("option");o.value=key;o.textContent=key==="soundLimit"?"恢复声音上限":key==="vibrationLimit"?"恢复震动上限":key.replace("deny_sound_","声音：").replace("deny_vib_","震动：").replace("deny_pair_","搭配：");restore.append(o);} $("sleepExperimentRestore").disabled=!restore.options.length;for(const o of $("sleepFeedbackSoundPool").options){o.disabled=(e.excluded||[]).includes("deny_sound_"+o.value);if(o.disabled)o.selected=false;}for(const o of $("sleepFeedbackVibrationPool").options){o.disabled=(e.excluded||[]).includes("deny_vib_"+o.value);if(o.disabled)o.selected=false;}$("sleepExperimentSummary").textContent=`累计 ${e.trials} · 刺激后低鼾声 ${e.stopped}/${e.observed} · 对照 ${e.controlStopped}/${e.controlObserved} · 人工上限 声${e.soundLimit}%/震${e.vibrationLimit}% · 最近 ${l.sound||"—"} ${l.volume||0}% / ${l.vibrationPattern||"—"} ${l.vibrationAmplitude||0}%`;}
+   if(evt.experiment){const e=evt.experiment,l=e.last||{};const stats=e.channels||{};$("sleepExperimentChannels").textContent=[["纯声音","sound"],["纯震动","vib"],["混合","mix"]].map(([name,k])=>name+" "+(stats[k]?.stopped||0)+"/"+(stats[k]?.observed||0)).join(" · ");const restore=$("sleepExperimentRestoreKey");restore.replaceChildren();for(const key of [...(e.excluded||[]),...(e.soundLimit<100?["soundLimit"]:[]),...(e.vibrationLimit<100?["vibrationLimit"]:[]),...(e.soundDurationLimit<5000?["soundDurationLimit"]:[]),...(e.vibrationDurationLimit<2000?["vibrationDurationLimit"]:[])]){const o=document.createElement("option");o.value=key;o.textContent=key==="soundLimit"?"恢复声音上限":key==="vibrationLimit"?"恢复震动上限":key==="soundDurationLimit"?"恢复声音时长上限":key==="vibrationDurationLimit"?"恢复震动时长上限":key.replace("deny_sound_","声音：").replace("deny_vib_","震动：").replace("deny_pair_","搭配：").replace("deny_rhythm_","声音节奏：");restore.append(o);} $("sleepExperimentRestore").disabled=!restore.options.length;for(const o of $("sleepFeedbackSoundPool").options){o.disabled=(e.excluded||[]).includes("deny_sound_"+o.value);if(o.disabled)o.selected=false;}for(const o of $("sleepFeedbackVibrationPool").options){o.disabled=(e.excluded||[]).includes("deny_vib_"+o.value);if(o.disabled)o.selected=false;}
+     for(const o of $("sleepFeedbackSoundRhythmPool").options){o.disabled=(e.excluded||[]).includes("deny_rhythm_"+o.value);if(o.disabled)o.selected=false;}
+     const typeRoot=$("sleepExperimentTypes");typeRoot.replaceChildren();
+     for(const [title,id,prefix,suffix] of [["声音","sleepFeedbackSoundPool","deny_sound_","|off"],["震动","sleepFeedbackVibrationPool","deny_vib_",""]]){
+      const label=document.createElement("strong");label.textContent=title;typeRoot.append(label);
+      for(const o of $(id).options){
+       const k=title==="声音"?o.value+suffix:"off|"+o.value,t=e.types?.[k],row=document.createElement("div");
+       row.className="sleep-live-event";row.style.opacity=o.disabled?".45":"1";
+       row.textContent=o.textContent+" · "+(o.disabled?"已排除":t?t.stopped+"/"+t.observed:"待探索");typeRoot.append(row);
+      }
+     }
+     const candidateRoot=$("sleepExperimentCandidates");candidateRoot.replaceChildren();
+     const heading=document.createElement("strong");heading.textContent="候选方案（非已证实疗效）";candidateRoot.append(heading);
+     for(const p of e.candidates||[]){const row=document.createElement("div");row.className="sleep-live-event";row.textContent=(p.soundEnabled?p.sound+" "+p.volume+"% "+p.soundRhythm:"静音")+" / "+(p.vibrate?p.vibrationPattern+" "+p.vibrationAmplitude+"%":"无震动")+" · "+p.stopped+"/"+p.observed;candidateRoot.append(row);}
+     $("sleepExperimentSummary").textContent=`今晚 ${e.nightCount||0} 次 · 累计 ${e.trials} · 刺激后低鼾声 ${e.stopped}/${e.observed} · 对照 ${e.controlStopped}/${e.controlObserved} · 人工上限 声${e.soundLimit}%/${e.soundDurationLimit}ms 震${e.vibrationLimit}%/${e.vibrationDurationLimit}ms · 最近 ${l.sound||"—"} ${l.volume||0}% / ${l.vibrationPattern||"—"} ${l.vibrationAmplitude||0}%`;}
    if(evt.settings&&typeof evt.settings==="object"&&
        !ids.includes(document.activeElement?.id)){
-    for(const k of ["sound","volume","threshold","minimum","repeat","soundRhythm","soundMs","soundMax","vibrationMax","vibrationPattern","vibrationAmplitude","vibrationMs","mode","delayMinutes","maxCues"]){
+    for(const k of ["sound","volume","threshold","minimum","repeat","soundRhythm","soundMs","soundMax","vibrationMax","vibrationPattern","vibrationAmplitude","vibrationMs","mode","delayMinutes","maxCues","soundMin","vibrationMin","soundMsMax","vibrationMsMax"]){
      const id="sleepFeedback"+k[0].toUpperCase()+k.slice(1);
      if(evt.settings[k]!==undefined)$(id).value=String(evt.settings[k]);
     }
     $("sleepFeedbackVibrate").checked=!!evt.settings.vibrate;
     $("sleepFeedbackSoundEnabled").checked=evt.settings.soundEnabled!==false;
-    for(const k of ["SoundPool","VibrationPool"]){const key=k[0].toLowerCase()+k.slice(1), set=new Set(String(evt.settings[key]||(k==="SoundPool"?evt.settings.sound:"")).split(","));for(const o of $("sleepFeedback"+k).options)o.selected=!o.disabled&&set.has(o.value); }
+    $("sleepFeedbackPauseOnScreen").checked=evt.settings.pauseOnScreen!==false;
+    for(const k of ["SoundPool","VibrationPool","SoundRhythmPool"]){const key=k[0].toLowerCase()+k.slice(1), set=new Set(String(evt.settings[key]||(k==="SoundPool"?evt.settings.sound:"")).split(","));for(const o of $("sleepFeedback"+k).options)o.selected=!o.disabled&&set.has(o.value); }
     labels();
    }
    if(recordActive!==recording)bridge()?.sleepStatus?.();
@@ -1171,6 +1188,9 @@
   };
   $("sleepCueRecord").onclick=()=>bridge()?.sleepCueImport?.(true);
   $("sleepCueImport").onclick=()=>bridge()?.sleepCueImport?.(false);
+  $("sleepExcludeSound").onclick=()=>bridge()?.sleepExperimentExclude?.("sound",$("sleepFeedbackSound").value);
+  $("sleepExcludeRhythm").onclick=()=>bridge()?.sleepExperimentExclude?.("rhythm",$("sleepFeedbackSoundRhythm").value);
+  $("sleepExcludeVibration").onclick=()=>bridge()?.sleepExperimentExclude?.("vibration",$("sleepFeedbackVibrationPattern").value);
   $("sleepExperimentApply").onclick=()=>bridge()?.sleepExperimentReview?.($("sleepExperimentReview").value);
   $("sleepExperimentRestore").onclick=()=>{const k=$("sleepExperimentRestoreKey").value;if(k)bridge()?.sleepExperimentRestore?.(k);};
   $("sleepExperimentExport").onclick=()=>bridge()?.sleepExperimentExport?.();

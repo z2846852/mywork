@@ -26,9 +26,11 @@ final class SnoreFeedbackController {
         int repeat = 5;
         boolean vibrate = false, soundEnabled = true;
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
-        int soundMax=40, vibrationMax=40, maxCues=12, delayMinutes=30;
+        int soundMax=40, vibrationMax=40, soundMin=5, vibrationMin=5, soundMsMax=5000, vibrationMsMax=1000, maxCues=12, delayMinutes=30;
+        int actualSoundMs=0,actualVibrationMs=0;
+        boolean pauseOnScreen=true;
         String vibrationPattern="triplet", mode="fixed", soundPool="", vibrationPool="continuous,triplet,rising,falling,shortlong";
-        String soundRhythm="single", trialId="";
+        String soundRhythm="single", soundRhythmPool="single,triplet,rising,falling,shortlong", trialId="";
 
         static Settings parse(String source) throws Exception {
             if (source == null || source.length() > 12000)
@@ -50,11 +52,17 @@ final class SnoreFeedbackController {
             s.soundMs=clamp(json.optInt("soundMs",0),0,5000);
             s.soundMax=clamp(json.optInt("soundMax",40),1,100);
             s.vibrationMax=clamp(json.optInt("vibrationMax",40),1,100);
+            s.soundMin=clamp(json.optInt("soundMin",5),1,s.soundMax);
+            s.vibrationMin=clamp(json.optInt("vibrationMin",5),1,s.vibrationMax);
+            s.soundMsMax=clamp(json.optInt("soundMsMax",5000),150,5000);
+            s.vibrationMsMax=clamp(json.optInt("vibrationMsMax",1000),100,2000);
+            s.pauseOnScreen=json.optBoolean("pauseOnScreen",true);
             s.maxCues=clamp(json.optInt("maxCues",12),1,40);
             s.delayMinutes=clamp(json.optInt("delayMinutes",30),0,120);
             s.vibrationPattern=choice(json.optString("vibrationPattern"),"triplet","continuous","triplet","rising","falling","shortlong");
             s.soundRhythm=choice(json.optString("soundRhythm"),"single","single","triplet","rising","falling","shortlong");
             s.mode=choice(json.optString("mode"),"fixed","fixed","limited","stairs","explore","adaptive","control");
+            s.soundRhythmPool=validateRhythms(json.optString("soundRhythmPool","single,triplet,rising,falling,shortlong"));
             s.soundPool=validatePool(json.optString("soundPool",""),true);
             s.vibrationPool=validatePool(json.optString("vibrationPool","continuous,triplet,rising,falling,shortlong"),false);
             if (s.volume < 1 || s.volume > 100 ||
@@ -65,6 +73,12 @@ final class SnoreFeedbackController {
             return s;
         }
 
+        private static String validateRhythms(String raw){
+            if("__none__".equals(raw))return raw;
+            java.util.LinkedHashSet<String> set=new java.util.LinkedHashSet<>();
+            for(String v:raw.split(",")){if(choice(v,"","single","triplet","rising","falling","shortlong").isEmpty())throw new IllegalArgumentException("无效声音节奏");set.add(v);}
+            return String.join(",",set);
+        }
         private static String validatePool(String raw,boolean sound){
             if(raw.isEmpty()||"__none__".equals(raw))return raw;
             java.util.LinkedHashSet<String> set=new java.util.LinkedHashSet<>();
@@ -83,7 +97,9 @@ final class SnoreFeedbackController {
                 .put("repeat",repeat).put("vibrate",vibrate).put("soundEnabled",soundEnabled)
                 .put("vibrationAmplitude",vibrationAmplitude).put("vibrationMs",vibrationMs)
                 .put("vibrationPattern",vibrationPattern).put("soundMs",soundMs).put("soundRhythm",soundRhythm)
-                .put("trial_id",trialId).put("soundMax",soundMax).put("vibrationMax",vibrationMax).put("maxCues",maxCues)
+                .put("trial_id",trialId).put("actualSoundMs",actualSoundMs).put("actualVibrationMs",actualVibrationMs)
+                .put("soundMin",soundMin).put("vibrationMin",vibrationMin).put("soundMsMax",soundMsMax).put("vibrationMsMax",vibrationMsMax).put("pauseOnScreen",pauseOnScreen).put("soundRhythmPool",soundRhythmPool)
+                .put("soundMax",soundMax).put("vibrationMax",vibrationMax).put("maxCues",maxCues)
                 .put("delayMinutes",delayMinutes).put("mode",mode).put("soundPool",soundPool).put("vibrationPool",vibrationPool);
         }
 
@@ -193,7 +209,10 @@ final class SnoreFeedbackController {
                     samples[i]=(short)(sample*envelope*gain*32767);
                 }
                 }
-                samples=CuePcm.render(samples,s.soundMs,s.soundRhythm,clip,s.volume);
+                int limit=s.soundMs>0?Math.min(s.soundMs,s.soundMsMax):s.soundMsMax;
+                // Preserve a complete spoken clip. For original synthesized motifs, zero means native length.
+                int requested=s.soundMs==0&&"single".equals(s.soundRhythm)&&samples.length*1000L/rate<=limit?0:limit;
+                samples=CuePcm.render(samples,requested,s.soundRhythm,clip,s.volume);
                 duration=(int)((long)samples.length*1000/rate);
                 track=new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder()
@@ -232,7 +251,8 @@ final class SnoreFeedbackController {
                 else vibrator.vibrate(effect,attrs);
             }
             if(!s.soundEnabled&&!s.vibrate)return false;
-            duration=Math.max(s.soundEnabled?duration:0,s.vibrate?s.vibrationMs:0);
+            s.actualSoundMs=s.soundEnabled?duration:0;s.actualVibrationMs=s.vibrate?s.vibrationMs:0;
+            duration=Math.max(s.actualSoundMs,s.actualVibrationMs);
             if(listener!=null)listener.onStart(samples,rate,duration,s.vibrate);
             Thread.sleep(duration+60L);
             return true;

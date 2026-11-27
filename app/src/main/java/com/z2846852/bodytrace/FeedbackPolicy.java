@@ -8,5 +8,16 @@ final class FeedbackPolicy {
         return (sound||vibration)&&n<max&&now-lastEnd>=60000&&elapsed>=delay;
     }
     static int coarse(int upper,int stage){return Math.max(1,upper*(Math.min(2,Math.max(0,stage))+1)/3);}
+    static int coarseRange(int lower,int upper,int stage){
+        if(upper<=0)return 0;
+        int lo=Math.max(1,Math.min(lower,upper));
+        return lo+(upper-lo)*Math.min(2,Math.max(0,stage))/2;
+    }
+    static double rank(int ok,int n,int accepted){
+        return (ok+1.0)/(n+2.0)+Math.min(2,accepted)*0.05;
+    }
+    static boolean nightBudget(int count,int max,long lastWall,long now){
+        return count<max&&(lastWall==0||now-lastWall>=60000);
+    }
     static boolean reduced(int valid,int hits){return valid>=30&&hits<=3;}
 }

@@ -373,6 +373,7 @@ public final class MainActivity extends Activity {
             return;
         }
         Uri uri=data==null?null:data.getData();
+        if(requestCode==7214){if(uri==null){error("未选择实验日志保存位置");return;}worker.execute(()->{try(OutputStream out=getContentResolver().openOutputStream(uri,"w")){if(out==null)throw new IllegalStateException("不能写入文件");FeedbackExperiment.writeJournal(this,out);reply(message("sleep_feedback_session_exported").put("message","长期实验 JSONL 已保存"));}catch(Exception e){error("反馈实验导出失败："+safeMessage(e));}});return;}
         if(requestCode==7211||requestCode==7212){if(uri==null){error("未获得提示录音");return;}worker.execute(()->{try{CueLibrary.add(this,uri);reply(SleepRecorderService.feedbackStatus(this));}catch(Exception e){error("反馈录音导入失败："+safeMessage(e));}});return;}
         if(requestCode==PICK_APK_PATCH_REQUEST){
             if(uri==null){error("未选择差分补丁");return;}
@@ -2428,12 +2429,16 @@ public final class MainActivity extends Activity {
                 FeedbackExperiment.reject(MainActivity.this,scope);reply(SleepRecorderService.feedbackStatus(MainActivity.this));
             }catch(Exception e){error("反馈实验评价失败："+safeMessage(e));}});
         }
+        @JavascriptInterface public void sleepExperimentExclude(String kind,String id){
+            worker.execute(()->{try{
+                if(SleepRecorderService.isFeedbackEnabled())startService(new Intent(MainActivity.this,SleepRecorderService.class).setAction(SleepRecorderService.ACTION_FEEDBACK_OFF));
+                FeedbackExperiment.excludeType(MainActivity.this,kind,id);reply(SleepRecorderService.feedbackStatus(MainActivity.this));
+            }catch(Exception e){error("排除刺激类型失败："+safeMessage(e));}});
+        }
         @JavascriptInterface public void sleepExperimentRestore(String key){worker.execute(()->{try{FeedbackExperiment.restore(MainActivity.this,key);reply(SleepRecorderService.feedbackStatus(MainActivity.this));}catch(Exception e){error("恢复反馈限制失败："+safeMessage(e));}});}
         @JavascriptInterface public void sleepExperimentExport(){
-            worker.execute(()->{try{
-                String raw=FeedbackExperiment.export(MainActivity.this);
-                runOnUiThread(()->startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,raw),"导出长期实验 JSONL")));
-            }catch(Exception e){error("反馈实验导出失败："+safeMessage(e));}});
+            runOnUiThread(()->{try{startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/octet-stream").putExtra(Intent.EXTRA_TITLE,"mywork-feedback-experiments.jsonl"),7214);}
+                catch(Exception e){error("反馈实验导出失败："+safeMessage(e));}});
         }
         @JavascriptInterface public boolean sleepFeedbackSave(String raw) {
             try {

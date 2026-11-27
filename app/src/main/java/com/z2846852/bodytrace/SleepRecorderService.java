@@ -42,6 +42,7 @@ public final class SleepRecorderService extends Service {
     static final String ACTION_MONITOR_OFF = "com.z2846852.bodytrace.SLEEP_MIC_MONITOR_OFF";
     static final String ACTION_FEEDBACK_ON = "com.z2846852.bodytrace.SLEEP_FEEDBACK_ON";
     static final String ACTION_FEEDBACK_OFF = "com.z2846852.bodytrace.SLEEP_FEEDBACK_OFF";
+    static final String ACTION_REJECT_LAST = "com.z2846852.bodytrace.SLEEP_REJECT_LAST";
     private static final String CHANNEL = "bodytrace_sleep_mic";
     private static final int NOTIFICATION_ID = 4215;
     private static final int SAMPLE_RATE = 16000;
@@ -191,6 +192,12 @@ public final class SleepRecorderService extends Service {
             else requestStop();
             sendFeedbackStatus();
             return START_NOT_STICKY;
+        }
+        if(ACTION_REJECT_LAST.equals(action)){
+            if(feedbackEnabled)recordingEvent(this,"feedback_off",Double.NaN,null,-1,0);
+            feedbackEnabled=false;stopAutoCue();
+            try{FeedbackExperiment.rejectRecent(this);}catch(Exception e){sendError("反馈评价："+e.getMessage());}
+            sendFeedbackStatus();return START_NOT_STICKY;
         }
         if(ACTION_FEEDBACK_OFF.equals(action)){
             if(feedbackEnabled)recordingEvent(this,"feedback_off",Double.NaN,null,-1,0);
@@ -395,14 +402,16 @@ public final class SleepRecorderService extends Service {
                 double score=classifier.lastSnoreScore();
                 lastFeedbackScore=score;inferredWindows++;
                 SnoreFeedbackController.Settings settings=SnoreFeedbackController.Settings.load(this);
-                consecutive=feedbackEnabled&&!block.muted&&score>=settings.threshold?
+                PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
+                boolean screenPaused=settings.pauseOnScreen&&power!=null&&power.isInteractive();
+                consecutive=feedbackEnabled&&!screenPaused&&!block.muted&&score>=settings.threshold?
                     Math.min(consecutive+1,5):0;
                 broadcast(new JSONObject().put("type","sleep_feedback_score")
                     .put("second",block.second).put("score",score)
                     .put("muted",block.muted).put("inferred_windows",inferredWindows)
                     .put("dropped_windows",droppedWindows));
                 long now=SystemClock.elapsedRealtime();
-                if(feedbackEnabled)experiment.observe(block.second,score,block.muted,now);else experiment.close();
+                if(feedbackEnabled&&!screenPaused)experiment.observe(block.second,score,block.muted,now,settings.threshold);else{experiment.close();if(screenPaused)stopAutoCue();}
                 if(consecutive>=settings.minimum &&
                         (previousCue==0||now-previousCue>=settings.repeat*1000L)&&
                         !SnoreFeedbackController.isCuePlaying()&&
@@ -418,7 +427,7 @@ public final class SleepRecorderService extends Service {
                         try{
                             if(SnoreFeedbackController.playCue(this,selected,(samples,rate,duration,vibration)->
                                     {
-                                        try{experiment.started();}catch(Exception e){sendError("实验开始日志失败："+e.getMessage());}
+                                        try{experiment.started(selected);}catch(Exception e){sendError("实验开始日志失败："+e.getMessage());}
                                         recordingEvent(this,"cue",score,selected,block.second,duration);
                                         sendSpeakerWave(samples,rate,duration,vibration,"鼾声触发");
                                         sendFeedbackStatus();
@@ -546,12 +555,14 @@ public final class SleepRecorderService extends Service {
         PendingIntent stop=PendingIntent.getService(this,4216,
             new Intent(this,SleepRecorderService.class).setAction(ACTION_STOP),immutable);
         PendingIntent quiet=PendingIntent.getService(this,4217,new Intent(this,SleepRecorderService.class).setAction(ACTION_FEEDBACK_OFF),immutable);
+        PendingIntent reject=PendingIntent.getService(this,4218,new Intent(this,SleepRecorderService.class).setAction(ACTION_REJECT_LAST),immutable);
         return new Notification.Builder(this,CHANNEL)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("BodyTrace · 麦克风活动中")
             .setContentText("可录制、监听与鼾声提醒 · 点击停止")
             .setContentIntent(open).setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
+            .addAction(android.R.drawable.ic_delete,"刚才干扰睡眠",reject)
             .addAction(android.R.drawable.ic_media_pause,"停止反馈",quiet)
             .addAction(android.R.drawable.ic_media_pause,"停止麦克风",stop)
             .build();

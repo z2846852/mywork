@@ -12,9 +12,13 @@ final class FeedbackExperiment {
     private JSONObject pending;
     private int samples, hits, quiet, attempts, sessionCues;
     private boolean observing;
+    private double afterSum;
+    private final ArrayDeque<Double> baseline=new ArrayDeque<>();
     private long last=-1, lastEnd, began;
     FeedbackExperiment(Context c){this.c=c;this.prefs=c.getSharedPreferences(PREF,0);}
     static SharedPreferences prefs(Context c){return c.getSharedPreferences(PREF,0);}
+    private static String night(){return java.time.LocalDateTime.now().minusHours(12).toLocalDate().toString();}
+    private static int nightCount(SharedPreferences p){return night().equals(p.getString("night",""))?p.getInt("nightCount",0):0;}
     static synchronized JSONObject summary(Context c)throws Exception{
         SharedPreferences p=prefs(c);
         return new JSONObject().put("trials",p.getInt("trials",0)).put("observed",p.getInt("observed",0))
@@ -22,17 +26,46 @@ final class FeedbackExperiment {
             .put("controlStopped",p.getInt("controlStopped",0)).put("controlObserved",p.getInt("controlObserved",0))
             .put("soundLimit",p.getInt("soundLimit",100)).put("vibrationLimit",p.getInt("vibrationLimit",100))
             .put("last",new JSONObject(p.getString("last","{}"))).put("excluded",excluded(p))
-            .put("channels",channels(p));
+            .put("channels",channels(p)).put("nightCount",nightCount(p))
+            .put("soundDurationLimit",p.getInt("soundDurationLimit",5000)).put("vibrationDurationLimit",p.getInt("vibrationDurationLimit",2000))
+            .put("types",types(p)).put("candidates",candidates(p));
     }
     private static JSONObject channels(SharedPreferences p)throws Exception{
         JSONObject out=new JSONObject();for(String k:new String[]{"sound","vib","mix"})out.put(k,new JSONObject().put("observed",p.getInt("observed_"+k,0)).put("stopped",p.getInt("stopped_"+k,0)));return out;
+    }
+    private static JSONObject types(SharedPreferences p)throws Exception{
+        JSONObject out=new JSONObject();
+        for(String k:p.getAll().keySet())if(k.startsWith("n_")&&!k.startsWith("n_recipe_")){
+            String type=k.substring(2);if(!type.endsWith("|off")&&!type.startsWith("off|"))continue;
+            int n=p.getInt(k,0);out.put(type,new JSONObject().put("observed",n).put("stopped",p.getInt("ok_"+type,0)));
+        }return out;
+    }
+    private static JSONArray candidates(SharedPreferences p)throws Exception{
+        ArrayList<JSONObject> all=new ArrayList<>();
+        for(Map.Entry<String,?> entry:p.getAll().entrySet())if(entry.getKey().startsWith("best_")&&entry.getValue() instanceof String){
+            String k=entry.getKey().substring(5);
+            try{
+                JSONObject x=new JSONObject((String)entry.getValue());
+                if(!allowed(p,x))continue;
+                int n=p.getInt("n_"+k,0),ok=p.getInt("ok_"+k,0);
+                all.add(x.put("observed",n).put("stopped",ok).put("rank",FeedbackPolicy.rank(ok,n,p.getInt("accept_"+k,0))));
+            }catch(Exception ignored){}
+        }
+        all.sort((a,b)->Double.compare(b.optDouble("rank"),a.optDouble("rank")));
+        JSONArray out=new JSONArray();for(int i=0;i<Math.min(5,all.size());i++)out.put(all.get(i));return out;
+    }
+    private static boolean allowed(SharedPreferences p,JSONObject x){
+        boolean a=x.optBoolean("soundEnabled"),b=x.optBoolean("vibrate");
+        return !(a&&(p.getBoolean("deny_sound_"+x.optString("sound"),false)||p.getBoolean("deny_rhythm_"+x.optString("soundRhythm"),false)||x.optInt("volume")>p.getInt("soundLimit",100)||x.optInt("actualSoundMs")>p.getInt("soundDurationLimit",5000))
+            ||b&&(p.getBoolean("deny_vib_"+x.optString("vibrationPattern"),false)||x.optInt("vibrationAmplitude")>p.getInt("vibrationLimit",100)||x.optInt("actualVibrationMs")>p.getInt("vibrationDurationLimit",2000))
+            ||p.getBoolean("deny_pair_"+key(x),false));
     }
     private static JSONArray excluded(SharedPreferences p){
         JSONArray a=new JSONArray();for(Map.Entry<String,?> e:p.getAll().entrySet())if(e.getKey().startsWith("deny_")&&Boolean.TRUE.equals(e.getValue()))a.put(e.getKey());return a;
     }
     static synchronized void restore(Context c,String key)throws Exception{
         SharedPreferences p=prefs(c);
-        if(!key.startsWith("deny_")&&!key.equals("soundLimit")&&!key.equals("vibrationLimit"))throw new IllegalArgumentException("未知限制");
+        if(!key.startsWith("deny_")&&!key.equals("soundLimit")&&!key.equals("vibrationLimit")&&!key.equals("soundDurationLimit")&&!key.equals("vibrationDurationLimit"))throw new IllegalArgumentException("未知限制");
         if(!p.edit().remove(key).commit())throw new IOException("恢复限制失败");
         append(c,new JSONObject().put("kind","restore").put("key",key).put("time_ms",System.currentTimeMillis()));
     }
@@ -45,6 +78,23 @@ final class FeedbackExperiment {
         if(file.length()>4*1024*1024)throw new IOException("实验日志超过4MB；请分段导出");
         try(InputStream in=new FileInputStream(file);ByteArrayOutputStream b=new ByteArrayOutputStream()){byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1)b.write(buf,0,n);return b.toString("UTF-8");}
     }
+    static synchronized void writeJournal(Context c,OutputStream out)throws Exception{
+        File file=journal(c);if(file.isFile())try(InputStream in=new FileInputStream(file)){byte[] b=new byte[65536];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}out.flush();
+    }
+    static synchronized void excludeType(Context c,String kind,String id)throws Exception{
+        String prefix;
+        if("sound".equals(kind)){prefix="deny_sound_";if(!(CueLibrary.validId(id)||DreamCueSynth.supports(id)||Arrays.asList("soft","low","double","bell").contains(id)))throw new IllegalArgumentException("未知声音");}
+        else if("vibration".equals(kind)){prefix="deny_vib_";if(!Arrays.asList("continuous","triplet","rising","falling","shortlong").contains(id))throw new IllegalArgumentException("未知震动");}
+        else if("rhythm".equals(kind)){prefix="deny_rhythm_";if(!Arrays.asList("single","triplet","rising","falling","shortlong").contains(id))throw new IllegalArgumentException("未知节奏");}
+        else throw new IllegalArgumentException("未知刺激类型");
+        append(c,new JSONObject().put("kind","exclude").put("time_ms",System.currentTimeMillis()).put("key",prefix+id));
+        if(!prefs(c).edit().putBoolean(prefix+id,true).commit())throw new IOException("排除类型失败");
+    }
+    static synchronized void rejectRecent(Context c)throws Exception{
+        JSONObject x=new JSONObject(prefs(c).getString("last","{}"));
+        if(System.currentTimeMillis()-x.optLong("time_ms",0)>120000)throw new IllegalStateException("没有最近2分钟的刺激，反馈已停止");
+        reject(c,"mixed");
+    }
     static synchronized void reject(Context c,String scope)throws Exception{
         SharedPreferences p=prefs(c);JSONObject e=new JSONObject(p.getString("last","{}"));if(e.length()==0)throw new IllegalStateException("没有已执行的实验");
         SharedPreferences.Editor edit=p.edit();
@@ -52,8 +102,13 @@ final class FeedbackExperiment {
         else if("vibration".equals(scope)&&e.optBoolean("vibrate"))edit.putInt("vibrationLimit",FeedbackPolicy.lowerLimit(p.getInt("vibrationLimit",100),e.optInt("vibrationAmplitude")));
         else if("soundType".equals(scope)&&e.optBoolean("soundEnabled"))edit.putBoolean("deny_sound_"+e.optString("sound"),true);
         else if("vibrationType".equals(scope)&&e.optBoolean("vibrate"))edit.putBoolean("deny_vib_"+e.optString("vibrationPattern"),true);
+        else if("soundRhythm".equals(scope)&&e.optBoolean("soundEnabled"))edit.putBoolean("deny_rhythm_"+e.optString("soundRhythm"),true);
+        else if("soundDuration".equals(scope)&&e.optBoolean("soundEnabled")&&e.optInt("actualSoundMs")>0)edit.putInt("soundDurationLimit",FeedbackPolicy.lowerLimit(p.getInt("soundDurationLimit",5000),e.optInt("actualSoundMs")));
+        else if("vibrationDuration".equals(scope)&&e.optBoolean("vibrate")&&e.optInt("actualVibrationMs")>0)edit.putInt("vibrationDurationLimit",FeedbackPolicy.lowerLimit(p.getInt("vibrationDurationLimit",2000),e.optInt("actualVibrationMs")));
         else if("mixed".equals(scope))edit.putBoolean("deny_pair_"+key(e),true);
-        else if(!"acceptable".equals(scope))throw new IllegalArgumentException("选择与最近实验匹配的反馈类型");
+        else if("acceptable".equals(scope)){
+            String id=e.optString("id");if(!p.getBoolean("accepted_"+id,false))edit.putBoolean("accepted_"+id,true).putInt("accept_"+key(e),p.getInt("accept_"+key(e),0)+1);
+        }else throw new IllegalArgumentException("选择与最近实验匹配的反馈类型");
         JSONObject note=new JSONObject().put("kind","human").put("time_ms",System.currentTimeMillis()).put("trial",e.optString("id")).put("scope",scope).put("settings",e);
         append(c,note);if(!edit.commit())throw new IOException("排除规则保存失败");
     }
@@ -64,19 +119,20 @@ final class FeedbackExperiment {
         if(out.isEmpty()&&raw.isEmpty()&&!prefs.getBoolean(prefix+fallback,false))out.add(fallback);
         return out.toArray(new String[0]);
     }
-    synchronized void observe(long second,double score,boolean muted,long now)throws Exception{
+    synchronized void observe(long second,double score,boolean muted,long now,double threshold)throws Exception{
         boolean gap=last>=0&&second!=last+1;last=second;
-        if(!muted){if(score<.15)quiet++;else quiet=0;if(quiet>=10)attempts=0;}
+        if(gap||muted)baseline.clear();
+        if(!muted){if(score<threshold)quiet++;else quiet=0;if(quiet>=10)attempts=0;baseline.addLast(score);while(baseline.size()>30)baseline.removeFirst();}
         if(pending==null||!observing)return;
         if(now<lastEnd||muted)return;
         if(gap&&samples>0){finish("incomplete");return;}
-        samples++;if(score>=pending.optDouble("threshold",.15))hits++;
+        samples++;afterSum+=score;if(score>=pending.optDouble("threshold",.15))hits++;
         if(samples>=30)finish(FeedbackPolicy.reduced(samples,hits)?"stopped":"continued");
     }
     synchronized void close()throws Exception{if(pending!=null)finish("incomplete");}
     private void finish(String result)throws Exception{
         JSONObject e=new JSONObject().put("kind","outcome").put("id",pending.optString("id")).put("time_ms",System.currentTimeMillis())
-            .put("result",result).put("valid_seconds",samples).put("snore_seconds",hits).put("settings",pending);
+            .put("result",result).put("valid_seconds",samples).put("snore_seconds",hits).put("mean_score",samples>0?afterSum/samples:0).put("settings",pending);
         append(c,e);
         boolean control=pending.optBoolean("control");SharedPreferences.Editor ed=prefs.edit();
         if(!"incomplete".equals(result)){
@@ -96,21 +152,25 @@ final class FeedbackExperiment {
                 ed.putInt("observed_"+channel,prefs.getInt("observed_"+channel,0)+1);
                 if("stopped".equals(result))ed.putInt("stopped_"+channel,prefs.getInt("stopped_"+channel,0)+1);}
         }
-        if(!ed.commit())throw new IOException("实验统计保存失败");pending=null;observing=false;samples=hits=0;
+        if(!ed.commit())throw new IOException("实验统计保存失败");pending=null;observing=false;samples=hits=0;afterSum=0;
     }
     synchronized SnoreFeedbackController.Settings choose(SnoreFeedbackController.Settings s,long now,long enabledAt)throws Exception{
         if(began!=enabledAt){began=enabledAt;sessionCues=0;attempts=0;if(pending!=null)finish("incomplete");}
         if(pending!=null){if(now-lastEnd>90000)finish("incomplete");else return null;}
-        if(!FeedbackPolicy.canStart(s.soundEnabled,s.vibrate,sessionCues,s.maxCues,now,lastEnd,System.currentTimeMillis()-enabledAt,s.delayMinutes*60000L))return null;
+        if(!FeedbackPolicy.canStart(s.soundEnabled,s.vibrate,sessionCues,s.maxCues,now,lastEnd,System.currentTimeMillis()-enabledAt,s.delayMinutes*60000L)
+            ||!FeedbackPolicy.nightBudget(nightCount(prefs),s.maxCues,prefs.getLong("lastTrialWall",0),System.currentTimeMillis()))return null;
         if(("limited".equals(s.mode)||"stairs".equals(s.mode))&&attempts>=3)return null;
         SnoreFeedbackController.Settings x=SnoreFeedbackController.Settings.parse(s.json().toString());
         x.soundMax=Math.min(x.soundMax,prefs.getInt("soundLimit",100));
         x.vibrationMax=Math.min(x.vibrationMax,prefs.getInt("vibrationLimit",100));
-        if(x.soundMax==0)x.soundEnabled=false;if(x.vibrationMax==0)x.vibrate=false;
+        x.soundMsMax=Math.min(x.soundMsMax,prefs.getInt("soundDurationLimit",5000));
+        x.vibrationMsMax=Math.min(x.vibrationMsMax,prefs.getInt("vibrationDurationLimit",2000));
+        if(x.soundMax==0||x.soundMsMax<150)x.soundEnabled=false;if(x.vibrationMax==0||x.vibrationMsMax<100)x.vibrate=false;
         if(!x.soundEnabled&&!x.vibrate)return null;
         int trial=prefs.getInt("trials",0);
         if("explore".equals(s.mode)||"adaptive".equals(s.mode)){
-            String[] sounds=pool(s.soundPool,s.sound,"deny_sound_"),vibs=pool(s.vibrationPool,s.vibrationPattern,"deny_vib_");
+            String[] sounds=pool(s.soundPool,s.sound,"deny_sound_"),vibs=pool(s.vibrationPool,s.vibrationPattern,"deny_vib_"),rhythms=pool(s.soundRhythmPool,s.soundRhythm,"deny_rhythm_");
+            if(rhythms.length==0)sounds=new String[0];
             ArrayList<JSONObject> options=new ArrayList<>();
             for(int channel=0;channel<3;channel++){
                 boolean a=channel!=2,b=channel!=0;
@@ -127,14 +187,16 @@ final class FeedbackExperiment {
             if(family.isEmpty())family=options;
             JSONObject pick=family.get((trial/3)%family.size());
             if("adaptive".equals(s.mode)&&trial%5!=0){
-                double best=-1;for(JSONObject o:options){String k=key(o);int n=prefs.getInt("n_"+k,0);if(n>=3){double v=(prefs.getInt("ok_"+k,0)+1.0)/(n+2);if(v>best){best=v;pick=o;}}}
+                ArrayList<JSONObject> ranked=new ArrayList<>();
+                for(JSONObject o:options){String k=key(o);int n=prefs.getInt("n_"+k,0),ok=prefs.getInt("ok_"+k,0);if(n>=1&&ok>0)ranked.add(o);}
+                ranked.sort((a,b)->Double.compare(FeedbackPolicy.rank(prefs.getInt("ok_"+key(b),0),prefs.getInt("n_"+key(b),0),prefs.getInt("accept_"+key(b),0)),FeedbackPolicy.rank(prefs.getInt("ok_"+key(a),0),prefs.getInt("n_"+key(a),0),prefs.getInt("accept_"+key(a),0))));
+                if(!ranked.isEmpty())pick=ranked.get(trial%Math.min(3,ranked.size()));
             }
             x.soundEnabled=pick.optBoolean("soundEnabled");x.vibrate=pick.optBoolean("vibrate");x.sound=pick.optString("sound");x.vibrationPattern=pick.optString("vibrationPattern");
             int step=(trial/3)%3,vstep=(trial/9+step)%3;
-            x.volume=FeedbackPolicy.coarse(x.soundMax,step);x.vibrationAmplitude=FeedbackPolicy.coarse(x.vibrationMax,vstep);
+            x.volume=FeedbackPolicy.coarseRange(x.soundMin,x.soundMax,step);x.vibrationAmplitude=FeedbackPolicy.coarseRange(x.vibrationMin,x.vibrationMax,vstep);
             x.vibrationMs=new int[]{200,500,1000}[vstep];x.soundMs=new int[]{300,800,1500}[step];
-            x.soundRhythm="single"; // The selected built-in motif already has its own rhythm.
-            if(x.soundEnabled&&!CueLibrary.validId(x.sound)&&trial%4==3)x.soundRhythm="triplet";
+            x.soundRhythm=rhythms.length>0?rhythms[(trial/3)%rhythms.length]:"single";
             if("adaptive".equals(s.mode)&&trial%5!=0){
                 JSONObject best=new JSONObject(prefs.getString("best_"+key(pick),"{}"));
                 x.volume=best.optInt("volume",x.volume);x.vibrationAmplitude=best.optInt("vibrationAmplitude",x.vibrationAmplitude);
@@ -142,14 +204,26 @@ final class FeedbackExperiment {
                 x.soundRhythm=best.optString("soundRhythm",x.soundRhythm);
                 // Coordinate refinement: alter only one actuator at a time.
                 if(trial%5==1){if(x.soundEnabled)x.volume=Math.max(1,x.volume-5);else x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude-5);}
-                if(trial%5==2&&x.vibrate)x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude-5);
+                if(trial%5==2&&x.vibrate)x.vibrationAmplitude=Math.max(x.vibrationMin,x.vibrationAmplitude-5);
+                if(trial%5==3&&x.soundEnabled&&!CueLibrary.validId(x.sound))x.soundMs=Math.max(150,x.soundMs-200);
+                if(trial%5==4&&x.vibrate)x.vibrationMs=Math.max(100,x.vibrationMs-100);
             }
             // Avoid truncating spoken clips.
-            if(CueLibrary.validId(x.sound)){x.soundMs=0;x.soundRhythm="single";}
+            if(CueLibrary.validId(x.sound)){
+                long clipMs=CueLibrary.pcmFile(c,x.sound).length()*1000/(2*CuePcm.RATE);
+                if(clipMs<=0||clipMs>x.soundMsMax)return null;
+                x.soundMs=0;
+                if(clipMs*3+170>x.soundMsMax){
+                    if(Arrays.asList(rhythms).contains("single"))x.soundRhythm="single";else return null;
+                }
+            }
         }else if("stairs".equals(s.mode)){
             x.volume=Math.max(1,x.volume*(attempts+1)/3);x.vibrationAmplitude=Math.max(1,x.vibrationAmplitude*(attempts+1)/3);
         }
         x.volume=Math.max(1,FeedbackPolicy.cap(x.volume,x.soundMax,100));x.vibrationAmplitude=Math.max(1,FeedbackPolicy.cap(x.vibrationAmplitude,x.vibrationMax,100));
+        if(x.soundMs>0)x.soundMs=Math.min(x.soundMs,x.soundMsMax);
+        x.vibrationMs=Math.min(x.vibrationMs,x.vibrationMsMax);
+        if(x.soundEnabled&&prefs.getBoolean("deny_rhythm_"+x.soundRhythm,false))return null;
         if(x.soundEnabled&&prefs.getBoolean("deny_sound_"+x.sound,false)||x.vibrate&&prefs.getBoolean("deny_vib_"+x.vibrationPattern,false)||prefs.getBoolean("deny_pair_"+key(x.json()),false))return null;
         return x;
     }
@@ -157,13 +231,18 @@ final class FeedbackExperiment {
         if(pending!=null)return false;
         int trial=prefs.getInt("trials",0);boolean control=("control".equals(x.mode)&&java.util.concurrent.ThreadLocalRandom.current().nextInt(3)==0)||("adaptive".equals(x.mode)&&java.util.concurrent.ThreadLocalRandom.current().nextInt(5)==0);
         pending=x.json().put("id",UUID.randomUUID().toString()).put("kind","trial").put("time_ms",System.currentTimeMillis()).put("session_id",session).put("control",control);
-        x.trialId=pending.optString("id");samples=hits=0;observing=false;sessionCues++;attempts++;lastEnd=now+6000;
+        double sum=0;int beforeHits=0;for(double value:baseline){sum+=value;if(value>=x.threshold)beforeHits++;}
+        pending.put("baseline_seconds",baseline.size()).put("baseline_snore_seconds",beforeHits).put("baseline_mean_score",baseline.isEmpty()?0:sum/baseline.size());
+        x.trialId=pending.optString("id");samples=hits=0;afterSum=0;observing=false;sessionCues++;attempts++;lastEnd=now+6000;
         append(c,pending);
-        if(!prefs.edit().putInt("trials",trial+1).putInt("controls",prefs.getInt("controls",0)+(control?1:0)).commit())throw new IOException("实验进度保存失败");
+        if(!prefs.edit().putInt("trials",trial+1).putInt("controls",prefs.getInt("controls",0)+(control?1:0)).putString("night",night()).putInt("nightCount",nightCount(prefs)+1).putLong("lastTrialWall",System.currentTimeMillis()).commit())throw new IOException("实验进度保存失败");
         return control;
     }
-    synchronized void started()throws Exception{
-        if(pending!=null&&!pending.optBoolean("control")&&!prefs.edit().putString("last",pending.toString()).commit())throw new IOException("最近实验保存失败");
+    synchronized void started(SnoreFeedbackController.Settings selected)throws Exception{
+        if(pending==null)return;
+        pending.put("actualSoundMs",selected.actualSoundMs).put("actualVibrationMs",selected.actualVibrationMs).put("started_ms",System.currentTimeMillis());
+        if(!pending.optBoolean("control")&&!prefs.edit().putString("last",pending.toString()).commit())throw new IOException("最近实验保存失败");
+        append(c,new JSONObject().put("kind","started").put("id",pending.optString("id")).put("time_ms",System.currentTimeMillis()).put("actualSoundMs",selected.actualSoundMs).put("actualVibrationMs",selected.actualVibrationMs));
     }
     synchronized void executed(boolean ok)throws Exception{
         if(pending==null)return;
