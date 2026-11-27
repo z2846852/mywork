@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "status": "published",
-  "version": "v0.2.348",
-  "version_code": 348,
-  "run_number": 348,
-  "run_id": 45857856150,
-  "source_commit": "1c6710c102edc120927da75314be703271d910ca",
-  "published_at": "2026-11-26T16:22:11Z",
-  "actions_url": "https://github.com/z2846852/mywork/actions/runs/45857856150",
-  "release_url": "https://github.com/z2846852/mywork/releases/tag/v0.2.348",
-  "apk_download_url": "https://github.com/z2846852/mywork/releases/download/v0.2.348/BodyTrace-release.apk"
+  "version": "v0.2.350",
+  "version_code": 350,
+  "run_number": 350,
+  "run_id": 45933195474,
+  "source_commit": "59d40fe2d3e987c44b9ed89d68f068091cc69fc6",
+  "published_at": "2026-11-27T03:18:24Z",
+  "actions_url": "https://github.com/z2846852/mywork/actions/runs/45933195474",
+  "release_url": "https://github.com/z2846852/mywork/releases/tag/v0.2.350",
+  "apk_download_url": "https://github.com/z2846852/mywork/releases/download/v0.2.350/BodyTrace-release.apk"
 }
