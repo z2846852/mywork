@@ -187,6 +187,7 @@ public final class MainActivity extends Activity {
         });
         web.addJavascriptInterface(new Bridge(), "BodyTraceNative");
         setContentView(web);
+        applyImmersiveMode();
         try {
             String html = readUiAsset("index.html");
             // Only user-approved SHA256-verified UI updates can override these.
@@ -204,6 +205,39 @@ public final class MainActivity extends Activity {
         } catch (Exception error) {
             web.loadData("<h1>本地界面加载失败</h1>", "text/html", "UTF-8");
         }
+    }
+
+    /** Match Replay: hide status in both orientations, navigation only in landscape. */
+    private void applyImmersiveMode() {
+        final android.view.Window window = getWindow();
+        final boolean landscape = getResources().getConfiguration().orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        // Keep the native content fitted to visible insets (navigation, cutout, IME).
+        // Unlike Replay's Compose UI, this WebView does not consume native insets itself.
+        if (Build.VERSION.SDK_INT >= 30) {
+            android.view.WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                controller.hide(android.view.WindowInsets.Type.statusBars());
+                if (landscape) controller.hide(android.view.WindowInsets.Type.navigationBars());
+                else controller.show(android.view.WindowInsets.Type.navigationBars());
+                return;
+            }
+        }
+        android.view.View decor = window.getDecorView();
+        int flags = decor.getSystemUiVisibility();
+        flags &= ~(android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE |
+                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        flags |= android.view.View.SYSTEM_UI_FLAG_FULLSCREEN |
+                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+        if (landscape) flags |= android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
+        decor.setSystemUiVisibility(flags);
+    }
+
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) applyImmersiveMode();
     }
 
     // Android share sheet: users can share the downloaded cartoon image
@@ -891,6 +925,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onResume(){
         super.onResume();
+        applyImmersiveMode();
         if(uiReady)worker.execute(this::sendSleepStatus);
         if(awaitingPhoneUsagePermission){
             awaitingPhoneUsagePermission=false;
