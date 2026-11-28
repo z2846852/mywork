@@ -669,6 +669,7 @@ body.overview-muscle-open{overflow:hidden}
   <section id="sleepNightExperiment" class="sleep-metrics-page" hidden>
    <h3>本次录音</h3>
    <div class="row wrap" style="justify-content:space-between;align-items:center"><span id="sleepNightSummary" class="sub"></span><button type="button" class="secondary mini" id="sleepNightRefreshPanel">刷新指标</button></div>
+   <div class="row wrap"><button type="button" class="secondary mini" id="sleepNightCompare">统一回算</button><button type="button" class="secondary mini" id="sleepNightRebuild" hidden>补全 AI 缓存</button><span id="sleepNightCompareHint" class="sub" role="status"></span></div>
    <div id="sleepNightKpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:5px 0"></div>
    <h3>每小时鼾声频率</h3><div id="sleepNightHourlyChart" class="sleep-metric-chart"></div>
    <div class="row wrap"><label for="sleepNightQuality" class="sub">次日主观睡眠质量</label>
@@ -676,7 +677,7 @@ body.overview-muscle-open{overflow:hidden}
    </div>
    <details><summary>每小时鼾声 · 反馈后未检出时长</summary><div id="sleepNightDetail" class="sub" style="white-space:pre-line"></div></details>
    <details class="sleep-metrics-history" open><summary>历史趋势 · 最近14次</summary><div class="row wrap"><label class="sub" for="sleepNightHistoryMetric">指标</label><select id="sleepNightHistoryMetric"><option value="episodes_per_hour">鼾声次数 / h</option><option value="snore_seconds">鼾声累计时长</option><option value="snore_fraction">鼾声时间占比</option><option value="sound_count">声音反馈次数</option><option value="vibration_count">振动反馈次数</option><option value="sleep_quality">主观睡眠评分</option></select></div><div id="sleepNightHistoryChart" style="display:grid;gap:4px"></div><details><summary>完整数字</summary><div id="sleepNightHistory" class="sub" style="white-space:pre-line"></div></details></details>
-   <details class="sleep-live-help"><summary>统计口径</summary><p class="sub">仅 AI 鼾声候选，非睡眠时长或呼吸暂停诊断。离线回算阈值固定 0.15；旧录音与实时记录来源不同，不推断静默模式或反馈效果。</p></details>
+   <details class="sleep-live-help"><summary>统计口径</summary><p class="sub">仅 AI 鼾声候选，非睡眠时长或呼吸暂停诊断。原始模式优先显示实时记录，旧录音固定 0.15 离线回算。统一回算模式冻结当前反馈 AI 阈值，对所有录音使用相同版本离线模型得分、连续阳性窗口及提示污染排除规则；不覆盖原始指标，不还原缺失反馈或觉醒信息。</p></details>
   </section>
   <div id="sleepAnalysisArea">
   <details id="sleepEditStartRow" class="sleep-time-edit" hidden>
