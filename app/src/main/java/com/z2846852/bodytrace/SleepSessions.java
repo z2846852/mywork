@@ -237,21 +237,27 @@ final class SleepSessions {
     }
     private static String stamp(File f){return f.lastModified()+":"+f.length();}
     static synchronized JSONObject offlineSnoreMetrics(Context context,String id)throws Exception{
+        return offlineSnoreMetrics(context,id,false,SnoreMetrics.OFFLINE_THRESHOLD);
+    }
+    // Comparison always uses decoded audio scores, never saved real-time windows.
+    static synchronized JSONObject offlineSnoreMetrics(Context context,String id,boolean comparison,double threshold)throws Exception{
         JSONObject meta=loadMetadata(context,id);
-        if(meta.has("snore_metrics"))return meta.optJSONObject("snore_metrics");
+        if(!comparison&&meta.has("snore_metrics"))return meta.optJSONObject("snore_metrics");
         if(SleepRecorderService.isCurrentSession(id))return null;
         File envelope=envelopeFile(context,id),journal=feedbackFile(context,id);
         String revision=stamp(envelope)+"/"+stamp(journal)+"/"+meta.optInt("feedback_journal_version",0);
         if(!envelope.isFile())revision+="/"+stamp(json(context,id));
-        OfflineEntry cached=offlineMetrics.get(id);
+        String cacheKey=id+"/"+comparison+"/"+threshold;
+        OfflineEntry cached=offlineMetrics.get(cacheKey);
         if(cached!=null&&revision.equals(cached.revision))return cached.metrics;
         JSONObject doc=load(context,id);
+        if(comparison&&!SleepYamnetClassifier.MODEL_NAME.equals(doc.optString("ai_model")))return null;
         JSONArray scores=doc.optJSONArray("ai_snore_scores"),levels=doc.optJSONArray("levels_dbfs");
         JSONObject result=null;
         if(scores!=null&&levels!=null&&scores.length()==levels.length()&&scores.length()>0){
             double[] values=new double[scores.length()];
             for(int i=0;i<values.length;i++)values[i]=scores.optDouble(i,Double.NaN);
-            StringBuilder windows=new StringBuilder(SnoreMetrics.offlineWindows(values));
+            StringBuilder windows=new StringBuilder(SnoreMetrics.offlineWindows(values,threshold));
             JSONArray events=new JSONArray();
             boolean journalKnown=meta.optInt("feedback_journal_version",0)>0;
             if(journalKnown){try{events=readFeedback(context,id);}catch(Exception e){journalKnown=false;}}
@@ -275,7 +281,7 @@ final class SleepSessions {
                 if(a)sound++;if(b)vibration++;if(a&&b)mixed++;
             }
             result=statsJson(SnoreMetrics.summarize(windows,0,windows.length()))
-                .put("source","offline").put("threshold",SnoreMetrics.OFFLINE_THRESHOLD)
+                .put("source","offline").put("threshold",threshold)
                 .put("window_seconds",windows.length()).put("journal_known",journalKnown)
                 .put("sound_count",channelsKnown?sound:JSONObject.NULL)
                 .put("vibration_count",channelsKnown?vibration:JSONObject.NULL)
@@ -289,7 +295,7 @@ final class SleepSessions {
             result.put("hourly",hourly);
             // Offline model scores cannot reconstruct real-time intervention response.
         }
-        offlineMetrics.put(id,new OfflineEntry(revision,result));
+        offlineMetrics.put(cacheKey,new OfflineEntry(revision,result));
         while(offlineMetrics.size()>64)offlineMetrics.remove(offlineMetrics.keySet().iterator().next());
         return result;
     }
@@ -382,6 +388,9 @@ final class SleepSessions {
     }
 
     static synchronized JSONArray list(Context context) throws Exception {
+        return list(context,Double.NaN);
+    }
+    static synchronized JSONArray list(Context context,double comparisonThreshold) throws Exception {
         File[] files = sessionDir(context).listFiles((dir,name)->
             name.matches("[0-9a-zA-Z_-]{6,80}\\.json"));
         ArrayList<JSONObject> entries = new ArrayList<>();
@@ -451,6 +460,12 @@ final class SleepSessions {
                     JSONObject derived=offlineSnoreMetrics(context,entry.getString("id"));
                     if(derived!=null)entry.put("snore_metrics",derived);
                 }catch(Exception e){entry.put("snore_metrics_error",true);}
+            }
+            if(Double.isFinite(comparisonThreshold)&&entry.optBoolean("levels_cached")&&!"recording".equals(entry.optString("status"))){
+                try{
+                    JSONObject derived=offlineSnoreMetrics(context,entry.getString("id"),true,comparisonThreshold);
+                    if(derived!=null)entry.put("comparison_metrics",derived);
+                }catch(Exception e){entry.put("comparison_metrics_error",true);}
             }
             result.put(entry);
         }
