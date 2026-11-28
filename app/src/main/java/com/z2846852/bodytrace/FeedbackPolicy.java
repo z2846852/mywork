@@ -40,34 +40,57 @@ final class FeedbackPolicy {
         int current=Math.max(0,Math.min(length-1,level));
         return "stopped".equals(outcome)?Math.max(0,current-1):"continued".equals(outcome)?Math.min(length-1,current+1):current;
     }
-    static int directGain(int completed,boolean sweep){return sweep?20*(1+Math.min(4,Math.max(0,completed))):100;}
+    static int directGain(int completed,boolean sweep){return sweep?10*(1+Math.min(9,Math.max(0,completed))):100;}
     // Explicit subjective feedback adjusts the actual played level, not the
     // next scheduled level. No click does not prove absence of awareness.
     static final class DirectGainState {
-        private long epoch=-1;
-        private boolean sweep,locked,rejected,maxCompleted,extensionUsed,manual;
-        private int next=20,played,lower;
+        private long epoch=-1,lastQuietSecond=Long.MIN_VALUE;
+        private boolean sweep,locked,rejected,manual,awaiting,blocked;
+        private int next=10,played,lower,quiet;
         private String trial="";
         private final java.util.TreeSet<Integer> levels=new java.util.TreeSet<>();
         synchronized void ensure(long arm,boolean enabled){
             if(epoch==arm&&sweep==enabled)return;
-            epoch=arm;sweep=enabled;locked=false;rejected=false;manual=false;maxCompleted=extensionUsed=false;next=enabled?20:100;played=lower=0;trial="";levels.clear();
+            epoch=arm;sweep=enabled;trial="";played=lower=0;resetBout();
+        }
+        private void resetBout(){
+            locked=rejected=manual=awaiting=blocked=false;next=sweep?10:100;
+            quiet=0;lastQuietSecond=Long.MIN_VALUE;levels.clear();
         }
         synchronized int next(){return next;}
         synchronized boolean locked(){return locked;}
-        synchronized boolean canExtend(){return next==100&&maxCompleted&&!locked&&!extensionUsed;}
-        synchronized void extended(long arm,String id){if(matches(arm,id))extensionUsed=true;}
+        synchronized boolean ready(){return !awaiting&&!blocked;}
+        synchronized boolean canExtend(){return false;}
+        synchronized void extended(long arm,String id){}
         synchronized boolean matches(long arm,String id){return epoch==arm&&!trial.isEmpty()&&trial.equals(id);}
         synchronized void started(long arm,String id,int gain){
             if(epoch!=arm||id==null||id.isEmpty())return;
-            trial=id;played=Math.max(1,Math.min(100,gain));rejected=false;
+            trial=id;played=Math.max(1,Math.min(100,gain));rejected=false;awaiting=true;
+            quiet=0;lastQuietSecond=Long.MIN_VALUE;
             Integer previous=levels.lower(played);lower=previous==null?0:previous;
             levels.add(played);
         }
         synchronized void completed(long arm,String id,boolean ok){
-            if(!matches(arm,id)||!ok||locked||rejected)return;
-            if(played==100)maxCompleted=true;
-            next=sweep?Math.min(100,played+20):100;
+            if(!matches(arm,id))return;
+            if(!ok){awaiting=false;blocked=true;}
+            // Playback completion is not evidence for increasing intensity.
+        }
+        synchronized void outcome(long arm,String id,String result,int valid,int hits){
+            if(!matches(arm,id)||!awaiting)return;
+            awaiting=false;
+            if("incomplete".equals(result)||valid<30){blocked=true;return;}
+            if(hits==0){resetBout();return;}
+            if(locked||rejected){if(rejected)blocked=true;return;}
+            if(played>=100){blocked=true;return;}
+            next=sweep?Math.min(100,played+10):100;
+        }
+        synchronized boolean observeQuiet(long second,boolean valid,boolean hit){
+            if(awaiting)return false;
+            if(!valid||hit){quiet=0;lastQuietSecond=Long.MIN_VALUE;return false;}
+            if(lastQuietSecond==Long.MIN_VALUE||second!=lastQuietSecond+1)quiet=0;
+            lastQuietSecond=second;
+            if(++quiet<30)return false;
+            resetBout();return true;
         }
         synchronized int report(long arm,String id,boolean tooStrong){
             return adjust(arm,id,tooStrong?"gain_too_strong":"gain_hold");
@@ -76,10 +99,8 @@ final class FeedbackPolicy {
             if(!matches(arm,id))return -1;
             switch(action){
                 case "gain_too_strong":
-                    // First objection brackets the played level. All further
-                    // manual presses operate on the pending level, not history.
                     next=manual?Math.max(1,next-10):Math.max(1,Math.min(played-1,(played+lower)/2));
-                    manual=true;locked=true;rejected=true;break;
+                    manual=true;locked=true;rejected=true;blocked=true;break;
                 case "gain_too_weak":
                     next=Math.min(100,(manual?next:played)+10);
                     manual=true;locked=true;break;
