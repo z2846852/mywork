@@ -795,6 +795,8 @@ public final class MainActivity extends Activity {
         }
     }
 
+    // NaN selects the original per-recording metrics; otherwise use one frozen threshold.
+    private double sleepComparisonThreshold=Double.NaN;
     private void sendSleepStatus() {
         try {
             JSONObject result=message("sleep_status");
@@ -806,7 +808,8 @@ public final class MainActivity extends Activity {
             android.content.SharedPreferences last=getSharedPreferences(
                 "bodytrace_sleep_analysis",MODE_PRIVATE);
             result.put("last_analysis_id",last.getString("last_id",""));
-            result.put("sessions",SleepSessions.list(this));
+            result.put("comparison_threshold",Double.isFinite(sleepComparisonThreshold)?sleepComparisonThreshold:JSONObject.NULL);
+            result.put("sessions",SleepSessions.list(this,sleepComparisonThreshold));
             reply(result);
             reply(SleepRecorderService.feedbackStatus(this));
         }catch(Exception e){error("读取睡眠记录失败："+safeMessage(e));}
@@ -2634,6 +2637,12 @@ public final class MainActivity extends Activity {
                         catch(Exception ignored){}
                     }),500);
                 }catch(Exception e){error("无法停止反馈："+safeMessage(e));}
+            });
+        }
+        @JavascriptInterface public void sleepCompareMetrics(boolean enabled){
+            worker.execute(()->{
+                sleepComparisonThreshold=enabled?SnoreFeedbackController.Settings.load(MainActivity.this).threshold:Double.NaN;
+                sendSleepStatus();
             });
         }
         @JavascriptInterface public void sleepStatus(){
