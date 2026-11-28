@@ -1263,6 +1263,27 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /** A content-addressed snapshot is uploaded only when its content changes.
+     * Local successful paths are receipts, not a substitute for remote backups. */
+    private String syncSleepExperiment(String token,String sessionId)throws Exception{
+        JSONObject snapshot=SleepSessions.experimentSnapshot(this,sessionId);
+        String path=GitHubApi.sleepSnapshotPath(snapshot);
+        android.content.SharedPreferences uploads=getSharedPreferences("sleep_experiment_sync",MODE_PRIVATE);
+        if(path.equals(uploads.getString(sessionId,"")))return path;
+        String saved=github.uploadSleepSnapshot(token,snapshot);
+        if(!uploads.edit().putString(sessionId,saved).commit())
+            throw new IllegalStateException("睡眠同步回执保存失败，可安全重试");
+        return saved;
+    }
+
+    private void syncSleepExperiments(String token)throws Exception{
+        for(String id:SleepSessions.experimentSyncIds(this)){
+            // A recording or analysis may have started after enumerating IDs.
+            if(SleepRecorderService.isCurrentSession(id)||(SleepAnalysisService.isRunning()&&id.equals(SleepAnalysisService.currentId())))continue;
+            syncSleepExperiment(token,id);
+        }
+    }
+
     /** Push queued events and pull remote JSON only on daily launch or a manual tap.
      * Failed uploads stay queued; a successful pull cannot silently claim full sync. */
     private boolean syncInternal(String token) {
@@ -1282,6 +1303,12 @@ public final class MainActivity extends Activity {
             JSONArray combined = mergeDays(localDays(), remote);
             plain.putDays(combined);
             replyData(combined, false);
+            try { syncSleepExperiments(token); }
+            catch (Exception sleepError) {
+                complete=false;
+                error("睡眠实验尚未全部同步，本机数据保留，下次可重试："+safeMessage(sleepError));
+            }
+            sendSleepStatus();
             return complete;
         } catch (Exception e) {
             error("GitHub 同步失败，本地数据仍保留：" + safeMessage(e));
@@ -2576,9 +2603,7 @@ public final class MainActivity extends Activity {
                 try{
                     String token=vault.read("token");
                     if(token==null||token.isEmpty())throw new IllegalStateException("请先在日志页连接私有 GitHub 数据仓库");
-                    JSONObject snapshot=SleepSessions.experimentSnapshot(MainActivity.this,sessionId);
-                    String path=github.uploadSleepSnapshot(token,snapshot);
-                    getSharedPreferences("sleep_experiment_sync",MODE_PRIVATE).edit().putString(sessionId,path).apply();
+                    String path=syncSleepExperiment(token,sessionId);
                     reply(message("sleep_experiment_uploaded").put("id",sessionId).put("ok",true).put("path",path));
                     sendSleepStatus();
                 }catch(Exception e){
