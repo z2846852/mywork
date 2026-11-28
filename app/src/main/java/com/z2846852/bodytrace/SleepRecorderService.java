@@ -57,6 +57,9 @@ public final class SleepRecorderService extends Service {
     private static volatile long feedbackStartedMs;
     private static volatile String triggerReason="自动反馈关闭";
     private static final FeedbackPolicy.DirectGainState directGainState=new FeedbackPolicy.DirectGainState();
+    static void directOutcome(String id,String result,int valid,int hits){
+        directGainState.outcome(feedbackStartedMs,id,result,valid,hits);
+    }
     static boolean isCurrentDirectTrial(String id){return feedbackEnabled&&directGainState.matches(feedbackStartedMs,id);}
     static int reportDirectGain(String id,String action){
         if(!feedbackEnabled)return -1;
@@ -458,7 +461,12 @@ public final class SleepRecorderService extends Service {
                 observeNight(this,block.second,score,uncertain,feedbackEnabled&&!screenPaused,settings);
                 long arm=feedbackStartedMs;
                 boolean armed=feedbackEnabled&&!screenPaused;
-                if(direct)directGainState.ensure(arm,settings.directGain);
+                if(direct){
+                    directGainState.ensure(arm,settings.directGain);
+                    if(directGainState.observeQuiet(block.second,!uncertain&&Double.isFinite(score)&&!SnoreFeedbackController.suppressMicrophone(),score>=settings.threshold)){
+                        snoreTrigger.reset();envelopeTrigger.reset();
+                    }
+                }
                 if(arm!=triggerArm||armed!=previousArmed||Double.compare(triggerThreshold,settings.threshold)!=0||triggerRequired!=settings.minimum){
                     snoreTrigger.reset();envelopeTrigger.reset();triggerArm=arm;previousArmed=armed;triggerThreshold=settings.threshold;triggerRequired=settings.minimum;
                 }
@@ -472,6 +480,8 @@ public final class SleepRecorderService extends Service {
                 else if(screenPaused)triggerReason="亮屏暂停";
                 else if(!direct&&System.currentTimeMillis()-feedbackStartedMs<Math.max("vibration_threshold".equals(settings.mode)?30:0,settings.delayMinutes)*60000L)triggerReason="入睡保护中";
                 else if(!triggerValid||(autoCueThread!=null&&autoCueThread.isAlive()))triggerReason="反馈输出或防回录中";
+                else if(direct&&!directGainState.ready())triggerReason="观察反馈结果 / 等待30秒无鼾声后重置";
+                else if(direct&&!FeedbackExperiment.directAllowed(this,settings.maxCues))triggerReason="反馈冷却或本晚上限";
                 else if(snoreTrigger.ready(settings.minimum))triggerReason="达到门槛，准备反馈";
                 else triggerReason="等待新鼾声 "+snoreTriggerCount+"/"+settings.minimum;
                 broadcast(new JSONObject().put("type","sleep_feedback_score")
@@ -484,22 +494,28 @@ public final class SleepRecorderService extends Service {
                     if(screenPaused)stopAutoCue();
                 }else{experiment.close();if(screenPaused)stopAutoCue();}
                 long revision=experiment.outcomeRevision();
-                if(revision!=publishedOutcome){publishedOutcome=revision;sendFeedbackStatus();}
+                if(revision!=publishedOutcome){publishedOutcome=revision;if(direct){snoreTrigger.reset();envelopeTrigger.reset();}sendFeedbackStatus();}
                 if(armed&&triggerValid&&snoreTrigger.ready(settings.minimum) &&
-                        (direct||previousCue==0||now-previousCue>=settings.repeat*1000L)&&
+                        (direct?(directGainState.ready()&&FeedbackExperiment.directAllowed(this,settings.maxCues)&&
+                            (previousCue==0||now-previousCue>=60000L)):
+                            (previousCue==0||now-previousCue>=settings.repeat*1000L))&&
                         !SnoreFeedbackController.isCuePlaying()&&
                         (autoCueThread==null||!autoCueThread.isAlive())){
                     final SnoreFeedbackController.Settings selected;
                     if(direct){
                         if(!settings.soundEnabled&&!settings.vibrate)continue;
-                        // Observation is diagnostic only; a new qualifying event is never
-                        // delayed by the previous observation. Incomplete windows stay unknown.
+                        // Wait for the previous valid observation; do not escalate after missing data.
                         experiment.close();
                         selected=SnoreFeedbackController.Settings.parse(settings.json().toString());
                         selected.directGainPercent=directGainState.next();
-                        selected.directRepeats=settings.directExtend&&settings.soundEnabled&&directGainState.canExtend()?2:1;
-                        selected.volume=FeedbackPolicy.scaleGain(settings.volume,selected.directGainPercent);
-                        selected.vibrationAmplitude=FeedbackPolicy.scaleGain(settings.vibrationAmplitude,selected.directGainPercent);
+                        selected.directRepeats=1;
+                        int soundCap=Math.min(settings.volume,FeedbackExperiment.prefs(this).getInt("soundLimit",100));
+                        int vibrationCap=Math.min(settings.vibrationAmplitude,FeedbackExperiment.prefs(this).getInt("vibrationLimit",100));
+                        selected.soundEnabled=settings.soundEnabled&&soundCap>0;
+                        selected.vibrate=settings.vibrate&&vibrationCap>0;
+                        if(!selected.soundEnabled&&!selected.vibrate)continue;
+                        selected.volume=FeedbackPolicy.scaleGain(soundCap,selected.directGainPercent);
+                        selected.vibrationAmplitude=FeedbackPolicy.scaleGain(vibrationCap,selected.directGainPercent);
                         if(CueLibrary.validId(selected.sound)){selected.soundRhythm="single";selected.soundMs=0;selected.soundMsMax=5000;}
                         if(selected.vibrate&&VibrationLibrary.validId(selected.vibrationPattern))
                             selected.vibrationMs=VibrationLibrary.load(this,selected.vibrationPattern).getInt("duration_ms");
