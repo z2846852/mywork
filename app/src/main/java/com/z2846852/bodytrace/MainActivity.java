@@ -1277,11 +1277,24 @@ public final class MainActivity extends Activity {
     }
 
     private void syncSleepExperiments(String token)throws Exception{
+        // Prepare each snapshot separately so an unreadable local night cannot
+        // starve the remaining nights. Stop on remote failure to avoid retry storms.
+        Exception localFailure=null;
         for(String id:SleepSessions.experimentSyncIds(this)){
-            // A recording or analysis may have started after enumerating IDs.
             if(SleepRecorderService.isCurrentSession(id)||(SleepAnalysisService.isRunning()&&id.equals(SleepAnalysisService.currentId())))continue;
-            syncSleepExperiment(token,id);
+            JSONObject snapshot;
+            String path;
+            try{
+                snapshot=SleepSessions.experimentSnapshot(this,id);
+                path=GitHubApi.sleepSnapshotPath(snapshot);
+            }catch(Exception e){if(localFailure==null)localFailure=e;continue;}
+            android.content.SharedPreferences uploads=getSharedPreferences("sleep_experiment_sync",MODE_PRIVATE);
+            if(path.equals(uploads.getString(id,"")))continue;
+            String saved=github.uploadSleepSnapshot(token,snapshot);
+            if(!uploads.edit().putString(id,saved).commit())
+                throw new IllegalStateException("睡眠同步回执保存失败，可安全重试");
         }
+        if(localFailure!=null)throw localFailure;
     }
 
     /** Push queued events and pull remote JSON only on daily launch or a manual tap.
@@ -1299,10 +1312,15 @@ public final class MainActivity extends Activity {
                 complete=false;
                 error("动作目录尚未同步，保留本机设置：" + safeMessage(catalogError));
             }
-            JSONArray remote = github.readDaily(token);
-            JSONArray combined = mergeDays(localDays(), remote);
-            plain.putDays(combined);
-            replyData(combined, false);
+            try {
+                JSONArray remote = github.readDaily(token);
+                JSONArray combined = mergeDays(localDays(), remote);
+                plain.putDays(combined);
+                replyData(combined, false);
+            } catch(Exception pullError) {
+                complete=false;
+                error("健身数据拉取失败，本地保留："+safeMessage(pullError));
+            }
             try { syncSleepExperiments(token); }
             catch (Exception sleepError) {
                 complete=false;
