@@ -356,6 +356,36 @@ final class GitHubApi {
         }
     }
 
+    /** Immutable nightly snapshots. One Contents PUT per new revision; retries
+     * with the same content are idempotent. No overwrite of other-device data. */
+    String uploadSleepSnapshot(String token,JSONObject snapshot)throws Exception{
+        JSONObject repo=new JSONObject(request("GET",REPO,token,null));
+        if(!"z2846852/-".equalsIgnoreCase(repo.optString("full_name"))||
+                !repo.optBoolean("private",false)||!"private".equals(repo.optString("visibility")))
+            throw new SecurityException("睡眠数据仅允许上传到已验证的私有数据仓库");
+        String id=snapshot.getString("session_id"),date=snapshot.getString("date");
+        if(!id.matches("[0-9a-zA-Z_-]{6,80}")||!date.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}"))
+            throw new IllegalArgumentException("睡眠数据 ID 或日期无效");
+        byte[] bytes=(snapshot.toString()+"\n").getBytes(StandardCharsets.UTF_8);
+        if(bytes.length>900000)throw new IllegalStateException("本晚 JSON 超过900KB，保留本地，请使用导出");
+        byte[] digest=java.security.MessageDigest.getInstance("SHA-256").digest(bytes);
+        StringBuilder hash=new StringBuilder();
+        for(byte b:digest)hash.append(String.format(java.util.Locale.ROOT,"%02x",b&255));
+        String path="data/sleep/"+date+"/"+id+"/"+hash+".json";
+        String url=REPO+"/contents/"+path;
+        JSONObject body=new JSONObject().put("message","sleep: archive nightly experiment")
+            .put("branch","main").put("content",Base64.encodeToString(bytes,Base64.NO_WRAP));
+        // Existing immutable content is never updated. Verify exact bytes on a conflict.
+        try{request("PUT",url,token,body.toString());}
+        catch(ApiStatusException e){
+            if(e.status!=409&&e.status!=422)throw e;
+            JSONObject saved=new JSONObject(request("GET",url+"?ref=main",token,null));
+            if(!"base64".equals(saved.optString("encoding"))||
+                !java.util.Arrays.equals(bytes,Base64.decode(saved.getString("content"),Base64.DEFAULT)))throw e;
+        }
+        return path;
+    }
+
     private static final class ApiStatusException extends IllegalStateException {
         final int status;
         ApiStatusException(int status, String text) {
