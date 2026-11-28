@@ -308,8 +308,15 @@
   if(!data){summary.textContent="尚未录入手环数据 · 可先复制本晚实验 JSON 与完整手环截图";return;}
   const start=Date.parse(data.coverage_start),end=Date.parse(data.coverage_end),tol=Number(data.uncertainty_seconds)*1000;
   const awake=Array.isArray(data.awake)?data.awake:[],peaks=Array.isArray(data.heart_rate_peaks)?data.heart_rate_peaks:[];
-  const cues=analysis?.id===chosen.id&&analysis.feedback_journal_version&&!analysis.feedback_journal_error?
-    (analysis.feedback_events||[]).filter(e=>e.kind==="cue") : null;
+  const journal=analysis?.id===chosen.id&&analysis.feedback_journal_version&&!analysis.feedback_journal_error?
+    (analysis.feedback_events||[]) : null;
+  const cues=journal?.filter(e=>e.kind==="cue")??null;
+  const outcomeByTrial=new Map(),reportsByTrial=new Map();
+  for(const e of journal||[]){
+   if(!e.trial_id)continue;
+   if(e.kind==="trial_outcome")outcomeByTrial.set(e.trial_id,e);
+   if(e.kind==="self_report"){const list=reportsByTrial.get(e.trial_id)||[];list.push(e.report);reportsByTrial.set(e.trial_id,list);}
+  }
   const baseline=nightNumber(data.baseline_bpm);
   const label=t=>clock(t);
   const text=["截图估算 ±"+data.uncertainty_seconds+"s",label(start)+"–"+label(end),"清醒标记 "+awake.length+" 段","心率峰 "+peaks.length+" 个"];
@@ -333,7 +340,10 @@
    title.textContent=label(t)+" · "+[e.sound_enabled?"声 "+(e.volume??"—")+"%":"",e.vibration?"振 "+(p.vibrationAmplitude??"—")+"%":""].filter(Boolean).join(" / ");
    const rel=ms=>{const n=Math.round((ms-t)/1000);return (n>=0?"+":"")+n+"s";};
    const markers=[...aw.map(x=>"清醒 "+label(Date.parse(x.start))+" ("+rel(Date.parse(x.start))+")"),...hr.map(x=>"心率 "+x.bpm+" bpm ("+rel(Date.parse(x.time))+(baseline!==null?", 基准差 "+(x.bpm-baseline)+"":"")+")")];
-   detail.textContent=markers.length?markers.join(" · ")+(inRange?"":" · 覆盖不完整"):inRange?"截图未标记（不等于未觉醒）":"手环覆盖不足";
+   const outcome=outcomeByTrial.get(p.trial_id),reports=reportsByTrial.get(p.trial_id)||[];
+   const reportLabels={gain_hold:"保持",gain_too_strong:"太强/太吵",gain_too_weak:"太弱",felt_vibration:"感到振动",heard_snoring:"听到鼾声",aware_snoring:"意识到打鼾",turned_side:"翻身",awake_unsure:"醒来原因未知"};
+   const result=outcome?("AI "+outcome.snore_seconds+"/"+outcome.valid_seconds+"s"+(outcome.result==="incomplete"?"（观察不完整）":"")):"AI结果未知";
+   detail.textContent=[result,...reports.map(v=>reportLabels[v]||v),markers.length?markers.join(" · ")+(inRange?"":" · 覆盖不完整"):inRange?"截图未标记（不等于未觉醒）":"手环覆盖不足"].join(" · ");
    info.append(title,detail);row.append(info);root.append(row);
   }
   summary.textContent+=" · "+(cues===null?"刺激日志待加载或未知":near+"/"+covered+" 个完整覆盖刺激附近有标记");
