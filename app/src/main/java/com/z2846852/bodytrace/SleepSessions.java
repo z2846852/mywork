@@ -308,6 +308,56 @@ final class SleepSessions {
         write(context,meta);
     }
 
+    // Wearable screenshot transcription is a separate, user-supplied observation.
+    // Never modify the original audio, candidate windows or stimulus policy.
+    private static long wearableTime(JSONObject obj,String key)throws Exception{
+        return java.time.OffsetDateTime.parse(obj.getString(key)).toInstant().toEpochMilli();
+    }
+    private static void wearableRange(JSONObject row,String key,int lo,int hi)throws Exception{
+        if(!row.has(key)||row.isNull(key))return;
+        double v=row.getDouble(key);
+        if(!Double.isFinite(v)||v<lo||v>hi||v!=Math.rint(v))
+            throw new IllegalArgumentException("手环字段超出范围："+key);
+    }
+    static synchronized void saveWearableReview(Context context,String id,String raw)throws Exception{
+        verifyId(id);
+        if(SleepRecorderService.isCurrentSession(id)||(SleepAnalysisService.isRunning()&&id.equals(SleepAnalysisService.currentId())))
+            throw new IllegalStateException("请在录音及分析结束后保存手环数据");
+        if(raw==null||raw.length()>64000)throw new IllegalArgumentException("手环 JSON 超出大小限制");
+        JSONObject meta=loadMetadata(context,id);
+        if(raw.trim().isEmpty()){meta.remove("wearable_review_v1");write(context,meta);return;}
+        JSONObject data=new JSONObject(raw);
+        if(data.optInt("schema_version")!=1)throw new IllegalArgumentException("手环数据版本必须为1");
+        long start=wearableTime(data,"coverage_start"),end=wearableTime(data,"coverage_end");
+        long recordingStart=meta.optLong("started_ms"),recordingEnd=recordingStart+meta.optLong("duration_ms");
+        if(end<=start||end-start>86400000L||end<=recordingStart||start>=recordingEnd)
+            throw new IllegalArgumentException("手环时间范围必须与所选录音重叠（含时区）");
+        wearableRange(data,"uncertainty_seconds",0,600);
+        if(!data.has("uncertainty_seconds")||data.isNull("uncertainty_seconds"))
+            throw new IllegalArgumentException("请注明截图时间误差");
+        wearableRange(data,"baseline_bpm",20,240);
+        wearableRange(data,"sleep_score",0,100);
+        wearableRange(data,"sleep_minutes",0,1440);
+        for(String field:new String[]{"awake","heart_rate_peaks"}){
+            JSONArray rows=data.getJSONArray(field);
+            if(rows.length()>500)throw new IllegalArgumentException("手环标记过多");
+            for(int i=0;i<rows.length();i++){
+                JSONObject row=rows.getJSONObject(i);
+                if("awake".equals(field)){
+                    long from=wearableTime(row,"start"),to=wearableTime(row,"end");
+                    if(from<start||to>end||to<from)throw new IllegalArgumentException("清醒区间超出手环范围");
+                }else{
+                    long when=wearableTime(row,"time");
+                    if(when<start||when>end||!row.has("bpm")||row.isNull("bpm"))
+                        throw new IllegalArgumentException("心率标记无效");
+                    wearableRange(row,"bpm",20,240);
+                }
+            }
+        }
+        data.put("source","manual_screenshot").put("saved_at_ms",System.currentTimeMillis());
+        meta.put("wearable_review_v1",data);write(context,meta);
+    }
+
     /** Load 1s envelope only for a selected audio, not for the 50-item list. */
     static synchronized JSONObject load(Context context,String id) throws Exception {
         JSONObject doc=loadMetadata(context,id);
@@ -432,7 +482,7 @@ final class SleepSessions {
                     }
                     JSONObject summary = new JSONObject();
                     for (String key : new String[]{"id","started_ms","ended_ms","status","error",
-                            "source","date_basis","original_name","duration_ms","snore_metrics","sleep_quality","sleep_quality_at_ms"}) {
+                            "source","date_basis","original_name","duration_ms","snore_metrics","sleep_quality","sleep_quality_at_ms","wearable_review_v1"}) {
                         if (s.has(key)) summary.put(key, s.get(key));
                     }
                     boolean external=isExternal(s);
