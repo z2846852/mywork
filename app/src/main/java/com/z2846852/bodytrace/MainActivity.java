@@ -809,7 +809,14 @@ public final class MainActivity extends Activity {
                 "bodytrace_sleep_analysis",MODE_PRIVATE);
             result.put("last_analysis_id",last.getString("last_id",""));
             result.put("comparison_threshold",Double.isFinite(sleepComparisonThreshold)?sleepComparisonThreshold:JSONObject.NULL);
-            result.put("sessions",SleepSessions.list(this,sleepComparisonThreshold));
+            JSONArray listed=SleepSessions.list(this,sleepComparisonThreshold);
+            android.content.SharedPreferences uploads=getSharedPreferences("sleep_experiment_sync",MODE_PRIVATE);
+            for(int i=0;i<listed.length();i++){
+                JSONObject row=listed.getJSONObject(i);
+                String path=uploads.getString(row.getString("id"),"");
+                if(!path.isEmpty())row.put("experiment_uploaded_path",path);
+            }
+            result.put("sessions",listed);
             reply(result);
             reply(SleepRecorderService.feedbackStatus(this));
         }catch(Exception e){error("读取睡眠记录失败："+safeMessage(e));}
@@ -2564,19 +2571,26 @@ public final class MainActivity extends Activity {
                 SleepSessions.rateSleep(MainActivity.this,sessionId,quality);sendSleepStatus();
             }catch(Exception e){error("睡眠评分保存失败："+safeMessage(e));}});
         }
+        @JavascriptInterface public void sleepUploadExperiment(String sessionId){
+            worker.execute(()->{
+                try{
+                    String token=vault.read("token");
+                    if(token==null||token.isEmpty())throw new IllegalStateException("请先在日志页连接私有 GitHub 数据仓库");
+                    JSONObject snapshot=SleepSessions.experimentSnapshot(MainActivity.this,sessionId);
+                    String path=github.uploadSleepSnapshot(token,snapshot);
+                    getSharedPreferences("sleep_experiment_sync",MODE_PRIVATE).edit().putString(sessionId,path).apply();
+                    reply(message("sleep_experiment_uploaded").put("id",sessionId).put("ok",true).put("path",path));
+                    sendSleepStatus();
+                }catch(Exception e){
+                    try{reply(message("sleep_experiment_uploaded").put("id",sessionId).put("ok",false).put("message",safeMessage(e)));}
+                    catch(Exception ignored){}
+                }
+            });
+        }
         @JavascriptInterface public void sleepFeedbackExportSession(String sessionId){
             worker.execute(()->{
                 try{
-                    JSONObject meta=SleepSessions.loadMetadata(MainActivity.this,sessionId);
-                    String raw=new JSONObject().put("session_id",sessionId).put("started_ms",meta.optLong("started_ms"))
-                        .put("feedback_journal_version",meta.optInt("feedback_journal_version",0))
-                        .put("snore_metrics",SleepSessions.offlineSnoreMetrics(MainActivity.this,sessionId))
-                        .put("snore_windows_v1",meta.opt("snore_windows_v1"))
-                        .put("snore_settings_v1",meta.opt("snore_settings_v1"))
-                        .put("sleep_quality",meta.opt("sleep_quality"))
-                        .put("sleep_quality_at_ms",meta.opt("sleep_quality_at_ms"))
-                        .put("wearable_review_v1",meta.opt("wearable_review_v1"))
-                        .put("events",SleepSessions.readFeedback(MainActivity.this,sessionId)).toString(2);
+                    String raw=SleepSessions.experimentSnapshot(MainActivity.this,sessionId).toString(2);
                     runOnUiThread(()->{
                         try{android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Better 录音反馈日志",raw));
