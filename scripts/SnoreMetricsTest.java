@@ -17,6 +17,14 @@ public final class SnoreMetricsTest {
         check(SnoreMetrics.summarize(cross,3600,7200).episodes==0&&SnoreMetrics.summarize(cross,3600,7200).hit==2);
         String offline=SnoreMetrics.offlineWindows(new double[]{.14,.15,.9,Double.NaN,0});
         check(offline.equals("qhh??"));
+        // Both nights must use the same supplied threshold, not the saved live result.
+        double[] common={.04,.05,.14,.15,.30,Double.NaN,.99};
+        check(SnoreMetrics.offlineWindows(common,.05).equals("qhhhh??"));
+        check(SnoreMetrics.offlineWindows(common,.30).equals("qqqqh??"));
+        check(SnoreMetrics.offlineWindows(common,.15).equals(SnoreMetrics.offlineWindows(common)));
+        check(SnoreMetrics.summarize(SnoreMetrics.offlineWindows(common,.30),0,common.length).hit==1);
+        try{SnoreMetrics.offlineWindows(common,Double.NaN);throw new AssertionError("threshold accepted");}
+        catch(IllegalArgumentException expected){}
         StringBuilder masked=new StringBuilder("hhhhhhhhhh");
         SnoreMetrics.maskCue(masked,1500,1000);
         check(masked.toString().equals("h?????hhhh"));
