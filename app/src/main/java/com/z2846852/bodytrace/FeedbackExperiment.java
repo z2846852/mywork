@@ -120,7 +120,12 @@ final class FeedbackExperiment {
         if(!edit.commit())throw new IOException("自报状态保存失败");
         int next=-1;
         if(adjustable&&!kind.equals("awake_unsure"))next=SleepRecorderService.reportDirectGain(trial,gainAction?kind:"gain_hold");
-        if(next>0){append(c,new JSONObject().put("kind","gain_adjustment").put("trial_id",trial).put("time_ms",now).put("reason",kind).put("next_gain",next));state.put("next_gain",next);}
+        if(next>0){
+            JSONObject adjustment=new JSONObject().put("kind","gain_adjustment").put("session_id",session).put("trial_id",trial).put("time_ms",now).put("reason",kind).put("next_gain",next);
+            append(c,adjustment);
+            if(!session.isEmpty())SleepRecorderService.recordSelfReport(c,adjustment);
+            state.put("next_gain",next);
+        }
         return state.put("checked",checked);
     }
     private static JSONObject channels(SharedPreferences p)throws Exception{
@@ -219,12 +224,16 @@ final class FeedbackExperiment {
         if(pending==null||!observing)return;
         if(screenOn)pending.put("screen_on_during_observation",true);
         if(now<lastEnd)return;
-        if(muted){if("vibration_threshold".equals(pending.optString("mode"))&&samples>0)finish("incomplete");return;}
+        if(muted){if(("vibration_threshold".equals(pending.optString("mode"))||"direct".equals(pending.optString("mode")))&&samples>0)finish("incomplete");return;}
         if(gap&&(samples>0||"vibration_threshold".equals(pending.optString("mode")))){finish("incomplete");return;}
         samples++;afterSum+=score;if(score>=pending.optDouble("threshold",.15))hits++;
         if(samples>=30)finish(FeedbackPolicy.reduced(samples,hits)?"stopped":"continued");
     }
     synchronized void close()throws Exception{if(pending!=null)finish("incomplete");}
+    static synchronized boolean directAllowed(Context c,int max){
+        SharedPreferences p=prefs(c);
+        return FeedbackPolicy.nightBudget(nightCount(p),Math.min(12,max),p.getLong("lastTrialWall",0),System.currentTimeMillis());
+    }
     synchronized boolean observingThreshold(){return pending!=null&&"vibration_threshold".equals(pending.optString("mode"));}
     private void finish(String result)throws Exception{
         JSONObject e=new JSONObject().put("kind","outcome").put("id",pending.optString("id")).put("time_ms",System.currentTimeMillis())
@@ -272,6 +281,8 @@ final class FeedbackExperiment {
                 .put("control",control).put("valid_seconds",samples).put("snore_seconds",hits).put("screen_on",pending.optBoolean("screen_on_during_observation")));}
             catch(Exception ex){android.util.Log.w("SleepFeedback","session outcome journal",ex);}
         }
+        if("direct".equals(pending.optString("mode")))
+            SleepRecorderService.directOutcome(pending.optString("id"),result,samples,hits);
         outcomeRevision++;pending=null;observing=false;samples=hits=0;afterSum=0;
     }
     private String[] compatibleRhythms(String sound,String[] rhythms,int limit){
