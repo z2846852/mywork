@@ -676,7 +676,7 @@ body.overview-muscle-open{overflow:hidden}
     <div id="sleepWearableTimeline" style="display:grid;gap:4px;margin:5px 0"></div>
     <div style="display:flex;flex-wrap:wrap;gap:5px"><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableExport">复制本晚实验 JSON</button><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableEdit">导入 / 编辑手环</button></div>
     <details id="sleepWearableEditor"><summary>截图数据录入（本地保存）</summary>
-     <p class="sub">把完整手环睡眠分期及心率截图发给 ChatGPT；请它输出下列 JSON，日期和时区必须完整，不能确认的字段留空。未标记不代表未觉醒。也可直接编辑 JSON。</p>
+     <p class="sub">把完整手环睡眠分期及心率截图发给 ChatGPT；请它输出下列 JSON，日期和时区必须完整，不能确认的字段留空。未标记不代表未觉醒。也可直接编辑 JSON。awake 数组每项为 {start,end}；heart_rate_peaks 数组每项为 {time,bpm}，时间采用 ISO 8601（例如 2026-11-28T07:30:00+08:00）。</p>
      <textarea id="sleepWearableJson" rows="8" spellcheck="false" style="width:100%;font-family:monospace" aria-label="手环截图结构化数据"></textarea>
      <div style="display:flex;flex-wrap:wrap;gap:5px"><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableTemplate">填入模板</button><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableSave">保存本晚</button><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableClear">清除手环数据</button></div>
      <p id="sleepWearableStatus" class="sub" role="status"></p>
