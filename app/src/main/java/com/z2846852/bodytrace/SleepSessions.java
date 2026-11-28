@@ -308,6 +308,31 @@ final class SleepSessions {
         write(context,meta);
     }
 
+    /** A structured local snapshot, intentionally excludes audio, PCM, waveforms,
+     * personal voice clips, image files, filesystem paths and authorization data. */
+    static synchronized JSONObject experimentSnapshot(Context context,String id)throws Exception{
+        verifyId(id);
+        if(SleepRecorderService.isCurrentSession(id)||(SleepAnalysisService.isRunning()&&id.equals(SleepAnalysisService.currentId())))
+            throw new IllegalStateException("请先完成录音及分析");
+        JSONObject meta=loadMetadata(context,id);
+        long started=meta.getLong("started_ms"),duration=meta.getLong("duration_ms");
+        if(started<=0||duration<=0)throw new IllegalStateException("录音时间不完整");
+        String date=java.time.Instant.ofEpochMilli(started).atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate().toString();
+        JSONObject data=new JSONObject().put("schema_version",1).put("session_id",id)
+            .put("date",date).put("timezone","Asia/Shanghai").put("started_ms",started)
+            .put("duration_ms",duration).put("date_basis",meta.optString("date_basis","recorded_at"))
+            .put("feedback_journal_version",meta.optInt("feedback_journal_version",0));
+        JSONObject original=offlineSnoreMetrics(context,id);
+        data.put("snore_metrics",original==null?JSONObject.NULL:original);
+        for(String key:new String[]{"snore_windows_v1","snore_settings_v1","sleep_quality","sleep_quality_at_ms","wearable_review_v1"})
+            data.put(key,meta.has(key)?meta.get(key):JSONObject.NULL);
+        double threshold=SnoreFeedbackController.Settings.load(context).threshold;
+        JSONObject comparison=offlineSnoreMetrics(context,id,true,threshold);
+        data.put("comparison_metrics",comparison==null?JSONObject.NULL:comparison);
+        data.put("comparison_threshold",threshold);
+        data.put("events",readFeedback(context,id));
+        return data;
+    }
     // Wearable screenshot transcription is a separate, user-supplied observation.
     // Never modify the original audio, candidate windows or stimulus policy.
     private static long wearableTime(JSONObject obj,String key)throws Exception{
