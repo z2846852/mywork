@@ -497,7 +497,7 @@ body.overview-muscle-open{overflow:hidden}
    <div class="sleep-io-card sleep-console-plan">
     <div class="sleep-io-heading"><strong>反馈方式</strong><button type="button" class="secondary mini" id="sleepThresholdPreset">使用直接反馈</button></div>
     <div class="sleep-console-quick"><button type="button" id="sleepConsoleRecord" class="secondary">开始录音</button><button type="button" id="sleepConsoleArm" class="primary" disabled>开启反馈</button></div>
-    <p id="sleepConsoleConfig" class="sub">每4声触发 · 保持素材不变</p><label class="sleep-feedback-checkbox" id="sleepDirectGainRow"><input id="sleepFeedbackDirectGain" type="checkbox" checked>强度从低到高（20→100%）</label><label class="sleep-feedback-checkbox" id="sleepDirectExtendRow"><input id="sleepFeedbackDirectExtend" type="checkbox" checked>满档后仍有新鼾声：尝试一次双播</label><div id="sleepDirectMaterials" class="sub"></div>
+    <p id="sleepConsoleConfig" class="sub">每4声触发 · 保持素材不变</p><label class="sleep-feedback-checkbox" id="sleepDirectGainRow"><input id="sleepFeedbackDirectGain" type="checkbox" checked>每轮从10%开始，按鼾声结果升档</label><label class="sleep-feedback-checkbox" id="sleepDirectExtendRow" hidden><input id="sleepFeedbackDirectExtend" type="checkbox">自动双播已停用</label><div id="sleepDirectMaterials" class="sub"></div>
     <div id="sleepThresholdLadder" class="sleep-threshold-ladder"></div>
     <p class="sub" id="sleepLadderLegend">只缩放强度，不改变素材节奏及原始时长。</p>
    </div>
