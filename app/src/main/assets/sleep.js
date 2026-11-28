@@ -1055,7 +1055,7 @@
   };
   $("sleepSelfRefresh").onclick=()=>bridge()?.sleepFeedbackStatus?.();
   let consoleTab="night",lastExperiment={},reportExpiryRequested="";
-  let soundMaterials=[],vibMaterials=[],nextDirectGain=20,directLocked=false,directCanExtend=false;
+  let soundMaterials=[],vibMaterials=[],nextDirectGain=10,directLocked=false,directCanExtend=false;
   const consoleTabs=[...$("sleepFeedbackPanel").querySelectorAll("[data-console]")];
   function setConsoleTab(tab){
    if(consoleTab==="materials"&&tab!=="materials")stopPad();
@@ -1095,16 +1095,16 @@
    $("sleepConsoleRecord").textContent=recordActive?"录音中 · 管理录音":"开始录音";
    $("sleepConsoleArm").textContent=feedbackActive?"关闭反馈":"开启反馈";
    $("sleepConsoleArm").disabled=false;
-   $("sleepDirectGainRow").hidden=!direct;$("sleepDirectExtendRow").hidden=!direct;$("sleepDirectMaterials").hidden=!direct;
-   $("sleepLadderLegend").textContent=direct?"只缩放整体强度；素材、节奏和录制时长不变。":"绿：低鼾声候选；橙：仍有鼾声；灰：待测。";
+   $("sleepDirectGainRow").hidden=!direct;$("sleepDirectExtendRow").hidden=true;$("sleepDirectMaterials").hidden=!direct;
+   $("sleepLadderLegend").textContent=direct?"每轮从10%档开始；30秒未检出则归零，观察不足不升档。最多12次/晚。":"绿：低鼾声候选；橙：仍有鼾声；灰：待测。";
    if(direct){
     const sound=$("sleepFeedbackSound").selectedOptions[0]?.textContent||c.sound,vib=$("sleepFeedbackVibrationPattern").selectedOptions[0]?.textContent||c.vibrationPattern;
-    $("sleepConsoleConfig").textContent="每4声触发 · 无新鼾声 "+c.decaySeconds+"秒退一格 · 播放后归零";
+    $("sleepConsoleConfig").textContent="每4声触发 · 观察30秒 · 仍有鼾声才升档 · 间隔≥60秒";
     $("sleepDirectMaterials").textContent="声音："+(c.soundEnabled?sound+"（上限 "+c.volume+"%）":"关闭")+"；振动："+(c.vibrate?vib+"（上限 "+c.vibrationAmplitude+"%）":"关闭");
-    const gain=feedbackActive?nextDirectGain:(c.directGain?20:100);
+    const gain=feedbackActive?nextDirectGain:(c.directGain?10:100);
     $("sleepConsoleNext").textContent="下一次 · "+(c.soundEnabled?"声音 "+Math.max(1,Math.round(c.volume*gain/100))+"% ":"")+(c.vibrate?"振动 "+Math.max(1,Math.round(c.vibrationAmplitude*gain/100))+"%":"")+(c.soundEnabled||c.vibrate?" · "+gain+"%档"+(feedbackActive&&directLocked?" · 已锁定":feedbackActive&&directCanExtend&&c.directExtend&&c.soundEnabled?" · 下次双播":""):"请启用反馈通道");
     const root=$("sleepThresholdLadder");root.replaceChildren();
-    const levels=[...new Set([...(c.directGain?[20,40,60,80,100]:[100]),gain])].sort((a,b)=>a-b);
+    const levels=[...new Set([...(c.directGain?[10,20,30,40,50,60,70,80,90,100]:[100]),gain])].sort((a,b)=>a-b);
     for(const n of levels){const cell=document.createElement("div");cell.className="sleep-ladder-cell "+(n===gain?"next":n<gain?"passed":"untested");const title=document.createElement("strong");title.textContent=(n===gain?"▶ ":"")+n+"%";cell.append(title);root.append(cell);}
     return;
    }
