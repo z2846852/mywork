@@ -310,6 +310,23 @@ final class SleepSessions {
 
     /** A structured local snapshot, intentionally excludes audio, PCM, waveforms,
      * personal voice clips, image files, filesystem paths and authorization data. */
+    /** Scan every local session, not only the 50 rows shown in the UI. */
+    static synchronized java.util.List<String> experimentSyncIds(Context context)throws Exception{
+        File[] files=sessionDir(context).listFiles((dir,name)->name.matches("[0-9a-zA-Z_-]{6,80}\\.json"));
+        if(files==null)throw new IllegalStateException("无法读取本地睡眠目录");
+        java.util.Arrays.sort(files,java.util.Comparator.comparingLong(File::lastModified).reversed());
+        java.util.List<String> ids=new java.util.ArrayList<>();
+        for(File file:files){
+            String id=file.getName().substring(0,file.getName().length()-5);
+            if(SleepRecorderService.isCurrentSession(id)||(SleepAnalysisService.isRunning()&&id.equals(SleepAnalysisService.currentId())))continue;
+            JSONObject meta=loadMetadata(context,id);
+            String status=meta.optString("status");
+            if(!"completed".equals(status)&&!"interrupted".equals(status)&&!"recording".equals(status))continue;
+            if(meta.optLong("started_ms")<=0||meta.optLong("duration_ms")<=0)continue;
+            ids.add(id);
+        }
+        return ids;
+    }
     static synchronized JSONObject experimentSnapshot(Context context,String id)throws Exception{
         verifyId(id);
         if(SleepRecorderService.isCurrentSession(id)||(SleepAnalysisService.isRunning()&&id.equals(SleepAnalysisService.currentId())))
