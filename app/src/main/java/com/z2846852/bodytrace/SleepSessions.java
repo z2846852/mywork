@@ -319,10 +319,15 @@ final class SleepSessions {
         for(File file:files){
             String id=file.getName().substring(0,file.getName().length()-5);
             if(SleepRecorderService.isCurrentSession(id)||(SleepAnalysisService.isRunning()&&id.equals(SleepAnalysisService.currentId())))continue;
-            JSONObject meta=loadMetadata(context,id);
-            String status=meta.optString("status");
-            if(!"completed".equals(status)&&!"interrupted".equals(status)&&!"recording".equals(status))continue;
-            if(meta.optLong("started_ms")<=0||meta.optLong("duration_ms")<=0)continue;
+            try{
+                JSONObject meta=loadMetadata(context,id);
+                String status=meta.optString("status");
+                if(!"completed".equals(status)&&!"interrupted".equals(status)&&!"recording".equals(status))continue;
+                if(meta.optLong("started_ms")<=0||meta.optLong("duration_ms")<=0)continue;
+            }catch(Exception invalid){
+                // Let the per-session snapshot stage report the local error
+                // without preventing other valid sessions from being uploaded.
+            }
             ids.add(id);
         }
         return ids;
