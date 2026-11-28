@@ -5,6 +5,7 @@
  const receiver=window.bodyTraceReceive;
  let recording=false,sessions=[],selectedId="",analysis=null,busy=false,sleepView="browser";
  let comparisonThreshold=null;
+ let wearableEditorId="",wearableSaving=false;
  let pendingDelete="";
  let eventLimit=80,feedbackEventLimit=40;
  let runningAnalysisId="";
@@ -292,6 +293,52 @@
   }
   if(!rows.length)root.textContent="暂无历史录音";
  }
+ function wearableTemplate(chosen){
+  const iso=ms=>new Date(ms+8*3600000).toISOString().slice(0,19)+"+08:00";
+  return {schema_version:1,coverage_start:iso(Number(chosen.started_ms)),coverage_end:iso(Number(chosen.started_ms)+Number(chosen.duration_ms)),uncertainty_seconds:120,baseline_bpm:null,sleep_score:null,sleep_minutes:null,awake:[],heart_rate_peaks:[]};
+ }
+ function renderWearable(chosen){
+  const data=chosen.wearable_review_v1,root=$("sleepWearableTimeline"),summary=$("sleepWearableSummary"),editor=$("sleepWearableJson");
+  if(!root||!editor)return;
+  const disabled=recording||busy||chosen.status==="recording"||wearableSaving||!bridge()?.sleepSaveWearableReview;
+  for(const id of ["sleepWearableSave","sleepWearableClear","sleepWearableTemplate"])$(id).disabled=disabled;
+  $("sleepWearableExport").disabled=recording||!bridge()?.sleepFeedbackExportSession;
+  if(wearableEditorId!==chosen.id){wearableEditorId=chosen.id;editor.value=data?JSON.stringify(data,null,2):"";$("sleepWearableStatus").textContent="";}
+  root.replaceChildren();
+  if(!data){summary.textContent="尚未录入手环数据 · 可先复制本晚实验 JSON 与完整手环截图";return;}
+  const start=Date.parse(data.coverage_start),end=Date.parse(data.coverage_end),tol=Number(data.uncertainty_seconds)*1000;
+  const awake=Array.isArray(data.awake)?data.awake:[],peaks=Array.isArray(data.heart_rate_peaks)?data.heart_rate_peaks:[];
+  const cues=analysis?.id===chosen.id&&analysis.feedback_journal_version&&!analysis.feedback_journal_error?
+    (analysis.feedback_events||[]).filter(e=>e.kind==="cue") : null;
+  const baseline=nightNumber(data.baseline_bpm);
+  const label=t=>clock(t);
+  const text=["截图估算 ±"+data.uncertainty_seconds+"s",label(start)+"–"+label(end),"清醒标记 "+awake.length+" 段","心率峰 "+peaks.length+" 个"];
+  if(baseline!==null)text.push("基准 "+baseline+" bpm");
+  if(nightNumber(data.sleep_score)!==null)text.push("评分 "+data.sleep_score);
+  if(nightNumber(data.sleep_minutes)!==null)text.push("睡眠 "+data.sleep_minutes+" 分");
+  summary.textContent=text.join(" · ");
+  // Each marker can be near several cues. Keep every match rather than invent causality.
+  const rows=(cues||[]).map(e=>({e,t:Number(e.time_ms)||Number(chosen.started_ms)+Number(e.offset_ms)})).filter(x=>Number.isFinite(x.t)).sort((a,b)=>a.t-b.t);
+  let covered=0,near=0;
+  for(const {e,t} of rows){
+   const from=t-tol,to=t+tol+60000;
+   const inRange=from>=start&&to<=end;
+   if(inRange)covered++;
+   const aw=awake.filter(x=>Date.parse(x.end)>=from&&Date.parse(x.start)<=to);
+   const hr=peaks.filter(x=>Date.parse(x.time)>=from&&Date.parse(x.time)<=to);
+   if(inRange&&(aw.length||hr.length))near++;
+   const row=document.createElement("div");row.className="sleep-recorded-feedback-row";
+   const info=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("small");
+   const p=e.parameters||{};
+   title.textContent=label(t)+" · "+[e.sound_enabled?"声 "+(e.volume??"—")+"%":"",e.vibration?"振 "+(p.vibrationAmplitude??"—")+"%":""].filter(Boolean).join(" / ");
+   const rel=ms=>{const n=Math.round((ms-t)/1000);return (n>=0?"+":"")+n+"s";};
+   const markers=[...aw.map(x=>"清醒 "+label(Date.parse(x.start))+" ("+rel(Date.parse(x.start))+")"),...hr.map(x=>"心率 "+x.bpm+" bpm ("+rel(Date.parse(x.time))+(baseline!==null?", 基准差 "+(x.bpm-baseline)+"":"")+")")];
+   detail.textContent=markers.length?markers.join(" · ")+(inRange?"":" · 覆盖不完整"):inRange?"截图未标记（不等于未觉醒）":"手环覆盖不足";
+   info.append(title,detail);row.append(info);root.append(row);
+  }
+  summary.textContent+=" · "+(cues===null?"刺激日志待加载或未知":near+"/"+covered+" 个完整覆盖刺激附近有标记");
+  if(!rows.length)root.textContent=cues===null?"暂无可对齐的刺激日志":"本晚无自动刺激记录";
+ }
  function renderNightExperiment(chosen){
   const panel=$("sleepNightExperiment");if(!panel)return;
   panel.hidden=!chosen||sleepView!=="metrics";
@@ -310,6 +357,7 @@
   const quality=$("sleepNightQuality");quality.value=String(chosen.sleep_quality||0);
   quality.disabled=chosen.status==="recording"||recording||typeof bridge()?.sleepRateNight!=="function";
   quality.onchange=()=>bridge()?.sleepRateNight?.(chosen.id,Number(quality.value));
+  renderWearable(chosen);
   const hourly=m?.hourly||[],chart=$("sleepNightHourlyChart");chart.replaceChildren();
   const max=Math.max(1,...hourly.map(h=>h.valid_seconds>0?Number(h.episodes_per_hour)||0:0));
   hourly.forEach((h,i)=>{
@@ -683,6 +731,20 @@
   toast(comparisonThreshold===null?"正在按当前反馈阈值统一回算":"正在恢复原始指标");
  });
  $("sleepNightRebuild")?.addEventListener("click",()=>analyze(true));
+ $("sleepWearableEdit")?.addEventListener("click",()=>{$("sleepWearableEditor").open=!$("sleepWearableEditor").open;});
+ $("sleepWearableExport")?.addEventListener("click",()=>{if(current())bridge()?.sleepFeedbackExportSession?.(current().id);});
+ $("sleepWearableTemplate")?.addEventListener("click",()=>{if(current()&&(!$("sleepWearableJson").value.trim()||confirm("替换编辑框内容？未保存的修改会丢失。")))$("sleepWearableJson").value=JSON.stringify(wearableTemplate(current()),null,2);});
+ function saveWearable(clear=false){
+  const chosen=current();if(!chosen||busy||recording||wearableSaving||!bridge()?.sleepSaveWearableReview)return;
+  const raw=$("sleepWearableJson").value.trim();
+  if(clear){if(!confirm("仅删除所选录音的手环数据？原始录音和反馈不变。"))return;}
+  else {try{if(!raw||!JSON.parse(raw))throw Error();}catch(e){$("sleepWearableStatus").textContent="请输入有效 JSON";return;}}
+  wearableSaving=true;renderWearable(chosen);
+  $("sleepWearableStatus").textContent="正在保存…";
+  bridge().sleepSaveWearableReview(chosen.id,clear?"":raw);
+ }
+ $("sleepWearableSave")?.addEventListener("click",()=>saveWearable());
+ $("sleepWearableClear")?.addEventListener("click",()=>saveWearable(true));
  $("sleepNightHistoryMetric")?.addEventListener("change",renderNightHistory);
  $("sleepAnalyze").onclick=analyze;
  $("sleepSaveStart").onclick=()=>{
@@ -945,6 +1007,12 @@
    if(!hasAi&&!recording&&!autoAnalysisAttemptedIds.has(selectedId)){
     autoAnalysisAttemptedIds.add(selectedId);
     analyze();
+   }
+  }else if(evt.type==="sleep_wearable_saved"){
+   wearableSaving=false;
+   if(evt.id===selectedId){
+    if(evt.ok){wearableEditorId="";$("sleepWearableStatus").textContent="已保存本晚手环数据";toast("手环数据已保存");}
+    else{$("sleepWearableStatus").textContent=evt.message||"保存失败";renderWearable(current());}
    }
   }else if(evt.type==="sleep_start_updated"){
    const target=sessions.find(x=>x.id===evt.id);
