@@ -667,10 +667,22 @@ body.overview-muscle-open{overflow:hidden}
   <div id="sleepSelected" class="sleep-selected">请从下方选择一个已完成的录音</div>
   <p id="sleepSelectedFile" class="sub">录音大小和缓存状态将显示在这里</p>
   <section id="sleepNightExperiment" class="sleep-metrics-page" hidden>
-   <h3>本次录音</h3>
-   <div class="row wrap" style="justify-content:space-between;align-items:center"><span id="sleepNightSummary" class="sub"></span><button type="button" class="secondary mini" id="sleepNightRefreshPanel">刷新指标</button></div>
-   <div class="row wrap"><button type="button" class="secondary mini" id="sleepNightCompare">统一回算</button><button type="button" class="secondary mini" id="sleepNightRebuild" hidden>补全 AI 缓存</button><span id="sleepNightCompareHint" class="sub" role="status"></span></div>
+   <div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px"><h3 style="flex:1;margin:0">本次录音</h3><button type="button" class="secondary mini" style="width:auto;min-width:0;flex:none" id="sleepNightRefreshPanel">刷新</button><button type="button" class="secondary mini" style="width:auto;min-width:0;flex:none" id="sleepNightCompare">统一回算</button><button type="button" class="secondary mini" id="sleepNightRebuild" hidden>补全 AI</button></div>
+   <p id="sleepNightSummary" class="sub" style="margin:4px 0"></p><span id="sleepNightCompareHint" class="sub" hidden></span>
    <div id="sleepNightKpis" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:5px 0"></div>
+   <details id="sleepWearableReview" open>
+    <summary>手环交叉验证 · 心率 / 清醒</summary>
+    <div id="sleepWearableSummary" class="sub" role="status">尚未录入手环数据</div>
+    <div id="sleepWearableTimeline" style="display:grid;gap:4px;margin:5px 0"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px"><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableExport">复制本晚实验 JSON</button><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableEdit">导入 / 编辑手环</button></div>
+    <details id="sleepWearableEditor"><summary>截图数据录入（本地保存）</summary>
+     <p class="sub">把完整手环睡眠分期及心率截图发给 ChatGPT；请它输出下列 JSON，日期和时区必须完整，不能确认的字段留空。未标记不代表未觉醒。也可直接编辑 JSON。</p>
+     <textarea id="sleepWearableJson" rows="8" spellcheck="false" style="width:100%;font-family:monospace" aria-label="手环截图结构化数据"></textarea>
+     <div style="display:flex;flex-wrap:wrap;gap:5px"><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableTemplate">填入模板</button><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableSave">保存本晚</button><button type="button" class="secondary mini" style="width:auto;flex:none" id="sleepWearableClear">清除手环数据</button></div>
+     <p id="sleepWearableStatus" class="sub" role="status"></p>
+    </details>
+    <p class="sub" style="margin:4px 0">仅匹配刺激前后时间：心率峰值与手环清醒标签是独立线索，不用于自动升档或诊断微觉醒。</p>
+   </details>
    <h3>每小时鼾声频率</h3><div id="sleepNightHourlyChart" class="sleep-metric-chart"></div>
    <div class="row wrap"><label for="sleepNightQuality" class="sub">次日主观睡眠质量</label>
     <select id="sleepNightQuality"><option value="0">未评分</option><option value="1">1 很差</option><option value="2">2 较差</option><option value="3">3 一般</option><option value="4">4 较好</option><option value="5">5 很好</option></select>
