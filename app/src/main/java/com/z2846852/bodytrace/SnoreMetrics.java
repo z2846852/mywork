@@ -19,10 +19,15 @@ final class SnoreMetrics {
     /** Old cache padded an unfinished final window with zero; exclude it.
      * Lowercase states encode candidates only; mode is explicitly unknown in offline summaries. */
     static String offlineWindows(double[] scores){
+        return offlineWindows(scores,OFFLINE_THRESHOLD);
+    }
+    static String offlineWindows(double[] scores,double threshold){
+        if(!Double.isFinite(threshold)||threshold<0||threshold>1)
+            throw new IllegalArgumentException("Invalid snore threshold");
         StringBuilder out=new StringBuilder(scores.length);
         for(int i=0;i<scores.length;i++){
             double x=scores[i];
-            out.append(i==scores.length-1||!Double.isFinite(x)||x<0||x>1?'?':x>=OFFLINE_THRESHOLD?'h':'q');
+            out.append(i==scores.length-1||!Double.isFinite(x)||x<0||x>1?'?':x>=threshold?'h':'q');
         }
         return out.toString();
     }
