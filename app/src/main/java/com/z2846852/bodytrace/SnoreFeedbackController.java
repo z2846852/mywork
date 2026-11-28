@@ -29,7 +29,7 @@ final class SnoreFeedbackController {
         int vibrationAmplitude=30, vibrationMs=500, soundMs=0;
         int soundMax=40, vibrationMax=40, soundMin=5, vibrationMin=5, soundMsMax=5000, vibrationMsMax=1000, maxCues=12, delayMinutes=30;
         int actualSoundMs=0,actualVibrationMs=0,directGainPercent=0,directRepeats=1;
-        boolean pauseOnScreen=true, directGain=true,directExtend=true;
+        boolean pauseOnScreen=true, directGain=true,directExtend=false;
         String vibrationPattern="triplet", mode="direct", soundPool="", vibrationPool="continuous,triplet,rising,falling,shortlong";
         String soundRhythm="single", soundRhythmPool="single,triplet,rising,falling,shortlong", trialId="";
 
@@ -66,7 +66,7 @@ final class SnoreFeedbackController {
             s.soundRhythm=choice(json.optString("soundRhythm"),"single","single","triplet","rising","falling","shortlong");
             s.mode=json.has("directGain")?choice(json.optString("mode"),"direct","direct","fixed","limited","stairs","explore","adaptive","control","vibration_threshold"):"direct";
             s.directGain=json.optBoolean("directGain",true);
-            s.directExtend=json.optBoolean("directExtend",true);
+            s.directExtend=false; // no automatic doubled playback in direct feedback
             if("direct".equals(s.mode)){s.minimum=4;s.pauseOnScreen=false;}
             s.soundRhythmPool=validateRhythms(json.optString("soundRhythmPool","single,triplet,rising,falling,shortlong"));
             s.soundPool=validatePool(json.optString("soundPool",""),true);
