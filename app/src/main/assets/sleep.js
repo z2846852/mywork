@@ -307,7 +307,7 @@
   $("sleepExperimentUpload").disabled=recording||busy||!!experimentUploading||!bridge()?.sleepUploadExperiment;
   $("sleepExperimentUpload").textContent=experimentUploading===chosen.id?"上传中…":"同步本晚";
   $("sleepExperimentUploadStatus").textContent=experimentUploadResults.get(chosen.id)||
-    (chosen.experiment_uploaded_path?"曾同步 · 修改后可再次同步":"仅手动上传结构化 JSON 到私有数据仓库");
+    (chosen.experiment_uploaded_path?"曾同步 · 修改后可再次同步":"随每日首次打开或手动同步上传结构化 JSON");
   if(wearableEditorId!==chosen.id){wearableEditorId=chosen.id;editor.value=data?JSON.stringify(data,null,2):"";$("sleepWearableStatus").textContent="";}
   root.replaceChildren();
   if(!data){summary.textContent="尚未录入手环数据 · 可先复制本晚实验 JSON 与完整手环截图";return;}
