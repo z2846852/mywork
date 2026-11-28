@@ -5,7 +5,8 @@
  const receiver=window.bodyTraceReceive;
  let recording=false,sessions=[],selectedId="",analysis=null,busy=false,sleepView="browser";
  let comparisonThreshold=null;
- let wearableEditorId="",wearableSaving=false;
+ let wearableEditorId="",wearableSaving=false,experimentUploading="";
+ const experimentUploadResults=new Map();
  let pendingDelete="";
  let eventLimit=80,feedbackEventLimit=40;
  let runningAnalysisId="";
@@ -302,7 +303,11 @@
   if(!root||!editor)return;
   const disabled=recording||busy||chosen.status==="recording"||wearableSaving||!bridge()?.sleepSaveWearableReview;
   for(const id of ["sleepWearableSave","sleepWearableClear","sleepWearableTemplate"])$(id).disabled=disabled;
-  $("sleepWearableExport").disabled=recording||!bridge()?.sleepFeedbackExportSession;
+  $("sleepWearableExport").disabled=recording||busy||!bridge()?.sleepFeedbackExportSession;
+  $("sleepExperimentUpload").disabled=recording||busy||!!experimentUploading||!bridge()?.sleepUploadExperiment;
+  $("sleepExperimentUpload").textContent=experimentUploading===chosen.id?"上传中…":"同步本晚";
+  $("sleepExperimentUploadStatus").textContent=experimentUploadResults.get(chosen.id)||
+    (chosen.experiment_uploaded_path?"曾同步 · 修改后可再次同步":"仅手动上传结构化 JSON 到私有数据仓库");
   if(wearableEditorId!==chosen.id){wearableEditorId=chosen.id;editor.value=data?JSON.stringify(data,null,2):"";$("sleepWearableStatus").textContent="";}
   root.replaceChildren();
   if(!data){summary.textContent="尚未录入手环数据 · 可先复制本晚实验 JSON 与完整手环截图";return;}
@@ -743,6 +748,12 @@
  $("sleepNightRebuild")?.addEventListener("click",()=>analyze(true));
  $("sleepWearableEdit")?.addEventListener("click",()=>{$("sleepWearableEditor").open=!$("sleepWearableEditor").open;});
  $("sleepWearableExport")?.addEventListener("click",()=>{if(current())bridge()?.sleepFeedbackExportSession?.(current().id);});
+ $("sleepExperimentUpload")?.addEventListener("click",()=>{
+  const chosen=current();if(!chosen||recording||busy||experimentUploading||!bridge()?.sleepUploadExperiment)return;
+  if(!confirm("将本晚鼾声指标、反馈日志、主观及手环标记上传到私有 GitHub 数据仓库？不上传音频或截图。"))return;
+  experimentUploading=chosen.id;experimentUploadResults.set(chosen.id,"正在上传本晚 JSON…");renderWearable(chosen);
+  bridge().sleepUploadExperiment(chosen.id);
+ });
  $("sleepWearableTemplate")?.addEventListener("click",()=>{if(current()&&(!$("sleepWearableJson").value.trim()||confirm("替换编辑框内容？未保存的修改会丢失。")))$("sleepWearableJson").value=JSON.stringify(wearableTemplate(current()),null,2);});
  function saveWearable(clear=false){
   const chosen=current();if(!chosen||busy||recording||wearableSaving||!bridge()?.sleepSaveWearableReview)return;
@@ -1018,6 +1029,11 @@
     autoAnalysisAttemptedIds.add(selectedId);
     analyze();
    }
+  }else if(evt.type==="sleep_experiment_uploaded"){
+   experimentUploading="";
+   experimentUploadResults.set(evt.id,evt.ok?"✓ 已同步本晚 JSON":"同步失败（本地仍保留）："+(evt.message||"未知错误"));
+   if(current())renderWearable(current());
+   toast(evt.ok?"本晚实验已同步":(evt.message||"同步失败"),!evt.ok);
   }else if(evt.type==="sleep_wearable_saved"){
    wearableSaving=false;
    if(evt.id===selectedId){
